@@ -1,87 +1,96 @@
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
 import { View } from 'react-native';
 
+import { useLiveQuery } from '@/db';
+import {
+  alarms as alarmRepo,
+  events as eventRepo,
+  notes as noteRepo,
+  shopping as shoppingRepo,
+  tasks as taskRepo,
+} from '@/db/repositories';
 import { formatLongDate, formatTime, useI18n } from '@/i18n';
-import { getModule, highlightedModuleIds } from '@/mocks/modules';
-import { APPOINTMENTS, MODULE_CARDS_BY_ID, TASKS, TODAY_ISO } from '@/mocks/today';
-import { useApp } from '@/state/AppContext';
+import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Badge, Card, Divider, Header, Icon, ListItem, Screen, Text } from '@/ui';
-
-/** Diese beiden haben in "Heute" einen eigenen Abschnitt statt einer Modulkarte. */
-const MODULES_WITH_OWN_SECTION = ['calendar', 'tasks'];
+import { Badge, Card, Divider, EmptyState, Header, ListItem, Loading, Screen, Text } from '@/ui';
 
 export default function TodayScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const { state } = useApp();
+  const account = useAccount();
 
-  // Alle Module sind da; in "Heute" erscheinen die wichtigsten der gewaehlten Bereiche.
-  const highlighted = useMemo(
-    () => highlightedModuleIds(state.selectedAreas),
-    [state.selectedAreas],
+  const todayIso = new Date().toISOString();
+
+  // Alles hier kommt aus der Datenbank — keine Beispielzahlen mehr.
+  const upcoming = useLiveQuery(
+    () => eventRepo.listUpcoming(account.id, todayIso, 5),
+    [account.id],
   );
+  const openTasks = useLiveQuery(() => taskRepo.listOpen(account.id), [account.id]);
+  const shoppingItems = useLiveQuery(() => shoppingRepo.list(account.id), [account.id]);
+  const noteCount = useLiveQuery(() => noteRepo.count(account.id), [account.id]);
+  const nextAlarm = useLiveQuery(() => alarmRepo.nextEnabled(account.id), [account.id]);
 
-  const openTasks = useMemo(() => TASKS.filter((task) => !task.done), []);
+  const events = upcoming.data ?? [];
+  const tasks = openTasks.data ?? [];
+  const shoppingOpen = (shoppingItems.data ?? []).filter((item) => !item.done);
+  const notes = noteCount.data ?? 0;
 
-  const cardModuleIds = useMemo(
-    () =>
-      highlighted.filter(
-        (id) => !MODULES_WITH_OWN_SECTION.includes(id) && MODULE_CARDS_BY_ID[id] !== undefined,
-      ),
-    [highlighted],
-  );
+  const stillLoading = upcoming.loading && openTasks.loading;
+  const everythingEmpty =
+    events.length === 0 && tasks.length === 0 && shoppingOpen.length === 0 && notes === 0;
 
   return (
     <Screen
       header={
         <Header
-          title={t('today.greeting', { name: state.person.firstName })}
-          subtitle={formatLongDate(language, TODAY_ISO)}
+          title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
+          subtitle={formatLongDate(language, todayIso)}
         />
       }
     >
-      <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
-        {APPOINTMENTS.length === 0 ? (
-          <Text variant="label" tone="muted">
-            {t('today.appointments.empty')}
-          </Text>
-        ) : (
+      {stillLoading ? <Loading /> : null}
+
+      {!stillLoading && everythingEmpty ? (
+        <EmptyState
+          icon="grid"
+          title={t('today.blank.title')}
+          body={t('today.blank.body')}
+          actionLabel={t('today.blank.action')}
+          onAction={() => router.push('/modules')}
+        />
+      ) : null}
+
+      {events.length > 0 ? (
+        <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
           <View>
-            {APPOINTMENTS.map((appointment, index) => (
-              <View key={appointment.id}>
+            {events.map((event, index) => (
+              <View key={event.id}>
                 {index > 0 ? <Divider /> : null}
                 <ListItem
-                  title={appointment.title}
-                  subtitle={appointment.location}
+                  title={event.title}
+                  subtitle={event.location ?? undefined}
                   right={
                     <Text variant="label" tone="muted">
-                      {appointment.allDay
-                        ? t('today.allDay')
-                        : formatTime(language, appointment.startsAt)}
+                      {event.allDay ? t('today.allDay') : formatTime(language, event.startsAt)}
                     </Text>
                   }
                 />
               </View>
             ))}
           </View>
-        )}
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card
-        title={t('today.tasks')}
-        subtitle={t('today.tasks.remaining', { count: openTasks.length })}
-        onPress={() => router.push('/run/tasks')}
-      >
-        {openTasks.length === 0 ? (
-          <Text variant="label" tone="muted">
-            {t('today.tasks.empty')}
-          </Text>
-        ) : (
+      {tasks.length > 0 ? (
+        <Card
+          title={t('today.tasks')}
+          subtitle={t('today.tasks.remaining', { count: tasks.length })}
+          onPress={() => router.push('/run/tasks')}
+        >
           <View>
-            {openTasks.map((task, index) => (
+            {tasks.slice(0, 5).map((task, index) => (
               <View key={task.id}>
                 {index > 0 ? <Divider /> : null}
                 <ListItem
@@ -94,54 +103,47 @@ export default function TodayScreen() {
               </View>
             ))}
           </View>
-        )}
-      </Card>
-
-      {cardModuleIds.length > 0 ? (
-        <View style={{ gap: theme.spacing.md }}>
-          <Text variant="section" tone="muted">
-            {t('today.moduleCards')}
-          </Text>
-          {cardModuleIds.map((id) => {
-            const module = getModule(id);
-            const card = MODULE_CARDS_BY_ID[id];
-            if (!module || !card) return null;
-
-            return (
-              <Card
-                key={id}
-                onPress={() => router.push(`/run/${id}`)}
-                accessibilityLabel={module.name}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-                  <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
-                  <Text variant="label" tone="muted">
-                    {module.name}
-                  </Text>
-                </View>
-                <Text variant="title">{card.headline}</Text>
-                <View style={{ gap: theme.spacing.xs }}>
-                  {card.lines.map((line) => (
-                    <View
-                      key={line.label}
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        gap: theme.spacing.md,
-                      }}
-                    >
-                      <Text variant="label" tone="muted">
-                        {line.label}
-                      </Text>
-                      <Text variant="label">{line.value}</Text>
-                    </View>
-                  ))}
-                </View>
-              </Card>
-            );
-          })}
-        </View>
+        </Card>
       ) : null}
+
+      {shoppingOpen.length > 0 ? (
+        <Card
+          title={t('today.shopping')}
+          subtitle={t('shopping.openCount', { count: shoppingOpen.length })}
+          onPress={() => router.push('/run/shopping')}
+        >
+          <Text variant="label" tone="muted">
+            {shoppingOpen
+              .slice(0, 6)
+              .map((item) => item.name)
+              .join(', ')}
+          </Text>
+        </Card>
+      ) : null}
+
+      <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
+        {nextAlarm.data ? (
+          <View style={{ flex: 1 }}>
+            <Card title={t('today.alarm')} onPress={() => router.push('/run/alarm')}>
+              <Text variant="display">{nextAlarm.data.time}</Text>
+              <Text variant="caption" tone="muted">
+                {nextAlarm.data.label}
+              </Text>
+            </Card>
+          </View>
+        ) : null}
+
+        {notes > 0 ? (
+          <View style={{ flex: 1 }}>
+            <Card title={t('today.notes')} onPress={() => router.push('/run/notes')}>
+              <Text variant="display">{notes}</Text>
+              <Text variant="caption" tone="muted">
+                {t('notes.count', { count: notes })}
+              </Text>
+            </Card>
+          </View>
+        ) : null}
+      </View>
     </Screen>
   );
 }

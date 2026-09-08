@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import type { ColorValue } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
@@ -7,9 +7,26 @@ import { useTheme } from '@/theme';
 import { Icon } from '@/ui';
 import type { IconName } from '@/ui/Icon';
 
+/**
+ * Der gewaehlte Tab bekommt eine gefuellte Pille hinter dem Icon —
+ * Farbe allein war zu leise, um zu zeigen, wo man steht.
+ */
 function tabIcon(name: IconName) {
-  function TabBarIcon({ color }: { color: ColorValue }) {
-    return <Icon name={name} size={22} color={String(color)} />;
+  function TabBarIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
+    const theme = useTheme();
+    return (
+      <View
+        style={[
+          styles.iconPill,
+          {
+            borderRadius: theme.radii.pill,
+            backgroundColor: focused ? theme.colors.accentSoft : 'transparent',
+          },
+        ]}
+      >
+        <Icon name={name} size={22} color={String(color)} />
+      </View>
+    );
   }
   return TabBarIcon;
 }
@@ -60,3 +77,12 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconPill: {
+    width: 56,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

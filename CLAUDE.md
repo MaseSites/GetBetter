@@ -1,11 +1,22 @@
-# Better Life — Prototyp der Hauptapp
+# Better Life
 
-Durchklickbarer Prototyp in Expo. Kein Backend, keine Datenbank, keine KI.
-Alle Daten kommen aus `src/mocks/`. Der Plan liegt in
-[docs/plan-prototyp-hauptapp.md](docs/plan-prototyp-hauptapp.md).
+Expo-App mit echter Anmeldung und echtem Datenspeicher auf dem Geraet.
+Der urspruengliche Plan liegt in
+[docs/plan-prototyp-hauptapp.md](docs/plan-prototyp-hauptapp.md); der Prototyp
+daraus ist inzwischen ueberholt.
+
+## Stand
+
+|                   |                                                               |
+| ----------------- | ------------------------------------------------------------- |
+| Konten            | Echt: Registrieren, Anmelden, Sitzung ueberlebt Neustart      |
+| Datenspeicher     | Echt, lokal (`src/db/`) — Schema, Repositories, Live-Abfragen |
+| Server            | Noch keiner. Nichts verlaesst das Geraet.                     |
+| Ausgebaute Module | Kalender, Aufgaben, Notizen, Einkaufsliste, Wecker            |
+| Rest der Module   | Platzhalter, der das ehrlich sagt                             |
 
 > Hinweis: Im Repo lag beim Aufsetzen keine `CLAUDE.md`. Diese Datei beschreibt
-> die Konventionen, nach denen der Prototyp tatsaechlich gebaut wurde.
+> die Konventionen, nach denen tatsaechlich gebaut wurde.
 >
 > Abweichungen vom Plan, alle nach Ruecksprache:
 >
@@ -43,8 +54,10 @@ src/
   theme/             Abstaende, Schriften, Farben, Radien
   ui/                Bausteine: Screen, Header, Card, ListItem, Button, ...
   i18n/              de vollstaendig, fr/it/en fallen auf de zurueck
-  mocks/             modules.ts, today.ts, person.ts, assistant.ts
-  state/             AppContext — der gesamte Zustand
+  db/                Datenspeicher: store.ts, repositories.ts, types.ts, live.ts
+  auth/              Konten, Passwortpruefung
+  mocks/             modules.ts (Registry) und die Assistenten-Dialoge
+  state/             AppContext — Sitzung und Konto
   features/          Zusammengesetzte Teile (Auth-Maske, Onboarding, Deinstallieren)
   lib/               permissions.ts — Berechtigungssaetze aus Daten
 ```
@@ -85,17 +98,23 @@ gewaehlten Bereiche, ohne Onboarding gilt `DEFAULT_FAVOURITE_IDS`.
   Neue Schluessel in `src/i18n/de.ts`, die anderen Sprachen fallen darauf zurueck
   und loggen die Luecke.
 - **Datum und Zahlen ueber `Intl`.** Helfer in `src/i18n/format.ts`, Schweizer Locale.
-- **Bildschirme lesen nur aus `useApp()`**, nie direkt aus einer Mock-Datei.
-  Ein Wechsel in `src/mocks/` veraendert die ganze App.
+- **Daten kommen aus `src/db/repositories.ts`**, gelesen ueber `useLiveQuery`.
+  Nach jedem Schreiben laufen offene Abfragen von selbst neu.
+- **Kein Bildschirm greift direkt auf den Speicher zu** — immer ueber ein
+  Repository, damit ein Serverwechsel nur diese eine Schicht trifft.
 - **Kein leerer Bildschirm.** Wo nichts ist, steht ein `EmptyState` mit Grund und
   Ausweg; wo geladen wird, steht `Loading`.
 - **Unveraenderlich.** Zustand wird kopiert, nie mutiert.
 - **TypeScript strict**, inklusive `noUncheckedIndexedAccess`. `npx tsc --noEmit`
   muss sauber sein, bevor etwas als fertig gilt.
 
-## Wo spaeter die Naht liegt
+## Wo die Naht zum Server liegt
 
-Beim Umstieg auf ein echtes Backend wird nur `src/mocks/` durch Abfragen ersetzt.
-Die Form der Daten in `src/mocks/types.ts` — besonders `ModuleDefinition` mit
-`permissions.read` / `permissions.write` — ist bereits die vorgesehene echte Form.
-Bildschirme und Bausteine bleiben stehen.
+Zwei Dateien, sonst nichts:
+
+- `src/db/repositories.ts` — die Abfragen. Gleiche Signaturen, andere Quelle.
+- `src/auth/accounts.ts` — Registrieren und Anmelden.
+
+Passwoerter liegen lokal als SHA-256 ueber Salt + Passwort. Das ist fuer einen
+Speicher auf dem Geraet vertretbar, ersetzt aber keine Server-Anmeldung: sobald
+es einen Server gibt, uebernimmt der die Anmeldung samt richtigem Verfahren.

@@ -13,6 +13,7 @@ export type TextProps = {
   tone?: TextTone;
   align?: 'left' | 'center' | 'right';
   numberOfLines?: number;
+  onPress?: () => void;
   style?: StyleProp<TextStyle>;
 };
 
@@ -22,6 +23,7 @@ export function Text({
   tone = 'default',
   align = 'left',
   numberOfLines,
+  onPress,
   style,
 }: TextProps) {
   const theme = useTheme();
@@ -73,6 +75,8 @@ export function Text({
   return (
     <RNText
       numberOfLines={numberOfLines}
+      onPress={onPress}
+      {...(onPress ? { accessibilityRole: 'button' as const } : {})}
       style={StyleSheet.flatten([
         { fontFamily: theme.fontFamily, textAlign: align, color: byTone[tone] },
         byVariant[variant],

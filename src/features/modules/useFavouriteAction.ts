@@ -15,6 +15,8 @@ export function useFavouriteAction(moduleId: string): HeaderAction {
     icon: favourite ? 'starFilled' : 'star',
     label: favourite ? t('detail.removeFavourite') : t('detail.addFavourite'),
     active: favourite,
-    onPress: () => toggleFavourite(moduleId),
+    onPress: () => {
+      void toggleFavourite(moduleId);
+    },
   };
 }

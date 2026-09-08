@@ -1,16 +1,20 @@
 # Better Life — Prototyp
 
-Ein durchklickbarer Prototyp der Hauptapp. Er laeuft im Browser als Handy
-und auf einem echten Geraet ueber Expo Go. Er haengt an keinem Server:
-keine Datenbank, keine echte Anmeldung, keine KI.
+Expo-App, im Browser als Handy und auf einem echten Geraet ueber Expo Go.
+Anmeldung und Datenspeicher sind echt, liegen aber nur auf dem Geraet —
+es gibt noch keinen Server.
+
+Ausgebaut sind Kalender, Aufgaben, Notizen, Einkaufsliste und Wecker:
+anlegen, aendern, abhaken, loeschen, und alles ueberlebt einen Neustart.
+Die uebrigen Module zeigen einen Platzhalter, der das sagt.
 
 ```bash
 npm install
 npm run web
 ```
 
-Dann im Browser: anmelden oder Konto erstellen, durchs Onboarding, in die vier
-Tabs — Startseite, Module, Assistent, Profil. Alle Module sind von Anfang an da,
+Dann im Browser: Konto erstellen, durchs Onboarding, in die vier Tabs —
+Startseite, Module, Assistent, Profil. Alle Module sind von Anfang an da,
 im Module-Tab nach Bereich sortiert.
 
 Der **Assistent** in der Mitte ist eingebaut und verwaltet quer ueber deine

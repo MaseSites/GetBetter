@@ -2,33 +2,41 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 
+import { useLiveQuery } from '@/db';
+import { alarms as alarmRepo } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate, type TranslationKey } from '@/i18n';
-import { ALARMS, WEEKDAYS, type Alarm } from '@/mocks/alarms';
 import type { ModuleDefinition } from '@/mocks/types';
+import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, Header, Icon, Screen, Text } from '@/ui';
+import { Button, Card, EmptyState, Header, Icon, Input, Loading, Screen, Sheet, Text } from '@/ui';
 
-export type AlarmViewProps = {
-  module: ModuleDefinition;
-};
+export const WEEKDAYS = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
 
-/** Das Modul "Wecker". Die Schalter wirken, sonst ist nichts angeschlossen. */
-export function AlarmView({ module }: AlarmViewProps) {
+const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;
+
+function normaliseTime(input: string): string | null {
+  const match = TIME_PATTERN.exec(input.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+export function AlarmView({ module }: { module: ModuleDefinition }) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
+  const account = useAccount();
   const favouriteAction = useFavouriteAction(module.id);
 
-  const [alarms, setAlarms] = useState<readonly Alarm[]>(ALARMS);
+  const [composing, setComposing] = useState(false);
 
-  function toggle(id: string) {
-    setAlarms((current) =>
-      current.map((alarm) => (alarm.id === id ? { ...alarm, enabled: !alarm.enabled } : alarm)),
-    );
-  }
-
-  const next = alarms.find((alarm) => alarm.enabled);
+  const list = useLiveQuery(() => alarmRepo.list(account.id), [account.id]);
+  const items = list.data ?? [];
+  const next = items.find((alarm) => alarm.enabled);
 
   return (
     <Screen
@@ -43,18 +51,22 @@ export function AlarmView({ module }: AlarmViewProps) {
           actions={[favouriteAction]}
         />
       }
-      footer={
-        <Button
-          label={t('alarm.add')}
-          icon="plus"
-          onPress={() => undefined}
-          disabled
-          accessibilityLabel={`${t('alarm.add')} — ${t('alarm.addHint')}`}
-        />
-      }
+      footer={<Button label={t('alarm.add')} icon="plus" onPress={() => setComposing(true)} />}
     >
-      {alarms.map((alarm) => (
-        <Card key={alarm.id} padded>
+      {list.loading && items.length === 0 ? <Loading /> : null}
+
+      {!list.loading && items.length === 0 ? (
+        <EmptyState
+          icon="alarm"
+          title={t('alarm.empty.title')}
+          body={t('alarm.empty.body')}
+          actionLabel={t('alarm.add')}
+          onAction={() => setComposing(true)}
+        />
+      ) : null}
+
+      {items.map((alarm) => (
+        <Card key={alarm.id}>
           <View style={[styles.row, { gap: theme.spacing.lg }]}>
             <View style={{ flex: 1, gap: theme.spacing.xs }}>
               <Text
@@ -64,9 +76,11 @@ export function AlarmView({ module }: AlarmViewProps) {
               >
                 {alarm.time}
               </Text>
-              <Text variant="label" tone="muted">
-                {alarm.label}
-              </Text>
+              {alarm.label.length > 0 ? (
+                <Text variant="label" tone="muted">
+                  {alarm.label}
+                </Text>
+              ) : null}
               <View style={[styles.days, { gap: theme.spacing.xs }]}>
                 {alarm.days.length === 0 ? (
                   <Text variant="caption" tone="faint">
@@ -88,35 +102,111 @@ export function AlarmView({ module }: AlarmViewProps) {
                   })
                 )}
               </View>
-              {alarm.suggested ? (
-                <Badge label={t('alarm.suggested')} tone="accent" icon="calendar" />
-              ) : null}
             </View>
-            <Switch
-              value={alarm.enabled}
-              onValueChange={() => toggle(alarm.id)}
-              accessibilityLabel={`${alarm.time} ${alarm.label}`}
-              trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
-              thumbColor={theme.colors.surface}
-            />
+            <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+              <Switch
+                value={alarm.enabled}
+                onValueChange={(value) => {
+                  void alarmRepo.setEnabled(alarm.id, value);
+                }}
+                accessibilityLabel={`${alarm.time} ${alarm.label}`}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
+                thumbColor={theme.colors.surface}
+              />
+              <Icon name="trash" size={18} color={theme.colors.textFaint} />
+            </View>
           </View>
         </Card>
       ))}
 
-      <View style={[styles.hint, { gap: theme.spacing.sm }]}>
-        <Icon name="info" size={16} color={theme.colors.textFaint} />
-        <View style={{ flex: 1 }}>
-          <Text variant="caption" tone="faint">
-            {t('alarm.addHint')}
-          </Text>
-        </View>
-      </View>
+      <AlarmComposer
+        visible={composing}
+        accountId={account.id}
+        onClose={() => setComposing(false)}
+      />
     </Screen>
+  );
+}
+
+type ComposerProps = { visible: boolean; accountId: string; onClose: () => void };
+
+function AlarmComposer({ visible, accountId, onClose }: ComposerProps) {
+  const t = useTranslate();
+  const theme = useTheme();
+
+  const [time, setTime] = useState('07:00');
+  const [label, setLabel] = useState('');
+  const [days, setDays] = useState<readonly Weekday[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleDay(day: Weekday) {
+    setDays((current) =>
+      current.includes(day) ? current.filter((item) => item !== day) : [...current, day],
+    );
+  }
+
+  async function save() {
+    const normalised = normaliseTime(time);
+    if (!normalised) {
+      setError(t('alarm.error.time'));
+      return;
+    }
+    await alarmRepo.create({ accountId, time: normalised, label, days });
+    setTime('07:00');
+    setLabel('');
+    setDays([]);
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title={t('alarm.add')}>
+      <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
+        <Input
+          label={t('alarm.field.time')}
+          placeholder="07:00"
+          value={time}
+          onChangeText={(value) => {
+            setTime(value);
+            setError(null);
+          }}
+          keyboardType="numbers-and-punctuation"
+          {...(error ? { error } : {})}
+        />
+        <Input
+          label={t('alarm.field.label')}
+          placeholder={t('alarm.field.labelPlaceholder')}
+          value={label}
+          onChangeText={setLabel}
+        />
+        <View style={{ gap: theme.spacing.xs }}>
+          <Text variant="label" tone="muted">
+            {t('alarm.field.days')}
+          </Text>
+          <View style={[styles.days, { gap: theme.spacing.sm }]}>
+            {WEEKDAYS.map((day) => {
+              const on = days.includes(day);
+              return (
+                <Text
+                  key={day}
+                  variant="label"
+                  tone={on ? 'accent' : 'faint'}
+                  onPress={() => toggleDay(day)}
+                  style={{ fontWeight: on ? theme.fontWeight.semibold : undefined }}
+                >
+                  {t(`alarm.day.${day}` as TranslationKey)}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+        <Button label={t('common.done')} icon="check" onPress={save} />
+      </View>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   days: { flexDirection: 'row', flexWrap: 'wrap' },
-  hint: { flexDirection: 'row', alignItems: 'flex-start' },
 });

@@ -15,7 +15,7 @@ export default function SignInScreen() {
       subtitle={t('auth.signIn.subtitle')}
       submitLabel={t('auth.start.signIn')}
       switchLabel={t('auth.noAccount')}
-      onSubmit={() => signIn('returning')}
+      onSubmit={signIn}
       onSwitch={() => router.replace('/sign-up')}
     />
   );

@@ -7,7 +7,7 @@ import { useApp } from '@/state/AppContext';
 export default function SignUpScreen() {
   const t = useTranslate();
   const router = useRouter();
-  const { signIn } = useApp();
+  const { signUp } = useApp();
 
   return (
     <CredentialsForm
@@ -15,7 +15,7 @@ export default function SignUpScreen() {
       subtitle={t('auth.signUp.subtitle')}
       submitLabel={t('auth.start.createAccount')}
       switchLabel={t('auth.hasAccount')}
-      onSubmit={() => signIn('new')}
+      onSubmit={signUp}
       onSwitch={() => router.replace('/sign-in')}
     />
   );

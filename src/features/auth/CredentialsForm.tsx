@@ -1,22 +1,31 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useTranslate } from '@/i18n';
+import type { AuthError, AuthResult } from '@/auth/accounts';
+import { useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Divider, Header, Input, Screen, Text } from '@/ui';
+import { Button, Header, Input, Screen, Text } from '@/ui';
 
 export type CredentialsFormProps = {
   title: string;
   subtitle: string;
   submitLabel: string;
   switchLabel: string;
-  onSubmit: () => void;
+  onSubmit: (email: string, password: string) => Promise<AuthResult>;
   onSwitch: () => void;
 };
 
+const ERROR_KEY: Record<AuthError, TranslationKey> = {
+  email_invalid: 'auth.error.emailInvalid',
+  email_taken: 'auth.error.emailTaken',
+  password_too_short: 'auth.error.passwordTooShort',
+  not_found: 'auth.error.notFound',
+  wrong_password: 'auth.error.wrongPassword',
+};
+
 /**
- * P-009: Anmelden und Registrieren teilen sich dieselbe Maske.
- * Es wird bewusst nichts geprueft — jeder Knopf fuehrt weiter.
+ * Anmelden und Registrieren teilen sich dieselbe Maske. Geprueft wird jetzt
+ * wirklich — die Fehler kommen aus der Kontenpruefung, nicht aus der Anzeige.
  */
 export function CredentialsForm({
   title,
@@ -30,14 +39,32 @@ export function CredentialsForm({
   const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AuthError | null>(null);
+
+  async function submit() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await onSubmit(email, password);
+      // Bei Erfolg schickt der RouteGuard weiter, dieser Bildschirm verschwindet.
+      if (!result.ok) setError(result.error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const emailError = error === 'email_invalid' || error === 'email_taken' || error === 'not_found';
+  const passwordError = error === 'password_too_short' || error === 'wrong_password';
 
   return (
     <Screen
       header={<Header showBack />}
       footer={
         <View style={{ gap: theme.spacing.sm }}>
-          <Button label={submitLabel} onPress={onSubmit} />
-          <Button label={switchLabel} variant="ghost" onPress={onSwitch} />
+          <Button label={submitLabel} onPress={submit} loading={busy} />
+          <Button label={switchLabel} variant="ghost" onPress={onSwitch} disabled={busy} />
         </View>
       }
     >
@@ -53,55 +80,45 @@ export function CredentialsForm({
           label={t('auth.email')}
           placeholder={t('auth.emailPlaceholder')}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(value) => {
+            setEmail(value);
+            setError(null);
+          }}
           icon="mail"
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!busy}
+          {...(emailError && error ? { error: t(ERROR_KEY[error]) } : {})}
         />
         <Input
           label={t('auth.password')}
           placeholder={t('auth.passwordPlaceholder')}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            setError(null);
+          }}
           icon="lock"
           secureTextEntry
           autoCapitalize="none"
-          onSubmitEditing={onSubmit}
+          editable={!busy}
+          onSubmitEditing={submit}
           returnKeyType="done"
+          {...(passwordError && error
+            ? { error: t(ERROR_KEY[error]) }
+            : { hint: t('auth.passwordHint') })}
         />
       </View>
 
-      <View style={[styles.separator, { gap: theme.spacing.md }]}>
-        <View style={styles.line}>
-          <Divider />
-        </View>
+      <View style={[styles.note, { gap: theme.spacing.sm }]}>
         <Text variant="caption" tone="faint">
-          {t('common.or')}
+          {t('auth.localHint')}
         </Text>
-        <View style={styles.line}>
-          <Divider />
-        </View>
-      </View>
-
-      <View style={{ gap: theme.spacing.sm }}>
-        <Button
-          label={t('auth.appleButton')}
-          variant="secondary"
-          icon="person"
-          onPress={onSubmit}
-        />
-        <Button
-          label={t('auth.googleButton')}
-          variant="secondary"
-          icon="person"
-          onPress={onSubmit}
-        />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  separator: { flexDirection: 'row', alignItems: 'center' },
-  line: { flex: 1 },
+  note: { flexDirection: 'row', alignItems: 'flex-start' },
 });

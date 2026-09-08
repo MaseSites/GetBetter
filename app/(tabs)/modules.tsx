@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { getModule, groupedModules } from '@/mocks/modules';
+import type { Area } from '@/mocks/types';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Divider, EmptyState, Header, Icon, ListItem, Screen, Segmented, Sheet, Text } from '@/ui';
@@ -14,7 +15,7 @@ export default function MyModulesScreen() {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
-  const { state, toggleFavourite, isFavourite } = useApp();
+  const { account, toggleFavourite, isFavourite } = useApp();
 
   const [view, setView] = useState<ModuleView>('all');
   const [sheetModuleId, setSheetModuleId] = useState<string | null>(null);
@@ -22,15 +23,17 @@ export default function MyModulesScreen() {
 
   // Die im Onboarding gewaehlten Bereiche stehen oben.
   const groups = useMemo(() => {
-    const all = groupedModules(state.selectedAreas);
+    const all = groupedModules((account?.selectedAreas ?? []) as Area[]);
     if (view === 'all') return all;
     return all
       .map((group) => ({
         ...group,
-        modules: group.modules.filter((module) => state.favouriteModuleIds.includes(module.id)),
+        modules: group.modules.filter((module) =>
+          (account?.favouriteModuleIds ?? []).includes(module.id),
+        ),
       }))
       .filter((group) => group.modules.length > 0);
-  }, [view, state.selectedAreas, state.favouriteModuleIds]);
+  }, [view, account?.selectedAreas, account?.favouriteModuleIds]);
 
   const sheetModule = sheetModuleId ? getModule(sheetModuleId) : undefined;
 
@@ -47,7 +50,7 @@ export default function MyModulesScreen() {
           subtitle={
             view === 'all'
               ? t('modules.subtitle')
-              : t('modules.favouriteCount', { count: state.favouriteModuleIds.length })
+              : t('modules.favouriteCount', { count: account?.favouriteModuleIds.length ?? 0 })
           }
           right={
             <Segmented
@@ -157,7 +160,7 @@ export default function MyModulesScreen() {
               }
               icon="star"
               onPress={() => {
-                toggleFavourite(sheetModule.id);
+                void toggleFavourite(sheetModule.id);
                 closeSheet();
               }}
             />

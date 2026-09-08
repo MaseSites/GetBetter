@@ -13,7 +13,7 @@ import { Loading, PhoneFrame } from '@/ui';
  * Auth-Stack, Onboarding oder die Tabs.
  */
 function RouteGuard() {
-  const { state, hydrated } = useApp();
+  const { account, hydrated } = useApp();
   const segments = useSegments();
   const router = useRouter();
 
@@ -25,18 +25,18 @@ function RouteGuard() {
     const inAuth = group === '(auth)';
     const inOnboarding = group === '(onboarding)';
 
-    if (!state.signedIn) {
+    if (!account) {
       if (!inAuth) router.replace('/start');
       return;
     }
 
-    if (!state.onboarded) {
+    if (!account.onboarded) {
       if (!inOnboarding) router.replace('/welcome');
       return;
     }
 
     if (inAuth || inOnboarding) router.replace('/today');
-  }, [hydrated, state.signedIn, state.onboarded, group, router]);
+  }, [hydrated, account, group, router]);
 
   return null;
 }
