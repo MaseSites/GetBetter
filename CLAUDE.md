@@ -7,9 +7,14 @@ Alle Daten kommen aus `src/mocks/`. Der Plan liegt in
 > Hinweis: Im Repo lag beim Aufsetzen keine `CLAUDE.md`. Diese Datei beschreibt
 > die Konventionen, nach denen der Prototyp tatsaechlich gebaut wurde.
 >
-> Abweichung vom Plan: Der Assistent hat einen eigenen Tab in der Mitte
-> bekommen (Plan Kapitel 8 stellt genau diese Frage), und dazu kam das
-> Modul "KI-Chat". Damit sind es fuenf Tabs statt vier.
+> Abweichungen vom Plan, alle nach Ruecksprache:
+>
+> - Der Assistent hat einen eigenen Tab statt eines Knopfs im Kopfbereich
+>   (Plan Kapitel 8 stellt genau diese Frage).
+> - Der Tab "Entdecken" ist weg. Alle Module sind von Anfang an da, damit
+>   gibt es kein Installieren und kein Deinstallieren mehr.
+> - Vier Tabs: Heute, Module, Assistent, Profil.
+> - Dazu die Module "KI-Chat" und "Wecker"; der Bereich "Geld" heisst Finanzen.
 
 ## Starten
 
@@ -27,10 +32,11 @@ npm run lint
 ```
 app/                 Routen (Expo Router, dateibasiert)
   (auth)/            Start, Anmelden, Registrieren
-  (onboarding)/      Willkommen, Bereiche, Vorschlaege, Haushalt
-  (tabs)/            Heute, Module, Assistent, Entdecken, Profil
+  (onboarding)/      Willkommen, Bereiche, Haushalt
+  (tabs)/            Heute, Module, Assistent, Profil
   module/[id].tsx    Modul-Detailseite
-  run/[id].tsx       Modul oeffnen (Kalender und KI-Chat ausgebaut, Rest Platzhalter)
+  run/[id].tsx       Modul oeffnen (Kalender, Wecker und KI-Chat ausgebaut,
+                     Rest Platzhalter)
   ui-kit.tsx         Baustein-Katalog
 src/
   theme/             Abstaende, Schriften, Farben, Radien
@@ -50,8 +56,24 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 | ------------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
 | Was           | Verwaltet quer ueber die installierten Module                           | Ein ganz normales KI-Gespraech                        |
 | Wo            | `app/(tabs)/assistant.tsx` → `src/features/assistant/AssistantView.tsx` | `app/run/[id].tsx` → `src/features/ai/AiChatView.tsx` |
-| Installierbar | Nein, eingebaut                                                         | Ja, wie jedes Modul (im Abo enthalten)                |
+| Installierbar | Nein, eingebaut                                                         | Entfaellt — alle Module sind da (im Abo enthalten)    |
 | Daten         | Liest und schreibt deine Module, fragt vor dem Eintragen                | Sieht deine Daten nicht                               |
+
+## Module
+
+Alle Module sind von Anfang an vorhanden; es gibt keinen Installationszustand.
+Zwei Stellen leiten sich aus den im Onboarding gewaehlten Bereichen ab:
+
+- **Module-Tab**: `groupedModules(selectedAreas)` — je Bereich eine Ueberschrift,
+  darunter die Module vier nebeneinander. Gewaehlte Bereiche stehen oben.
+  Oben rechts schaltet ein Segmented zwischen **Alle** und **Favoriten** um.
+- **Heute**: `highlightedModuleIds(selectedAreas)` — nur Prioritaet 1 der
+  gewaehlten Bereiche bekommt eine Karte, sonst wird der Bildschirm zur Wand.
+
+Favoriten liegen als `favouriteModuleIds` im `AppContext` und ueberleben einen
+Neustart. Gesetzt werden sie per Langdruck auf eine Kachel oder auf der
+Detailseite; das Onboarding belegt sie mit den Prioritaet-1-Modulen der
+gewaehlten Bereiche, ohne Onboarding gilt `DEFAULT_FAVOURITE_IDS`.
 
 ## Regeln
 

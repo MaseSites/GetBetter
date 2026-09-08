@@ -44,18 +44,13 @@ const OPTIONS: readonly Option[] = [
 export default function HouseholdStep() {
   const t = useTranslate();
   const theme = useTheme();
-  const { firstName, areas, selectedModuleIds } = useOnboarding();
+  const { firstName, areas } = useOnboarding();
   const { completeOnboarding } = useApp();
   const [choice, setChoice] = useState<HouseholdChoice>('created');
 
   function finish() {
     // Der RouteGuard schickt danach selbst in die Tabs.
-    completeOnboarding({
-      firstName,
-      areas,
-      moduleIds: selectedModuleIds,
-      householdChoice: choice,
-    });
+    completeOnboarding({ firstName, areas, householdChoice: choice });
   }
 
   return (

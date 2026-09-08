@@ -12,6 +12,7 @@ type IonName = ComponentProps<typeof Ionicons>['name'];
 export const ICONS = {
   calendar: 'calendar-outline',
   clock: 'time-outline',
+  alarm: 'alarm-outline',
   check: 'checkmark',
   checkCircle: 'checkmark-circle',
   circle: 'ellipse-outline',

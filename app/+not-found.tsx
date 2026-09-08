@@ -15,7 +15,7 @@ export default function NotFoundScreen() {
         title={t('detail.notFound.title')}
         body={t('detail.notFound.body')}
         actionLabel={t('detail.notFound.action')}
-        onAction={() => router.replace('/discover')}
+        onAction={() => router.replace('/modules')}
       />
     </Screen>
   );

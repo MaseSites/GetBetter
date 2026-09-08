@@ -2,27 +2,35 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { UninstallDialog } from '@/features/modules/UninstallDialog';
-import { useTranslate } from '@/i18n';
-import { getModule } from '@/mocks/modules';
+import { useTranslate, type TranslationKey } from '@/i18n';
+import { getModule, groupedModules } from '@/mocks/modules';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Divider, EmptyState, Header, Icon, ListItem, Screen, Sheet, Text } from '@/ui';
+import { Divider, EmptyState, Header, Icon, ListItem, Screen, Segmented, Sheet, Text } from '@/ui';
+
+type ModuleView = 'all' | 'favourites';
 
 export default function MyModulesScreen() {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
-  const { state } = useApp();
+  const { state, toggleFavourite, isFavourite } = useApp();
 
+  const [view, setView] = useState<ModuleView>('all');
   const [sheetModuleId, setSheetModuleId] = useState<string | null>(null);
   const [homescreenHintFor, setHomescreenHintFor] = useState<string | null>(null);
-  const [uninstallId, setUninstallId] = useState<string | null>(null);
 
-  const modules = useMemo(
-    () => state.installedModuleIds.map(getModule).filter((module) => module !== undefined),
-    [state.installedModuleIds],
-  );
+  // Die im Onboarding gewaehlten Bereiche stehen oben.
+  const groups = useMemo(() => {
+    const all = groupedModules(state.selectedAreas);
+    if (view === 'all') return all;
+    return all
+      .map((group) => ({
+        ...group,
+        modules: group.modules.filter((module) => state.favouriteModuleIds.includes(module.id)),
+      }))
+      .filter((group) => group.modules.length > 0);
+  }, [view, state.selectedAreas, state.favouriteModuleIds]);
 
   const sheetModule = sheetModuleId ? getModule(sheetModuleId) : undefined;
 
@@ -36,50 +44,92 @@ export default function MyModulesScreen() {
       header={
         <Header
           title={t('modules.title')}
-          subtitle={t('modules.count', { count: modules.length })}
+          subtitle={
+            view === 'all'
+              ? t('modules.subtitle')
+              : t('modules.favouriteCount', { count: state.favouriteModuleIds.length })
+          }
+          right={
+            <Segmented
+              accessibilityLabel={t('modules.view')}
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'all', label: t('modules.view.all') },
+                { value: 'favourites', label: t('modules.view.favourites') },
+              ]}
+            />
+          }
         />
       }
+      gap={theme.spacing.xl}
     >
-      {modules.length === 0 ? (
+      {groups.length === 0 ? (
         <EmptyState
-          icon="grid"
-          title={t('modules.empty.title')}
-          body={t('modules.empty.body')}
-          actionLabel={t('modules.empty.action')}
-          onAction={() => router.push('/discover')}
+          icon="star"
+          title={t('modules.noFavourites.title')}
+          body={t('modules.noFavourites.body')}
+          actionLabel={t('modules.view.all')}
+          onAction={() => setView('all')}
         />
-      ) : (
-        <View style={[styles.grid, { gap: theme.spacing.lg }]}>
-          {modules.map((module) => (
-            <Pressable
-              key={module.id}
-              accessibilityRole="button"
-              accessibilityLabel={module.name}
-              accessibilityHint={t('modules.sheet.uninstall')}
-              onPress={() => router.push(`/run/${module.id}`)}
-              onLongPress={() => setSheetModuleId(module.id)}
-              delayLongPress={350}
-              style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              <View
-                style={[
-                  styles.tileIcon,
-                  {
-                    borderRadius: theme.radii.lg,
-                    backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                <Icon name={module.icon} size={26} color={theme.colors.accentStrong} />
-              </View>
-              <Text variant="caption" align="center" numberOfLines={2}>
-                {module.name}
-              </Text>
-            </Pressable>
-          ))}
+      ) : null}
+
+      {groups.map((group) => (
+        <View key={group.area} style={{ gap: theme.spacing.md }}>
+          <Text variant="section" tone="muted">
+            {t(`area.${group.area}` as TranslationKey)}
+          </Text>
+          <View style={[styles.row, { rowGap: theme.spacing.lg }]}>
+            {group.modules.map((module) => {
+              const favourite = isFavourite(module.id);
+              return (
+                <Pressable
+                  key={module.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={module.name}
+                  accessibilityHint={t('modules.tileHint')}
+                  onPress={() => router.push(`/run/${module.id}`)}
+                  onLongPress={() => setSheetModuleId(module.id)}
+                  delayLongPress={350}
+                  style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <View>
+                    <View
+                      style={[
+                        styles.tileIcon,
+                        {
+                          borderRadius: theme.radii.lg,
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <Icon name={module.icon} size={26} color={theme.colors.accentStrong} />
+                    </View>
+                    {favourite && view === 'all' ? (
+                      <View
+                        style={[
+                          styles.star,
+                          {
+                            borderRadius: theme.radii.pill,
+                            backgroundColor: theme.colors.accent,
+                            borderColor: theme.colors.background,
+                          },
+                        ]}
+                      >
+                        <Icon name="star" size={11} color={theme.colors.textOnAccent} />
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text variant="caption" align="center" numberOfLines={2}>
+                    {module.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      )}
+      ))}
 
       <Sheet
         visible={sheetModule !== undefined}
@@ -96,6 +146,19 @@ export default function MyModulesScreen() {
                 const id = sheetModule.id;
                 closeSheet();
                 router.push(`/run/${id}`);
+              }}
+            />
+            <Divider />
+            <ListItem
+              title={
+                isFavourite(sheetModule.id)
+                  ? t('modules.sheet.removeFavourite')
+                  : t('modules.sheet.addFavourite')
+              }
+              icon="star"
+              onPress={() => {
+                toggleFavourite(sheetModule.id);
+                closeSheet();
               }}
             />
             <Divider />
@@ -119,35 +182,31 @@ export default function MyModulesScreen() {
                 router.push(`/module/${id}`);
               }}
             />
-            <Divider />
-            <View style={{ paddingTop: theme.spacing.lg }}>
-              <Button
-                label={t('modules.sheet.uninstall')}
-                variant="danger"
-                icon="trash"
-                onPress={() => {
-                  const id = sheetModule.id;
-                  closeSheet();
-                  setUninstallId(id);
-                }}
-              />
-            </View>
           </View>
         ) : null}
       </Sheet>
-
-      <UninstallDialog moduleId={uninstallId} onClose={() => setUninstallId(null)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  tile: { width: 76, alignItems: 'center', gap: 8 },
+  row: { flexDirection: 'row', flexWrap: 'wrap' },
+  // Ein Viertel pro Kachel: vier nebeneinander, unabhaengig von der Breite.
+  tile: { width: '25%', alignItems: 'center', gap: 8 },
   tileIcon: {
     width: 64,
     height: 64,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  star: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

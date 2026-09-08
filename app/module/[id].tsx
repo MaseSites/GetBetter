@@ -1,8 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
 import { View } from 'react-native';
 
-import { UninstallDialog } from '@/features/modules/UninstallDialog';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
 import { getModule } from '@/mocks/modules';
@@ -14,9 +12,7 @@ export default function ModuleDetailScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const { state, installModule } = useApp();
-  const [uninstallId, setUninstallId] = useState<string | null>(null);
-
+  const { toggleFavourite, isFavourite } = useApp();
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
 
@@ -28,40 +24,32 @@ export default function ModuleDetailScreen() {
           title={t('detail.notFound.title')}
           body={t('detail.notFound.body')}
           actionLabel={t('detail.notFound.action')}
-          onAction={() => router.replace('/discover')}
+          onAction={() => router.replace('/modules')}
         />
       </Screen>
     );
   }
 
-  const installed = state.installedModuleIds.includes(module.id);
+  const favourite = isFavourite(module.id);
   const sentences = permissionSentences(module.permissions, t, language);
 
   return (
     <Screen
       header={<Header showBack />}
       footer={
-        installed ? (
-          <View style={{ gap: theme.spacing.sm }}>
-            <Button
-              label={t('detail.open')}
-              icon="forward"
-              onPress={() => router.push(`/run/${module.id}`)}
-            />
-            <Button
-              label={t('detail.uninstall')}
-              variant="danger"
-              icon="trash"
-              onPress={() => setUninstallId(module.id)}
-            />
-          </View>
-        ) : (
+        <View style={{ gap: theme.spacing.sm }}>
           <Button
-            label={t('detail.install')}
-            icon="plus"
-            onPress={() => installModule(module.id)}
+            label={t('detail.open')}
+            icon="forward"
+            onPress={() => router.push(`/run/${module.id}`)}
           />
-        )
+          <Button
+            label={favourite ? t('detail.removeFavourite') : t('detail.addFavourite')}
+            icon="star"
+            variant="secondary"
+            onPress={() => toggleFavourite(module.id)}
+          />
+        </View>
       }
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.lg }}>
@@ -81,10 +69,10 @@ export default function ModuleDetailScreen() {
           <Text variant="display">{module.name}</Text>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
             <Badge label={t(`area.${module.area}` as TranslationKey)} />
+            {favourite ? <Badge label={t('detail.favourite')} tone="accent" icon="star" /> : null}
             {module.includedInPlan ? (
               <Badge label={t('detail.includedInPlan')} tone="accent" icon="star" />
             ) : null}
-            {installed ? <Badge label={t('detail.installed')} tone="accent" icon="check" /> : null}
           </View>
         </View>
       </View>
@@ -133,8 +121,6 @@ export default function ModuleDetailScreen() {
           </View>
         )}
       </Card>
-
-      <UninstallDialog moduleId={uninstallId} onClose={() => setUninstallId(null)} />
     </Screen>
   );
 }

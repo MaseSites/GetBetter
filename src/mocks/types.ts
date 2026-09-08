@@ -48,8 +48,6 @@ export type ModuleDefinition = {
   permissions: ModulePermissions;
   /** Kostet nichts extra, gehoert zum Abo. */
   includedInPlan?: boolean;
-  /** Vorbelegung der Registry. Der laufende Zustand liegt im AppContext. */
-  installed: boolean;
 };
 
 export type Role = 'owner' | 'adult' | 'teen' | 'child';

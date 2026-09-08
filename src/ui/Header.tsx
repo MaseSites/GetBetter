@@ -21,6 +21,8 @@ export type HeaderProps = {
   showBack?: boolean;
   onBack?: () => void;
   actions?: readonly HeaderAction[];
+  /** Beliebiger Inhalt rechts, z.B. ein Umschalter. */
+  right?: ReactNode;
   large?: boolean;
   children?: ReactNode;
 };
@@ -31,6 +33,7 @@ export function Header({
   showBack = false,
   onBack,
   actions = [],
+  right,
   large = false,
   children,
 }: HeaderProps) {
@@ -90,6 +93,7 @@ export function Header({
           ) : null}
         </View>
         <View style={[styles.actions, { gap: theme.spacing.sm }]}>
+          {right}
           {actions.map((action) => (
             <Pressable
               key={action.label}

@@ -12,6 +12,7 @@ export { ListItem } from './ListItem';
 export { Loading, Skeleton } from './Loading';
 export { PhoneFrame, PHONE_HEIGHT, PHONE_WIDTH } from './PhoneFrame';
 export { Screen } from './Screen';
+export { Segmented } from './Segmented';
 export { Sheet } from './Sheet';
 export { Text } from './Text';
 
@@ -28,5 +29,6 @@ export type { InputProps } from './Input';
 export type { ListItemProps } from './ListItem';
 export type { LoadingProps } from './Loading';
 export type { ScreenProps } from './Screen';
+export type { SegmentedOption, SegmentedProps } from './Segmented';
 export type { SheetProps } from './Sheet';
 export type { TextProps, TextTone, TextVariant } from './Text';

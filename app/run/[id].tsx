@@ -2,11 +2,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { AiChatView } from '@/features/ai/AiChatView';
+import { AlarmView } from '@/features/alarm/AlarmView';
 import { formatTime, formatWeekday, useI18n } from '@/i18n';
 import { getModule } from '@/mocks/modules';
 import { CALENDAR_WEEK, MODULE_CARDS_BY_ID } from '@/mocks/today';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Card, Divider, EmptyState, Header, Icon, ListItem, Screen, Text } from '@/ui';
 
@@ -152,7 +152,6 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
 export default function ModuleRunScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { state } = useApp();
 
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
@@ -165,21 +164,7 @@ export default function ModuleRunScreen() {
           title={t('detail.notFound.title')}
           body={t('detail.notFound.body')}
           actionLabel={t('detail.notFound.action')}
-          onAction={() => router.replace('/discover')}
-        />
-      </Screen>
-    );
-  }
-
-  if (!state.installedModuleIds.includes(module.id)) {
-    return (
-      <Screen header={<Header title={module.name} showBack />} scroll={false}>
-        <EmptyState
-          icon="grid"
-          title={t('moduleScreen.notInstalled.title')}
-          body={t('moduleScreen.notInstalled.body')}
-          actionLabel={t('detail.install')}
-          onAction={() => router.replace(`/module/${module.id}`)}
+          onAction={() => router.replace('/modules')}
         />
       </Screen>
     );
@@ -191,6 +176,10 @@ export default function ModuleRunScreen() {
 
   if (module.id === 'ai') {
     return <AiChatView module={module} />;
+  }
+
+  if (module.id === 'alarm') {
+    return <AlarmView module={module} />;
   }
 
   return <PlaceholderModule module={module} />;

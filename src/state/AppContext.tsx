@@ -11,12 +11,12 @@ import {
 } from 'react';
 
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
-import { DEFAULT_INSTALLED_IDS } from '@/mocks/modules';
+import { DEFAULT_FAVOURITE_IDS, highlightedModuleIds } from '@/mocks/modules';
 import { HOUSEHOLD, PERSON } from '@/mocks/person';
 import type { Area, Household, Person } from '@/mocks/types';
 import { ThemeProvider, createTheme, type ColorScheme } from '@/theme';
 
-const STORAGE_KEY = 'better-life-proto/state/v1';
+const STORAGE_KEY = 'better-life-proto/state/v2';
 
 export type HouseholdChoice = 'created' | 'joined' | 'solo';
 
@@ -28,7 +28,8 @@ export type AppState = {
   household: Household | null;
   householdChoice: HouseholdChoice | null;
   selectedAreas: readonly Area[];
-  installedModuleIds: readonly string[];
+  /** Vom Nutzer markierte Module. Steuert den Filter im Module-Tab. */
+  favouriteModuleIds: readonly string[];
   language: Language;
   colorScheme: ColorScheme;
 };
@@ -40,7 +41,7 @@ const INITIAL_STATE: AppState = {
   household: null,
   householdChoice: null,
   selectedAreas: [],
-  installedModuleIds: DEFAULT_INSTALLED_IDS,
+  favouriteModuleIds: DEFAULT_FAVOURITE_IDS,
   language: 'de',
   colorScheme: 'light',
 };
@@ -54,14 +55,12 @@ export type AppActions = {
   completeOnboarding: (input: {
     firstName: string;
     areas: readonly Area[];
-    moduleIds: readonly string[];
     householdChoice: HouseholdChoice;
   }) => void;
   setFirstName: (firstName: string) => void;
   setSelectedAreas: (areas: readonly Area[]) => void;
-  installModule: (id: string) => void;
-  uninstallModule: (id: string) => void;
-  isInstalled: (id: string) => boolean;
+  toggleFavourite: (id: string) => void;
+  isFavourite: (id: string) => boolean;
   setLanguage: (language: Language) => void;
   resetPrototype: () => void;
 };
@@ -81,7 +80,7 @@ type PersistedState = Pick<
   | 'household'
   | 'householdChoice'
   | 'selectedAreas'
-  | 'installedModuleIds'
+  | 'favouriteModuleIds'
   | 'language'
 > & { firstName: string };
 
@@ -92,7 +91,7 @@ function toPersisted(state: AppState): PersistedState {
     household: state.household,
     householdChoice: state.householdChoice,
     selectedAreas: state.selectedAreas,
-    installedModuleIds: state.installedModuleIds,
+    favouriteModuleIds: state.favouriteModuleIds,
     language: state.language,
     firstName: state.person.firstName,
   };
@@ -108,7 +107,7 @@ function fromPersisted(raw: string): Partial<AppState> | null {
       household: parsed.household ?? null,
       householdChoice: parsed.householdChoice ?? null,
       selectedAreas: parsed.selectedAreas ?? [],
-      installedModuleIds: parsed.installedModuleIds ?? INITIAL_STATE.installedModuleIds,
+      favouriteModuleIds: parsed.favouriteModuleIds ?? DEFAULT_FAVOURITE_IDS,
       language: parsed.language ?? 'de',
       person: { ...PERSON, firstName: parsed.firstName ?? PERSON.firstName },
     };
@@ -168,13 +167,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeOnboarding = useCallback<AppActions['completeOnboarding']>(
-    ({ firstName, areas, moduleIds, householdChoice }) => {
+    ({ firstName, areas, householdChoice }) => {
       setState((current) => ({
         ...current,
         signedIn: true,
         onboarded: true,
         selectedAreas: areas,
-        installedModuleIds: moduleIds,
+        favouriteModuleIds: highlightedModuleIds(areas),
         householdChoice,
         household: householdChoice === 'solo' ? null : HOUSEHOLD,
         person: {
@@ -194,18 +193,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((current) => ({ ...current, selectedAreas: areas }));
   }, []);
 
-  const installModule = useCallback((id: string) => {
-    setState((current) =>
-      current.installedModuleIds.includes(id)
-        ? current
-        : { ...current, installedModuleIds: [...current.installedModuleIds, id] },
-    );
-  }, []);
-
-  const uninstallModule = useCallback((id: string) => {
+  const toggleFavourite = useCallback((id: string) => {
     setState((current) => ({
       ...current,
-      installedModuleIds: current.installedModuleIds.filter((moduleId) => moduleId !== id),
+      favouriteModuleIds: current.favouriteModuleIds.includes(id)
+        ? current.favouriteModuleIds.filter((moduleId) => moduleId !== id)
+        : [...current.favouriteModuleIds, id],
     }));
   }, []);
 
@@ -217,9 +210,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(INITIAL_STATE);
   }, []);
 
-  const isInstalled = useCallback(
-    (id: string) => state.installedModuleIds.includes(id),
-    [state.installedModuleIds],
+  const isFavourite = useCallback(
+    (id: string) => state.favouriteModuleIds.includes(id),
+    [state.favouriteModuleIds],
   );
 
   const t = useMemo<Translate>(
@@ -238,9 +231,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setFirstName,
       setSelectedAreas,
-      installModule,
-      uninstallModule,
-      isInstalled,
+      toggleFavourite,
+      isFavourite,
       setLanguage,
       resetPrototype,
     }),
@@ -252,9 +244,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setFirstName,
       setSelectedAreas,
-      installModule,
-      uninstallModule,
-      isInstalled,
+      toggleFavourite,
+      isFavourite,
       setLanguage,
       resetPrototype,
     ],

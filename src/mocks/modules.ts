@@ -1,4 +1,4 @@
-import type { Area, ModuleDefinition } from './types';
+import { AREAS, type Area, type ModuleDefinition } from './types';
 
 /**
  * P-008: Die Modul-Registry, 24 Eintraege aus dem Plattformkonzept Kapitel 5.
@@ -18,7 +18,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     priority: 1,
     permissions: { read: [], write: [] },
     includedInPlan: true,
-    installed: true,
   },
   {
     id: 'calendar',
@@ -30,7 +29,17 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'calendar',
     priority: 1,
     permissions: { read: ['events', 'household'], write: ['events'] },
-    installed: true,
+  },
+  {
+    id: 'alarm',
+    area: 'organisation',
+    name: 'Wecker',
+    short: 'Weckt dich passend zum ersten Termin',
+    description:
+      'Wecker und Kurzzeitwecker. Er sieht, wann dein erster Termin ist, und schlaegt die Zeit von selbst vor, statt sie dich jeden Abend neu stellen zu lassen.',
+    icon: 'alarm',
+    priority: 1,
+    permissions: { read: ['events'], write: [] },
   },
   {
     id: 'tasks',
@@ -42,7 +51,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'checkCircle',
     priority: 1,
     permissions: { read: ['tasks', 'events', 'household'], write: ['tasks'] },
-    installed: true,
   },
   {
     id: 'notes',
@@ -53,7 +61,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'note',
     priority: 2,
     permissions: { read: ['notes'], write: ['notes', 'tasks'] },
-    installed: false,
   },
   {
     id: 'documents',
@@ -65,7 +72,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'doc',
     priority: 2,
     permissions: { read: ['documents'], write: ['documents', 'tasks', 'events'] },
-    installed: false,
   },
   {
     id: 'habits',
@@ -76,7 +82,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'repeat',
     priority: 2,
     permissions: { read: ['habits'], write: ['habits', 'tasks'] },
-    installed: false,
   },
   {
     id: 'travel',
@@ -91,7 +96,6 @@ export const MODULES: readonly ModuleDefinition[] = [
       read: ['travel', 'events', 'documents', 'location'],
       write: ['travel', 'events', 'tasks'],
     },
-    installed: false,
   },
   {
     id: 'contacts',
@@ -103,7 +107,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'people',
     priority: 3,
     permissions: { read: ['contacts', 'events'], write: ['contacts', 'events', 'tasks'] },
-    installed: false,
   },
 
   // ---------- Gesundheit ----------
@@ -117,7 +120,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'meal',
     priority: 1,
     permissions: { read: ['meals', 'recipes', 'household'], write: ['meals', 'tasks', 'events'] },
-    installed: true,
   },
   {
     id: 'fitness',
@@ -129,7 +131,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'fitness',
     priority: 1,
     permissions: { read: ['workouts', 'events', 'health_metrics'], write: ['workouts', 'events'] },
-    installed: false,
   },
   {
     id: 'sleep',
@@ -141,7 +142,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'sleep',
     priority: 2,
     permissions: { read: ['sleep', 'events'], write: ['sleep', 'events'] },
-    installed: false,
   },
   {
     id: 'water',
@@ -152,7 +152,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'water',
     priority: 3,
     permissions: { read: ['health_metrics'], write: ['health_metrics'] },
-    installed: false,
   },
   {
     id: 'meds',
@@ -164,7 +163,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'pill',
     priority: 2,
     permissions: { read: ['health_metrics', 'events'], write: ['tasks', 'events'] },
-    installed: false,
   },
   {
     id: 'vitals',
@@ -175,7 +173,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'chart',
     priority: 3,
     permissions: { read: ['health_metrics'], write: ['health_metrics'] },
-    installed: false,
   },
   {
     id: 'mind',
@@ -186,7 +183,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'bulb',
     priority: 3,
     permissions: { read: ['notes', 'events'], write: ['notes', 'habits'] },
-    installed: false,
   },
 
   // ---------- Haushalt ----------
@@ -203,7 +199,6 @@ export const MODULES: readonly ModuleDefinition[] = [
       read: ['tasks', 'meals', 'recipes', 'household'],
       write: ['tasks', 'money_entries'],
     },
-    installed: true,
   },
   {
     id: 'chores',
@@ -215,7 +210,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'broom',
     priority: 1,
     permissions: { read: ['tasks', 'household'], write: ['tasks'] },
-    installed: false,
   },
   {
     id: 'recipes',
@@ -227,7 +221,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'book',
     priority: 2,
     permissions: { read: ['recipes', 'meals'], write: ['recipes', 'meals', 'tasks'] },
-    installed: false,
   },
   {
     id: 'plants',
@@ -238,7 +231,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'plant',
     priority: 3,
     permissions: { read: ['plants'], write: ['plants', 'tasks'] },
-    installed: false,
   },
   {
     id: 'pets',
@@ -249,7 +241,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'pet',
     priority: 3,
     permissions: { read: ['pets', 'events', 'household'], write: ['pets', 'tasks', 'events'] },
-    installed: false,
   },
   {
     id: 'vehicles',
@@ -263,7 +254,6 @@ export const MODULES: readonly ModuleDefinition[] = [
       read: ['vehicles', 'documents', 'money_entries'],
       write: ['vehicles', 'tasks', 'events'],
     },
-    installed: false,
   },
 
   // ---------- Geld ----------
@@ -276,7 +266,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'wallet',
     priority: 1,
     permissions: { read: ['money_entries', 'household'], write: ['money_entries'] },
-    installed: false,
   },
   {
     id: 'bills',
@@ -291,7 +280,6 @@ export const MODULES: readonly ModuleDefinition[] = [
       read: ['money_entries', 'documents'],
       write: ['money_entries', 'tasks', 'events'],
     },
-    installed: false,
   },
   {
     id: 'subscriptions',
@@ -303,7 +291,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'repeat',
     priority: 2,
     permissions: { read: ['money_entries', 'documents'], write: ['money_entries', 'tasks'] },
-    installed: false,
   },
   {
     id: 'savings',
@@ -314,7 +301,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     icon: 'star',
     priority: 3,
     permissions: { read: ['money_entries', 'household'], write: ['money_entries', 'tasks'] },
-    installed: false,
   },
 ] as const;
 
@@ -330,32 +316,31 @@ export function modulesInArea(area: Area): readonly ModuleDefinition[] {
   return MODULES.filter((module) => module.area === area);
 }
 
-/** Vorbelegung fuer den ersten Start, bevor jemand das Onboarding durchlaeuft. */
-export const DEFAULT_INSTALLED_IDS: readonly string[] = MODULES.filter(
-  (module) => module.installed,
-).map((module) => module.id);
-
 /**
- * P-010: Vorschlaege im Onboarding. Priorität 1 und 2 der gewaehlten Bereiche,
- * damit eine andere Auswahl auch wirklich zu anderen Modulen fuehrt.
+ * Alle Module sind von Anfang an da. Sortiert wird nach Bereich —
+ * die im Onboarding gewaehlten Bereiche kommen zuerst.
  */
-export function suggestedModuleIds(areas: readonly Area[]): readonly string[] {
-  if (areas.length === 0) return [];
-  return MODULES.filter((module) => areas.includes(module.area) && module.priority <= 2).map(
-    (module) => module.id,
-  );
+export type ModuleGroup = {
+  area: Area;
+  modules: readonly ModuleDefinition[];
+};
+
+export function groupedModules(preferredAreas: readonly Area[] = []): readonly ModuleGroup[] {
+  const first = AREAS.filter((area) => preferredAreas.includes(area));
+  const rest = AREAS.filter((area) => !preferredAreas.includes(area));
+  return [...first, ...rest].map((area) => ({ area, modules: modulesInArea(area) }));
 }
 
-/** P-013: Suche ueber Name und Beschreibung. */
-export function searchModules(query: string, area: Area | 'all'): readonly ModuleDefinition[] {
-  const needle = query.trim().toLowerCase();
-  return MODULES.filter((module) => {
-    if (area !== 'all' && module.area !== area) return false;
-    if (needle.length === 0) return true;
-    return (
-      module.name.toLowerCase().includes(needle) ||
-      module.short.toLowerCase().includes(needle) ||
-      module.description.toLowerCase().includes(needle)
-    );
-  });
+/** Womit die Favoriten starten, wenn jemand das Onboarding ueberspringt. */
+export const DEFAULT_FAVOURITE_IDS: readonly string[] = ['calendar', 'tasks', 'shopping', 'meals'];
+
+/**
+ * Was in "Heute" eine Karte bekommt: die wichtigsten Module der gewaehlten
+ * Bereiche. Ohne Auswahl die wichtigsten aus allen Bereichen.
+ */
+export function highlightedModuleIds(areas: readonly Area[]): readonly string[] {
+  const relevant = areas.length > 0 ? areas : AREAS;
+  return MODULES.filter((module) => relevant.includes(module.area) && module.priority === 1).map(
+    (module) => module.id,
+  );
 }

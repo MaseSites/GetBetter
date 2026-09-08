@@ -3,11 +3,11 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { formatLongDate, formatTime, useI18n } from '@/i18n';
-import { getModule } from '@/mocks/modules';
+import { getModule, highlightedModuleIds } from '@/mocks/modules';
 import { APPOINTMENTS, MODULE_CARDS_BY_ID, TASKS, TODAY_ISO } from '@/mocks/today';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Badge, Card, Divider, EmptyState, Header, Icon, ListItem, Screen, Text } from '@/ui';
+import { Badge, Card, Divider, Header, Icon, ListItem, Screen, Text } from '@/ui';
 
 /** Diese beiden haben in "Heute" einen eigenen Abschnitt statt einer Modulkarte. */
 const MODULES_WITH_OWN_SECTION = ['calendar', 'tasks'];
@@ -18,21 +18,21 @@ export default function TodayScreen() {
   const router = useRouter();
   const { state } = useApp();
 
-  const installed = state.installedModuleIds;
-  const hasCalendar = installed.includes('calendar');
-  const hasTasks = installed.includes('tasks');
+  // Alle Module sind da; in "Heute" erscheinen die wichtigsten der gewaehlten Bereiche.
+  const highlighted = useMemo(
+    () => highlightedModuleIds(state.selectedAreas),
+    [state.selectedAreas],
+  );
 
   const openTasks = useMemo(() => TASKS.filter((task) => !task.done), []);
 
   const cardModuleIds = useMemo(
     () =>
-      installed.filter(
+      highlighted.filter(
         (id) => !MODULES_WITH_OWN_SECTION.includes(id) && MODULE_CARDS_BY_ID[id] !== undefined,
       ),
-    [installed],
+    [highlighted],
   );
-
-  const nothingToShow = installed.length === 0;
 
   return (
     <Screen
@@ -43,73 +43,59 @@ export default function TodayScreen() {
         />
       }
     >
-      {nothingToShow ? (
-        <EmptyState
-          icon="grid"
-          title={t('today.empty.title')}
-          body={t('today.empty.body')}
-          actionLabel={t('today.empty.action')}
-          onAction={() => router.push('/discover')}
-        />
-      ) : null}
+      <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
+        {APPOINTMENTS.length === 0 ? (
+          <Text variant="label" tone="muted">
+            {t('today.appointments.empty')}
+          </Text>
+        ) : (
+          <View>
+            {APPOINTMENTS.map((appointment, index) => (
+              <View key={appointment.id}>
+                {index > 0 ? <Divider /> : null}
+                <ListItem
+                  title={appointment.title}
+                  subtitle={appointment.location}
+                  right={
+                    <Text variant="label" tone="muted">
+                      {appointment.allDay
+                        ? t('today.allDay')
+                        : formatTime(language, appointment.startsAt)}
+                    </Text>
+                  }
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </Card>
 
-      {hasCalendar ? (
-        <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
-          {APPOINTMENTS.length === 0 ? (
-            <Text variant="label" tone="muted">
-              {t('today.appointments.empty')}
-            </Text>
-          ) : (
-            <View>
-              {APPOINTMENTS.map((appointment, index) => (
-                <View key={appointment.id}>
-                  {index > 0 ? <Divider /> : null}
-                  <ListItem
-                    title={appointment.title}
-                    subtitle={appointment.location}
-                    right={
-                      <Text variant="label" tone="muted">
-                        {appointment.allDay
-                          ? t('today.allDay')
-                          : formatTime(language, appointment.startsAt)}
-                      </Text>
-                    }
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-      ) : null}
-
-      {hasTasks ? (
-        <Card
-          title={t('today.tasks')}
-          subtitle={t('today.tasks.remaining', { count: openTasks.length })}
-          onPress={() => router.push('/run/tasks')}
-        >
-          {openTasks.length === 0 ? (
-            <Text variant="label" tone="muted">
-              {t('today.tasks.empty')}
-            </Text>
-          ) : (
-            <View>
-              {openTasks.map((task, index) => (
-                <View key={task.id}>
-                  {index > 0 ? <Divider /> : null}
-                  <ListItem
-                    title={task.title}
-                    icon="circle"
-                    right={
-                      task.shared ? <Badge label={t('today.household')} icon="people" /> : undefined
-                    }
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-      ) : null}
+      <Card
+        title={t('today.tasks')}
+        subtitle={t('today.tasks.remaining', { count: openTasks.length })}
+        onPress={() => router.push('/run/tasks')}
+      >
+        {openTasks.length === 0 ? (
+          <Text variant="label" tone="muted">
+            {t('today.tasks.empty')}
+          </Text>
+        ) : (
+          <View>
+            {openTasks.map((task, index) => (
+              <View key={task.id}>
+                {index > 0 ? <Divider /> : null}
+                <ListItem
+                  title={task.title}
+                  icon="circle"
+                  right={
+                    task.shared ? <Badge label={t('today.household')} icon="people" /> : undefined
+                  }
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </Card>
 
       {cardModuleIds.length > 0 ? (
         <View style={{ gap: theme.spacing.md }}>

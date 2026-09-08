@@ -76,10 +76,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="discover"
-        options={{ title: t('tabs.discover'), tabBarIcon: tabIcon('compass') }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{ title: t('tabs.profile'), tabBarIcon: tabIcon('person') }}
       />

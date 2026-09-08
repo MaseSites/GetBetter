@@ -8,6 +8,5 @@ export const fr: Translations = {
   'tabs.today': 'Aujourd’hui',
   'tabs.modules': 'Modules',
   'tabs.assistant': 'Assistant',
-  'tabs.discover': 'Découvrir',
   'tabs.profile': 'Profil',
 };
