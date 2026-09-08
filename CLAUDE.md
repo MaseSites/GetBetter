@@ -13,7 +13,8 @@ Alle Daten kommen aus `src/mocks/`. Der Plan liegt in
 >   (Plan Kapitel 8 stellt genau diese Frage).
 > - Der Tab "Entdecken" ist weg. Alle Module sind von Anfang an da, damit
 >   gibt es kein Installieren und kein Deinstallieren mehr.
-> - Vier Tabs: Heute, Module, Assistent, Profil.
+> - Vier Tabs: Startseite, Module, Assistent, Profil. Alle gleich behandelt —
+>   gruen ist nur der Tab, auf dem man gerade steht.
 > - Dazu die Module "KI-Chat" und "Wecker"; der Bereich "Geld" heisst Finanzen.
 
 ## Starten
@@ -33,7 +34,7 @@ npm run lint
 app/                 Routen (Expo Router, dateibasiert)
   (auth)/            Start, Anmelden, Registrieren
   (onboarding)/      Willkommen, Bereiche, Haushalt
-  (tabs)/            Heute, Module, Assistent, Profil
+  (tabs)/            Startseite, Module, Assistent, Profil
   module/[id].tsx    Modul-Detailseite
   run/[id].tsx       Modul oeffnen (Kalender, Wecker und KI-Chat ausgebaut,
                      Rest Platzhalter)
@@ -71,8 +72,9 @@ Zwei Stellen leiten sich aus den im Onboarding gewaehlten Bereichen ab:
   gewaehlten Bereiche bekommt eine Karte, sonst wird der Bildschirm zur Wand.
 
 Favoriten liegen als `favouriteModuleIds` im `AppContext` und ueberleben einen
-Neustart. Gesetzt werden sie per Langdruck auf eine Kachel oder auf der
-Detailseite; das Onboarding belegt sie mit den Prioritaet-1-Modulen der
+Neustart. Gesetzt werden sie per Langdruck auf eine Kachel oder ueber den Stern
+oben rechts — `useFavouriteAction(moduleId)` liefert diesen Kopf-Knopf, jeder
+Modul-Bildschirm und die Detailseite benutzen denselben; das Onboarding belegt sie mit den Prioritaet-1-Modulen der
 gewaehlten Bereiche, ohne Onboarding gilt `DEFAULT_FAVOURITE_IDS`.
 
 ## Regeln

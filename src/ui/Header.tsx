@@ -13,6 +13,8 @@ export type HeaderAction = {
   icon: IconName;
   label: string;
   onPress: () => void;
+  /** Hebt den Knopf hervor, z.B. ein gesetzter Favoritenstern. */
+  active?: boolean;
 };
 
 export type HeaderProps = {
@@ -105,12 +107,20 @@ export function Header({
                 styles.actionButton,
                 {
                   borderRadius: theme.radii.pill,
-                  backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
-                  borderColor: theme.colors.border,
+                  backgroundColor: action.active
+                    ? theme.colors.accentSoft
+                    : pressed
+                      ? theme.colors.surfaceMuted
+                      : theme.colors.surface,
+                  borderColor: action.active ? theme.colors.accent : theme.colors.border,
                 },
               ]}
             >
-              <Icon name={action.icon} size={18} color={theme.colors.text} />
+              <Icon
+                name={action.icon}
+                size={18}
+                color={action.active ? theme.colors.accentStrong : theme.colors.text}
+              />
             </Pressable>
           ))}
         </View>

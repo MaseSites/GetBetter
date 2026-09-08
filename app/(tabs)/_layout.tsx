@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, View, type ColorValue } from 'react-native';
+import type { ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
@@ -12,24 +12,6 @@ function tabIcon(name: IconName) {
     return <Icon name={name} size={22} color={String(color)} />;
   }
   return TabBarIcon;
-}
-
-/** Der Assistent sitzt in der Mitte und ist bewusst hervorgehoben. */
-function AssistantTabIcon({ focused }: { focused: boolean }) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.assistantIcon,
-        {
-          borderRadius: theme.radii.pill,
-          backgroundColor: focused ? theme.colors.accentStrong : theme.colors.accent,
-        },
-      ]}
-    >
-      <Icon name="sparkles" size={24} color={theme.colors.textOnAccent} />
-    </View>
-  );
 }
 
 export default function TabsLayout() {
@@ -69,11 +51,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="assistant"
-        options={{
-          title: t('tabs.assistant'),
-          tabBarIcon: AssistantTabIcon,
-          tabBarAccessibilityLabel: t('tabs.assistant'),
-        }}
+        options={{ title: t('tabs.assistant'), tabBarIcon: tabIcon('sparkles') }}
       />
       <Tabs.Screen
         name="profile"
@@ -82,12 +60,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  assistantIcon: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

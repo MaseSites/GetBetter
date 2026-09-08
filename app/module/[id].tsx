@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
+import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
 import { getModule } from '@/mocks/modules';
@@ -12,9 +13,11 @@ export default function ModuleDetailScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const { toggleFavourite, isFavourite } = useApp();
+  const { isFavourite } = useApp();
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
+  // Hooks laufen vor dem fruehen Return, sonst kippt die Reihenfolge.
+  const favouriteAction = useFavouriteAction(module?.id ?? '');
 
   if (!module) {
     return (
@@ -35,21 +38,13 @@ export default function ModuleDetailScreen() {
 
   return (
     <Screen
-      header={<Header showBack />}
+      header={<Header showBack actions={[favouriteAction]} />}
       footer={
-        <View style={{ gap: theme.spacing.sm }}>
-          <Button
-            label={t('detail.open')}
-            icon="forward"
-            onPress={() => router.push(`/run/${module.id}`)}
-          />
-          <Button
-            label={favourite ? t('detail.removeFavourite') : t('detail.addFavourite')}
-            icon="star"
-            variant="secondary"
-            onPress={() => toggleFavourite(module.id)}
-          />
-        </View>
+        <Button
+          label={t('detail.open')}
+          icon="forward"
+          onPress={() => router.push(`/run/${module.id}`)}
+        />
       }
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.lg }}>

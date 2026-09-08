@@ -51,7 +51,7 @@ export const de = {
     'Du nutzt Better Life für dich. Ein Haushalt geht später jederzeit.',
   'onboarding.household.finish': 'Fertig einrichten',
 
-  'tabs.today': 'Heute',
+  'tabs.today': 'Startseite',
   'tabs.modules': 'Module',
   'tabs.assistant': 'Assistent',
   'tabs.profile': 'Profil',

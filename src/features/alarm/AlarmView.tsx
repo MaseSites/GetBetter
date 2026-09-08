@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 
+import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { ALARMS, WEEKDAYS, type Alarm } from '@/mocks/alarms';
 import type { ModuleDefinition } from '@/mocks/types';
@@ -17,6 +18,7 @@ export function AlarmView({ module }: AlarmViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
+  const favouriteAction = useFavouriteAction(module.id);
 
   const [alarms, setAlarms] = useState<readonly Alarm[]>(ALARMS);
 
@@ -38,6 +40,7 @@ export function AlarmView({ module }: AlarmViewProps) {
           }
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
+          actions={[favouriteAction]}
         />
       }
       footer={

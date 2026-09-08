@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate } from '@/i18n';
 import {
   AI_CHAT_CANNED_REPLY,
@@ -25,6 +26,7 @@ export function AiChatView({ module }: AiChatViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
+  const favouriteAction = useFavouriteAction(module.id);
 
   const [messages, setMessages] = useState<readonly AssistantMessage[]>(AI_CHAT_THREAD);
   const [draft, setDraft] = useState('');
@@ -70,8 +72,15 @@ export function AiChatView({ module }: AiChatViewProps) {
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
           actions={
             messages.length > 0
-              ? [{ icon: 'repeat', label: t('aiChat.new'), onPress: () => setMessages([]) }]
-              : []
+              ? [
+                  {
+                    icon: 'repeat' as const,
+                    label: t('aiChat.new'),
+                    onPress: () => setMessages([]),
+                  },
+                  favouriteAction,
+                ]
+              : [favouriteAction]
           }
         />
       }

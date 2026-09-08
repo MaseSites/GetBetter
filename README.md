@@ -10,7 +10,7 @@ npm run web
 ```
 
 Dann im Browser: anmelden oder Konto erstellen, durchs Onboarding, in die vier
-Tabs — Heute, Module, Assistent, Profil. Alle Module sind von Anfang an da,
+Tabs — Startseite, Module, Assistent, Profil. Alle Module sind von Anfang an da,
 im Module-Tab nach Bereich sortiert.
 
 Der **Assistent** in der Mitte ist eingebaut und verwaltet quer ueber deine

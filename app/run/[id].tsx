@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { AiChatView } from '@/features/ai/AiChatView';
 import { AlarmView } from '@/features/alarm/AlarmView';
+import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { formatTime, formatWeekday, useI18n } from '@/i18n';
 import { getModule } from '@/mocks/modules';
 import { CALENDAR_WEEK, MODULE_CARDS_BY_ID } from '@/mocks/today';
@@ -14,6 +15,7 @@ import { Button, Card, Divider, EmptyState, Header, Icon, ListItem, Screen, Text
 function CalendarModule({ module }: { module: ModuleDefinition }) {
   const { t, language } = useI18n();
   const router = useRouter();
+  const favouriteAction = useFavouriteAction(module.id);
 
   return (
     <Screen
@@ -22,13 +24,7 @@ function CalendarModule({ module }: { module: ModuleDefinition }) {
           title={module.name}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[
-            {
-              icon: 'sparkles',
-              label: t('today.openAssistant'),
-              onPress: () => router.push('/assistant'),
-            },
-          ]}
+          actions={[favouriteAction]}
         />
       }
       footer={
@@ -84,6 +80,7 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
+  const favouriteAction = useFavouriteAction(module.id);
   const card = MODULE_CARDS_BY_ID[module.id];
 
   return (
@@ -94,13 +91,7 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
           subtitle={module.short}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[
-            {
-              icon: 'sparkles',
-              label: t('today.openAssistant'),
-              onPress: () => router.push('/assistant'),
-            },
-          ]}
+          actions={[favouriteAction]}
         />
       }
       footer={

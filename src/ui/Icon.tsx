@@ -60,6 +60,7 @@ export const ICONS = {
   mail: 'mail-outline',
   phone: 'call-outline',
   star: 'star-outline',
+  starFilled: 'star',
   warning: 'alert-circle-outline',
 } as const satisfies Record<string, IonName>;
 
