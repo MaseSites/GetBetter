@@ -17,7 +17,6 @@ import {
   type AuthResult,
 } from '@/auth/accounts';
 import { flush, notifyDataChanged, ready, type Account } from '@/db';
-import { seedAccount } from '@/db/seed';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
 import { ThemeProvider, createTheme, type ColorScheme } from '@/theme';
@@ -117,8 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         householdName: householdChoice === 'solo' ? null : 'Zuhause',
         onboarded: true,
       });
-      // Erst jetzt Beispieldaten anlegen, damit die App nicht leer startet.
-      await seedAccount(account.id);
+      // Ein neues Konto startet bewusst leer.
       if (updated) setAccount(updated);
       notifyDataChanged();
     },

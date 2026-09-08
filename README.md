@@ -4,9 +4,12 @@ Expo-App, im Browser als Handy und auf einem echten Geraet ueber Expo Go.
 Anmeldung und Datenspeicher sind echt, liegen aber nur auf dem Geraet —
 es gibt noch keinen Server.
 
-Ausgebaut sind Kalender, Aufgaben, Notizen, Einkaufsliste und Wecker:
-anlegen, aendern, abhaken, loeschen, und alles ueberlebt einen Neustart.
-Die uebrigen Module zeigen einen Platzhalter, der das sagt.
+Der **Kalender** hat Tages-, Wochen- und Monatsansicht, Termine mit Farbe,
+Ort und Notiz, und legt beim Antippen einer freien Stunde gleich einen an.
+Ebenfalls ausgebaut: Aufgaben, Notizen, Einkaufsliste, Wecker. Die uebrigen
+Module zeigen einen Platzhalter, der das sagt.
+
+Ein neues Konto startet leer.
 
 ```bash
 npm install

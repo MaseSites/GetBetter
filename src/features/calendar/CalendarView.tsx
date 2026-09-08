@@ -1,213 +1,323 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { useLiveQuery } from '@/db';
+import { useLiveQuery, type EventRow } from '@/db';
 import { events as eventRepo } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
-import { formatTime, formatWeekday, useI18n } from '@/i18n';
+import { useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, Divider, Header, Icon, Input, Loading, Screen, Sheet, Text } from '@/ui';
+import { Button, Header, Icon, Screen, Segmented, Text } from '@/ui';
 
-function startOfDay(offset = 0): Date {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
+import { eventColor } from './colors';
+import {
+  addDays,
+  addMonths,
+  isSameDay,
+  isToday,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+  weekDays,
+} from './dates';
+import { EventEditor, type EventDraft } from './EventEditor';
+import { MonthView } from './MonthView';
+import { TimeGrid } from './TimeGrid';
 
-/** "18:30" -> ISO an dem gewaehlten Tag. Ungueltiges gibt null. */
-function combine(day: Date, time: string): string | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return null;
-  const result = new Date(day);
-  result.setHours(hour, minute, 0, 0);
-  return result.toISOString();
-}
+type CalendarMode = 'day' | 'week' | 'month';
 
 export function CalendarView({ module }: { module: ModuleDefinition }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
   const favouriteAction = useFavouriteAction(module.id);
 
-  const [composeFor, setComposeFor] = useState<Date | null>(null);
+  const [mode, setMode] = useState<CalendarMode>('month');
+  const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
+  const [draft, setDraft] = useState<EventDraft | null>(null);
 
-  const week = useMemo(() => Array.from({ length: 7 }, (_, index) => startOfDay(index)), []);
-  const from = week[0]?.toISOString() ?? new Date().toISOString();
-  const to = useMemo(() => startOfDay(7).toISOString(), []);
+  // Sichtbarer Zeitraum je Ansicht — grosszuegig, damit Raender mitkommen.
+  const { from, to, days } = useMemo(() => {
+    if (mode === 'day') {
+      return { from: anchor, to: addDays(anchor, 1), days: [anchor] };
+    }
+    if (mode === 'week') {
+      const week = weekDays(anchor);
+      const first = week[0] ?? anchor;
+      return { from: first, to: addDays(first, 7), days: week };
+    }
+    const first = startOfWeek(startOfMonth(anchor));
+    return { from: first, to: addDays(first, 42), days: [] as Date[] };
+  }, [mode, anchor]);
+
+  const fromIso = from.toISOString();
+  const toIso = to.toISOString();
 
   const list = useLiveQuery(
-    () => eventRepo.listBetween(account.id, from, to),
-    [account.id, from, to],
+    () => eventRepo.listBetween(account.id, fromIso, toIso),
+    [account.id, fromIso, toIso],
   );
-  const items = list.data ?? [];
+  const events = list.data ?? [];
+
+  function step(direction: number) {
+    if (mode === 'month') setAnchor((current) => addMonths(current, direction));
+    else if (mode === 'week') setAnchor((current) => addDays(current, direction * 7));
+    else setAnchor((current) => addDays(current, direction));
+  }
+
+  const periodLabel = useMemo(() => {
+    if (mode === 'month') {
+      return new Intl.DateTimeFormat('de-CH', { month: 'long', year: 'numeric' }).format(anchor);
+    }
+    if (mode === 'day') {
+      return new Intl.DateTimeFormat('de-CH', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      }).format(anchor);
+    }
+    const week = weekDays(anchor);
+    const first = week[0] ?? anchor;
+    const last = week[6] ?? anchor;
+    const dayMonth = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' });
+    return `${dayMonth.format(first)} – ${dayMonth.format(last)}`;
+  }, [mode, anchor]);
 
   return (
     <Screen
+      scroll={false}
+      padded={false}
       header={
         <Header
           title={module.name}
-          subtitle={t('calendar.week')}
+          subtitle={periodLabel}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
           actions={[favouriteAction]}
-        />
+        >
+          <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
+            <Segmented
+              accessibilityLabel={t('calendar.view')}
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'day', label: t('calendar.view.day') },
+                { value: 'week', label: t('calendar.view.week') },
+                { value: 'month', label: t('calendar.view.month') },
+              ]}
+            />
+            <View style={{ flex: 1 }} />
+            <StepButton label={t('calendar.previous')} icon="back" onPress={() => step(-1)} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar.today')}
+              onPress={() => setAnchor(startOfDay(new Date()))}
+              style={({ pressed }) => [
+                styles.todayButton,
+                {
+                  borderRadius: theme.radii.pill,
+                  borderColor: theme.colors.border,
+                  backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
+                },
+              ]}
+            >
+              <Text variant="caption" tone="muted">
+                {t('calendar.today')}
+              </Text>
+            </Pressable>
+            <StepButton label={t('calendar.next')} icon="forward" onPress={() => step(1)} />
+          </View>
+        </Header>
       }
       footer={
-        <Button
-          label={t('calendar.add')}
-          icon="plus"
-          onPress={() => setComposeFor(week[0] ?? startOfDay())}
-        />
+        <Button label={t('calendar.add')} icon="plus" onPress={() => setDraft({ day: anchor })} />
       }
     >
-      {list.loading && items.length === 0 ? <Loading /> : null}
+      {mode === 'month' ? (
+        <MonthView
+          month={anchor}
+          selected={anchor}
+          events={events}
+          onSelect={setAnchor}
+          onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
+        />
+      ) : (
+        <View style={styles.fill}>
+          <DayHeader days={days} anchor={anchor} onSelect={setAnchor} mode={mode} />
+          <AllDayRow
+            days={days}
+            events={events}
+            onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
+          />
+          <TimeGrid
+            days={days}
+            events={events}
+            compact={mode === 'week'}
+            onPressSlot={(day, hour) => setDraft({ day, hour })}
+            onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
+          />
+        </View>
+      )}
 
-      {week.map((day) => {
-        const dayStart = day.toISOString();
-        const next = new Date(day);
-        next.setDate(next.getDate() + 1);
-        const dayEnd = next.toISOString();
-        const entries = items.filter(
-          (event) => event.startsAt >= dayStart && event.startsAt < dayEnd,
-        );
-
-        return (
-          <Card key={dayStart} title={formatWeekday(language, dayStart)}>
-            {entries.length === 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t('calendar.add')} — ${formatWeekday(language, dayStart)}`}
-                onPress={() => setComposeFor(day)}
-                style={[styles.emptyDay, { gap: theme.spacing.sm }]}
-              >
-                <Icon name="plus" size={16} color={theme.colors.textFaint} />
-                <Text variant="label" tone="faint">
-                  {t('calendar.empty')}
-                </Text>
-              </Pressable>
-            ) : (
-              <View>
-                {entries.map((event, index) => (
-                  <View key={event.id}>
-                    {index > 0 ? <Divider /> : null}
-                    <View
-                      style={[
-                        styles.row,
-                        { paddingVertical: theme.spacing.md, gap: theme.spacing.md },
-                      ]}
-                    >
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text variant="body">{event.title}</Text>
-                        {event.location ? (
-                          <Text variant="label" tone="muted">
-                            {event.location}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Text variant="label" tone="muted">
-                        {event.allDay ? t('today.allDay') : formatTime(language, event.startsAt)}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${t('calendar.remove')}: ${event.title}`}
-                        onPress={() => eventRepo.remove(event.id)}
-                        hitSlop={8}
-                      >
-                        <Icon name="trash" size={18} color={theme.colors.textFaint} />
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </Card>
-        );
-      })}
-
-      <EventComposer day={composeFor} accountId={account.id} onClose={() => setComposeFor(null)} />
+      <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
     </Screen>
   );
 }
 
-type ComposerProps = { day: Date | null; accountId: string; onClose: () => void };
-
-function EventComposer({ day, accountId, onClose }: ComposerProps) {
-  const { t, language } = useI18n();
+function StepButton({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: 'back' | 'forward';
+  onPress: () => void;
+}) {
   const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.stepButton,
+        { opacity: pressed ? 0.5 : 1, borderRadius: theme.radii.pill },
+      ]}
+    >
+      <Icon name={icon} size={20} color={theme.colors.textMuted} />
+    </Pressable>
+  );
+}
 
-  const [title, setTitle] = useState('');
-  const [time, setTime] = useState('09:00');
-  const [location, setLocation] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    if (!day) return;
-    if (title.trim().length === 0) {
-      setError(t('calendar.error.title'));
-      return;
-    }
-    const startsAt = combine(day, time);
-    if (!startsAt) {
-      setError(t('calendar.error.time'));
-      return;
-    }
-    await eventRepo.create({ accountId, title, startsAt, location });
-    setTitle('');
-    setLocation('');
-    setError(null);
-    onClose();
-  }
+function DayHeader({
+  days,
+  anchor,
+  onSelect,
+  mode,
+}: {
+  days: readonly Date[];
+  anchor: Date;
+  onSelect: (day: Date) => void;
+  mode: CalendarMode;
+}) {
+  const theme = useTheme();
+  if (mode === 'day') return null;
 
   return (
-    <Sheet
-      visible={day !== null}
-      onClose={onClose}
-      title={t('calendar.add')}
-      subtitle={day ? formatWeekday(language, day.toISOString()) : undefined}
+    <View style={[styles.dayHeader, { borderBottomColor: theme.colors.border, paddingLeft: 44 }]}>
+      {days.map((day) => {
+        const selected = isSameDay(day, anchor);
+        return (
+          <Pressable
+            key={day.toISOString()}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={new Intl.DateTimeFormat('de-CH', {
+              weekday: 'long',
+              day: 'numeric',
+            }).format(day)}
+            onPress={() => onSelect(day)}
+            style={styles.dayHeaderCell}
+          >
+            <Text variant="caption" tone="faint">
+              {new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(day).slice(0, 2)}
+            </Text>
+            <View
+              style={[
+                styles.dayHeaderCircle,
+                selected
+                  ? { backgroundColor: theme.colors.accent }
+                  : isToday(day)
+                    ? { borderWidth: 1, borderColor: theme.colors.accent }
+                    : null,
+              ]}
+            >
+              <Text
+                variant="label"
+                tone={selected ? 'onAccent' : isToday(day) ? 'accent' : 'default'}
+              >
+                {day.getDate()}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function AllDayRow({
+  days,
+  events,
+  onPressEvent,
+}: {
+  days: readonly Date[];
+  events: readonly EventRow[];
+  onPressEvent: (event: EventRow) => void;
+}) {
+  const theme = useTheme();
+  const { t } = useI18n();
+
+  const allDay = events.filter(
+    (event) => event.allDay && days.some((day) => isSameDay(new Date(event.startsAt), day)),
+  );
+  if (allDay.length === 0) return null;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[styles.allDay, { borderBottomColor: theme.colors.border }]}
+      contentContainerStyle={{
+        gap: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.sm,
+      }}
     >
-      <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
-        <Input
-          label={t('calendar.field.title')}
-          placeholder={t('calendar.field.titlePlaceholder')}
-          value={title}
-          onChangeText={(value) => {
-            setTitle(value);
-            setError(null);
-          }}
-          {...(error && title.trim().length === 0 ? { error } : {})}
-        />
-        <Input
-          label={t('calendar.field.time')}
-          placeholder="09:00"
-          value={time}
-          onChangeText={(value) => {
-            setTime(value);
-            setError(null);
-          }}
-          keyboardType="numbers-and-punctuation"
-          {...(error && title.trim().length > 0 ? { error } : {})}
-        />
-        <Input
-          label={t('calendar.field.location')}
-          placeholder={t('calendar.field.locationPlaceholder')}
-          value={location}
-          onChangeText={setLocation}
-        />
-        <Button label={t('common.done')} icon="check" onPress={save} />
-      </View>
-    </Sheet>
+      {allDay.map((event) => (
+        <Pressable
+          key={event.id}
+          accessibilityRole="button"
+          accessibilityLabel={`${event.title} — ${t('today.allDay')}`}
+          onPress={() => onPressEvent(event)}
+          style={[
+            styles.allDayChip,
+            { backgroundColor: eventColor(event.color), borderRadius: theme.radii.sm },
+          ]}
+        >
+          <Text variant="caption" tone="onAccent" numberOfLines={1}>
+            {event.title}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
-  emptyDay: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+  fill: { flex: 1 },
+  toolbar: { flexDirection: 'row', alignItems: 'center' },
+  todayButton: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  dayHeader: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
+  dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: 6, gap: 2 },
+  dayHeaderCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allDay: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth },
+  allDayChip: { paddingHorizontal: 8, paddingVertical: 4, maxWidth: 160 },
 });

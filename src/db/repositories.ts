@@ -31,22 +31,30 @@ export const events = {
     });
   },
 
+  find(id: string) {
+    return db.events.find(id);
+  },
+
   async create(input: {
     accountId: string;
     title: string;
     startsAt: string;
     endsAt?: string | null;
     location?: string | null;
+    notes?: string | null;
     allDay?: boolean;
+    color?: string | null;
   }): Promise<EventRow> {
     const row: EventRow = {
       id: newId('ev'),
       accountId: input.accountId,
       title: input.title.trim(),
       location: input.location?.trim() || null,
+      notes: input.notes?.trim() || null,
       startsAt: input.startsAt,
       endsAt: input.endsAt ?? null,
       allDay: input.allDay ?? false,
+      color: input.color ?? null,
       createdAt: now(),
     };
     return changed(await db.events.insert(row));

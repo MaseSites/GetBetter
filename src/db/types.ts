@@ -18,9 +18,12 @@ export type EventRow = Row & {
   accountId: string;
   title: string;
   location: string | null;
+  notes: string | null;
   startsAt: string;
   endsAt: string | null;
   allDay: boolean;
+  /** Schluessel aus EVENT_COLORS. Fehlt er, gilt die Standardfarbe. */
+  color: string | null;
   createdAt: string;
 };
 

@@ -73,6 +73,21 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 | Installierbar | Nein, eingebaut                                                         | Entfaellt — alle Module sind da (im Abo enthalten)    |
 | Daten         | Liest und schreibt deine Module, fragt vor dem Eintragen                | Sieht deine Daten nicht                               |
 
+## Kalender
+
+`src/features/calendar/` — drei Ansichten ueber denselben Datenbestand:
+
+- `MonthView` — Raster mit farbigen Punkten, darunter die Agenda des gewaehlten Tages
+- `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
+  und einer Linie fuer die aktuelle Uhrzeit
+- `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Farbe, Ort, Notiz
+
+`dates.ts` haelt die Datumsrechnung ohne Fremdbibliothek; die Woche beginnt
+am Montag. `colors.ts` hat die sieben Terminfarben — Termine ohne Farbe
+bekommen die Standardfarbe, damit aeltere Zeilen weiter passen.
+
+Noch nicht drin: Wiederholungen, mehrtaegige Termine, Erinnerungen.
+
 ## Module
 
 Alle Module sind von Anfang an vorhanden; es gibt keinen Installationszustand.
