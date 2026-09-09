@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { households as householdRepo, useLiveQuery } from '@/db';
+import { HouseholdInvite } from '@/features/household/HouseholdInvite';
 import { formatShortDate, useI18n } from '@/i18n';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -170,22 +171,7 @@ export function HouseholdView() {
         />
       }
     >
-      <Card title={t('household.invite.title')} subtitle={t('household.invite.body')}>
-        <View
-          style={[
-            styles.code,
-            {
-              backgroundColor: theme.colors.accentSoft,
-              borderRadius: theme.radii.md,
-              paddingVertical: theme.spacing.md,
-            },
-          ]}
-        >
-          <Text variant="display" align="center" style={{ letterSpacing: 6 }}>
-            {household.inviteCode}
-          </Text>
-        </View>
-      </Card>
+      <HouseholdInvite household={household} />
 
       <Card title={t('household.members')}>
         {memberList.loading && members.length === 0 ? <Loading compact /> : null}

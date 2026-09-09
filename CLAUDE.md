@@ -83,7 +83,21 @@ wechseln — der letzte Verwalter kann sich nicht selbst herabstufen, und beim
 Austritt erbt das aelteste Mitglied die Rolle.
 
 Ein Konto kann in bis zu **3** Haushalten sein (`MAX_HOUSEHOLDS`); der Tab
-"Haushalt" listet sie und schaltet zwischen ihnen um. Der im Konto vermerkte
+"Haushalt" listet sie, schaltet zwischen ihnen um und hat zwei Knoepfe:
+`/new-household` legt an und zeigt danach gleich die Einladewege,
+`/join-household` nimmt einen Code entgegen — auch aus dem Link.
+
+Eingeladen wird auf drei Wegen (`HouseholdInvite`):
+
+|              |                                                                        |
+| ------------ | ---------------------------------------------------------------------- |
+| Link         | `Linking.createURL('/join-household', { code })`, kopieren oder teilen |
+| Benutzername | Legt eine offene Einladung an; die Person muss zustimmen               |
+| Code         | Sechs Zeichen zum Vorlesen                                             |
+
+`HouseholdMemberRow.status` unterscheidet `pending` von `accepted`; Zeilen ohne
+Status gelten als angenommen. Eine Zusage stellt den aktiven Haushalt bewusst
+**nicht** um — nur wer in keinem ist, landet gleich im neuen. Der im Konto vermerkte
 `householdId` ist der aktive — Einkaufsliste, Aemtli und Familienkalender
 folgen ihm.
 

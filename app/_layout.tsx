@@ -70,6 +70,8 @@ function Shell() {
         <Stack.Screen name="module/[id]" />
         <Stack.Screen name="run/[id]" />
         <Stack.Screen name="manage-household" />
+        <Stack.Screen name="new-household" />
+        <Stack.Screen name="join-household" />
         <Stack.Screen name="ui-kit" />
       </Stack>
     </>

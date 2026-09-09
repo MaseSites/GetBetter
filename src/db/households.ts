@@ -1,6 +1,12 @@
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
-import type { Account, HouseholdMemberRow, HouseholdRole, HouseholdRow } from './types';
+import type {
+  Account,
+  HouseholdMemberRow,
+  HouseholdMemberStatus,
+  HouseholdRole,
+  HouseholdRow,
+} from './types';
 
 function now(): string {
   return new Date().toISOString();
@@ -26,6 +32,20 @@ export function normaliseInviteCode(input: string): string {
   return input.trim().toUpperCase().replace(/\s/g, '');
 }
 
+/** Zeilen von frueher kennen den Status noch nicht. */
+export function memberStatus(row: HouseholdMemberRow): HouseholdMemberStatus {
+  return row.status === 'pending' ? 'pending' : 'accepted';
+}
+
+export type HouseholdInvite = {
+  membership: HouseholdMemberRow;
+  household: HouseholdRow | undefined;
+  invitedByName: string;
+};
+
+export type HouseholdInviteError = 'unknown_user' | 'already_member' | 'self' | 'limit';
+export type HouseholdInviteResult = { ok: true } | { ok: false; error: HouseholdInviteError };
+
 export type HouseholdMember = {
   membership: HouseholdMemberRow;
   account: Account | undefined;
@@ -47,7 +67,7 @@ export const households = {
   /** Alle Haushalte, in denen jemand ist — der aktive steht im Konto. */
   async allOf(accountId: string): Promise<{ household: HouseholdRow; role: HouseholdRole }[]> {
     const memberships = await db.householdMembers.list({
-      where: (row) => row.accountId === accountId,
+      where: (row) => row.accountId === accountId && memberStatus(row) === 'accepted',
       sort: (a, b) => a.joinedAt.localeCompare(b.joinedAt),
     });
     const result: { household: HouseholdRow; role: HouseholdRole }[] = [];
@@ -59,7 +79,9 @@ export const households = {
   },
 
   async countOf(accountId: string): Promise<number> {
-    return db.householdMembers.count((row) => row.accountId === accountId);
+    return db.householdMembers.count(
+      (row) => row.accountId === accountId && memberStatus(row) === 'accepted',
+    );
   },
 
   async canJoinMore(accountId: string): Promise<boolean> {
@@ -73,6 +95,16 @@ export const households = {
   },
 
   async membership(householdId: string, accountId: string) {
+    return db.householdMembers.findBy(
+      (row) =>
+        row.householdId === householdId &&
+        row.accountId === accountId &&
+        memberStatus(row) === 'accepted',
+    );
+  },
+
+  /** Auch offene Einladungen, damit man nicht doppelt einlaedt. */
+  async anyMembership(householdId: string, accountId: string) {
     return db.householdMembers.findBy(
       (row) => row.householdId === householdId && row.accountId === accountId,
     );
@@ -122,6 +154,8 @@ export const households = {
       accountId,
       // Wer anlegt, verwaltet.
       role: 'admin',
+      status: 'accepted',
+      invitedBy: accountId,
       joinedAt: now(),
     });
     await db.accounts.update(accountId, { householdId: household.id });
@@ -144,12 +178,101 @@ export const households = {
       householdId: household.id,
       accountId,
       role: 'member',
+      status: 'accepted',
+      invitedBy: accountId,
       joinedAt: now(),
     });
     await db.accounts.update(accountId, { householdId: household.id });
     await adoptExistingData(accountId, household.id);
     notifyDataChanged();
     return { ok: true, household };
+  },
+
+  /** Einladen per Benutzername. Die Person muss zustimmen. */
+  async inviteByUsername(
+    householdId: string,
+    invitedBy: string,
+    username: string,
+  ): Promise<HouseholdInviteResult> {
+    const wanted = username.trim().toLowerCase().replace(/^@/, '');
+    const account = await db.accounts.findBy((row) => row.username === wanted);
+    if (!account) return { ok: false, error: 'unknown_user' };
+    if (account.id === invitedBy) return { ok: false, error: 'self' };
+
+    const existing = await households.anyMembership(householdId, account.id);
+    if (existing) return { ok: false, error: 'already_member' };
+    if (!(await households.canJoinMore(account.id))) return { ok: false, error: 'limit' };
+
+    await db.householdMembers.insert({
+      id: newId('hm'),
+      householdId,
+      accountId: account.id,
+      role: 'member',
+      status: 'pending',
+      invitedBy,
+      joinedAt: now(),
+    });
+    notifyDataChanged();
+    return { ok: true };
+  },
+
+  /** Offene Einladungen — daraus wird die Benachrichtigung. */
+  async invitesFor(accountId: string): Promise<HouseholdInvite[]> {
+    const memberships = await db.householdMembers.list({
+      where: (row) => row.accountId === accountId && memberStatus(row) === 'pending',
+      sort: (a, b) => b.joinedAt.localeCompare(a.joinedAt),
+    });
+    const result: HouseholdInvite[] = [];
+    for (const membership of memberships) {
+      const household = await db.households.find(membership.householdId);
+      const inviter = membership.invitedBy
+        ? await db.accounts.find(membership.invitedBy)
+        : undefined;
+      result.push({
+        membership,
+        household,
+        invitedByName: inviter?.firstName?.trim() || inviter?.username || '—',
+      });
+    }
+    return result;
+  },
+
+  async respond(membershipId: string, accept: boolean): Promise<boolean> {
+    const membership = await db.householdMembers.find(membershipId);
+    if (!membership) return false;
+    if (!accept) {
+      await db.householdMembers.remove(membershipId);
+      notifyDataChanged();
+      return true;
+    }
+    // Das Limit gilt auch beim Annehmen.
+    if (!(await households.canJoinMore(membership.accountId))) return false;
+    await db.householdMembers.update(membershipId, {
+      status: 'accepted',
+      joinedAt: now(),
+    });
+
+    // Eine Zusage soll den aktiven Haushalt nicht umstellen — nur wer noch
+    // in keinem ist, landet gleich in diesem.
+    const account = await db.accounts.find(membership.accountId);
+    if (!account?.householdId) {
+      await db.accounts.update(membership.accountId, { householdId: membership.householdId });
+      await adoptExistingData(membership.accountId, membership.householdId);
+    }
+    notifyDataChanged();
+    return true;
+  },
+
+  async removeMember(householdId: string, accountId: string) {
+    await db.householdMembers.removeWhere(
+      (row) => row.householdId === householdId && row.accountId === accountId,
+    );
+    const account = await db.accounts.find(accountId);
+    if (account?.householdId === householdId) {
+      const others = await households.allOf(accountId);
+      await db.accounts.update(accountId, { householdId: others[0]?.household.id ?? null });
+    }
+    notifyDataChanged();
   },
 
   async rename(householdId: string, name: string) {

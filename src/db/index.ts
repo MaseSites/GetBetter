@@ -10,7 +10,14 @@ export type {
   InviteError,
   InviteResult,
 } from './calendars';
-export type { HouseholdMember, JoinError, JoinResult } from './households';
+export type {
+  HouseholdInvite,
+  HouseholdInviteError,
+  HouseholdInviteResult,
+  HouseholdMember,
+  JoinError,
+  JoinResult,
+} from './households';
 export type { LiveQuery } from './live';
 export type {
   Account,
@@ -25,6 +32,7 @@ export type {
   CollectionName,
   EventRow,
   HouseholdMemberRow,
+  HouseholdMemberStatus,
   HouseholdRole,
   HouseholdRow,
   NoteRow,

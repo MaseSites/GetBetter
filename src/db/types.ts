@@ -28,10 +28,16 @@ export type HouseholdRow = Row & {
 /** Verwalter duerfen den Haushalt aendern und Mitglieder verwalten. */
 export type HouseholdRole = 'admin' | 'member';
 
+/** Per Benutzername Eingeladene muessen erst zustimmen. */
+export type HouseholdMemberStatus = 'pending' | 'accepted';
+
 export type HouseholdMemberRow = Row & {
   householdId: string;
   accountId: string;
   role: HouseholdRole;
+  /** Fehlt bei aelteren Zeilen — die gelten als angenommen. */
+  status?: HouseholdMemberStatus;
+  invitedBy?: string;
   joinedAt: string;
 };
 

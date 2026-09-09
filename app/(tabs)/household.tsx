@@ -1,70 +1,32 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { View } from 'react-native';
 
 import { households as householdRepo, useLiveQuery, MAX_HOUSEHOLDS } from '@/db';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
+import { Badge, Button, Card, EmptyState, Header, Loading, Screen, Text } from '@/ui';
 
 export default function HouseholdTab() {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
-  const { account, household, createHousehold, switchHousehold, joinHousehold } = useApp();
-
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { account, household, switchHousehold, refreshHousehold } = useApp();
 
   const list = useLiveQuery(
     () => (account ? householdRepo.allOf(account.id) : Promise.resolve([])),
     [account?.id, household?.id],
   );
+  const inviteList = useLiveQuery(
+    () => (account ? householdRepo.invitesFor(account.id) : Promise.resolve([])),
+    [account?.id],
+  );
+
   const households = list.data ?? [];
+  const invites = inviteList.data ?? [];
   const atLimit = households.length >= MAX_HOUSEHOLDS;
 
   if (!account) return null;
-
-  async function handleCreate() {
-    if (busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const ok = await createHousehold(name);
-      if (!ok) {
-        setMessage(t('households.error.limit', { max: MAX_HOUSEHOLDS }));
-        return;
-      }
-      setName('');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleJoin() {
-    if (busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const result = await joinHousehold(code);
-      if (!result.ok) {
-        setMessage(
-          result.error === 'already_member'
-            ? t('household.error.member')
-            : result.error === 'limit'
-              ? t('households.error.limit', { max: MAX_HOUSEHOLDS })
-              : t('household.error.code'),
-        );
-        return;
-      }
-      setCode('');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <Screen
@@ -76,9 +38,39 @@ export default function HouseholdTab() {
         />
       }
     >
+      {invites.map((invite) => (
+        <Card
+          key={invite.membership.id}
+          title={t('householdInvite.incoming.title', {
+            name: invite.household?.name ?? t('households.title'),
+          })}
+          subtitle={t('householdInvite.incoming.body', { name: invite.invitedByName })}
+        >
+          <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+            <Button
+              label={t('calendars.invites.accept')}
+              size="sm"
+              icon="check"
+              fullWidth={false}
+              onPress={async () => {
+                await householdRepo.respond(invite.membership.id, true);
+                await refreshHousehold();
+              }}
+            />
+            <Button
+              label={t('calendars.invites.decline')}
+              size="sm"
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => householdRepo.respond(invite.membership.id, false)}
+            />
+          </View>
+        </Card>
+      ))}
+
       {list.loading && households.length === 0 ? <Loading /> : null}
 
-      {!list.loading && households.length === 0 ? (
+      {!list.loading && households.length === 0 && invites.length === 0 ? (
         <EmptyState
           icon="people"
           title={t('household.none.title')}
@@ -115,63 +107,26 @@ export default function HouseholdTab() {
         );
       })}
 
-      {household ? (
+      <View style={{ gap: theme.spacing.sm }}>
         <Button
-          label={t('households.manage')}
-          icon="settings"
-          variant="secondary"
-          onPress={() => router.push('/manage-household')}
-        />
-      ) : null}
-
-      <Card title={t('household.create.title')} subtitle={t('household.create.body')}>
-        <Input
-          label={t('household.field.name')}
-          placeholder={t('household.field.namePlaceholder')}
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          editable={!atLimit}
-        />
-        <Button
-          label={t('household.create.action')}
-          icon="home"
-          onPress={handleCreate}
-          loading={busy}
+          label={t('household.create.title')}
+          icon="plus"
+          onPress={() => router.push('/new-household')}
           disabled={atLimit}
         />
-      </Card>
-
-      <Card title={t('household.join.title')} subtitle={t('household.join.body')}>
-        <Input
-          label={t('household.field.code')}
-          placeholder="ABC123"
-          value={code}
-          onChangeText={(value) => {
-            setCode(value);
-            setMessage(null);
-          }}
-          autoCapitalize="none"
-          editable={!atLimit}
-        />
         <Button
-          label={t('household.join.action')}
+          label={t('household.join.title')}
           icon="people"
           variant="secondary"
-          onPress={handleJoin}
-          loading={busy}
+          onPress={() => router.push('/join-household')}
           disabled={atLimit}
         />
-      </Card>
-
-      {message ? (
-        <View style={{ flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'center' }}>
-          <Icon name="warning" size={16} color={theme.colors.danger} />
-          <Text variant="caption" tone="danger">
-            {message}
+        {atLimit ? (
+          <Text variant="caption" tone="faint">
+            {t('households.error.limit', { max: MAX_HOUSEHOLDS })}
           </Text>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
     </Screen>
   );
 }
