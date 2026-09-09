@@ -341,6 +341,10 @@ export const BUILT_MODULE_IDS: readonly string[] = [
   'habits',
   'travel',
   'contacts',
+  'recipes',
+  'plants',
+  'pets',
+  'vehicles',
 ];
 
 export function modulesOfApp(): readonly ModuleDefinition[] {

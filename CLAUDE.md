@@ -8,13 +8,13 @@ noch die Zeit, als alles eine App war.
 
 ## Die Apps
 
-| App              | Ordner              | Schema            | Web  | Was drin ist                                                                                                                                  |
-| ---------------- | ------------------- | ----------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — dazu der Assistent und die Übersicht über alle Apps |
-| **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt                                               |
-| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                         |
-| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                                 |
-| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                     |
+| App              | Ordner              | Schema            | Web  | Was drin ist                                                                                                                                |
+| ---------------- | ------------------- | ----------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — alles ausgebaut, dazu Assistent und App-Übersicht |
+| **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt, alles ausgebaut                            |
+| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                       |
+| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                               |
+| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                   |
 
 `APP_MODULES` in `packages/core/src/app/identity.ts` ist die Wahrheit darüber,
 welche App welche Module führt. `calendar` steht in zwei Apps: GetBetter führt
@@ -149,6 +149,31 @@ Haushalt eine Funktion wie jede andere: eine Kachel unter Funktionen, ein
 Abschnitt auf der Startseite, die Route `/household`. Beim Beitritt werden
 Einkaufsliste und Ämtli in den Haushalt übernommen — Termine nicht, die
 bleiben privat.
+
+## BetterFamily: der Haushalt
+
+Vorbild sind Cozi und FamilyWall — eine Liste, die alle sehen, und die Dinge,
+die man sonst vergisst. Alles gehört dem Haushalt (`householdId`); wer in
+keinem ist, sieht nur Eigenes (`familyVisible` in `db/family.ts`).
+
+- **Einkaufsliste** (`shoppingItems`) — sortiert wie im Laden: Früchte &
+  Gemüse, Brot, Milch & Käse, Fleisch & Fisch, Vorrat, Getränke, Haushalt,
+  Anderes. Die Abteilung rät `guessCategory`
+  (`features/shopping/categories.ts`) aus dem Namen, ein Chip über dem Feld
+  setzt sie fest; „2 Bananen“ wird zu Menge 2 (`splitQuantity`). Erledigtes
+  steht unten unter „im Korb“.
+- **Rezepte** (`recipes`) — Personen, Zutaten (eine pro Zeile), Zubereitung,
+  Chips Schnell/Vegi/Kinder/Gäste. **Zutaten auf die Einkaufsliste** legt jede
+  Zeile als Posten an, mit Menge und geratener Abteilung.
+- **Pflanzen** (`plants`) — Ort und Giessrhythmus; `plantDueDay` sagt, wer dran
+  ist. Oben **Heute giessen**, ein Tipp auf „Gegossen“ setzt den Rhythmus neu.
+- **Haustiere** (`pets`, `petEvents`) — Art, Alter, Termine (Tierarzt, Impfung,
+  Entwurmung, Pflege); oben **Demnächst** über alle Tiere.
+- **Fahrzeuge** (`vehicles`) — Kennzeichen, nächster Service, Reifenwechsel,
+  Vignette (Jahr), Kilometerstand. Was in 30 Tagen fällig ist oder fehlt, rot.
+
+Die Startseite zeigt die Liste, die letzten Rezepte, was heute zu giessen ist
+(antippen heisst gegossen), die nächsten Tiertermine und was am Auto ansteht.
 
 ## Kalender
 

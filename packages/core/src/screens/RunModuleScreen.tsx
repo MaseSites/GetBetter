@@ -12,6 +12,10 @@ import { BillsView } from '@/features/money/BillsView';
 import { BudgetView } from '@/features/money/BudgetView';
 import { SavingsView } from '@/features/money/SavingsView';
 import { SubscriptionsView } from '@/features/money/SubscriptionsView';
+import { PetsView } from '@/features/family/PetsView';
+import { PlantsView } from '@/features/family/PlantsView';
+import { RecipesView } from '@/features/family/RecipesView';
+import { VehiclesView } from '@/features/family/VehiclesView';
 import { NotesView } from '@/features/notes/NotesView';
 import { ContactsView } from '@/features/organizer/ContactsView';
 import { DocumentsView } from '@/features/organizer/DocumentsView';
@@ -46,6 +50,10 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   habits: (module) => <HabitsView module={module} />,
   travel: (module) => <TripsView module={module} />,
   contacts: (module) => <ContactsView module={module} />,
+  recipes: (module) => <RecipesView module={module} />,
+  plants: (module) => <PlantsView module={module} />,
+  pets: (module) => <PetsView module={module} />,
+  vehicles: (module) => <VehiclesView module={module} />,
 };
 
 /** Noch nicht gebaut — ehrlich gesagt statt mit erfundenen Zahlen gefuellt. */

@@ -425,6 +425,7 @@ export const shopping = {
     householdId: string | null;
     name: string;
     quantity?: string | null;
+    category?: string;
   }): Promise<ShoppingItemRow> {
     const row: ShoppingItemRow = {
       id: newId('sh'),
@@ -432,6 +433,7 @@ export const shopping = {
       householdId: input.householdId,
       name: input.name.trim(),
       quantity: input.quantity?.trim() || null,
+      ...(input.category ? { category: input.category } : {}),
       done: false,
       createdAt: now(),
     };

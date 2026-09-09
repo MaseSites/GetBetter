@@ -215,7 +215,72 @@ export type ShoppingItemRow = Row & {
   householdId: string | null;
   name: string;
   quantity: string | null;
+  /** Abteilung im Laden (`produce`, `dairy`, …); fehlt sie, wird geraten. */
+  category?: string;
   done: boolean;
+  createdAt: string;
+};
+
+/** Ein Rezept des Haushalts — oder das eigene, wenn man in keinem ist. */
+export type RecipeRow = Row & {
+  accountId: string;
+  householdId: string | null;
+  title: string;
+  servings: number;
+  /** Eine Zutat pro Zeile, mit Menge davor. */
+  ingredients: readonly string[];
+  steps: string;
+  tags: readonly string[];
+  createdAt: string;
+};
+
+/** Eine Pflanze mit Giessrhythmus. */
+export type PlantRow = Row & {
+  accountId: string;
+  householdId: string | null;
+  name: string;
+  location: string | null;
+  intervalDays: number;
+  /** `YYYY-MM-DD` oder null, wenn noch nie gegossen. */
+  lastWateredOn: string | null;
+  createdAt: string;
+};
+
+export type PetKind = 'dog' | 'cat' | 'rabbit' | 'bird' | 'fish' | 'other';
+
+export type PetRow = Row & {
+  accountId: string;
+  householdId: string | null;
+  name: string;
+  kind: PetKind;
+  birthday: string | null;
+  createdAt: string;
+};
+
+export type PetEventKind = 'vet' | 'vaccine' | 'worming' | 'grooming' | 'other';
+
+/** Ein Termin fuer ein Tier: Tierarzt, Impfung, Entwurmung, Pflege. */
+export type PetEventRow = Row & {
+  petId: string;
+  accountId: string;
+  kind: PetEventKind;
+  day: string;
+  note: string | null;
+  createdAt: string;
+};
+
+export type VehicleRow = Row & {
+  accountId: string;
+  householdId: string | null;
+  name: string;
+  plate: string | null;
+  /** Naechster Service als Tag. */
+  serviceOn: string | null;
+  /** Naechster Reifenwechsel als Tag. */
+  tyresOn: string | null;
+  /** Das Jahr, fuer das die Vignette klebt. */
+  vignetteYear: number | null;
+  mileage: number | null;
   createdAt: string;
 };
 
@@ -353,6 +418,11 @@ export type Schema = {
   trips: TripRow;
   packingItems: PackingItemRow;
   contacts: ContactRow;
+  recipes: RecipeRow;
+  plants: PlantRow;
+  pets: PetRow;
+  petEvents: PetEventRow;
+  vehicles: VehicleRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -383,6 +453,11 @@ export const COLLECTION_NAMES = [
   'trips',
   'packingItems',
   'contacts',
+  'recipes',
+  'plants',
+  'pets',
+  'petEvents',
+  'vehicles',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;

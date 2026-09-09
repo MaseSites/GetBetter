@@ -8,7 +8,7 @@ mitstartest.
 | App              | Was drin ist                                                                                | Web  |
 | ---------------- | ------------------------------------------------------------------------------------------- | ---- |
 | **GetBetter**    | Privater Kalender, Aufgaben, Notizen, Wecker, Assistent — dazu die Übersicht über alle Apps | 8081 |
-| **BetterFamily** | Familienkalender, Einkaufsliste, Ämtli, Haushalt                                            | 8082 |
+| **BetterFamily** | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge, Haushalt   | 8082 |
 | **BetterGym**    | Training, Menüplan, Trinken                                                                 | 8083 |
 | **BetterAi**     | Das KI-Gespräch                                                                             | 8084 |
 | **BetterMoney**  | Budget, Rechnungen, Abos, Sparziele                                                         | 8085 |
@@ -28,9 +28,15 @@ Jede App hat drei Tabs: **Start** (was gerade ansteht, direkt bearbeitbar),
 Der **Kalender** in GetBetter hat Tages-, Wochen- und Monatsansicht, Termine mit
 Farbe, Ort und Notiz, und legt beim Antippen einer freien Stunde gleich einen an.
 Ein Termin kann in mehreren Kalendern liegen und wird trotzdem einmal angezeigt.
-Ausgebaut sind ausserdem Aufgaben, Notizen, Wecker (GetBetter), Einkaufsliste und
-Ämtli (BetterFamily), Training, Menüplan und Trinken (BetterGym) sowie der Chat
-(BetterAi). Die übrigen Funktionen stehen unter **Kommt noch** und sagen das.
+GetBetter hat dazu Aufgaben (nach Frist in Abschnitten, mit Fahne und Notiz),
+Notizen mit Suche und Anheften, Wecker, Dokumente mit Ablaufdatum,
+Gewohnheiten mit Wochenpunkten und Serie, Reisen mit Packliste und Kontakte
+mit Geburtstagen. BetterFamily führt die Einkaufsliste nach Abteilungen
+sortiert, Ämtli, Rezepte (Zutaten direkt auf die Liste), Pflanzen mit
+Giessrhythmus, Haustiere mit Terminen und Fahrzeuge mit Service, Vignette und
+Reifen. BetterGym hat Training, Menüplan und Trinken, BetterMoney Budget,
+Rechnungen, Abos und Sparziele, BetterAi den Chat. Was noch fehlt, steht
+unter **Kommt noch** und sagt das.
 
 **Haushalte** (BetterFamily): anlegen oder mit einem sechsstelligen Code
 beitreten, Rollen Verwalter und Mitglied. Im Haushalt teilen sich alle die

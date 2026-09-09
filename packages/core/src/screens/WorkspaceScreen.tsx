@@ -12,10 +12,15 @@ import {
   habits as habitRepo,
   meals as mealRepo,
   monthKey,
+  pets as petRepo,
+  plantDueDay,
+  plants as plantRepo,
+  recipes as recipeRepo,
   savings as savingsRepo,
   subscriptions as subscriptionRepo,
   trips as tripRepo,
   useLiveQuery,
+  vehicles as vehicleRepo,
   workouts as workoutRepo,
 } from '@/db';
 import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
@@ -30,7 +35,14 @@ import {
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { currentApp, hasHouseholds } from '@/app/identity';
 import { AppFamily } from '@/features/apps/AppFamily';
-import { formatLongDate, formatMoney, formatShortDate, formatTime, useI18n } from '@/i18n';
+import {
+  formatLongDate,
+  formatMoney,
+  formatShortDate,
+  formatTime,
+  useI18n,
+  type TranslationKey,
+} from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -91,6 +103,26 @@ export function WorkspaceScreen() {
   const habitTicks = useLiveQuery(() => habitRepo.ticks(account.id), [account.id]);
   const tripList = useLiveQuery(() => tripRepo.list(account.id), [account.id]);
   const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
+  const recipeList = useLiveQuery(
+    () => recipeRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
+  const plantList = useLiveQuery(
+    () => plantRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
+  const petList = useLiveQuery(
+    () => petRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
+  const petEventList = useLiveQuery(
+    () => petRepo.events(account.id, householdId),
+    [account.id, householdId],
+  );
+  const vehicleList = useLiveQuery(
+    () => vehicleRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -118,6 +150,40 @@ export function WorkspaceScreen() {
     .flatMap((row) => (row.birthday ? [{ row, next: nextBirthday(row.birthday) }] : []))
     .filter((entry) => entry.next.days <= 30)
     .sort((a, b) => a.next.days - b.next.days);
+  const recipeRows = recipeList.data ?? [];
+  const plantRows = plantList.data ?? [];
+  const plantsDue = plantRows.filter((plant) => plantDueDay(plant) <= today);
+  const petRows = petList.data ?? [];
+  const petEvents = (petEventList.data ?? []).filter((event) => event.day >= today);
+  const vehicleRows = vehicleList.data ?? [];
+  const vehicleDue = vehicleRows.flatMap((vehicle) => {
+    const lines: { key: string; title: string; day: string | null; missing: boolean }[] = [];
+    if (vehicle.serviceOn && daysUntil(vehicle.serviceOn) <= 30) {
+      lines.push({
+        key: `${vehicle.id}-s`,
+        title: `${vehicle.name} · ${t('vehicles.service')}`,
+        day: vehicle.serviceOn,
+        missing: false,
+      });
+    }
+    if (vehicle.tyresOn && daysUntil(vehicle.tyresOn) <= 30) {
+      lines.push({
+        key: `${vehicle.id}-t`,
+        title: `${vehicle.name} · ${t('vehicles.tyres')}`,
+        day: vehicle.tyresOn,
+        missing: false,
+      });
+    }
+    if (vehicle.vignetteYear === null || vehicle.vignetteYear < new Date().getFullYear()) {
+      lines.push({
+        key: `${vehicle.id}-v`,
+        title: `${vehicle.name} · ${t('vehicles.vignette')}`,
+        day: null,
+        missing: true,
+      });
+    }
+    return lines;
+  });
 
   async function addTask() {
     const title = draft.trim();
@@ -362,6 +428,114 @@ export function WorkspaceScreen() {
               right={
                 <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
                   {relativeDay(t, language, next.day)}
+                </Text>
+              }
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'recipes') {
+      return recipeRows.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('recipes.empty.title')}
+        </Text>
+      ) : (
+        recipeRows.slice(0, 3).map((recipe, index) => (
+          <View key={recipe.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={recipe.title}
+              subtitle={t('recipes.summary', {
+                servings: recipe.servings,
+                ingredients: recipe.ingredients.length,
+              })}
+              onPress={() => router.push('/run/recipes')}
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'plants') {
+      if (plantRows.length === 0) {
+        return (
+          <Text variant="label" tone="faint">
+            {t('plants.empty.title')}
+          </Text>
+        );
+      }
+      return plantsDue.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('plants.calm')}
+        </Text>
+      ) : (
+        plantsDue.slice(0, 5).map((plant, index) => (
+          <View key={plant.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={plant.name}
+              subtitle={plant.location ?? undefined}
+              icon="water"
+              // Ein Tipp heisst gegossen.
+              onPress={() => void plantRepo.water(plant.id, today)}
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'pets') {
+      if (petRows.length === 0) {
+        return (
+          <Text variant="label" tone="faint">
+            {t('pets.empty.title')}
+          </Text>
+        );
+      }
+      return petEvents.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {petRows.map((pet) => pet.name).join(' · ')}
+        </Text>
+      ) : (
+        petEvents.slice(0, 3).map((event, index) => (
+          <View key={event.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={`${petRows.find((pet) => pet.id === event.petId)?.name ?? ''} · ${t(`pets.event.${event.kind}` as TranslationKey)}`}
+              right={
+                <Text variant="label" tone="muted">
+                  {relativeDay(t, language, event.day)}
+                </Text>
+              }
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'vehicles') {
+      if (vehicleRows.length === 0) {
+        return (
+          <Text variant="label" tone="faint">
+            {t('vehicles.empty.title')}
+          </Text>
+        );
+      }
+      return vehicleDue.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('vehicles.calm')}
+        </Text>
+      ) : (
+        vehicleDue.slice(0, 3).map((line, index) => (
+          <View key={line.key}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={line.title}
+              right={
+                <Text variant="label" tone="danger">
+                  {line.day ? relativeDay(t, language, line.day) : t('vehicles.vignetteMissing')}
                 </Text>
               }
             />

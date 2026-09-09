@@ -9,6 +9,7 @@ export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, workouts } from './gym';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';
+export { pets, plantDueDay, plants, recipes, vehicles } from './family';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -49,6 +50,13 @@ export type {
   HabitTickRow,
   PackingItemRow,
   TripRow,
+  PetEventKind,
+  PetEventRow,
+  PetKind,
+  PetRow,
+  PlantRow,
+  RecipeRow,
+  VehicleRow,
   WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,

@@ -64,6 +64,11 @@ function emptyTables(): Tables {
     trips: [],
     packingItems: [],
     contacts: [],
+    recipes: [],
+    plants: [],
+    pets: [],
+    petEvents: [],
+    vehicles: [],
   };
 }
 
@@ -270,6 +275,11 @@ export const db = {
   trips: new Collection('trips'),
   packingItems: new Collection('packingItems'),
   contacts: new Collection('contacts'),
+  recipes: new Collection('recipes'),
+  plants: new Collection('plants'),
+  pets: new Collection('pets'),
+  petEvents: new Collection('petEvents'),
+  vehicles: new Collection('vehicles'),
 } as const;
 
 /** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */
