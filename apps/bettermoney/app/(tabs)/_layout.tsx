@@ -16,10 +16,9 @@ export default function TabsLayout() {
 
   return (
     <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen name="home" options={{ title: t('tabs.home'), tabBarIcon: tabIcon('wallet') }} />
       <Tabs.Screen
-        name="apps"
-        options={{ title: t('tabs.modules'), tabBarIcon: tabIcon('grid') }}
+        name="home"
+        options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('wallet') }}
       />
       <Tabs.Screen
         name="profile"

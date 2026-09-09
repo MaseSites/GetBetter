@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 import type { Area } from '@/mocks/types';
 
-export const ONBOARDING_STEPS = ['welcome', 'areas', 'questions'] as const;
+export const ONBOARDING_STEPS = ['welcome', 'areas'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export function stepNumber(step: OnboardingStep): number {
@@ -16,9 +16,6 @@ type OnboardingValue = {
   setFirstName: (value: string) => void;
   areas: readonly Area[];
   toggleArea: (area: Area) => void;
-  /** Angeklickte Antworten aus dem Fragenschritt, als Options-Ids. */
-  answers: readonly string[];
-  toggleAnswer: (optionId: string) => void;
 };
 
 const OnboardingContext = createContext<OnboardingValue | null>(null);
@@ -26,7 +23,6 @@ const OnboardingContext = createContext<OnboardingValue | null>(null);
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [firstName, setFirstName] = useState('');
   const [areas, setAreas] = useState<readonly Area[]>([]);
-  const [answers, setAnswers] = useState<readonly string[]>([]);
 
   const toggleArea = useCallback((area: Area) => {
     setAreas((current) =>
@@ -34,17 +30,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const toggleAnswer = useCallback((optionId: string) => {
-    setAnswers((current) =>
-      current.includes(optionId)
-        ? current.filter((item) => item !== optionId)
-        : [...current, optionId],
-    );
-  }, []);
-
   const value = useMemo<OnboardingValue>(
-    () => ({ firstName, setFirstName, areas, toggleArea, answers, toggleAnswer }),
-    [firstName, areas, toggleArea, answers, toggleAnswer],
+    () => ({ firstName, setFirstName, areas, toggleArea }),
+    [firstName, areas, toggleArea],
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

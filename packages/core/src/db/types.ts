@@ -21,7 +21,6 @@ export type Account = Row & {
   themePreset?: string;
   onboarded: boolean;
   selectedAreas: readonly string[];
-  favouriteModuleIds: readonly string[];
   /** Der Haushalt, in dem dieses Konto gerade ist. */
   householdId: string | null;
   createdAt: string;

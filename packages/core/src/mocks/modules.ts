@@ -344,9 +344,6 @@ export function groupedModules(preferredAreas: readonly Area[] = []): readonly M
     .filter((group) => group.modules.length > 0);
 }
 
-/** Womit die Favoriten starten, wenn jemand das Onboarding ueberspringt. */
-export const DEFAULT_FAVOURITE_IDS: readonly string[] = ['calendar', 'tasks', 'notes', 'alarm'];
-
 /**
  * Was in "Heute" eine Karte bekommt: die wichtigsten Module der gewaehlten
  * Bereiche. Ohne Auswahl die wichtigsten aus allen Bereichen.

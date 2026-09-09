@@ -65,19 +65,12 @@ export type AppContextValue = {
   /** Ein Konto uebernehmen, das aus einer anderen Better-App kommt. */
   adoptAccount: (account: Account) => Promise<void>;
 
-  completeOnboarding: (input: {
-    firstName: string;
-    areas: readonly Area[];
-    /** Kommt aus den Fragen beim Einrichten. */
-    favouriteIds: readonly string[];
-  }) => Promise<void>;
+  completeOnboarding: (input: { firstName: string; areas: readonly Area[] }) => Promise<void>;
 
   setLanguage: (language: Language) => Promise<void>;
   /** Aussehen: was nicht mitgegeben wird, bleibt wie es ist. */
   appearance: Appearance;
   setAppearance: (patch: Partial<Appearance>) => Promise<void>;
-  toggleFavourite: (moduleId: string) => Promise<void>;
-  isFavourite: (moduleId: string) => boolean;
 
   createHousehold: (name: string) => Promise<boolean>;
   switchHousehold: (householdId: string) => Promise<void>;
@@ -213,12 +206,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeOnboarding = useCallback<AppContextValue['completeOnboarding']>(
-    async ({ firstName, areas, favouriteIds }) => {
+    async ({ firstName, areas }) => {
       if (!account) return;
       const updated = await updateAccount(account.id, {
         firstName: firstName.trim(),
         selectedAreas: areas,
-        favouriteModuleIds: favouriteIds,
         onboarded: true,
       });
       // Ein neues Konto startet bewusst leer.
@@ -252,24 +244,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       if (updated) setAccount(updated);
     },
-    [account],
-  );
-
-  const toggleFavourite = useCallback(
-    async (moduleId: string) => {
-      if (!account) return;
-      const current = account.favouriteModuleIds;
-      const next = current.includes(moduleId)
-        ? current.filter((id) => id !== moduleId)
-        : [...current, moduleId];
-      const updated = await updateAccount(account.id, { favouriteModuleIds: next });
-      if (updated) setAccount(updated);
-    },
-    [account],
-  );
-
-  const isFavourite = useCallback(
-    (moduleId: string) => account?.favouriteModuleIds.includes(moduleId) ?? false,
     [account],
   );
 
@@ -334,8 +308,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLanguage,
       appearance,
       setAppearance,
-      toggleFavourite,
-      isFavourite,
       createHousehold,
       switchHousehold,
       joinHousehold,
@@ -356,8 +328,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       colorScheme,
       appearance,
       setAppearance,
-      toggleFavourite,
-      isFavourite,
       household,
       role,
       createHousehold,

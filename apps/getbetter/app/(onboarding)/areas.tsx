@@ -1,9 +1,10 @@
-import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useOnboarding } from '@/features/onboarding/OnboardingContext';
 import { StepHeader } from '@/features/onboarding/StepHeader';
 import { useTranslate, type TranslationKey } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { AREAS, type Area } from '@/mocks/types';
 import { useTheme } from '@/theme';
 import { Button, Card, Icon, Screen, Text } from '@/ui';
@@ -19,16 +20,25 @@ const AREA_ICON: Record<Area, IconName> = {
 export default function AreasStep() {
   const t = useTranslate();
   const theme = useTheme();
-  const router = useRouter();
-  const { areas, toggleArea } = useOnboarding();
+  const { firstName, areas, toggleArea } = useOnboarding();
+  const { completeOnboarding } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    // Der RouteGuard schickt danach selbst in die Tabs.
+    await completeOnboarding({ firstName, areas });
+  }
 
   return (
     <Screen
       header={<StepHeader step="areas" />}
       footer={
         <Button
-          label={t('common.continue')}
-          onPress={() => router.push('/questions')}
+          label={t('onboarding.finish')}
+          onPress={finish}
+          loading={busy}
           disabled={areas.length === 0}
         />
       }

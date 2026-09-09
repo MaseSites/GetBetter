@@ -1,1 +1,1 @@
-export { AppsScreen as default } from '@/screens';
+export { WorkspaceScreen as default } from '@/screens';

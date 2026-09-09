@@ -67,7 +67,6 @@ async function mirror(remote: RemoteAccount): Promise<Account> {
     ...shared,
     onboarded: false,
     selectedAreas: [],
-    favouriteModuleIds: [],
     householdId: null,
     createdAt: remote.createdAt,
   };

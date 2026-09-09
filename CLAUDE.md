@@ -206,23 +206,38 @@ Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
 Die Zahlen landen über die gemeinsame Datenbank auch auf der BetterGym-Karte
 in GetBetter.
 
-## Module und Favoriten
+## Die Arbeitsflaeche statt eines Kachelbretts
 
-Alle Module einer App sind von Anfang an da; es gibt keinen Installationszustand
-innerhalb einer App. Zwei Stellen leiten sich aus den im Onboarding gewählten
-Bereichen ab: der Apps-Tab (`groupedModules`) und die Startseite
-(`highlightedModuleIds`). Beide sehen nur die Module der laufenden App.
+`screens/WorkspaceScreen.tsx` ist der zweite Tab jeder App — in GetBetter
+heisst er **Organisation**, in den anderen **Funktionen**. Er listet keine
+Apps auf, sondern zeigt je Funktion, was sie gerade weiss, und laesst einen
+direkt etwas tun:
 
-Favorisiert wird **in der Übersicht**: der Stern sitzt auf der Kachel. In der
-geöffneten App gibt es keinen Stern; nur die Detailseite hat ihn noch. Der
-Apps-Tab startet auf **Favoriten**.
+| Funktion                       | Was dort steht und geht                             |
+| ------------------------------ | --------------------------------------------------- |
+| Kalender                       | die naechsten Termine                               |
+| Aufgaben                       | offene Aufgaben, antippen hakt ab, Feld zum Anlegen |
+| Notizen                        | die letzten drei                                    |
+| Wecker                         | der naechste                                        |
+| Einkauf                        | offene Posten, antippen erledigt                    |
+| Aemtli                         | was ansteht                                         |
+| Training / Menueplan / Trinken | die Zahl des Tages                                  |
+
+Welche Abschnitte erscheinen, sagt `modulesOfApp()` — jede App zeigt nur ihre
+eigenen. Was noch nicht gebaut ist, steht unten unter **Kommt noch**, blass
+und ohne so zu tun, als koenne es schon etwas. Nur die Kopfzeile eines
+Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter gehoeren der
+Funktion selbst.
+
+**Favoriten gibt es nicht mehr.** Kein Stern, keine Auswahl, kein
+Fragenschritt beim Einrichten — alle Funktionen einer App sind immer da, in
+fester Reihenfolge. Das war der Kern der Beschwerde: eine Liste von "Apps"
+innerhalb einer App ist keine Ordnung, sondern eine zweite Startseite.
 
 ## Onboarding (GetBetter)
 
-Vier Schritte: Name, Bereiche, **Fragen**, Haushalt. Der Fragenschritt stellt
-fünf Fragen mit Mehrfachauswahl; `favouritesFromAnswers()` macht daraus die
-Startfavoriten (höchstens `MAX_START_FAVOURITES`). Die anderen Apps haben kein
-Onboarding — sie legen gleich los.
+Zwei Schritte: Name und Bereiche. Die anderen Apps haben kein Onboarding —
+sie legen gleich los.
 
 ## Aussehen
 

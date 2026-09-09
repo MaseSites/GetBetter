@@ -1,11 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
 import { getModule } from '@/mocks/modules';
-import { useApp } from '@/state/AppContext';
 import { moduleTint, useTheme } from '@/theme';
 import { Badge, Button, Card, EmptyState, Header, Icon, Screen, Text } from '@/ui';
 
@@ -13,11 +11,8 @@ export function ModuleDetailScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const { isFavourite } = useApp();
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
-  // Hooks laufen vor dem fruehen Return, sonst kippt die Reihenfolge.
-  const favouriteAction = useFavouriteAction(module?.id ?? '');
   const tint = moduleTint(theme, module?.id ?? '');
 
   if (!module) {
@@ -34,12 +29,11 @@ export function ModuleDetailScreen() {
     );
   }
 
-  const favourite = isFavourite(module.id);
   const sentences = permissionSentences(module.permissions, t, language);
 
   return (
     <Screen
-      header={<Header showBack actions={[favouriteAction]} />}
+      header={<Header showBack />}
       footer={
         <Button
           label={t('detail.open')}
@@ -65,7 +59,6 @@ export function ModuleDetailScreen() {
           <Text variant="display">{module.name}</Text>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
             <Badge label={t(`area.${module.area}` as TranslationKey)} />
-            {favourite ? <Badge label={t('detail.favourite')} tone="accent" icon="star" /> : null}
             {module.includedInPlan ? (
               <Badge label={t('detail.includedInPlan')} tone="accent" icon="star" />
             ) : null}

@@ -1,7 +1,6 @@
 /** Bildschirme, die alle Better-Apps gleich brauchen. */
-export { AppHomeScreen } from './AppHomeScreen';
 export { AppearanceScreen } from './AppearanceScreen';
-export { AppsScreen } from './AppsScreen';
+export { WorkspaceScreen } from './WorkspaceScreen';
 export { ModuleDetailScreen } from './ModuleDetailScreen';
 export { ProfileScreen } from './ProfileScreen';
 export { RunModuleScreen } from './RunModuleScreen';
