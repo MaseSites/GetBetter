@@ -8,6 +8,7 @@ export { shares } from './shares';
 export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, routines, workoutSets, workouts } from './gym';
 export { meds, moods, sleepMinutes, sleeps, vitals } from './health';
+export { chatMessages, chatTitleOf, chats } from './chats';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';
 export { pets, plantDueDay, plants, recipes, vehicles } from './family';
@@ -67,6 +68,8 @@ export type {
   VitalKind,
   VitalRow,
   WorkoutSetRow,
+  ChatMessageRow,
+  ChatRow,
   WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,

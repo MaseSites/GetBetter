@@ -384,6 +384,22 @@ export type MoodRow = Row & {
   createdAt: string;
 };
 
+/** Ein Gespraech in BetterAi; die Nachrichten liegen in `chatMessages`. */
+export type ChatRow = Row & {
+  accountId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatMessageRow = Row & {
+  chatId: string;
+  accountId: string;
+  role: 'user' | 'assistant';
+  text: string;
+  createdAt: string;
+};
+
 /** Eine Mahlzeit mit ihren Kalorien. */
 export type MealRow = Row & {
   accountId: string;
@@ -504,6 +520,8 @@ export type Schema = {
   medTakes: MedTakeRow;
   vitals: VitalRow;
   moods: MoodRow;
+  chats: ChatRow;
+  chatMessages: ChatMessageRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -546,6 +564,8 @@ export const COLLECTION_NAMES = [
   'medTakes',
   'vitals',
   'moods',
+  'chats',
+  'chatMessages',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;

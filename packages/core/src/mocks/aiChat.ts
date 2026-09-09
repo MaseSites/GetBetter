@@ -7,15 +7,15 @@ import type { AssistantMessage } from './types';
 export const AI_CHAT_THREAD: readonly AssistantMessage[] = [];
 
 export const AI_CHAT_STARTERS: readonly string[] = [
-  'Erklaer mir das in einfachen Worten',
-  'Schreib mir eine hoefliche Absage',
-  'Was koennte ich heute kochen?',
+  'Erklär mir das in einfachen Worten',
+  'Schreib mir eine höfliche Absage',
+  'Was könnte ich heute kochen?',
   'Fass mir diesen Text zusammen',
   'Gib mir drei Ideen',
 ];
 
 /** Die eine feste Antwort. Die echte Anbindung kommt in einer spaeteren Phase. */
 export const AI_CHAT_CANNED_REPLY =
-  'Im Prototyp antworte ich noch nicht wirklich. Hier stuende die Antwort einer ganz normalen KI — ohne Blick auf deine Termine, Aufgaben oder Ausgaben.';
+  'Im Prototyp antworte ich noch nicht wirklich. Hier stünde die Antwort einer ganz normalen KI — ohne Blick auf deine Termine, Aufgaben oder Ausgaben.';
 
 export const AI_CHAT_REPLY_DELAY_MS = 700;

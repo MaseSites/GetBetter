@@ -76,6 +76,8 @@ function emptyTables(): Tables {
     medTakes: [],
     vitals: [],
     moods: [],
+    chats: [],
+    chatMessages: [],
   };
 }
 
@@ -294,6 +296,8 @@ export const db = {
   medTakes: new Collection('medTakes'),
   vitals: new Collection('vitals'),
   moods: new Collection('moods'),
+  chats: new Collection('chats'),
+  chatMessages: new Collection('chatMessages'),
 } as const;
 
 /** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */

@@ -6,6 +6,7 @@ import { APPS, APP_IDS, currentApp, storeUrl, type AppId } from '@/app/identity'
 import {
   appAccess,
   bills as billRepo,
+  chats as chatRepo,
   dayKey,
   expenses as expenseRepo,
   meals as mealRepo,
@@ -62,6 +63,10 @@ export function AppFamily() {
   );
   const gymKcal = useLiveQuery(
     () => (account ? mealRepo.kcalOf(account.id, dayKey()) : Promise.resolve(0)),
+    [account?.id],
+  );
+  const aiChats = useLiveQuery(
+    () => (account ? chatRepo.list(account.id) : Promise.resolve([])),
     [account?.id],
   );
   const gymSleep = useLiveQuery(
@@ -143,7 +148,8 @@ export function AppFamily() {
         { label: t('field.bills'), value: open > 0 ? t('field.open', { count: open }) : null },
       ];
     }
-    return [{ label: t('field.chat'), value: null }];
+    const lastChat = aiChats.data?.[0];
+    return [{ label: t('field.chat'), value: lastChat?.title || null }];
   }
 
   return (

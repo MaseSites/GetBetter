@@ -13,5 +13,6 @@ export { JoinHouseholdScreen } from './JoinHouseholdScreen';
 export { ManageHouseholdScreen } from './ManageHouseholdScreen';
 export { NewHouseholdScreen } from './NewHouseholdScreen';
 export { AiHomeScreen } from './AiHomeScreen';
+export { AiChatScreen } from './AiChatScreen';
 export { CommandScreen } from './CommandScreen';
 export { CalendarScreen } from './CalendarScreen';

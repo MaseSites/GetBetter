@@ -13,7 +13,7 @@ noch die Zeit, als alles eine App war.
 | **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — alles ausgebaut, dazu Assistent und App-Übersicht |
 | **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt, alles ausgebaut                            |
 | **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training mit Sätzen und Vorlagen, Menüplan, Trinken, Schlaf, Medikamente, Werte, Kopf frei — alles ausgebaut                                |
-| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                               |
+| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Die Gespräche mit der KI, gespeichert und als Liste — sonst nichts                                                                          |
 | **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                   |
 
 `APP_MODULES` in `packages/core/src/app/identity.ts` ist die Wahrheit darüber,
@@ -120,15 +120,21 @@ im Browser gibt es keine Schemata, dort nimmt die Brücke `localhost:<port>`.
 
 ## Die zwei KI-Oberflächen
 
-|       | Assistent (Tab in GetBetter)                                      | BetterAi                      |
-| ----- | ----------------------------------------------------------------- | ----------------------------- |
-| Was   | Verwaltet quer über die Apps, schickt Aufträge los                | Ein ganz normales KI-Gespräch |
-| Wo    | `features/assistant/AssistantView.tsx`                            | `screens/AiHomeScreen.tsx`    |
-| Daten | Liest deine GetBetter-Daten, schickt Aufträge an die anderen Apps | Sieht deine Daten nicht       |
+|       | Assistent (Tab in GetBetter)                                      | BetterAi                                  |
+| ----- | ----------------------------------------------------------------- | ----------------------------------------- |
+| Was   | Verwaltet quer über die Apps, schickt Aufträge los                | Ein ganz normales KI-Gespräch             |
+| Wo    | `features/assistant/AssistantView.tsx`                            | `features/ai/ChatsView.tsx`, `/chat/[id]` |
+| Daten | Liest deine GetBetter-Daten, schickt Aufträge an die anderen Apps | Sieht deine Daten nicht                   |
 
 Der Assistent hat keinen Kopfbereich: in der Mitte steht „Wie kann ich dich
 unterstützen?“, unten das Feld. Hinter beiden steckt noch kein Modell — was
 nicht als Auftrag erkannt wird, beantwortet er einmal ehrlich.
+
+BetterAi führt die Gespräche in der Datenbank (`chats`, `chatMessages`,
+`db/chats.ts`): die Startseite ist die Liste, das Neueste zuerst, mit der
+letzten Nachricht als Vorschau; ein Anfang-Chip legt ein Gespräch mit dieser
+Frage an, der Titel ist die erste Frage. `AiChatView` ohne `chatId` (die
+Funktion in GetBetter) lebt nur bis zum Schliessen.
 
 ## Haushalte (BetterFamily)
 

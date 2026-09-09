@@ -2,36 +2,51 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
 import { useTranslate } from '@/i18n';
-import {
-  AI_CHAT_CANNED_REPLY,
-  AI_CHAT_REPLY_DELAY_MS,
-  AI_CHAT_STARTERS,
-  AI_CHAT_THREAD,
-} from '@/mocks/aiChat';
+import { AI_CHAT_CANNED_REPLY, AI_CHAT_REPLY_DELAY_MS, AI_CHAT_STARTERS } from '@/mocks/aiChat';
 import type { AssistantMessage, ModuleDefinition } from '@/mocks/types';
+import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Chip, EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
 
 export type AiChatViewProps = {
   module: ModuleDefinition;
+  /**
+   * Mit Id bleibt das Gespraech in der Datenbank und steht in der Liste von
+   * BetterAi; ohne Id (die Funktion in GetBetter) lebt es nur bis zum Schliessen.
+   */
+  chatId?: string;
 };
 
 /**
  * Das Modul "KI-Chat": ein offenes Gespraech, ohne Zugriff auf die Module.
  * Bewusst schlichter als der Assistent — keine Modul-Marken, keine Bestaetigung.
  */
-export function AiChatView({ module }: AiChatViewProps) {
+export function AiChatView({ module, chatId }: AiChatViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
+  const account = useAccount();
 
-  const [messages, setMessages] = useState<readonly AssistantMessage[]>(AI_CHAT_THREAD);
+  const [local, setLocal] = useState<readonly AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(0);
+
+  const stored = useLiveQuery(
+    () => (chatId ? messageRepo.list(chatId) : Promise.resolve([])),
+    [chatId],
+  );
+  const chat = useLiveQuery(
+    () => (chatId ? chatRepo.find(chatId) : Promise.resolve(undefined)),
+    [chatId],
+  );
+  const messages: readonly AssistantMessage[] = chatId
+    ? (stored.data ?? []).map((row) => ({ id: row.id, role: row.role, text: row.text }))
+    : local;
 
   useEffect(
     () => () => {
@@ -40,23 +55,39 @@ export function AiChatView({ module }: AiChatViewProps) {
     [],
   );
 
-  function append(message: AssistantMessage) {
-    setMessages((current) => [...current, message]);
+  function scrollDown() {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+  }
+
+  async function append(role: 'user' | 'assistant', text: string) {
+    if (chatId) {
+      await messageRepo.add({ chatId, accountId: account.id, role, text });
+    } else {
+      setLocal((current) => [...current, { id: `${role}-${(nextId.current += 1)}`, role, text }]);
+    }
+    scrollDown();
   }
 
   function ask(text: string) {
     if (text.length === 0 || thinking) return;
     setDraft('');
-    append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
+    void append('user', text);
     setThinking(true);
     timer.current = setTimeout(() => {
       setThinking(false);
-      append({ id: `a-${(nextId.current += 1)}`, role: 'assistant', text: AI_CHAT_CANNED_REPLY });
+      void append('assistant', AI_CHAT_CANNED_REPLY);
     }, AI_CHAT_REPLY_DELAY_MS);
   }
 
+  async function removeChat() {
+    if (!chatId) return;
+    await chatRepo.remove(chatId);
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }
+
   const sendDisabled = draft.trim().length === 0 || thinking;
+  const title = chatId ? chat.data?.title || t('chats.untitled') : module.name;
 
   return (
     <Screen
@@ -64,40 +95,44 @@ export function AiChatView({ module }: AiChatViewProps) {
       padded={false}
       header={
         <Header
-          title={module.name}
-          subtitle={t('aiChat.intro')}
+          title={title}
+          subtitle={chatId ? undefined : t('aiChat.intro')}
           showBack
-          onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
+          onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           actions={
-            messages.length > 0
+            chatId
               ? [
                   {
-                    icon: 'repeat' as const,
-                    label: t('aiChat.new'),
-                    onPress: () => setMessages([]),
+                    icon: 'trash' as const,
+                    label: t('chats.remove'),
+                    onPress: () => void removeChat(),
                   },
                 ]
-              : []
+              : messages.length > 0
+                ? [{ icon: 'repeat' as const, label: t('aiChat.new'), onPress: () => setLocal([]) }]
+                : []
           }
         />
       }
       footer={
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.lg }}
-          >
-            {AI_CHAT_STARTERS.map((starter) => (
-              <Chip
-                key={starter}
-                label={starter}
-                disabled={thinking}
-                onPress={() => ask(starter)}
-              />
-            ))}
-          </ScrollView>
+          {messages.length === 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.lg }}
+            >
+              {AI_CHAT_STARTERS.map((starter) => (
+                <Chip
+                  key={starter}
+                  label={starter}
+                  disabled={thinking}
+                  onPress={() => ask(starter)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
             <View style={{ flex: 1 }}>
               <Input
@@ -142,6 +177,7 @@ export function AiChatView({ module }: AiChatViewProps) {
         ref={scrollRef}
         contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
         keyboardShouldPersistTaps="handled"
+        onContentSizeChange={scrollDown}
       >
         {messages.length === 0 && !thinking ? (
           <EmptyState icon="bulb" title={t('aiChat.empty.title')} body={t('aiChat.empty.body')} />

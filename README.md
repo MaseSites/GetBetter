@@ -10,7 +10,7 @@ mitstartest.
 | **GetBetter**    | Privater Kalender, Aufgaben, Notizen, Wecker, Assistent — dazu die Übersicht über alle Apps | 8081 |
 | **BetterFamily** | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge, Haushalt   | 8082 |
 | **BetterGym**    | Training, Menüplan, Trinken, Schlaf, Medikamente, Werte, Kopf frei                          | 8083 |
-| **BetterAi**     | Das KI-Gespräch                                                                             | 8084 |
+| **BetterAi**     | Die Gespräche mit der KI, gespeichert                                                       | 8084 |
 | **BetterMoney**  | Budget, Rechnungen, Abos, Sparziele                                                         | 8085 |
 
 ```bash
@@ -37,7 +37,7 @@ Giessrhythmus, Haustiere mit Terminen und Fahrzeuge mit Service, Vignette und
 Reifen. BetterGym hat Training mit Sätzen, Vorlagen und Pausentimer, Menüplan,
 Trinken, Schlaf mit Tipp aus dem Kalender, Medikamente mit Vorrat, Werte als
 Verlauf und Kopf frei mit Atemübung; BetterMoney Budget,
-Rechnungen, Abos und Sparziele, BetterAi den Chat. Was noch fehlt, steht
+Rechnungen, Abos und Sparziele, BetterAi die gespeicherten Gespräche. Was noch fehlt, steht
 unter **Kommt noch** und sagt das.
 
 **Haushalte** (BetterFamily): anlegen oder mit einem sechsstelligen Code
