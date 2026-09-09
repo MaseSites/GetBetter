@@ -30,7 +30,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="finder"
-        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('search') }}
+        options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('grid') }}
       />
       <Tabs.Screen
         name="profile"

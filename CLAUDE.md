@@ -231,17 +231,16 @@ App fuehrt, aber noch nicht kann, blass und ohne etwas vorzugeben. Nur die
 Kopfzeile eines Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter
 gehoeren der Funktion.
 
-### Der Finder (`screens/FinderScreen.tsx`)
+### Organisation (`screens/FinderScreen.tsx`)
 
-Der zweite Tab heisst **Alles** und ist die Antwort auf "wie finde ich vom
-Wecker bis zum Kalender alles wieder":
+Der zweite Tab zeigt die Funktionen **dieser** App an einer Stelle — in
+GetBetter also Kalender, Wecker, Aufgaben, Notizen und den Rest. Was andere
+Better-Apps koennen, gehoert nicht hierher; die stehen auf der Startseite.
 
-- oben ein Suchfeld ueber Name und Beschreibung **aller** Funktionen, quer
-  ueber alle fuenf Apps
-- darunter die haeufigsten Handgriffe als farbige Felder (Termin, Aufgabe,
-  Notiz, Wecker)
-- dann alles nach App geordnet, als Pillen mit Logo. Was einer anderen App
-  gehoert, ist als solches gekennzeichnet und oeffnet sie.
+- oben die haeufigsten Handgriffe als farbige Felder (Termin, Aufgabe, Notiz,
+  Wecker)
+- darunter alles als Pille mit Logo
+- ein Suchfeld, das ueber Name und Beschreibung filtert
 
 **Favoriten gibt es nicht mehr.** Kein Stern, keine Auswahl, kein
 Fragenschritt beim Einrichten — alle Funktionen sind immer da.
