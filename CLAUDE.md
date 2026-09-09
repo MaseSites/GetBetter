@@ -79,12 +79,30 @@ Auf der Startseite von GetBetter steht deshalb eine Karte je App mit Logo und
 den Modulen darin — was in ihnen los ist, kann sie ehrlicherweise nicht zeigen.
 Sobald es einen Server gibt, ist das die Stelle, an der echte Zahlen erscheinen.
 
-## Konten
+## Ein Konto für alle Apps
 
-Jede App hat ihre eigene Anmeldung, weil jede ihren eigenen Speicher hat. Das
-ist die unmittelbare Folge davon, dass es fünf Programme und keinen Server gibt.
-Mit einem Server wird daraus ein Konto für alle — die Naht dafür sind zwei
-Dateien: `db/repositories.ts` und `auth/accounts.ts`.
+Dieselbe Anmeldung gilt in jeder Better-App. Zwei Dinge machen das möglich,
+ohne dass es einen Server gibt:
+
+1. **Die Kennung kommt aus der E-Mail.** `accountIdFor(email)` ist ein Hash
+   davon — wer sich mit derselben Adresse registriert, hat in jeder App
+   dieselbe Konto-Id. Das ist die Grundlage dafür, dass ein Server die fünf
+   Ablagen später zusammenführen kann.
+2. **Das Konto wandert per Tiefenlink.** Auf dem Anmeldebildschirm jeder
+   Geschwister-App steht "Konto von GetBetter holen". Ein Tipp schickt
+   `getbetter://konto?zurueck=betterfamily`; GetBetter antwortet mit
+   `betterfamily://konto?daten=…`, und die andere App übernimmt Kennung,
+   E-Mail, Benutzername, Vorname, Sprache und Aussehen. Danach funktioniert
+   dort auch die normale Anmeldung mit E-Mail und Passwort.
+
+`auth/link.ts` hält das Format und `adoptAccount()`; `screens/AccountLinkScreen`
+ist die Route `konto` auf beiden Seiten. Salt und Hash reisen mit, damit die
+Anmeldung in der anderen App eigenständig funktioniert — beides liegt ohnehin
+schon auf demselben Gerät, und mit einem Server fällt dieser Umweg weg.
+
+**Was nicht mitwandert, sind die Daten.** Termine, Listen und Haushalte bleiben
+je App getrennt: verbunden ist die Person, nicht der Inhalt. Die Naht für den
+Server sind zwei Dateien: `db/repositories.ts` und `auth/accounts.ts`.
 
 ## Die zwei KI-Oberflächen
 

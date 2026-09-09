@@ -14,3 +14,4 @@ export { ManageHouseholdScreen } from './ManageHouseholdScreen';
 export { NewHouseholdScreen } from './NewHouseholdScreen';
 export { AiHomeScreen } from './AiHomeScreen';
 export { CommandScreen } from './CommandScreen';
+export { AccountLinkScreen } from './AccountLinkScreen';

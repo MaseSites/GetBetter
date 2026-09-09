@@ -32,8 +32,13 @@ als privat markieren.
 
 ## Wie die Apps zusammenspielen
 
-Jede App hat ihren **eigenen Speicher** und ihre eigene Anmeldung — ohne Server
-geht das nicht anders. GetBetter kann den anderen aber etwas **auftragen**:
+**Ein Login für alle.** Auf dem Anmeldebildschirm jeder App steht "Konto von
+GetBetter holen" — ein Tipp, und dieselbe Anmeldung gilt auch dort; danach
+funktioniert auch die normale Anmeldung mit E-Mail und Passwort. Verbunden ist
+damit die Person, nicht der Inhalt: Termine, Listen und Haushalte bleiben je
+App getrennt, solange es keinen Server gibt.
+
+GetBetter kann den anderen Apps ausserdem etwas **auftragen**:
 
 > „pack mir 2 Bananen auf die Einkaufsliste“
 

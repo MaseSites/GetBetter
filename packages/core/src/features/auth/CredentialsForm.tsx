@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { AuthError, AuthResult } from '@/auth/accounts';
@@ -13,6 +13,8 @@ export type CredentialsFormProps = {
   switchLabel: string;
   onSubmit: (email: string, password: string) => Promise<AuthResult>;
   onSwitch: () => void;
+  /** Zusaetzlicher Weg unter den Knoepfen, z. B. das Konto aus einer anderen App. */
+  extra?: ReactNode;
 };
 
 const ERROR_KEY: Record<AuthError, TranslationKey> = {
@@ -34,6 +36,7 @@ export function CredentialsForm({
   switchLabel,
   onSubmit,
   onSwitch,
+  extra,
 }: CredentialsFormProps) {
   const t = useTranslate();
   const theme = useTheme();
@@ -65,6 +68,7 @@ export function CredentialsForm({
         <View style={{ gap: theme.spacing.sm }}>
           <Button label={submitLabel} onPress={submit} loading={busy} />
           <Button label={switchLabel} variant="ghost" onPress={onSwitch} disabled={busy} />
+          {extra}
         </View>
       }
     >

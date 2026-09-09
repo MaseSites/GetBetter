@@ -42,6 +42,17 @@ export function appUrl(app: AppId): string {
   return `${APPS[app].scheme}://`;
 }
 
+/**
+ * Die Adresse, unter der eine App ein Konto entgegennimmt oder eines abgibt.
+ * `daten` bringt ein Konto mit, `zurueck` fragt eines an.
+ */
+export function accountUrl(app: AppId, params: Readonly<Record<string, string>>): string {
+  const query = new URLSearchParams(params).toString();
+  const path = `konto${query ? `?${query}` : ''}`;
+  if (Platform.OS === 'web') return `http://localhost:${WEB_PORTS[app]}/${path}`;
+  return `${APPS[app].scheme}://${path}`;
+}
+
 export function commandUrl({ app, command, params }: AppCommand): string {
   const query = new URLSearchParams(params).toString();
   const path = `befehl/${command}${query ? `?${query}` : ''}`;

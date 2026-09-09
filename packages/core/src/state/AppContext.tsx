@@ -60,6 +60,8 @@ export type AppContextValue = {
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
+  /** Ein Konto uebernehmen, das aus einer anderen Better-App kommt. */
+  adoptAccount: (account: Account) => Promise<void>;
 
   completeOnboarding: (input: {
     firstName: string;
@@ -179,6 +181,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const result = await signUpAccount(email, password);
       if (result.ok) await remember(result.account);
       return result;
+    },
+    [remember],
+  );
+
+  const adoptAccount = useCallback<AppContextValue['adoptAccount']>(
+    async (next: Account) => {
+      await remember(next);
     },
     [remember],
   );
@@ -309,6 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
+      adoptAccount,
       completeOnboarding,
       setLanguage,
       appearance,
@@ -327,6 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
+      adoptAccount,
       completeOnboarding,
       setLanguage,
       colorScheme,

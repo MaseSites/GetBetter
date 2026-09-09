@@ -92,6 +92,21 @@ export const de = {
     'Du nutzt Better Life für dich. Ein Haushalt geht später jederzeit.',
   'onboarding.household.finish': 'Fertig einrichten',
 
+  'link.title': 'Konto verbinden',
+  'link.working': 'Einen Moment …',
+  'link.workingBody': 'Das Konto wird übernommen.',
+  'link.adopted': 'Konto übernommen',
+  'link.adoptedBody':
+    'Dieselbe Anmeldung gilt jetzt auch hier. Deine Daten bleiben je App getrennt, solange es keinen Server gibt.',
+  'link.sent': 'An {app} geschickt',
+  'link.sentBody': 'Dort kannst du dich jetzt mit derselben Anmeldung bewegen.',
+  'link.needsSignIn': 'Erst hier anmelden',
+  'link.needsSignInBody':
+    'Diese App hat noch kein Konto, das sie weitergeben könnte. Melde dich zuerst an.',
+  'link.broken': 'Das hat nicht geklappt',
+  'link.brokenBody': 'Der Link war unvollständig. Versuch es noch einmal von der anderen App aus.',
+  'link.fromApp': 'Konto von {app} holen',
+  'link.fromAppHint': 'Ein Tipp, und dieselbe Anmeldung gilt auch hier.',
   'family.title': 'Deine Better-Apps',
   'family.installed': 'Auf diesem Gerät installiert',
   'family.missing': 'Noch nicht installiert',

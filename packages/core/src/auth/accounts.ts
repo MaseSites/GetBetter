@@ -16,6 +16,19 @@ function makeSalt(): string {
   return Crypto.randomUUID();
 }
 
+/**
+ * Die Kennung wird aus der E-Mail abgeleitet, nicht gewuerfelt. So traegt
+ * dieselbe Person in jeder Better-App dieselbe Id — das ist die Grundlage
+ * dafuer, dass ein Server die fuenf Ablagen spaeter zusammenfuehren kann.
+ */
+export async function accountIdFor(email: string): Promise<string> {
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    normaliseEmail(email),
+  );
+  return `acc_${digest.slice(0, 24)}`;
+}
+
 export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -58,7 +71,7 @@ export async function signUp(emailInput: string, password: string): Promise<Auth
 
   const salt = makeSalt();
   const account: Account = {
-    id: newId('acc'),
+    id: await accountIdFor(email),
     email,
     username: await makeUsername(email),
     passwordHash: await hash(password, salt),
