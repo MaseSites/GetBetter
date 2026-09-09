@@ -168,17 +168,13 @@ export const de = {
 
   'assistant.title': 'Assistent',
   'assistant.disclaimer': 'Antworten kommen von einer KI. Prüf wichtige Dinge selbst nach.',
+  'assistant.empty.title': 'Wie kann ich dich unterstützen?',
+  'assistant.empty.body': 'Schreib einfach, was du brauchst.',
   'assistant.placeholder': 'Schreib, was du brauchst',
   'assistant.send': 'Senden',
-  'assistant.confirm': 'Bestätigen',
-  'assistant.adjust': 'Anpassen',
-  'assistant.confirmed':
-    'Erledigt — eingetragen im Kalender, im Menüplan und auf der Einkaufsliste.',
-  'assistant.adjusted': 'Klar. Sag mir, was ich ändern soll.',
   'assistant.fallback':
     'Im Prototyp gibt es nur eine feste Beispielantwort. Die echte Anbindung kommt später.',
   'assistant.thinking': 'Denkt nach …',
-  'assistant.touches': 'Betrifft: {list}',
 
   'aiChat.intro':
     'Ganz normale KI. Frag, was du willst — sie sieht deine Apps und deine Daten nicht.',

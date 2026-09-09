@@ -3,16 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useTranslate } from '@/i18n';
-import {
-  ASSISTANT_CANNED_REPLY,
-  ASSISTANT_REPLY_DELAY_MS,
-  ASSISTANT_STARTERS,
-  ASSISTANT_THREAD,
-} from '@/mocks/assistant';
-import { getModule } from '@/mocks/modules';
+import { ASSISTANT_CANNED_REPLY, ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
 import type { AssistantMessage } from '@/mocks/types';
 import { useTheme } from '@/theme';
-import { Badge, Chip, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
+import { EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
 
 export type AssistantViewProps = {
   /** Als Tab ohne Zurueck, als aufgerufener Bildschirm mit. */
@@ -20,18 +14,17 @@ export type AssistantViewProps = {
 };
 
 /**
- * P-017: Chat-Oberflaeche mit dem Beispieldialog. Die Antwort ist fest,
- * kommt aber mit kurzer Verzoegerung, damit sich der Ablauf echt anfuehlt.
+ * Der Assistent. Er startet leer — kein Beispieldialog, keine Vorschlaege,
+ * nur die Frage, womit er helfen soll.
  */
 export function AssistantView({ showBack = false }: AssistantViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
 
-  const [messages, setMessages] = useState<readonly AssistantMessage[]>(ASSISTANT_THREAD);
+  const [messages, setMessages] = useState<readonly AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
-  const [decided, setDecided] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Fortlaufend statt Zeitstempel: stabile, eindeutige Schluessel.
@@ -68,16 +61,6 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
     ask(draft.trim());
   }
 
-  function decide(confirmed: boolean) {
-    setDecided(true);
-    append({
-      id: `u-${(nextId.current += 1)}`,
-      role: 'user',
-      text: confirmed ? t('assistant.confirm') : t('assistant.adjust'),
-    });
-    respondLater(confirmed ? t('assistant.confirmed') : t('assistant.adjusted'));
-  }
-
   return (
     <Screen
       scroll={false}
@@ -91,65 +74,48 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
         />
       }
       footer={
-        <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.lg }}
-          >
-            {ASSISTANT_STARTERS.map((starter) => (
-              <Chip
-                key={starter}
-                label={starter}
-                disabled={thinking}
-                onPress={() => ask(starter)}
-              />
-            ))}
-          </ScrollView>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Input
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={t('assistant.placeholder')}
-                onSubmitEditing={send}
-                returnKeyType="send"
-                editable={!thinking}
-                accessibilityLabel={t('assistant.placeholder')}
-              />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('assistant.send')}
-              accessibilityState={{ disabled: draft.trim().length === 0 || thinking }}
-              disabled={draft.trim().length === 0 || thinking}
-              onPress={send}
-              style={({ pressed }) => [
-                styles.send,
-                {
-                  borderRadius: theme.radii.md,
-                  backgroundColor:
-                    draft.trim().length === 0 || thinking
-                      ? theme.colors.disabledBackground
-                      : pressed
-                        ? theme.colors.accentStrong
-                        : theme.colors.accent,
-                },
-              ]}
-            >
-              <Icon
-                name="send"
-                size={20}
-                color={
-                  draft.trim().length === 0 || thinking
-                    ? theme.colors.disabledText
-                    : theme.colors.textOnAccent
-                }
-              />
-            </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Input
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={t('assistant.placeholder')}
+              onSubmitEditing={send}
+              returnKeyType="send"
+              editable={!thinking}
+              accessibilityLabel={t('assistant.placeholder')}
+            />
           </View>
-        </>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('assistant.send')}
+            accessibilityState={{ disabled: draft.trim().length === 0 || thinking }}
+            disabled={draft.trim().length === 0 || thinking}
+            onPress={send}
+            style={({ pressed }) => [
+              styles.send,
+              {
+                borderRadius: theme.radii.md,
+                backgroundColor:
+                  draft.trim().length === 0 || thinking
+                    ? theme.colors.disabledBackground
+                    : pressed
+                      ? theme.colors.accentStrong
+                      : theme.colors.accent,
+              },
+            ]}
+          >
+            <Icon
+              name="send"
+              size={20}
+              color={
+                draft.trim().length === 0 || thinking
+                  ? theme.colors.disabledText
+                  : theme.colors.textOnAccent
+              }
+            />
+          </Pressable>
+        </View>
       }
     >
       <ScrollView
@@ -157,80 +123,42 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
         contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
         keyboardShouldPersistTaps="handled"
       >
+        {messages.length === 0 && !thinking ? (
+          <EmptyState
+            icon="sparkles"
+            title={t('assistant.empty.title')}
+            body={t('assistant.empty.body')}
+          />
+        ) : null}
+
         {messages.map((message) => (
-          <View key={message.id} style={{ gap: theme.spacing.sm }}>
-            <View
-              style={[
-                styles.bubble,
-                {
-                  alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  borderRadius: theme.radii.lg,
-                  padding: theme.spacing.md,
-                  backgroundColor:
-                    message.role === 'user' ? theme.colors.accent : theme.colors.surface,
-                  borderColor: message.role === 'user' ? theme.colors.accent : theme.colors.border,
-                },
-              ]}
-            >
-              <Text variant="body" tone={message.role === 'user' ? 'onAccent' : 'default'}>
-                {message.text}
-              </Text>
-            </View>
-
-            {message.touches ? (
-              <View style={[styles.touches, { gap: theme.spacing.xs }]}>
-                {message.touches.map((id) => {
-                  const module = getModule(id);
-                  if (!module) return null;
-                  return <Badge key={id} label={module.name} icon={module.icon} />;
-                })}
-              </View>
-            ) : null}
-
-            {message.needsConfirmation && !decided ? (
-              <View style={[styles.actions, { gap: theme.spacing.sm }]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('assistant.confirm')}
-                  onPress={() => decide(true)}
-                  style={({ pressed }) => [
-                    styles.action,
-                    {
-                      borderRadius: theme.radii.pill,
-                      backgroundColor: pressed ? theme.colors.accentStrong : theme.colors.accent,
-                      borderColor: theme.colors.accent,
-                    },
-                  ]}
-                >
-                  <Text variant="label" tone="onAccent">
-                    {t('assistant.confirm')}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('assistant.adjust')}
-                  onPress={() => decide(false)}
-                  style={({ pressed }) => [
-                    styles.action,
-                    {
-                      borderRadius: theme.radii.pill,
-                      backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text variant="label">{t('assistant.adjust')}</Text>
-                </Pressable>
-              </View>
-            ) : null}
+          <View
+            key={message.id}
+            style={[
+              styles.bubble,
+              {
+                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                borderRadius: theme.radii.lg,
+                padding: theme.spacing.md,
+                backgroundColor:
+                  message.role === 'user' ? theme.colors.accent : theme.colors.surface,
+                borderColor: message.role === 'user' ? theme.colors.accent : theme.colors.border,
+              },
+            ]}
+          >
+            <Text variant="body" tone={message.role === 'user' ? 'onAccent' : 'default'}>
+              {message.text}
+            </Text>
           </View>
         ))}
 
         {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
 
-        <Text variant="caption" tone="faint" align="center">
-          {t('assistant.fallback')}
-        </Text>
+        {messages.length > 0 ? (
+          <Text variant="caption" tone="faint" align="center">
+            {t('assistant.fallback')}
+          </Text>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -238,14 +166,5 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
 
 const styles = StyleSheet.create({
   bubble: { maxWidth: '85%', borderWidth: 1 },
-  touches: { flexDirection: 'row', flexWrap: 'wrap' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap' },
-  action: {
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   send: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

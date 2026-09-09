@@ -69,10 +69,14 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 
 |               | Assistent (Tab in der Mitte)                                            | Modul "KI-Chat"                                       |
 | ------------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| Was           | Verwaltet quer ueber die installierten Module                           | Ein ganz normales KI-Gespraech                        |
+| Was           | Verwaltet quer ueber die Apps                                           | Ein ganz normales KI-Gespraech                        |
 | Wo            | `app/(tabs)/assistant.tsx` → `src/features/assistant/AssistantView.tsx` | `app/run/[id].tsx` → `src/features/ai/AiChatView.tsx` |
 | Installierbar | Nein, eingebaut                                                         | Entfaellt — alle Module sind da (im Abo enthalten)    |
-| Daten         | Liest und schreibt deine Module, fragt vor dem Eintragen                | Sieht deine Daten nicht                               |
+| Daten         | Liest und schreibt deine Apps, fragt vor dem Eintragen                  | Sieht deine Daten nicht                               |
+
+Der Assistent startet **leer**: kein Beispieldialog, keine Vorschlagsleiste,
+nur "Wie kann ich dich unterstuetzen?". Hinter ihm steckt noch kein Modell —
+auf Getipptes antwortet er einmal ehrlich, dass er das noch nicht kann.
 
 ## Haushalte
 
