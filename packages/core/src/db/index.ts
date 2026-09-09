@@ -5,6 +5,7 @@ export { notifyDataChanged, useLiveQuery } from './live';
 export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';
 export { calendars, MAX_CALENDARS } from './calendars';
 export { shares } from './shares';
+export { appAccess } from './appAccess';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -29,6 +30,7 @@ export type {
   CalendarRow,
   CalendarScope,
   CalendarShareRole,
+  AppAccessRow,
   CalendarShareRow,
   CalendarShareStatus,
   ChoreRepeat,

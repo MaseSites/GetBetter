@@ -89,6 +89,17 @@ export type CalendarShareRow = Row & {
   respondedAt: string | null;
 };
 
+/**
+ * Wer sich in welcher Better-App schon angemeldet hat. GetBetter liest daran
+ * ab, welche Apps freigeschaltet sind — mehr steht nicht drin.
+ */
+export type AppAccessRow = Row & {
+  accountId: string;
+  appId: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+};
+
 export type EventRow = Row & {
   accountId: string;
   /**
@@ -178,6 +189,7 @@ export type Schema = {
   calendars: CalendarRow;
   calendarMembers: CalendarMemberRow;
   calendarShares: CalendarShareRow;
+  appAccess: AppAccessRow;
   events: EventRow;
   tasks: TaskRow;
   notes: NoteRow;
@@ -193,6 +205,7 @@ export const COLLECTION_NAMES = [
   'calendars',
   'calendarMembers',
   'calendarShares',
+  'appAccess',
   'events',
   'tasks',
   'notes',

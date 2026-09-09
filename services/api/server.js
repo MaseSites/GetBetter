@@ -28,6 +28,7 @@ const COLLECTIONS = [
   'calendars',
   'calendarMembers',
   'calendarShares',
+  'appAccess',
   'events',
   'tasks',
   'notes',

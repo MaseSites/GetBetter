@@ -75,10 +75,6 @@ wurde. Drei Grenzen gehören zur Wahrheit dazu:
 - Es geht nur in eine Richtung — GetBetter erfährt das Ergebnis nicht.
 - Im Browser gibt es keine Schemata; dort nimmt die Brücke `localhost:<port>`.
 
-Auf der Startseite von GetBetter steht deshalb eine Karte je App mit Logo und
-den Modulen darin — was in ihnen los ist, kann sie ehrlicherweise nicht zeigen.
-Sobald es einen Server gibt, ist das die Stelle, an der echte Zahlen erscheinen.
-
 ## Ein Konto für alle Apps
 
 Die Konten liegen im **Kontodienst** (`services/accounts`), nicht mehr in jeder

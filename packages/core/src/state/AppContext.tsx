@@ -27,6 +27,8 @@ import {
   type HouseholdRow,
   type JoinResult,
 } from '@/db';
+import { currentApp } from '@/app/identity';
+import { appAccess } from '@/db/appAccess';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
 import {
@@ -138,6 +140,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!found) await AsyncStorage.removeItem(SESSION_KEY);
         if (found) {
           setAccount(found);
+          // Auch beim Wiederherstellen: die App gilt als freigeschaltet.
+          void appAccess.markSeen(found.id, currentApp().id);
           const [hh, memberRole] = await loadHousehold(found);
           setHousehold(hh);
           setRole(memberRole);
@@ -158,6 +162,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const remember = useCallback(async (next: Account) => {
     setAccount(next);
+    // Damit GetBetter weiss, welche Apps freigeschaltet sind.
+    void appAccess.markSeen(next.id, currentApp().id);
     const [hh, memberRole] = await loadHousehold(next);
     setHousehold(hh);
     setRole(memberRole);
