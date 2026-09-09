@@ -66,6 +66,19 @@ export type CalendarMemberRow = Row & {
   respondedAt: string | null;
 };
 
+/**
+ * Eine Freigabe zwischen zwei Konten: `viewerId` darf den persoenlichen
+ * Kalender von `ownerId` sehen — ohne die als privat markierten Termine.
+ * Im Haushalt braucht es das nicht, dort gilt die Mitgliedschaft.
+ */
+export type CalendarShareRow = Row & {
+  ownerId: string;
+  viewerId: string;
+  status: CalendarShareStatus;
+  createdAt: string;
+  respondedAt: string | null;
+};
+
 export type EventRow = Row & {
   accountId: string;
   /** Gesetzt, solange der Termin zu einem Haushalt gehoert. */
@@ -149,6 +162,7 @@ export type Schema = {
   householdMembers: HouseholdMemberRow;
   calendars: CalendarRow;
   calendarMembers: CalendarMemberRow;
+  calendarShares: CalendarShareRow;
   events: EventRow;
   tasks: TaskRow;
   notes: NoteRow;
@@ -163,6 +177,7 @@ export const COLLECTION_NAMES = [
   'householdMembers',
   'calendars',
   'calendarMembers',
+  'calendarShares',
   'events',
   'tasks',
   'notes',

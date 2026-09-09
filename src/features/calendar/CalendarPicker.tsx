@@ -1,12 +1,10 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { CalendarWithRole, HouseholdMember } from '@/db';
 import type { CalendarSource } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Divider, Icon, Segmented, Sheet, Text } from '@/ui';
-
-import { EVENT_COLORS, type EventColorKey } from './colors';
+import { Button, Divider, Icon, Input, Segmented, Sheet, Text } from '@/ui';
 
 export type CalendarMode = 'day' | 'week' | 'month';
 
@@ -17,37 +15,54 @@ export type PickerEntry = {
   color?: string;
 };
 
+/** Eine Gruppe von Personen — der Titel steht nur da, wo er noetig ist. */
+export type PickerGroup = {
+  key: string;
+  title?: string;
+  entries: readonly PickerEntry[];
+};
+
 export type CalendarPickerProps = {
   visible: boolean;
   onClose: () => void;
   mode: CalendarMode;
   onMode: (mode: CalendarMode) => void;
-  entries: readonly PickerEntry[];
+  calendars: readonly PickerEntry[];
+  people: readonly PickerGroup[];
+  /** Namen, deren Anfrage noch offen ist. */
+  waiting: readonly string[];
   selected: readonly CalendarSource[];
   onToggle: (source: CalendarSource) => void;
   onAll: (all: boolean) => void;
-  onManage: () => void;
+  onAsk: (username: string) => void;
+  /** Rueckmeldung auf die letzte Anfrage. */
+  askMessage?: { tone: 'ok' | 'error'; text: string } | null;
 };
 
 /**
- * Das aufklappbare Menue: oben die Ansicht, darunter die Kalender mit
- * Haekchen. Angezeigt wird alles, was angehakt ist.
+ * Das aufklappbare Menue: oben die Ansicht, darunter die eigenen Kalender
+ * mit Haekchen, ganz unten die Personen, deren Kalender man dazunehmen kann.
  */
 export function CalendarPicker({
   visible,
   onClose,
   mode,
   onMode,
-  entries,
+  calendars,
+  people,
+  waiting,
   selected,
   onToggle,
   onAll,
-  onManage,
+  onAsk,
+  askMessage = null,
 }: CalendarPickerProps) {
   const t = useTranslate();
   const theme = useTheme();
+  const [asking, setAsking] = useState(false);
+  const [username, setUsername] = useState('');
 
-  const allOn = entries.length > 0 && entries.every((entry) => selected.includes(entry.source));
+  const allOn = calendars.length > 0 && calendars.every((entry) => selected.includes(entry.source));
 
   return (
     <Sheet visible={visible} onClose={onClose} title={t('calendar.picker.title')}>
@@ -80,23 +95,97 @@ export function CalendarPicker({
           />
           <Divider />
 
-          {entries.map((entry) => (
+          {calendars.map((entry) => (
             <CheckRow
               key={entry.source}
               label={entry.label}
-              color={entry.color}
+              {...(entry.color ? { color: entry.color } : {})}
               checked={selected.includes(entry.source)}
               onPress={() => onToggle(entry.source)}
             />
           ))}
         </View>
 
-        <Button
-          label={t('calendars.manage')}
-          icon="settings"
-          variant="secondary"
-          onPress={onManage}
-        />
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={[styles.row, { gap: theme.spacing.sm }]}>
+            <Icon name="person" size={16} color={theme.colors.textMuted} />
+            <Text variant="label" tone="muted">
+              {t('calendar.picker.people')}
+            </Text>
+          </View>
+
+          {people.map((group) => (
+            <View key={group.key}>
+              {group.title ? (
+                <Text variant="caption" tone="faint" style={{ paddingTop: theme.spacing.sm }}>
+                  {group.title}
+                </Text>
+              ) : null}
+              {group.entries.map((entry) => (
+                <CheckRow
+                  key={`${group.key}:${entry.source}`}
+                  label={entry.label}
+                  checked={selected.includes(entry.source)}
+                  onPress={() => onToggle(entry.source)}
+                />
+              ))}
+            </View>
+          ))}
+
+          {waiting.map((name) => (
+            <View key={name} style={[styles.row, { paddingVertical: theme.spacing.sm }]}>
+              <Text variant="caption" tone="faint">
+                {t('calendar.picker.waiting', { name })}
+              </Text>
+            </View>
+          ))}
+
+          {asking ? (
+            <View style={{ gap: theme.spacing.sm, paddingTop: theme.spacing.sm }}>
+              <Input
+                label={t('calendar.picker.username')}
+                placeholder="@name"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                {...(askMessage?.tone === 'error' ? { error: askMessage.text } : {})}
+              />
+              {askMessage?.tone === 'ok' ? (
+                <Text variant="caption" tone="accent">
+                  {askMessage.text}
+                </Text>
+              ) : null}
+              <Button
+                label={t('calendar.picker.ask')}
+                icon="send"
+                size="sm"
+                onPress={() => {
+                  onAsk(username);
+                  setUsername('');
+                }}
+              />
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar.picker.other')}
+              onPress={() => setAsking(true)}
+              style={({ pressed }) => [
+                styles.row,
+                {
+                  paddingVertical: theme.spacing.md,
+                  gap: theme.spacing.md,
+                  opacity: pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Icon name="plus" size={22} color={theme.colors.accentStrong} />
+              <Text variant="body" tone="accent">
+                {t('calendar.picker.other')}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </Sheet>
   );
@@ -143,38 +232,6 @@ function CheckRow({
       </View>
     </Pressable>
   );
-}
-
-/** Baut die Liste der waehlbaren Quellen aus Kalendern und Haushalt. */
-export function buildEntries(
-  labels: { personal: string; family: string },
-  hasHousehold: boolean,
-  calendars: readonly CalendarWithRole[],
-  members: readonly HouseholdMember[],
-  ownAccountId: string,
-): PickerEntry[] {
-  const entries: PickerEntry[] = [{ source: 'personal', label: labels.personal }];
-
-  if (hasHousehold) entries.push({ source: 'family', label: labels.family });
-
-  calendars.forEach((entry) => {
-    entries.push({
-      source: `cal:${entry.calendar.id}`,
-      label: entry.calendar.name,
-      color: EVENT_COLORS[entry.calendar.color as EventColorKey],
-    });
-  });
-
-  members
-    .filter((member) => member.membership.accountId !== ownAccountId)
-    .forEach((member) => {
-      entries.push({
-        source: `member:${member.membership.accountId}`,
-        label: member.displayName,
-      });
-    });
-
-  return entries;
 }
 
 const styles = StyleSheet.create({

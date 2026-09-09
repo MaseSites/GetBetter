@@ -3,6 +3,8 @@ export type { Query } from './store';
 export { notifyDataChanged, useLiveQuery } from './live';
 export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';
 export { calendars, MAX_CALENDARS } from './calendars';
+export { shares } from './shares';
+export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
   CalendarMember,
@@ -26,6 +28,7 @@ export type {
   CalendarRow,
   CalendarScope,
   CalendarShareRole,
+  CalendarShareRow,
   CalendarShareStatus,
   ChoreRepeat,
   ChoreRow,

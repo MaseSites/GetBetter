@@ -129,9 +129,11 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
 - `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
   Der Zielkalender wird hier gewaehlt: Privat, Haushalt oder ein eigener.
 - `CalendarPicker` — das aufklappbare Menue in der Kopfzeile. Oben die Ansicht
-  (Tag/Woche/Monat), darunter je ein Haekchen pro Kalender, dazu "Alle anzeigen"
-  und der Weg zu "Kalender verwalten". Angezeigt wird die Vereinigung der
-  angehakten Quellen; der Knopf in der Leiste sagt, wie viele es sind.
+  (Tag/Woche/Monat), darunter je ein Haekchen pro eigenem Kalender mit
+  "Alle anzeigen", ganz unten unter **Kalender anzeigen** die Personen.
+  Angezeigt wird die Vereinigung der angehakten Quellen; der Knopf in der
+  Leiste sagt, wie viele es sind. "Kalender verwalten" sitzt als Zahnrad
+  oben rechts, nicht mehr im Menue.
 
 ### Eigene Kalender
 
@@ -143,6 +145,22 @@ zustimmen. Offene Einladungen erscheinen als Karte oben im Kalender.
 Jedes Konto hat einen eindeutigen `username`, aus der E-Mail abgeleitet.
 `backfillUsernames()` traegt ihn bei aelteren Konten beim Start nach.
 
+### Fremde Kalender ansehen
+
+Im Menue stehen unter **Kalender anzeigen** die Haushaltsmitglieder — je
+Haushalt eine Gruppe, mit Ueberschrift erst, wenn mehrere Haushalte Leute
+beisteuern; wer in zweien ist, erscheint nur einmal. Darunter **Andere**:
+Konten ausserhalb der Haushalte, die zugestimmt haben.
+
+"Andere Person anzeigen" fragt per Benutzername an (`src/db/shares.ts`,
+Sammlung `calendarShares`). Bis zur Zustimmung steht dort "wartet auf
+Zustimmung"; die angefragte Person sieht oben im Kalender eine Karte und
+entscheidet. Private Termine bleiben auch danach verborgen.
+
+Keiner dieser Haken ist voreingestellt: fremde Kalender kommen nur dazu,
+wenn man sie ausdruecklich anhakt. "Alle anzeigen" gilt nur fuer die
+eigenen Kalender.
+
 ### Sichtbarkeit (`matchesSource` / `isVisible` in `repositories.ts`)
 
 Jede angehakte Quelle wird einzeln geprueft, gezeigt wird die Vereinigung.
@@ -150,8 +168,9 @@ Jede angehakte Quelle wird einzeln geprueft, gezeigt wird die Vereinigung.
 - **Privat** — persoenliche Termine, nur der eigene Kalender
 - **Familie** — Termine im Familienkalender, alle Mitglieder sehen sie
 - **Eigener Kalender** — was in diesem Kalender steht, fuer alle, die dabei sind
-- **Mitglied** — der persoenliche Kalender eines Mitglieds, ohne dessen
-  private Termine
+- **Mitglied** — der persoenliche Kalender einer anderen Person, ohne deren
+  private Termine. Erlaubt ist das mit gemeinsamem Haushalt (irgendeinem der
+  eigenen, nicht nur dem aktiven) oder mit einer angenommenen Anfrage.
 - Persoenliche Termine sind standardmaessig fuer den Haushalt sichtbar;
   der Schalter "Privat" nimmt sie heraus.
 - Die Startseite (`listUpcoming`) zeigt nur Eigenes, quer ueber die eigenen

@@ -31,12 +31,17 @@ function changed<T>(value: T): T {
  */
 export type CalendarSource = 'personal' | 'family' | `cal:${string}` | `member:${string}`;
 
-/** Wer fragt, in welchem Haushalt, und welche eigenen Kalender er hat. */
+/** Wer fragt, in welchen Haushalten, und was er sonst sehen darf. */
 export type CalendarAccess = {
   accountId: string;
+  /** Der aktive Haushalt — in ihn gehen neue Familientermine. */
   householdId: string | null;
+  /** Alle Haushalte, in denen das Konto ist. */
+  householdIds: readonly string[];
   /** Ids der angenommenen eigenen Kalender. */
   calendarIds: readonly string[];
+  /** Konten, die ihren persoenlichen Kalender freigegeben haben. */
+  sharedBy: readonly string[];
 };
 
 /** Aeltere Zeilen kennen die neuen Felder noch nicht — die gelten als persoenlich. */
@@ -50,10 +55,11 @@ function calendarOf(row: EventRow): CalendarScope {
 function matchesSource(row: EventRow, access: CalendarAccess, source: CalendarSource): boolean {
   const scope = calendarOf(row);
   const mine = row.accountId === access.accountId;
-  const sameHousehold = access.householdId !== null && row.householdId === access.householdId;
+  const activeHousehold = access.householdId !== null && row.householdId === access.householdId;
+  const sharedHousehold = row.householdId !== null && access.householdIds.includes(row.householdId);
 
   if (source === 'personal') return mine && scope === 'personal';
-  if (source === 'family') return sameHousehold && scope === 'family';
+  if (source === 'family') return activeHousehold && scope === 'family';
 
   if (source.startsWith('cal:')) {
     const calendarId = source.slice('cal:'.length);
@@ -62,8 +68,12 @@ function matchesSource(row: EventRow, access: CalendarAccess, source: CalendarSo
 
   const memberId = source.slice('member:'.length);
   if (row.accountId !== memberId || scope !== 'personal') return false;
-  // Den eigenen Kalender sieht man ganz, fremde nur ohne die privaten Termine.
-  return memberId === access.accountId || (sameHousehold && !row.isPrivate);
+  // Den eigenen Kalender sieht man ganz.
+  if (memberId === access.accountId) return true;
+  // Fremde nur ohne die privaten Termine, und nur mit gemeinsamem Haushalt
+  // oder einer angenommenen Anfrage.
+  if (row.isPrivate) return false;
+  return sharedHousehold || access.sharedBy.includes(memberId);
 }
 
 function isVisible(

@@ -14,7 +14,6 @@ import {
   Divider,
   EmptyState,
   Header,
-  Icon,
   Input,
   ListItem,
   Loading,
@@ -221,29 +220,6 @@ export function HouseholdView() {
             {t('household.roleHint')}
           </Text>
         ) : null}
-      </Card>
-
-      <Card title={t('household.shared.title')}>
-        <View style={{ gap: theme.spacing.sm }}>
-          {[
-            { icon: 'cart' as const, key: 'household.shared.shopping' as const },
-            { icon: 'calendar' as const, key: 'household.shared.calendar' as const },
-            { icon: 'broom' as const, key: 'household.shared.chores' as const },
-            { icon: 'checkCircle' as const, key: 'household.shared.tasks' as const },
-          ].map((entry) => (
-            <View
-              key={entry.key}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}
-            >
-              <Icon name={entry.icon} size={18} color={theme.colors.accentStrong} />
-              <View style={{ flex: 1 }}>
-                <Text variant="label" tone="muted">
-                  {t(entry.key)}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
       </Card>
 
       <Sheet visible={renaming} onClose={() => setRenaming(false)} title={t('household.rename')}>

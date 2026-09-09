@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   calendars as calendarRepo,
   households as householdRepo,
+  shares as shareRepo,
   useLiveQuery,
   type EventRow,
 } from '@/db';
@@ -16,7 +17,7 @@ import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Card, Header, Icon, Screen, Text } from '@/ui';
 
-import { eventColor } from './colors';
+import { eventColor, EVENT_COLORS, type EventColorKey } from './colors';
 import {
   addDays,
   addMonths,
@@ -28,7 +29,12 @@ import {
   weekDays,
 } from './dates';
 import { CalendarManager } from './CalendarManager';
-import { CalendarPicker, buildEntries, type CalendarMode } from './CalendarPicker';
+import {
+  CalendarPicker,
+  type CalendarMode,
+  type PickerEntry,
+  type PickerGroup,
+} from './CalendarPicker';
 import { EventEditor, type EventDraft } from './EventEditor';
 import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
@@ -40,15 +46,17 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const router = useRouter();
   const account = useAccount();
   const { household } = useApp();
-  const householdId = household?.id ?? null;
   const favouriteAction = useFavouriteAction(module.id);
 
-  const { access, calendars: myCalendars } = useCalendarAccess();
+  const { access, calendars: myCalendars, households, sharedBy } = useCalendarAccess();
   const [mode, setMode] = useState<CalendarMode>('month');
   const [managing, setManaging] = useState(false);
   const [picking, setPicking] = useState(false);
-  // Leer heisst: noch nichts abgewaehlt, also alles zeigen.
+  // Leer heisst: kein eigener Kalender abgewaehlt, also alle zeigen.
   const [hidden, setHidden] = useState<readonly CalendarSource[]>([]);
+  // Fremde Kalender kommen nur dazu, wenn man sie ausdruecklich anhakt.
+  const [shownPeople, setShownPeople] = useState<readonly CalendarSource[]>([]);
+  const [askMessage, setAskMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(null);
 
@@ -69,29 +77,101 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
-  const memberList = useLiveQuery(
-    () => (householdId ? householdRepo.members(householdId) : Promise.resolve([])),
-    [householdId],
-  );
-  // Eigene Konstante, damit useMemo unten nicht bei jedem Rendern neu laeuft.
-  const members = useMemo(() => memberList.data ?? [], [memberList.data]);
+  const householdIds = households.map((entry) => entry.household.id);
+  const memberList = useLiveQuery(async () => {
+    const groups = [];
+    for (const id of householdIds) {
+      const found = await householdRepo.find(id);
+      if (!found) continue;
+      groups.push({ household: found, members: await householdRepo.members(id) });
+    }
+    return groups;
+  }, [householdIds]);
+  // Eigene Konstante, damit die useMemo unten nicht bei jedem Rendern laufen.
+  const memberGroups = useMemo(() => memberList.data ?? [], [memberList.data]);
 
-  const entries = useMemo(
-    () =>
-      buildEntries(
-        { personal: t('calendar.scope.personal'), family: t('calendar.scope.family') },
-        household !== null,
-        myCalendars,
-        members,
-        account.id,
-      ),
-    [t, household, myCalendars, members, account.id],
-  );
+  const calendarEntries = useMemo((): PickerEntry[] => {
+    const list: PickerEntry[] = [{ source: 'personal', label: t('calendar.scope.personal') }];
+    if (household) list.push({ source: 'family', label: t('calendar.scope.family') });
+    myCalendars.forEach((entry) => {
+      list.push({
+        source: `cal:${entry.calendar.id}`,
+        label: entry.calendar.name,
+        color: EVENT_COLORS[entry.calendar.color as EventColorKey] ?? eventColor(null),
+      });
+    });
+    return list;
+  }, [t, household, myCalendars]);
 
-  const selected = useMemo(
-    () => entries.map((entry) => entry.source).filter((source) => !hidden.includes(source)),
-    [entries, hidden],
-  );
+  // Personen: je Haushalt eine Gruppe, darunter, wer freigegeben hat.
+  // Wer in zwei Haushalten steht, erscheint nur einmal.
+  const peopleGroups = useMemo((): PickerGroup[] => {
+    // Jede Person nur einmal, auch wenn sie in zwei Haushalten steht.
+    const seen = new Set<string>([account.id]);
+    const take = (id: string, label: string): PickerEntry | null => {
+      if (seen.has(id)) return null;
+      seen.add(id);
+      return { source: `member:${id}`, label };
+    };
+
+    const byHousehold = memberGroups
+      .map((group) => ({
+        key: group.household.id,
+        title: group.household.name,
+        entries: group.members
+          .map((member) => take(member.membership.accountId, member.displayName))
+          .filter((entry): entry is PickerEntry => entry !== null),
+      }))
+      .filter((group) => group.entries.length > 0);
+
+    // Die Ueberschrift hilft erst, wenn mehrere Haushalte Leute beisteuern.
+    const households: PickerGroup[] =
+      byHousehold.length > 1
+        ? byHousehold
+        : byHousehold.map(({ key, entries }) => ({ key, entries }));
+
+    const others = sharedBy
+      .map((person) => take(person.share.ownerId, person.displayName))
+      .filter((entry): entry is PickerEntry => entry !== null);
+
+    return others.length > 0
+      ? [...households, { key: 'shared', title: t('calendar.picker.others'), entries: others }]
+      : households;
+  }, [memberGroups, sharedBy, account.id, t]);
+
+  const selected = useMemo(() => {
+    const known = new Set(
+      peopleGroups.flatMap((group) => group.entries.map((entry) => entry.source)),
+    );
+    return [
+      ...calendarEntries.map((entry) => entry.source).filter((source) => !hidden.includes(source)),
+      ...shownPeople.filter((source) => known.has(source)),
+    ];
+  }, [calendarEntries, hidden, shownPeople, peopleGroups]);
+
+  const askedList = useLiveQuery(() => shareRepo.askedBy(account.id), [account.id]);
+  const waiting = (askedList.data ?? []).map((person) => person.displayName);
+
+  const requestList = useLiveQuery(() => shareRepo.requestsFor(account.id), [account.id]);
+  const requests = requestList.data ?? [];
+
+  async function askPerson(username: string) {
+    if (username.trim().length === 0) return;
+    const result = await shareRepo.requestByUsername(account.id, username);
+    if (result.ok) {
+      setAskMessage({ tone: 'ok', text: t('calendar.picker.asked') });
+      return;
+    }
+    setAskMessage({
+      tone: 'error',
+      text:
+        result.error === 'unknown_user'
+          ? t('calendars.share.unknown')
+          : result.error === 'self'
+            ? t('calendars.share.self')
+            : t('calendar.picker.alreadyAsked'),
+    });
+  }
 
   const list = useLiveQuery(
     () => eventRepo.listBetween(access, fromIso, toIso, selected),
@@ -136,7 +216,14 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
           subtitle={periodLabel}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
+          actions={[
+            {
+              icon: 'settings',
+              label: t('calendars.manage'),
+              onPress: () => setManaging(true),
+            },
+            favouriteAction,
+          ]}
         >
           <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
             <Pressable
@@ -218,6 +305,35 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
         </View>
       ) : null}
 
+      {requests.length > 0 ? (
+        <View style={{ paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm }}>
+          {requests.map((person) => (
+            <Card
+              key={person.share.id}
+              title={t('calendars.share.incoming', { name: person.displayName })}
+              subtitle={t('calendars.share.incomingBody')}
+            >
+              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                <Button
+                  label={t('calendars.invites.accept')}
+                  size="sm"
+                  icon="check"
+                  fullWidth={false}
+                  onPress={() => shareRepo.respond(person.share.id, true)}
+                />
+                <Button
+                  label={t('calendars.invites.decline')}
+                  size="sm"
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={() => shareRepo.respond(person.share.id, false)}
+                />
+              </View>
+            </Card>
+          ))}
+        </View>
+      ) : null}
+
       {mode === 'month' ? (
         <MonthView
           month={anchor}
@@ -251,23 +367,34 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
 
       <CalendarPicker
         visible={picking}
-        onClose={() => setPicking(false)}
+        onClose={() => {
+          setPicking(false);
+          setAskMessage(null);
+        }}
         mode={mode}
         onMode={setMode}
-        entries={entries}
+        calendars={calendarEntries}
+        people={peopleGroups}
+        waiting={waiting}
         selected={selected}
-        onToggle={(source) =>
+        onToggle={(source) => {
+          if (source.startsWith('member:')) {
+            setShownPeople((current) =>
+              current.includes(source)
+                ? current.filter((item) => item !== source)
+                : [...current, source],
+            );
+            return;
+          }
           setHidden((current) =>
             current.includes(source)
               ? current.filter((item) => item !== source)
               : [...current, source],
-          )
-        }
-        onAll={(all) => setHidden(all ? [] : entries.map((entry) => entry.source))}
-        onManage={() => {
-          setPicking(false);
-          setManaging(true);
+          );
         }}
+        onAll={(all) => setHidden(all ? [] : calendarEntries.map((entry) => entry.source))}
+        onAsk={(username) => void askPerson(username)}
+        askMessage={askMessage}
       />
 
       <CalendarManager
