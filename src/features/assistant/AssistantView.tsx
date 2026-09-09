@@ -1,26 +1,21 @@
-import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
-import { ASSISTANT_CANNED_REPLY, ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
+import { ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
 import type { AssistantMessage } from '@/mocks/types';
 import { useTheme } from '@/theme';
-import { EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
-
-export type AssistantViewProps = {
-  /** Als Tab ohne Zurueck, als aufgerufener Bildschirm mit. */
-  showBack?: boolean;
-};
+import { EmptyState, Icon, Input, Loading, Screen, Text } from '@/ui';
 
 /**
- * Der Assistent. Er startet leer — kein Beispieldialog, keine Vorschlaege,
- * nur die Frage, womit er helfen soll.
+ * Der Assistent. Er startet leer — kein Kopfbereich, kein Beispieldialog,
+ * keine Vorschlaege. Nur die Frage, womit er helfen soll, und ein Feld.
  */
-export function AssistantView({ showBack = false }: AssistantViewProps) {
+export function AssistantView() {
   const t = useTranslate();
   const theme = useTheme();
-  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<readonly AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -54,7 +49,7 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
     if (text.length === 0 || thinking) return;
     setDraft('');
     append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
-    respondLater(ASSISTANT_CANNED_REPLY);
+    respondLater(t('assistant.reply'));
   }
 
   function send() {
@@ -65,14 +60,6 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
     <Screen
       scroll={false}
       padded={false}
-      header={
-        <Header
-          title={t('assistant.title')}
-          subtitle={t('assistant.disclaimer')}
-          showBack={showBack}
-          onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-        />
-      }
       footer={
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
           <View style={{ flex: 1 }}>
@@ -120,7 +107,14 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
     >
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: theme.spacing.lg,
+          paddingTop: theme.spacing.lg + insets.top,
+          gap: theme.spacing.md,
+          // Solange nichts dasteht, sitzt die Frage in der Mitte.
+          justifyContent: messages.length === 0 ? 'center' : 'flex-start',
+        }}
         keyboardShouldPersistTaps="handled"
       >
         {messages.length === 0 && !thinking ? (
@@ -153,12 +147,6 @@ export function AssistantView({ showBack = false }: AssistantViewProps) {
         ))}
 
         {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
-
-        {messages.length > 0 ? (
-          <Text variant="caption" tone="faint" align="center">
-            {t('assistant.fallback')}
-          </Text>
-        ) : null}
       </ScrollView>
     </Screen>
   );

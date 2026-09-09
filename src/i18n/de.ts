@@ -194,14 +194,12 @@ export const de = {
   'role.teen': 'Jugendlich',
   'role.child': 'Kind',
 
-  'assistant.title': 'Assistent',
-  'assistant.disclaimer': 'Antworten kommen von einer KI. Prüf wichtige Dinge selbst nach.',
   'assistant.empty.title': 'Wie kann ich dich unterstützen?',
   'assistant.empty.body': 'Schreib einfach, was du brauchst.',
   'assistant.placeholder': 'Schreib, was du brauchst',
   'assistant.send': 'Senden',
-  'assistant.fallback':
-    'Im Prototyp gibt es nur eine feste Beispielantwort. Die echte Anbindung kommt später.',
+  'assistant.reply':
+    'Das kann ich noch nicht — hinter mir steckt bisher kein Modell. Sobald eines da ist, trage ich so etwas für dich ein und frage vorher nach.',
   'assistant.thinking': 'Denkt nach …',
 
   'aiChat.intro':

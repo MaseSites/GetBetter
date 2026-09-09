@@ -74,9 +74,10 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 | Installierbar | Nein, eingebaut                                                         | Entfaellt — alle Module sind da (im Abo enthalten)    |
 | Daten         | Liest und schreibt deine Apps, fragt vor dem Eintragen                  | Sieht deine Daten nicht                               |
 
-Der Assistent startet **leer**: kein Beispieldialog, keine Vorschlagsleiste,
-nur "Wie kann ich dich unterstuetzen?". Hinter ihm steckt noch kein Modell —
-auf Getipptes antwortet er einmal ehrlich, dass er das noch nicht kann.
+Der Assistent hat **keinen Kopfbereich**: kein Titel, kein Hinweis, kein
+Beispieldialog, keine Vorschlagsleiste. In der Mitte steht nur "Wie kann ich
+dich unterstuetzen?", unten das Feld. Hinter ihm steckt noch kein Modell — auf
+Getipptes antwortet er einmal ehrlich, dass er das noch nicht kann.
 
 ## Haushalte
 
