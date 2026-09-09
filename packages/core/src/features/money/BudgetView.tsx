@@ -9,7 +9,8 @@ import {
   monthKey,
   useLiveQuery,
 } from '@/db';
-import { formatMoney, formatShortDate, useI18n, type TranslationKey } from '@/i18n';
+import { addMonths } from '@/features/calendar/dates';
+import { formatMoney, formatMonth, formatShortDate, useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -21,6 +22,7 @@ import {
   EmptyState,
   FloatingButton,
   Header,
+  IconButton,
   Input,
   ListItem,
   Screen,
@@ -40,7 +42,10 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const month = monthKey();
+  // Der Monat, den man gerade anschaut — 0 ist dieser, -1 der letzte.
+  const [monthOffset, setMonthOffset] = useState(0);
+  const monthDate = addMonths(new Date(), monthOffset);
+  const month = monthKey(monthDate);
 
   const [adding, setAdding] = useState(false);
   const [settingLimit, setSettingLimit] = useState(false);
@@ -63,6 +68,14 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
       ? t(`budget.category.${id}` as TranslationKey)
       : id;
 
+  // Wofuer das Geld ging — die groessten Posten zuerst.
+  const byCategory = [...new Set(rows.map((row) => row.category))]
+    .map((id) => ({
+      id,
+      total: rows.filter((row) => row.category === id).reduce((sum, row) => sum + row.amountChf, 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+
   async function save() {
     const value = parseAmount(amount);
     if (value === null) {
@@ -71,7 +84,8 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
     }
     await expenseRepo.add({
       accountId: account.id,
-      day: dayKey(),
+      // In einem anderen Monat landet die Ausgabe auf dessen Erstem.
+      day: monthOffset === 0 ? dayKey() : `${month}-01`,
       amountChf: value,
       category,
       note,
@@ -115,6 +129,27 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
         />
       }
     >
+      {/* Ein Monat vor, ein Monat zurueck — die Zahlen darunter folgen. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+        <IconButton
+          icon="back"
+          label={t('budget.previousMonth')}
+          tone="default"
+          onPress={() => setMonthOffset((value) => value - 1)}
+        />
+        <View style={{ flex: 1 }}>
+          <Text variant="section" align="center">
+            {formatMonth(language, monthDate)}
+          </Text>
+        </View>
+        <IconButton
+          icon="forward"
+          label={t('budget.nextMonth')}
+          tone="default"
+          onPress={() => setMonthOffset((value) => value + 1)}
+        />
+      </View>
+
       <Card>
         <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
           <Text variant="display">{money(spent)}</Text>
@@ -140,6 +175,26 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
           />
         </View>
       </Card>
+
+      {byCategory.length > 1 ? (
+        <Card title={t('budget.byCategory')}>
+          <View style={{ gap: theme.spacing.md }}>
+            {byCategory.map((entry) => (
+              <View key={entry.id} style={{ gap: theme.spacing.xs }}>
+                <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="label">{categoryLabel(entry.id)}</Text>
+                  </View>
+                  <Text variant="label" tone="muted">
+                    {money(entry.total)}
+                  </Text>
+                </View>
+                <ProgressBar share={spent > 0 ? entry.total / spent : 0} />
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {rows.length === 0 ? (
         <EmptyState icon="wallet" title={t('budget.empty.title')} body={t('budget.empty.body')} />

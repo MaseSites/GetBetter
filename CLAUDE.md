@@ -398,8 +398,8 @@ legen.
 
 ## Onboarding (GetBetter)
 
-Zwei Schritte: Name und Bereiche. Die anderen Apps haben kein Onboarding —
-sie legen gleich los.
+Ein Schritt: der Vorname, dann geht es los. Den Schritt „Bereiche“ gibt es
+nicht mehr — er diente den Favoriten. Die anderen Apps haben kein Onboarding.
 
 ## Aussehen
 

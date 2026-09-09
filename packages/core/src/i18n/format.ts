@@ -39,6 +39,13 @@ export function formatShortDate(language: Language, iso: string): string {
   }).format(new Date(iso));
 }
 
+/** "September 2026" */
+export function formatMonth(language: Language, date: Date): string {
+  return new Intl.DateTimeFormat(localeFor(language), { month: 'long', year: 'numeric' }).format(
+    date,
+  );
+}
+
 export function formatNumber(language: Language, value: number): string {
   return new Intl.NumberFormat(localeFor(language)).format(value);
 }

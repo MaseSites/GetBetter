@@ -12,11 +12,16 @@ export type StepHeaderProps = {
   onBack?: () => void;
 };
 
-/** Fortschrittsanzeige plus Zurueck, auf allen vier Onboarding-Schritten gleich. */
+/**
+ * Zurueck plus Fortschritt — der Fortschritt aber nur, wenn es mehr als einen
+ * Schritt gibt. "Schritt 1 von 1" wuerde niemandem etwas sagen.
+ */
 export function StepHeader({ step, showBack = true, onBack }: StepHeaderProps) {
   const theme = useTheme();
   const t = useTranslate();
   const current = stepNumber(step);
+
+  if (ONBOARDING_STEP_COUNT <= 1) return <Header showBack={showBack} onBack={onBack} />;
 
   return (
     <Header

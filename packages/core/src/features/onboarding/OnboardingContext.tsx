@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
-import type { Area } from '@/mocks/types';
-
-export const ONBOARDING_STEPS = ['welcome', 'areas'] as const;
+/** Ein Schritt reicht: der Vorname. Bereiche und Favoriten gibt es nicht mehr. */
+export const ONBOARDING_STEPS = ['welcome'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export function stepNumber(step: OnboardingStep): number {
@@ -14,26 +13,14 @@ export const ONBOARDING_STEP_COUNT = ONBOARDING_STEPS.length;
 type OnboardingValue = {
   firstName: string;
   setFirstName: (value: string) => void;
-  areas: readonly Area[];
-  toggleArea: (area: Area) => void;
 };
 
 const OnboardingContext = createContext<OnboardingValue | null>(null);
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [firstName, setFirstName] = useState('');
-  const [areas, setAreas] = useState<readonly Area[]>([]);
 
-  const toggleArea = useCallback((area: Area) => {
-    setAreas((current) =>
-      current.includes(area) ? current.filter((item) => item !== area) : [...current, area],
-    );
-  }, []);
-
-  const value = useMemo<OnboardingValue>(
-    () => ({ firstName, setFirstName, areas, toggleArea }),
-    [firstName, areas, toggleArea],
-  );
+  const value = useMemo<OnboardingValue>(() => ({ firstName, setFirstName }), [firstName]);
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }

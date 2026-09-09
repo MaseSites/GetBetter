@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useOnboarding } from '@/features/onboarding/OnboardingContext';
@@ -8,21 +8,25 @@ import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Input, Screen, Text } from '@/ui';
 
+/** Der eine Schritt: wie sollen wir dich nennen? Danach geht es los. */
 export default function WelcomeStep() {
   const t = useTranslate();
   const theme = useTheme();
-  const router = useRouter();
   const { firstName, setFirstName } = useOnboarding();
-  const { signOut } = useApp();
+  const { signOut, completeOnboarding } = useApp();
+  const [busy, setBusy] = useState(false);
 
-  function goNext() {
-    router.push('/areas');
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    // Der RouteGuard schickt danach selbst in die Tabs.
+    await completeOnboarding({ firstName, areas: [] });
   }
 
   return (
     <Screen
       header={<StepHeader step="welcome" onBack={signOut} />}
-      footer={<Button label={t('common.continue')} onPress={goNext} />}
+      footer={<Button label={t('onboarding.finish')} onPress={finish} loading={busy} />}
     >
       <View style={{ gap: theme.spacing.xs }}>
         <Text variant="display">{t('onboarding.name.title')}</Text>
@@ -38,8 +42,8 @@ export default function WelcomeStep() {
         onChangeText={setFirstName}
         icon="person"
         autoCapitalize="words"
-        onSubmitEditing={goNext}
-        returnKeyType="next"
+        onSubmitEditing={finish}
+        returnKeyType="done"
       />
     </Screen>
   );

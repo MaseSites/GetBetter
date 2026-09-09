@@ -14,7 +14,6 @@ export default function OnboardingLayout() {
         }}
       >
         <Stack.Screen name="welcome" />
-        <Stack.Screen name="areas" />
       </Stack>
     </OnboardingProvider>
   );
