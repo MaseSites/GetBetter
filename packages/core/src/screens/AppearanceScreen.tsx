@@ -8,12 +8,11 @@ import {
   ACCENTS,
   ACCENT_KEYS,
   THEME_PRESETS,
-  moduleTint,
   useTheme,
   type AccentKey,
   type ThemePreset,
 } from '@/theme';
-import { Card, Header, Icon, Screen, Segmented, Text } from '@/ui';
+import { Card, Header, Icon, ModuleIcon, Screen, Segmented, Text } from '@/ui';
 
 const MODE_OPTIONS = ['light', 'dark', 'system'] as const;
 
@@ -85,24 +84,14 @@ export function AppearanceScreen() {
           {groupedModules()
             .flatMap((group) => group.modules)
             .slice(0, 8)
-            .map((module) => {
-              const tint = moduleTint(theme, module.id);
-              return (
-                <View key={module.id} style={styles.previewTile}>
-                  <View
-                    style={[
-                      styles.logo,
-                      { borderRadius: theme.radii.lg, backgroundColor: tint.background },
-                    ]}
-                  >
-                    <Icon name={module.icon} size={24} color={tint.foreground} />
-                  </View>
-                  <Text variant="caption" align="center" numberOfLines={1}>
-                    {module.name}
-                  </Text>
-                </View>
-              );
-            })}
+            .map((module) => (
+              <View key={module.id} style={styles.previewTile}>
+                <ModuleIcon moduleId={module.id} icon={module.icon} />
+                <Text variant="caption" align="center" numberOfLines={1}>
+                  {module.name}
+                </Text>
+              </View>
+            ))}
         </View>
       </Card>
     </Screen>

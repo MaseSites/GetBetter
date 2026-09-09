@@ -4,8 +4,8 @@ import { View } from 'react-native';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
 import { getModule } from '@/mocks/modules';
-import { moduleTint, useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Header, Icon, Screen, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { Badge, Button, Card, EmptyState, Header, Icon, ModuleIcon, Screen, Text } from '@/ui';
 
 export function ModuleDetailScreen() {
   const { t, language } = useI18n();
@@ -13,7 +13,6 @@ export function ModuleDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
-  const tint = moduleTint(theme, module?.id ?? '');
 
   if (!module) {
     return (
@@ -43,18 +42,8 @@ export function ModuleDetailScreen() {
       }
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.lg }}>
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: theme.radii.lg,
-            backgroundColor: tint.background,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name={module.icon} size={30} color={tint.foreground} />
-        </View>
+        <ModuleIcon moduleId={module.id} icon={module.icon} size="lg" />
+
         <View style={{ flex: 1, gap: theme.spacing.xs }}>
           <Text variant="display">{module.name}</Text>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, flexWrap: 'wrap' }}>

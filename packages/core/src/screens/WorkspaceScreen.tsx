@@ -24,8 +24,8 @@ import { formatLongDate, formatShortDate, formatTime, useI18n } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
-import { moduleTint, useTheme } from '@/theme';
-import { Card, Divider, Header, Icon, Input, ListItem, Screen, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { Card, Divider, Header, Icon, Input, ListItem, ModuleIcon, Screen, Text } from '@/ui';
 
 /**
  * Kein Kachelbrett, sondern eine Arbeitsflaeche: jede Funktion steht mit dem
@@ -295,7 +295,6 @@ function Section({
   children: React.ReactNode;
 }) {
   const theme = useTheme();
-  const tint = moduleTint(theme, module?.id ?? '');
   if (!module) return null;
 
   return (
@@ -314,18 +313,7 @@ function Section({
           opacity: pressed ? 0.6 : 1,
         })}
       >
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: theme.radii.md,
-            backgroundColor: tint.background,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name={module.icon} size={18} color={tint.foreground} />
-        </View>
+        <ModuleIcon moduleId={module.id} icon={module.icon} size="sm" />
         <View style={{ flex: 1 }}>
           <Text variant="title">{module.name}</Text>
         </View>

@@ -12,8 +12,8 @@ import {
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
-import { moduleTint, useTheme } from '@/theme';
-import { Button, Card, Divider, Icon, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { Button, Card, Divider, ModuleIcon, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter.
@@ -123,7 +123,6 @@ export function AppFamily() {
         const app = APPS[id];
         const open = unlocked.includes(id);
         const first = APP_MODULES[id][0];
-        const tint = moduleTint(theme, first ?? '');
         const rows = open ? fields(id) : [];
 
         return (
@@ -134,22 +133,7 @@ export function AppFamily() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
               {/* Blass ist nur die App selbst — der Knopf soll auffallen. */}
               <View style={{ opacity: open ? 1 : 0.5 }}>
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: theme.radii.md,
-                    backgroundColor: open ? tint.background : theme.colors.surfaceMuted,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Icon
-                    name={app.icon as 'grid'}
-                    size={22}
-                    color={open ? tint.foreground : theme.colors.textFaint}
-                  />
-                </View>
+                <ModuleIcon moduleId={first ?? ''} icon={app.icon as 'grid'} />
               </View>
 
               <View style={{ flex: 1, gap: 2, opacity: open ? 1 : 0.5 }}>

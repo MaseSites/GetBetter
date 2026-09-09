@@ -318,6 +318,23 @@ export function getModule(id: string): ModuleDefinition | undefined {
  * Die Module der laufenden App. Jedes Modul gehoert genau einer Better-App —
  * BetterFamily zeigt also nie den Kalender, GetBetter nie die Einkaufsliste.
  */
+/**
+ * Was wirklich etwas tut. Der Rest zeigt ehrlich, dass er noch fehlt —
+ * dieselbe Liste braucht die Startseite und der Funktionen-Bildschirm.
+ */
+export const BUILT_MODULE_IDS: readonly string[] = [
+  'calendar',
+  'tasks',
+  'notes',
+  'alarm',
+  'ai',
+  'shopping',
+  'chores',
+  'fitness',
+  'meals',
+  'water',
+];
+
 export function modulesOfApp(): readonly ModuleDefinition[] {
   const mine = APP_MODULES[currentApp().id];
   return MODULES.filter((module) => mine.includes(module.id));

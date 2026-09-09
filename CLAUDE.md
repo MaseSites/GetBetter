@@ -231,16 +231,24 @@ App fuehrt, aber noch nicht kann, blass und ohne etwas vorzugeben. Nur die
 Kopfzeile eines Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter
 gehoeren der Funktion.
 
-### Organisation (`screens/FinderScreen.tsx`)
+### Funktionen (`screens/FunctionsScreen.tsx`)
 
-Der zweite Tab zeigt die Funktionen **dieser** App an einer Stelle — in
-GetBetter also Kalender, Wecker, Aufgaben, Notizen und den Rest. Was andere
-Better-Apps koennen, gehoert nicht hierher; die stehen auf der Startseite.
+Der zweite Tab zeigt die Funktionen **dieser** App als Logos, drei
+nebeneinander: oben, was wirklich etwas tut, darunter unter **Kommt noch**
+blass der Rest. `BUILT_MODULE_IDS` in `mocks/modules.ts` ist die eine Stelle,
+die weiss, was gebaut ist.
 
-- oben die haeufigsten Handgriffe als farbige Felder (Termin, Aufgabe, Notiz,
-  Wecker)
-- darunter alles als Pille mit Logo
-- ein Suchfeld, das ueber Name und Beschreibung filtert
+### Die Logos (`ui/ModuleIcon.tsx`)
+
+Drei Schichten statt eines Farbflecks: ein abgerundetes Quadrat mit
+Farbverlauf (`expo-linear-gradient`), darauf ein heller Bogen als Licht, in der
+Mitte das Symbol. Die Farben stehen in `theme/modules.ts` — je Funktion zwei
+Toene, je einer fuer hell und dunkel. Drei Groessen: `sm` in Listen, `md` auf
+Karten, `lg` im Raster.
+
+Keine einzige Bilddatei: das Logo entsteht aus Formen und faerbt sich mit dem
+Aussehen mit — in "farbig" gefuellt, in "ruhig" zurueckgenommen, in
+"schwarzweiss" grau.
 
 **Favoriten gibt es nicht mehr.** Kein Stern, keine Auswahl, kein
 Fragenschritt beim Einrichten — alle Funktionen sind immer da.

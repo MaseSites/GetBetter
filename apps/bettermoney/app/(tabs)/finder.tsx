@@ -1,1 +1,1 @@
-export { FinderScreen as default } from '@/screens';
+export { FunctionsScreen as default } from '@/screens';
