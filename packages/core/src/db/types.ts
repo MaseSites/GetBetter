@@ -132,6 +132,9 @@ export type TaskRow = Row & {
   dueAt: string | null;
   /** Geteilte Aufgaben sehen alle im Haushalt. */
   shared: boolean;
+  /** Mit Fahne: steht in seinem Abschnitt oben. */
+  priority?: boolean;
+  notes?: string | null;
   createdAt: string;
   completedAt: string | null;
 };
@@ -140,8 +143,70 @@ export type NoteRow = Row & {
   accountId: string;
   title: string;
   body: string;
+  /** Angeheftet: steht immer oben. */
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type DocumentCategory = 'contract' | 'insurance' | 'warranty' | 'id' | 'other';
+
+/** Ein Dokument mit Ablaufdatum — Vertrag, Police, Garantie, Ausweis. */
+export type DocumentRow = Row & {
+  accountId: string;
+  title: string;
+  category: DocumentCategory;
+  /** `YYYY-MM-DD` oder null, wenn es nicht ablaeuft. */
+  expiresOn: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+/** Eine Gewohnheit; die Haken liegen in `habitTicks`. */
+export type HabitRow = Row & {
+  accountId: string;
+  name: string;
+  /** Wie oft pro Woche man sie will, 1 bis 7. */
+  targetPerWeek: number;
+  createdAt: string;
+};
+
+/** Ein Haken an einem Tag. */
+export type HabitTickRow = Row & {
+  habitId: string;
+  accountId: string;
+  day: string;
+};
+
+/** Eine Reise mit Zeitraum; die Packliste liegt in `packingItems`. */
+export type TripRow = Row & {
+  accountId: string;
+  name: string;
+  destination: string | null;
+  startDay: string;
+  endDay: string;
+  createdAt: string;
+};
+
+export type PackingItemRow = Row & {
+  tripId: string;
+  accountId: string;
+  name: string;
+  packed: boolean;
+  createdAt: string;
+};
+
+/** Ein Mensch, an den man denken will. */
+export type ContactRow = Row & {
+  accountId: string;
+  name: string;
+  /** `YYYY-MM-DD` */
+  birthday: string | null;
+  phone: string | null;
+  note: string | null;
+  /** Wann man sich zuletzt gesehen hat, als Tag. */
+  lastSeenOn: string | null;
+  createdAt: string;
 };
 
 export type ShoppingItemRow = Row & {
@@ -282,6 +347,12 @@ export type Schema = {
   bills: BillRow;
   subscriptions: SubscriptionRow;
   savingsGoals: SavingsGoalRow;
+  documents: DocumentRow;
+  habits: HabitRow;
+  habitTicks: HabitTickRow;
+  trips: TripRow;
+  packingItems: PackingItemRow;
+  contacts: ContactRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -306,6 +377,12 @@ export const COLLECTION_NAMES = [
   'bills',
   'subscriptions',
   'savingsGoals',
+  'documents',
+  'habits',
+  'habitTicks',
+  'trips',
+  'packingItems',
+  'contacts',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;

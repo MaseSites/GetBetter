@@ -43,7 +43,21 @@ const COLLECTIONS = [
   'bills',
   'subscriptions',
   'savingsGoals',
+  'documents',
+  'habits',
+  'habitTicks',
+  'trips',
+  'packingItems',
+  'contacts',
 ];
+
+/**
+ * Neue Sammlungen duerfen die Apps selbst anlegen — sonst muesste der Dienst
+ * bei jeder neuen Funktion neu gestartet werden. Nur der Name muss sauber sein.
+ */
+function isCollectionName(name) {
+  return typeof name === 'string' && /^[a-z][A-Za-z0-9]{1,40}$/.test(name);
+}
 
 /** Was nur der Dienst kennt und niemals herausgibt. */
 const SECRET_FIELDS = ['passwordHash', 'passwordSalt'];
@@ -80,6 +94,12 @@ async function load() {
       // Die erste Fassung kannte nur Konten und legte sie flach ab.
       else if (name === 'accounts' && Array.isArray(parsed.accounts)) {
         next.tables.accounts = parsed.accounts;
+      }
+    }
+    // Sammlungen, die eine App spaeter angelegt hat, bleiben erhalten.
+    for (const [name, rows] of Object.entries(parsed.tables ?? {})) {
+      if (!(name in next.tables) && isCollectionName(name) && Array.isArray(rows)) {
+        next.tables[name] = rows;
       }
     }
     data = next;
@@ -208,7 +228,7 @@ async function patchProfile(id, changes) {
 async function snapshot() {
   const db = await load();
   const tables = {};
-  for (const name of COLLECTIONS) {
+  for (const name of Object.keys(db.tables)) {
     tables[name] = name === 'accounts' ? db.tables.accounts.map(withoutSecrets) : db.tables[name];
   }
   return { revision: db.revision, tables };
@@ -223,10 +243,11 @@ async function snapshot() {
  * und koennten sie sonst versehentlich loeschen.
  */
 async function replaceCollection(name, rows) {
-  if (!COLLECTIONS.includes(name)) return { error: 'unknown_collection' };
+  if (!isCollectionName(name)) return { error: 'unknown_collection' };
   if (!Array.isArray(rows)) return { error: 'bad_request' };
 
   const db = await load();
+  if (!(name in db.tables)) db.tables[name] = [];
 
   if (name === 'accounts') {
     const secrets = new Map(db.tables.accounts.map((row) => [row.id, row]));

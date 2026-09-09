@@ -4,16 +4,21 @@ import { Pressable, View } from 'react-native';
 
 import {
   bills as billRepo,
+  contacts as contactRepo,
   dayKey,
+  documents as documentRepo,
   drinks as drinkRepo,
   expenses as expenseRepo,
+  habits as habitRepo,
   meals as mealRepo,
   monthKey,
   savings as savingsRepo,
   subscriptions as subscriptionRepo,
+  trips as tripRepo,
   useLiveQuery,
   workouts as workoutRepo,
 } from '@/db';
+import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
 import {
   alarms as alarmRepo,
   chores as choreRepo,
@@ -81,6 +86,11 @@ export function WorkspaceScreen() {
     [account.id],
   );
   const goalList = useLiveQuery(() => savingsRepo.list(account.id), [account.id]);
+  const documentList = useLiveQuery(() => documentRepo.list(account.id), [account.id]);
+  const habitList = useLiveQuery(() => habitRepo.list(account.id), [account.id]);
+  const habitTicks = useLiveQuery(() => habitRepo.ticks(account.id), [account.id]);
+  const tripList = useLiveQuery(() => tripRepo.list(account.id), [account.id]);
+  const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -95,6 +105,19 @@ export function WorkspaceScreen() {
   const subscriptionsMonthly = subscriptionMonthly.data ?? 0;
   const goals = goalList.data ?? [];
   const money = (value: number) => formatMoney(language, value);
+  const today = dayKey();
+  const expiring = (documentList.data ?? []).filter(
+    (row) => row.expiresOn !== null && daysUntil(row.expiresOn) <= 60,
+  );
+  const habitRows = habitList.data ?? [];
+  const tickedToday = new Set(
+    (habitTicks.data ?? []).filter((tick) => tick.day === today).map((tick) => tick.habitId),
+  );
+  const nextTrip = (tripList.data ?? []).find((trip) => trip.endDay >= today);
+  const birthdays = (contactList.data ?? [])
+    .flatMap((row) => (row.birthday ? [{ row, next: nextBirthday(row.birthday) }] : []))
+    .filter((entry) => entry.next.days <= 30)
+    .sort((a, b) => a.next.days - b.next.days);
 
   async function addTask() {
     const title = draft.trim();
@@ -250,6 +273,100 @@ export function WorkspaceScreen() {
         <Text variant="label" tone={drinkToday > 0 ? 'default' : 'faint'}>
           {t('water.amount', { amount: (drinkToday / 10).toFixed(1) })}
         </Text>
+      );
+    }
+
+    if (id === 'documents') {
+      return expiring.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('documents.calm')}
+        </Text>
+      ) : (
+        expiring.slice(0, 3).map((row, index) => (
+          <View key={row.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={row.title}
+              right={
+                <Text
+                  variant="label"
+                  tone={row.expiresOn && daysUntil(row.expiresOn) < 0 ? 'danger' : 'muted'}
+                >
+                  {row.expiresOn ? relativeDay(t, language, row.expiresOn) : ''}
+                </Text>
+              }
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'habits') {
+      return habitRows.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('habits.empty.title')}
+        </Text>
+      ) : (
+        <>
+          <Text variant="caption" tone="muted">
+            {t('habits.today', { done: tickedToday.size, total: habitRows.length })}
+          </Text>
+          {habitRows.slice(0, 5).map((habit, index) => (
+            <View key={habit.id}>
+              {index > 0 ? <Divider /> : null}
+              <ListItem
+                title={habit.name}
+                icon={tickedToday.has(habit.id) ? 'checkCircle' : 'circle'}
+                // Der Haken fuer heute — direkt hier.
+                onPress={() => void habitRepo.toggle(habit.id, account.id, today)}
+              />
+            </View>
+          ))}
+        </>
+      );
+    }
+
+    if (id === 'travel') {
+      return nextTrip ? (
+        <ListItem
+          title={nextTrip.name}
+          subtitle={nextTrip.destination ?? undefined}
+          right={
+            <Text variant="label" tone="accent">
+              {nextTrip.startDay <= today
+                ? t('trips.ongoing')
+                : relativeDay(t, language, nextTrip.startDay)}
+            </Text>
+          }
+        />
+      ) : (
+        <Text variant="label" tone="faint">
+          {t('trips.empty.title')}
+        </Text>
+      );
+    }
+
+    if (id === 'contacts') {
+      return birthdays.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('contacts.calm')}
+        </Text>
+      ) : (
+        birthdays.slice(0, 3).map(({ row, next }, index) => (
+          <View key={row.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={row.name}
+              icon="gift"
+              subtitle={t('contacts.turns', { age: next.age })}
+              right={
+                <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
+                  {relativeDay(t, language, next.day)}
+                </Text>
+              }
+            />
+          </View>
+        ))
       );
     }
 

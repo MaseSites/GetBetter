@@ -58,6 +58,12 @@ function emptyTables(): Tables {
     bills: [],
     subscriptions: [],
     savingsGoals: [],
+    documents: [],
+    habits: [],
+    habitTicks: [],
+    trips: [],
+    packingItems: [],
+    contacts: [],
   };
 }
 
@@ -258,6 +264,12 @@ export const db = {
   bills: new Collection('bills'),
   subscriptions: new Collection('subscriptions'),
   savingsGoals: new Collection('savingsGoals'),
+  documents: new Collection('documents'),
+  habits: new Collection('habits'),
+  habitTicks: new Collection('habitTicks'),
+  trips: new Collection('trips'),
+  packingItems: new Collection('packingItems'),
+  contacts: new Collection('contacts'),
 } as const;
 
 /** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */

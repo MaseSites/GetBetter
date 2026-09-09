@@ -202,6 +202,35 @@ Montag. `colors.ts` hat die sieben Terminfarben.
 
 Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
 
+## GetBetter: die Organisation
+
+Vorbild sind Things 3 und Apple Erinnerungen — wenig Text, klare Abschnitte,
+ein Tipp fürs Wichtigste. Alles je Konto, Tage als `YYYY-MM-DD`
+(`features/shared/days.ts`: `daysUntil`, `shiftDay`, `relativeDay`,
+`nextBirthday`). Ein Datum wählt man mit `DayPicker`
+(`features/shared/DayPicker.tsx`): Chips für heute, morgen, in einer Woche, in
+einem Monat, dahinter ein Feld für alles andere.
+
+- **Aufgaben** (`tasks`, `features/tasks/`) — Abschnitte Überfällig / Heute /
+  Demnächst / Irgendwann, rot nur, was wirklich überfällig ist. Schnell
+  eintragen unten; ein Tipp auf den Titel öffnet das Blatt mit Frist, Fahne
+  (`priority`) und Notiz. Der Kreis links hakt ab.
+- **Notizen** (`notes`) — Suche über Titel und Text, Anheften (`pinned`) hält
+  eine Notiz oben.
+- **Dokumente** (`documents`, `db/organizer.ts`) — Art (Vertrag, Versicherung,
+  Garantie, Ausweis, Anderes), Ablaufdatum, Notiz. Was in 60 Tagen abläuft,
+  steht oben unter **Läuft bald ab**, Abgelaufenes rot.
+- **Gewohnheiten** (`habits`, `habitTicks`) — je Vorsatz eine Karte mit der
+  Woche als sieben Punkten; ein Tipp hakt den Tag ab, die Zukunft bleibt
+  stumm. Serie (`streakOf`) und Wochenziel (`targetPerWeek`) stehen daneben.
+- **Reisen** (`trips`, `packingItems`) — Countdown, Zeitraum, Packliste mit
+  Fortschritt und Vorschlägen (Pass, Ladegerät, …), Vergangene blass darunter.
+- **Kontakte** (`contacts`) — Geburtstage der nächsten 30 Tage oben („wird
+  36“), darunter alle; im Blatt „Heute gesehen“ (`lastSeenOn`).
+
+Die Startseite zeigt je Funktion das Nächste: was bald abläuft, die Haken von
+heute (antippbar), die nächste Reise, die nächsten Geburtstage.
+
 ## BetterGym
 
 `db/gym.ts` und `features/gym/` — drei ausgebaute Module:

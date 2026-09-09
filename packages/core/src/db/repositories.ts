@@ -269,10 +269,13 @@ export const tasks = {
     return db.tasks.list({
       where: (row) => !row.done && taskVisible(row, viewerId, householdId),
       sort: (a, b) => {
-        // Was eine Frist hat, steht oben, danach das Aelteste zuerst.
-        if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
-        if (a.dueAt) return -1;
-        if (b.dueAt) return 1;
+        // Was eine Frist hat, steht oben; bei gleicher Frist die Fahne zuerst,
+        // danach das Aelteste.
+        if (a.dueAt && b.dueAt && a.dueAt !== b.dueAt) return a.dueAt.localeCompare(b.dueAt);
+        if (a.dueAt && !b.dueAt) return -1;
+        if (b.dueAt && !a.dueAt) return 1;
+        const flag = Number(b.priority ?? false) - Number(a.priority ?? false);
+        if (flag !== 0) return flag;
         return a.createdAt.localeCompare(b.createdAt);
       },
     });
@@ -296,6 +299,8 @@ export const tasks = {
     title: string;
     dueAt?: string | null;
     shared?: boolean;
+    priority?: boolean;
+    notes?: string | null;
   }): Promise<TaskRow> {
     const row: TaskRow = {
       id: newId('tk'),
@@ -305,6 +310,8 @@ export const tasks = {
       done: false,
       dueAt: input.dueAt ?? null,
       shared: input.shared ?? false,
+      priority: input.priority ?? false,
+      notes: input.notes?.trim() || null,
       createdAt: now(),
       completedAt: null,
     };
@@ -313,6 +320,19 @@ export const tasks = {
 
   async setDone(id: string, done: boolean) {
     return changed(await db.tasks.update(id, { done, completedAt: done ? now() : null }));
+  },
+
+  async update(
+    id: string,
+    patch: { title?: string; dueAt?: string | null; priority?: boolean; notes?: string | null },
+  ) {
+    return changed(
+      await db.tasks.update(id, {
+        ...patch,
+        ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
+        ...(patch.notes !== undefined ? { notes: patch.notes?.trim() || null } : {}),
+      }),
+    );
   },
 
   async setShared(id: string, shared: boolean) {
@@ -331,7 +351,10 @@ export const notes = {
   list(accountId: string) {
     return db.notes.list({
       where: (row) => row.accountId === accountId,
-      sort: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+      // Angeheftete zuerst, sonst das zuletzt Bearbeitete.
+      sort: (a, b) =>
+        Number(b.pinned ?? false) - Number(a.pinned ?? false) ||
+        b.updatedAt.localeCompare(a.updatedAt),
     });
   },
 
@@ -356,7 +379,7 @@ export const notes = {
     return changed(await db.notes.insert(row));
   },
 
-  async save(id: string, patch: { title?: string; body?: string }) {
+  async save(id: string, patch: { title?: string; body?: string; pinned?: boolean }) {
     return changed(await db.notes.update(id, { ...patch, updatedAt: now() }));
   },
 

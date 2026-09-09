@@ -13,6 +13,10 @@ import { BudgetView } from '@/features/money/BudgetView';
 import { SavingsView } from '@/features/money/SavingsView';
 import { SubscriptionsView } from '@/features/money/SubscriptionsView';
 import { NotesView } from '@/features/notes/NotesView';
+import { ContactsView } from '@/features/organizer/ContactsView';
+import { DocumentsView } from '@/features/organizer/DocumentsView';
+import { HabitsView } from '@/features/organizer/HabitsView';
+import { TripsView } from '@/features/organizer/TripsView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
 import { useI18n } from '@/i18n';
@@ -38,6 +42,10 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   bills: (module) => <BillsView module={module} />,
   subscriptions: (module) => <SubscriptionsView module={module} />,
   savings: (module) => <SavingsView module={module} />,
+  documents: (module) => <DocumentsView module={module} />,
+  habits: (module) => <HabitsView module={module} />,
+  travel: (module) => <TripsView module={module} />,
+  contacts: (module) => <ContactsView module={module} />,
 };
 
 /** Noch nicht gebaut — ehrlich gesagt statt mit erfundenen Zahlen gefuellt. */

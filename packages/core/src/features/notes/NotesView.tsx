@@ -9,7 +9,26 @@ import { formatShortDate, useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, EmptyState, Header, Icon, Input, Loading, Screen, Sheet, Text } from '@/ui';
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  Header,
+  Icon,
+  Input,
+  Loading,
+  Screen,
+  Sheet,
+  Text,
+} from '@/ui';
+
+/** Ob eine Notiz zum Suchwort passt — Titel oder Text, ohne Gross und Klein. */
+function matches(note: NoteRow, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return true;
+  return note.title.toLowerCase().includes(needle) || note.body.toLowerCase().includes(needle);
+}
 
 export function NotesView({ module }: { module: ModuleDefinition }) {
   const { t, language } = useI18n();
@@ -18,12 +37,39 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
   const account = useAccount();
 
   const [editing, setEditing] = useState<NoteRow | null>(null);
+  const [query, setQuery] = useState('');
   const list = useLiveQuery(() => noteRepo.list(account.id), [account.id]);
   const items = list.data ?? [];
+  const visible = items.filter((note) => matches(note, query));
+  const pinned = visible.filter((note) => note.pinned);
+  const rest = visible.filter((note) => !note.pinned);
 
   async function createAndOpen() {
     const created = await noteRepo.create({ accountId: account.id });
     setEditing(created);
+  }
+
+  function card(note: NoteRow) {
+    return (
+      <Card key={note.id} onPress={() => setEditing(note)} accessibilityLabel={note.title}>
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={[styles.titleRow, { gap: theme.spacing.xs }]}>
+            {note.pinned ? <Icon name="pinFilled" size={14} color={theme.colors.accent} /> : null}
+            <Text variant="title" numberOfLines={1}>
+              {note.title.trim().length > 0 ? note.title : t('notes.untitled')}
+            </Text>
+          </View>
+          {note.body.trim().length > 0 ? (
+            <Text variant="label" tone="muted" numberOfLines={2}>
+              {note.body}
+            </Text>
+          ) : null}
+          <Text variant="caption" tone="faint">
+            {formatShortDate(language, note.updatedAt)}
+          </Text>
+        </View>
+      </Card>
+    );
   }
 
   return (
@@ -31,13 +77,26 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
       header={
         <Header
           title={module.name}
-          subtitle={t('notes.count', { count: items.length })}
+          subtitle={t(items.length === 1 ? 'notes.count.one' : 'notes.count', {
+            count: items.length,
+          })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
         />
       }
       footer={<Button label={t('notes.new')} icon="plus" onPress={createAndOpen} />}
     >
+      {items.length > 0 ? (
+        <Input
+          icon="search"
+          placeholder={t('notes.search')}
+          value={query}
+          onChangeText={setQuery}
+          returnKeyType="search"
+          accessibilityLabel={t('notes.search')}
+        />
+      ) : null}
+
       {list.loading && items.length === 0 ? <Loading /> : null}
 
       {!list.loading && items.length === 0 ? (
@@ -50,23 +109,19 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
         />
       ) : null}
 
-      {items.map((note) => (
-        <Card key={note.id} onPress={() => setEditing(note)} accessibilityLabel={note.title}>
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text variant="title" numberOfLines={1}>
-              {note.title.trim().length > 0 ? note.title : t('notes.untitled')}
-            </Text>
-            {note.body.trim().length > 0 ? (
-              <Text variant="label" tone="muted" numberOfLines={2}>
-                {note.body}
-              </Text>
-            ) : null}
-            <Text variant="caption" tone="faint">
-              {formatShortDate(language, note.updatedAt)}
-            </Text>
-          </View>
-        </Card>
-      ))}
+      {items.length > 0 && visible.length === 0 ? (
+        <Text variant="label" tone="faint" align="center">
+          {t('notes.noMatch')}
+        </Text>
+      ) : null}
+
+      {pinned.length > 0 ? (
+        <Text variant="section" tone="muted">
+          {t('notes.pinned')}
+        </Text>
+      ) : null}
+      {pinned.map(card)}
+      {rest.map(card)}
 
       <NoteEditor note={editing} onClose={() => setEditing(null)} />
     </Screen>
@@ -79,6 +134,7 @@ function NoteEditor({ note, onClose }: { note: NoteRow | null; onClose: () => vo
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [pinned, setPinned] = useState(false);
   const noteId = note?.id ?? null;
   // Beim Oeffnen einer anderen Notiz die Felder neu fuellen.
   const loadedId = useRef<string | null>(null);
@@ -88,13 +144,14 @@ function NoteEditor({ note, onClose }: { note: NoteRow | null; onClose: () => vo
       loadedId.current = noteId;
       setTitle(note?.title ?? '');
       setBody(note?.body ?? '');
+      setPinned(note?.pinned ?? false);
     }
     if (!noteId) loadedId.current = null;
-  }, [noteId, note?.title, note?.body]);
+  }, [noteId, note?.title, note?.body, note?.pinned]);
 
   async function save() {
     if (!noteId) return;
-    await noteRepo.save(noteId, { title, body });
+    await noteRepo.save(noteId, { title, body, pinned });
     onClose();
   }
 
@@ -122,6 +179,9 @@ function NoteEditor({ note, onClose }: { note: NoteRow | null; onClose: () => vo
           multiline
           autoCapitalize="sentences"
         />
+        <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+          <Chip label={t('notes.pin')} selected={pinned} onPress={() => setPinned((v) => !v)} />
+        </View>
         <View style={{ gap: theme.spacing.sm }}>
           <Button label={t('common.done')} icon="check" onPress={save} />
           <Pressable
@@ -142,5 +202,6 @@ function NoteEditor({ note, onClose }: { note: NoteRow | null; onClose: () => vo
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
   removeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
 });

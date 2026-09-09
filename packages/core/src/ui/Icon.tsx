@@ -64,6 +64,16 @@ export const ICONS = {
   star: 'star-outline',
   starFilled: 'star',
   warning: 'alert-circle-outline',
+  flag: 'flag-outline',
+  flagFilled: 'flag',
+  pin: 'pin-outline',
+  pinFilled: 'pin',
+  flame: 'flame-outline',
+  location: 'location-outline',
+  briefcase: 'briefcase-outline',
+  card: 'card-outline',
+  checkbox: 'checkbox-outline',
+  square: 'square-outline',
 } as const satisfies Record<string, IonName>;
 
 export type IconName = keyof typeof ICONS;

@@ -8,6 +8,7 @@ export { shares } from './shares';
 export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, workouts } from './gym';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
+export { contacts, documents, habits, trips } from './organizer';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -41,6 +42,13 @@ export type {
   SavingsGoalRow,
   SubscriptionInterval,
   SubscriptionRow,
+  ContactRow,
+  DocumentCategory,
+  DocumentRow,
+  HabitRow,
+  HabitTickRow,
+  PackingItemRow,
+  TripRow,
   WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,
