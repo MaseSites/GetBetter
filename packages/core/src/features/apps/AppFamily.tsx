@@ -10,6 +10,8 @@ import {
   expenses as expenseRepo,
   meals as mealRepo,
   monthKey,
+  sleepMinutes,
+  sleeps as sleepRepo,
   useLiveQuery,
   workouts as workoutRepo,
 } from '@/db';
@@ -60,6 +62,10 @@ export function AppFamily() {
   );
   const gymKcal = useLiveQuery(
     () => (account ? mealRepo.kcalOf(account.id, dayKey()) : Promise.resolve(0)),
+    [account?.id],
+  );
+  const gymSleep = useLiveQuery(
+    () => (account ? sleepRepo.list(account.id, 1) : Promise.resolve([])),
     [account?.id],
   );
   const moneySpent = useLiveQuery(
@@ -113,12 +119,20 @@ export function AppFamily() {
     if (id === 'bettergym') {
       const trained = gymMinutes.data ?? 0;
       const eaten = gymKcal.data ?? 0;
+      const night = gymSleep.data?.[0];
+      const slept = night ? sleepMinutes(night) : 0;
       return [
         {
           label: t('field.training'),
           value: trained > 0 ? t('gym.minutes', { minutes: trained }) : null,
         },
         { label: t('field.calories'), value: eaten > 0 ? t('meals.kcal', { kcal: eaten }) : null },
+        {
+          label: t('field.sleep'),
+          value: night
+            ? t('sleep.duration', { hours: Math.floor(slept / 60), minutes: slept % 60 })
+            : null,
+        },
       ];
     }
     if (id === 'bettermoney') {

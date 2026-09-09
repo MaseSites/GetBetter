@@ -7,6 +7,10 @@ import { CalendarView } from '@/features/calendar/CalendarView';
 import { ChoresView } from '@/features/chores/ChoresView';
 import { FitnessView } from '@/features/gym/FitnessView';
 import { MealsView } from '@/features/gym/MealsView';
+import { MedsView } from '@/features/gym/MedsView';
+import { MindView } from '@/features/gym/MindView';
+import { SleepView } from '@/features/gym/SleepView';
+import { VitalsView } from '@/features/gym/VitalsView';
 import { WaterView } from '@/features/gym/WaterView';
 import { BillsView } from '@/features/money/BillsView';
 import { BudgetView } from '@/features/money/BudgetView';
@@ -54,6 +58,10 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   plants: (module) => <PlantsView module={module} />,
   pets: (module) => <PetsView module={module} />,
   vehicles: (module) => <VehiclesView module={module} />,
+  sleep: (module) => <SleepView module={module} />,
+  meds: (module) => <MedsView module={module} />,
+  vitals: (module) => <VitalsView module={module} />,
+  mind: (module) => <MindView module={module} />,
 };
 
 /** Noch nicht gebaut — ehrlich gesagt statt mit erfundenen Zahlen gefuellt. */

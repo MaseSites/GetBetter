@@ -12,7 +12,7 @@ noch die Zeit, als alles eine App war.
 | ---------------- | ------------------- | ----------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — alles ausgebaut, dazu Assistent und App-Übersicht |
 | **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt, alles ausgebaut                            |
-| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                       |
+| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training mit Sätzen und Vorlagen, Menüplan, Trinken, Schlaf, Medikamente, Werte, Kopf frei — alles ausgebaut                                |
 | **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                               |
 | **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                   |
 
@@ -258,15 +258,31 @@ heute (antippbar), die nächste Reise, die nächsten Geburtstage.
 
 ## BetterGym
 
-`db/gym.ts` und `features/gym/` — drei ausgebaute Module:
+`db/gym.ts`, `db/health.ts` und `features/gym/` — sieben Module, Vorbild sind
+Hevy und Streaks:
 
-- **Training** (`workouts`) — Art, Dauer, Notiz; oben die Minuten dieser Woche
+- **Training** (`workouts`, `workoutSets`, `routines`) — **Vorlagen** als Chips
+  starten ein Training mit ihren Übungen; im Blatt je Übung die Sätze
+  („Satz 1 · 60 kg × 8“), daneben die **Bestleistung** über alle Trainings,
+  nach jedem Satz ein **Pausentimer** (90 s). Übungen aus der Liste oder frei.
+  Ohne Vorlage: Art (Kraft, Laufen, …) und Dauer.
 - **Menüplan** (`meals`) — Mahlzeit, Kalorien, Tagesabschnitt; oben die
   Tagessumme gegen 2000 kcal
 - **Trinken** (`drinks`) — zwei Knöpfe (2.5 dl, 5 dl), ein Balken, das letzte
   lässt sich zurücknehmen
+- **Schlaf** (`sleeps`) — ins Bett, aufgestanden, wie gut; `sleepMinutes`
+  rechnet über Mitternacht. Oben der Schnitt der letzten 7 Nächte, dazu der
+  **Tipp aus dem Kalender**: erster Termin morgen minus 9 Stunden.
+- **Medikamente** (`meds`, `medTakes`) — je Einnahmezeit ein Chip, ein Tipp
+  heisst genommen; der Vorrat zählt mit, unter 5 steht „Nachschub“.
+- **Werte** (`vitals`) — Gewicht, Blutdruck, Puls: der letzte Wert gross, der
+  Unterschied zum vorletzten, die letzten zehn als Balken.
+- **Kopf frei** (`moods`) — ein Wort zur Laune (1–5), ein Satz zum Tag, dazu
+  die Atemübung 4-7-8 in vier Runden.
 
 `dayKey(date)` ist der Tagesschlüssel `YYYY-MM-DD`, nach dem gruppiert wird.
+Die Startseite zeigt die Zahl des Tages, die letzte Nacht, die nächste offene
+Einnahme (antippbar), das letzte Gewicht und die Laune von heute.
 
 ## BetterMoney
 

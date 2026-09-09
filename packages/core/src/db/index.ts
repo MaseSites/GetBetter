@@ -6,7 +6,8 @@ export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';
 export { calendars, MAX_CALENDARS } from './calendars';
 export { shares } from './shares';
 export { appAccess } from './appAccess';
-export { dayKey, drinks, meals, workouts } from './gym';
+export { dayKey, drinks, meals, routines, workoutSets, workouts } from './gym';
+export { meds, moods, sleepMinutes, sleeps, vitals } from './health';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';
 export { pets, plantDueDay, plants, recipes, vehicles } from './family';
@@ -57,6 +58,15 @@ export type {
   PlantRow,
   RecipeRow,
   VehicleRow,
+  MedRow,
+  MedSlot,
+  MedTakeRow,
+  MoodRow,
+  RoutineRow,
+  SleepRow,
+  VitalKind,
+  VitalRow,
+  WorkoutSetRow,
   WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,

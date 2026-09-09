@@ -1,6 +1,6 @@
-import { notifyDataChanged } from './live';
+import { notifyDataChanged } from './events';
 import { db, newId } from './store';
-import type { DrinkRow, MealRow, WorkoutRow } from './types';
+import type { DrinkRow, MealRow, RoutineRow, WorkoutRow, WorkoutSetRow } from './types';
 
 function now(): string {
   return new Date().toISOString();
@@ -62,8 +62,90 @@ export const workouts = {
     return changed(await db.workouts.insert(row));
   },
 
+  async update(id: string, patch: { kind?: string; minutes?: number; notes?: string | null }) {
+    return changed(
+      await db.workouts.update(id, {
+        ...patch,
+        ...(patch.kind !== undefined ? { kind: patch.kind.trim() } : {}),
+        ...(patch.minutes !== undefined ? { minutes: Math.max(0, Math.round(patch.minutes)) } : {}),
+        ...(patch.notes !== undefined ? { notes: patch.notes?.trim() || null } : {}),
+      }),
+    );
+  },
+
   async remove(id: string) {
+    const sets = await db.workoutSets.list({ where: (row) => row.workoutId === id });
+    for (const set of sets) await db.workoutSets.remove(set.id);
     await db.workouts.remove(id);
+    changed(null);
+  },
+};
+
+/** Die Saetze eines Trainings — Uebung, Gewicht, Wiederholungen, wie in Hevy. */
+export const workoutSets = {
+  listOf(workoutId: string) {
+    return db.workoutSets.list({
+      where: (row) => row.workoutId === workoutId,
+      sort: (a, b) => a.createdAt.localeCompare(b.createdAt),
+    });
+  },
+
+  /** Alle Saetze eines Kontos — fuer Bestleistungen und die Zahl je Training. */
+  listAll(accountId: string) {
+    return db.workoutSets.list({ where: (row) => row.accountId === accountId });
+  },
+
+  async add(input: {
+    workoutId: string;
+    accountId: string;
+    exercise: string;
+    weightKg: number | null;
+    reps: number;
+  }): Promise<WorkoutSetRow> {
+    const row: WorkoutSetRow = {
+      id: newId('ws'),
+      workoutId: input.workoutId,
+      accountId: input.accountId,
+      exercise: input.exercise.trim(),
+      weightKg: input.weightKg === null ? null : Math.max(0, Math.round(input.weightKg * 4) / 4),
+      reps: Math.max(1, Math.round(input.reps)),
+      createdAt: now(),
+    };
+    return changed(await db.workoutSets.insert(row));
+  },
+
+  async remove(id: string) {
+    await db.workoutSets.remove(id);
+    changed(null);
+  },
+};
+
+/** Vorlagen: welche Uebungen zu einem Training gehoeren. */
+export const routines = {
+  list(accountId: string) {
+    return db.routines.list({
+      where: (row) => row.accountId === accountId,
+      sort: (a, b) => a.createdAt.localeCompare(b.createdAt),
+    });
+  },
+
+  async add(input: {
+    accountId: string;
+    name: string;
+    exercises: readonly string[];
+  }): Promise<RoutineRow> {
+    const row: RoutineRow = {
+      id: newId('rt'),
+      accountId: input.accountId,
+      name: input.name.trim(),
+      exercises: input.exercises.map((entry) => entry.trim()).filter((entry) => entry.length > 0),
+      createdAt: now(),
+    };
+    return changed(await db.routines.insert(row));
+  },
+
+  async remove(id: string) {
+    await db.routines.remove(id);
     changed(null);
   },
 };

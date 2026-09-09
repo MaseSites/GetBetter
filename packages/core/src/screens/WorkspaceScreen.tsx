@@ -11,16 +11,21 @@ import {
   expenses as expenseRepo,
   habits as habitRepo,
   meals as mealRepo,
+  meds as medRepo,
   monthKey,
+  moods as moodRepo,
   pets as petRepo,
   plantDueDay,
   plants as plantRepo,
   recipes as recipeRepo,
   savings as savingsRepo,
+  sleepMinutes,
+  sleeps as sleepRepo,
   subscriptions as subscriptionRepo,
   trips as tripRepo,
   useLiveQuery,
   vehicles as vehicleRepo,
+  vitals as vitalRepo,
   workouts as workoutRepo,
 } from '@/db';
 import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
@@ -123,6 +128,11 @@ export function WorkspaceScreen() {
     () => vehicleRepo.list(account.id, householdId),
     [account.id, householdId],
   );
+  const sleepList = useLiveQuery(() => sleepRepo.list(account.id, 1), [account.id]);
+  const medList = useLiveQuery(() => medRepo.list(account.id), [account.id]);
+  const medTakes = useLiveQuery(() => medRepo.takes(account.id, dayKey()), [account.id]);
+  const weightList = useLiveQuery(() => vitalRepo.list(account.id, 'weight', 1), [account.id]);
+  const moodList = useLiveQuery(() => moodRepo.list(account.id, 1), [account.id]);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -541,6 +551,76 @@ export function WorkspaceScreen() {
             />
           </View>
         ))
+      );
+    }
+
+    if (id === 'sleep') {
+      const night = sleepList.data?.[0];
+      const minutes = night ? sleepMinutes(night) : 0;
+      return (
+        <Text variant="label" tone={night ? 'default' : 'faint'}>
+          {night
+            ? t('sleep.duration', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
+            : t('sleep.empty.title')}
+        </Text>
+      );
+    }
+
+    if (id === 'meds') {
+      const medRows = medList.data ?? [];
+      const takes = medTakes.data ?? [];
+      const total = medRows.reduce((sum, med) => sum + med.slots.length, 0);
+      const taken = takes.length;
+      return medRows.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('meds.empty.title')}
+        </Text>
+      ) : (
+        <>
+          <Text variant="caption" tone="muted">
+            {taken >= total ? t('meds.allTaken') : t('meds.today', { taken, total })}
+          </Text>
+          {medRows.slice(0, 5).map((med, index) => {
+            const next = med.slots.find(
+              (slot) => !takes.some((take) => take.medId === med.id && take.slot === slot),
+            );
+            return (
+              <View key={med.id}>
+                {index > 0 ? <Divider /> : null}
+                <ListItem
+                  title={med.name}
+                  subtitle={next ? t(`meds.slot.${next}` as TranslationKey) : undefined}
+                  icon={next ? 'circle' : 'checkCircle'}
+                  // Der naechste offene Zeitpunkt — ein Tipp heisst genommen.
+                  {...(next
+                    ? { onPress: () => void medRepo.toggle(med.id, account.id, today, next) }
+                    : {})}
+                />
+              </View>
+            );
+          })}
+        </>
+      );
+    }
+
+    if (id === 'vitals') {
+      const weight = weightList.data?.[0];
+      return (
+        <Text variant="label" tone={weight ? 'default' : 'faint'}>
+          {weight ? `${weight.value} ${t('vitals.unit.weight')}` : t('vitals.empty.title')}
+        </Text>
+      );
+    }
+
+    if (id === 'mind') {
+      const mood = moodList.data?.[0];
+      const isToday = mood?.day === today;
+      return (
+        <Text variant="label" tone={isToday ? 'default' : 'faint'}>
+          {isToday && mood
+            ? `${t(`mind.mood.${mood.mood}` as TranslationKey)}${mood.note ? ` · ${mood.note}` : ''}`
+            : t('mind.today')}
+        </Text>
       );
     }
 

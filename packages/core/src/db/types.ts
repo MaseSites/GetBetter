@@ -310,6 +310,80 @@ export type WorkoutRow = Row & {
   createdAt: string;
 };
 
+/** Ein Satz in einem Training: Uebung, Gewicht, Wiederholungen. */
+export type WorkoutSetRow = Row & {
+  workoutId: string;
+  accountId: string;
+  exercise: string;
+  weightKg: number | null;
+  reps: number;
+  createdAt: string;
+};
+
+/** Eine Vorlage: welche Uebungen ein Training hat. */
+export type RoutineRow = Row & {
+  accountId: string;
+  name: string;
+  exercises: readonly string[];
+  createdAt: string;
+};
+
+/** Eine Nacht: wann ins Bett, wann raus, wie gut. */
+export type SleepRow = Row & {
+  accountId: string;
+  /** Der Morgen danach, als Tag. */
+  day: string;
+  /** "23:00" */
+  bedtime: string;
+  /** "06:30" */
+  wakeTime: string;
+  /** 1 schlecht, 2 ok, 3 gut */
+  quality: number;
+  createdAt: string;
+};
+
+export type MedSlot = 'morning' | 'noon' | 'evening' | 'night';
+
+/** Ein Medikament mit seinen Einnahmezeiten und dem Vorrat. */
+export type MedRow = Row & {
+  accountId: string;
+  name: string;
+  dose: string | null;
+  slots: readonly MedSlot[];
+  stock: number | null;
+  createdAt: string;
+};
+
+/** Eine Einnahme an einem Tag zu einer Zeit. */
+export type MedTakeRow = Row & {
+  medId: string;
+  accountId: string;
+  day: string;
+  slot: MedSlot;
+  createdAt: string;
+};
+
+export type VitalKind = 'weight' | 'bp' | 'pulse';
+
+/** Ein Messwert; beim Blutdruck ist `value2` der untere. */
+export type VitalRow = Row & {
+  accountId: string;
+  kind: VitalKind;
+  day: string;
+  value: number;
+  value2: number | null;
+  createdAt: string;
+};
+
+/** Ein Satz zum Tag und wie er war, 1 bis 5. */
+export type MoodRow = Row & {
+  accountId: string;
+  day: string;
+  mood: number;
+  note: string | null;
+  createdAt: string;
+};
+
 /** Eine Mahlzeit mit ihren Kalorien. */
 export type MealRow = Row & {
   accountId: string;
@@ -423,6 +497,13 @@ export type Schema = {
   pets: PetRow;
   petEvents: PetEventRow;
   vehicles: VehicleRow;
+  workoutSets: WorkoutSetRow;
+  routines: RoutineRow;
+  sleeps: SleepRow;
+  meds: MedRow;
+  medTakes: MedTakeRow;
+  vitals: VitalRow;
+  moods: MoodRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -458,6 +539,13 @@ export const COLLECTION_NAMES = [
   'pets',
   'petEvents',
   'vehicles',
+  'workoutSets',
+  'routines',
+  'sleeps',
+  'meds',
+  'medTakes',
+  'vitals',
+  'moods',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;
