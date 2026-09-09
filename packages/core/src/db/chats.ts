@@ -1,6 +1,9 @@
 import { notifyDataChanged } from './events';
+import { chatTitleOf } from './pure';
 import { db, newId } from './store';
 import type { ChatMessageRow, ChatRow } from './types';
+
+export { chatTitleOf };
 
 function now(): string {
   return new Date().toISOString();
@@ -9,15 +12,6 @@ function now(): string {
 function changed<T>(value: T): T {
   notifyDataChanged();
   return value;
-}
-
-/** So lang darf ein Titel aus der ersten Nachricht werden. */
-const TITLE_LENGTH = 48;
-
-/** Der Titel eines Gespraechs: die erste Frage, gekuerzt. */
-export function chatTitleOf(text: string): string {
-  const line = text.trim().split('\n')[0] ?? '';
-  return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1)}…` : line;
 }
 
 /** Die Gespraeche in BetterAi — je Konto, das Neueste zuerst. */

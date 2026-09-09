@@ -69,6 +69,10 @@ export const de = {
   'db.offline.body':
     'Alle Better-Apps teilen sich eine Datenbank. Starte sie mit „npm run server“ und versuch es nochmal.',
   'db.offline.action': 'Nochmal versuchen',
+  'error.title': 'Da ist etwas schiefgegangen',
+  'error.body':
+    'Deine Daten sind nicht weg. Versuch es nochmal — wenn es bleibt, starte die App neu.',
+  'error.retry': 'Nochmal versuchen',
   'auth.error.offline':
     'Die Datenbank ist nicht erreichbar. Starte sie mit „npm run server“ und versuch es nochmal.',
   'link.title': 'Konto verbinden',

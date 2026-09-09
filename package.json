@@ -15,10 +15,11 @@
     "gym": "npm run web -w apps/bettergym",
     "ai": "npm run web -w apps/betterai",
     "money": "npm run web -w apps/bettermoney",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "server": "node services/api/server.js"
+    "server": "node services/api/server.js",
+    "test": "node --import ./scripts/test-setup.mjs --test \"packages/core/src/**/*.test.ts\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

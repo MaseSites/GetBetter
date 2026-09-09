@@ -32,10 +32,27 @@ npm run family     # BetterFamily (8082)
 npm run gym        # BetterGym (8083)
 npm run ai         # BetterAi (8084)
 npm run money      # BetterMoney (8085)
-npm run typecheck  # tsc über alles
+npm run typecheck  # tsc über alles, danach über die Tests
 npm run lint
+npm test           # die reinen Rechenteile, unter Node
 node scripts/icons.js   # alle Bilder neu erzeugen
 ```
+
+## Tests
+
+`npm test` lässt Node die `*.test.ts` neben dem Code laufen — ohne Jest, ohne
+Bundler: Node streift die Typen selbst ab, `scripts/test-hooks.mjs` löst
+`@/…` und Importe ohne Endung auf. Getestet wird, was ohne App und Datenbank
+rechnet: Beträge (`features/money/amount.ts`), Abteilungen und Mengen
+(`features/shopping/categories.ts`), Tage und Geburtstage
+(`features/shared/days.ts`), die Datumsrechnung des Kalenders
+(`features/calendar/dates.ts`) und `db/pure.ts` — dort liegen `dayKey`,
+`monthKey`, `sleepMinutes` und `chatTitleOf`, bewusst ohne Speicher dahinter.
+Eine Datei, die getestet werden soll, importiert deshalb relativ, nicht über
+den Speicher-Index. `tsconfig.test.json` prüft die Tests mit den Node-Typen.
+
+Wirft ein Bildschirm, fängt `app/ErrorBoundary.tsx` das ab und zeigt statt
+eines weissen Blatts „Da ist etwas schiefgegangen“ mit „Nochmal versuchen“.
 
 `/ui-kit` (nur in GetBetter) zeigt jeden UI-Baustein in allen Zuständen.
 

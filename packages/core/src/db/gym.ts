@@ -2,15 +2,10 @@ import { notifyDataChanged } from './events';
 import { db, newId } from './store';
 import type { DrinkRow, MealRow, RoutineRow, WorkoutRow, WorkoutSetRow } from './types';
 
+export { dayKey } from './pure';
+
 function now(): string {
   return new Date().toISOString();
-}
-
-/** Der Tag als `YYYY-MM-DD` — danach wird gruppiert und gezaehlt. */
-export function dayKey(date: Date = new Date()): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function changed<T>(value: T): T {

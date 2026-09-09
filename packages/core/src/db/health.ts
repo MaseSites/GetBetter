@@ -6,21 +6,11 @@ function now(): string {
   return new Date().toISOString();
 }
 
+export { sleepMinutes } from './pure';
+
 function changed<T>(value: T): T {
   notifyDataChanged();
   return value;
-}
-
-const MINUTES_PER_DAY = 24 * 60;
-
-function minutesOf(time: string): number {
-  const [hour, minute] = time.split(':').map(Number);
-  return (hour ?? 0) * 60 + (minute ?? 0);
-}
-
-/** Wie lange eine Nacht war — ueber Mitternacht hinweg gerechnet. */
-export function sleepMinutes(row: { bedtime: string; wakeTime: string }): number {
-  return (minutesOf(row.wakeTime) - minutesOf(row.bedtime) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
 }
 
 // ---------------------------------------------------------------- Schlaf

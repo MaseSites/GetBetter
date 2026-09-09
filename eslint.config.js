@@ -19,6 +19,14 @@ module.exports = [
     },
   },
   {
+    // Die Test-Haken sind ES-Module unter Node.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: { process: 'readonly' },
+    },
+  },
+  {
     ignores: ['node_modules/**', '.expo/**', 'dist/**', 'services/*/data/**'],
   },
 ];

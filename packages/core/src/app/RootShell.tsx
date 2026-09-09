@@ -9,6 +9,8 @@ import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { EmptyState, Loading, PhoneFrame, Screen } from '@/ui';
 
+import { ErrorBoundary } from './ErrorBoundary';
+
 export type RootShellProps = {
   /** Wohin es nach der Anmeldung geht. */
   home: string;
@@ -99,7 +101,9 @@ export function RootShell({ home, hasOnboarding = false }: RootShellProps) {
       <AppProvider>
         <StatusBar style="auto" />
         <PhoneFrame>
-          <Shell home={home} hasOnboarding={hasOnboarding} />
+          <ErrorBoundary>
+            <Shell home={home} hasOnboarding={hasOnboarding} />
+          </ErrorBoundary>
         </PhoneFrame>
       </AppProvider>
     </SafeAreaProvider>

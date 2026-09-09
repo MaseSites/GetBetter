@@ -11,5 +11,5 @@
     }
   },
   "include": ["packages/**/*.ts", "packages/**/*.tsx", "apps/**/*.ts", "apps/**/*.tsx"],
-  "exclude": ["node_modules", "**/node_modules"]
+  "exclude": ["node_modules", "**/node_modules", "**/*.test.ts"]
 }

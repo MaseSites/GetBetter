@@ -1,5 +1,7 @@
-import { dayKey } from '@/db';
-import { formatShortDate, type Language, type TranslationKey } from '@/i18n';
+// Relative Pfade mit Absicht: so laeuft die Datei auch in den Tests unter Node.
+import { dayKey } from '../../db/pure';
+import { formatShortDate } from '../../i18n/format';
+import type { Language, TranslationKey } from '../../i18n';
 
 const DAY_MS = 86_400_000;
 

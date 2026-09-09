@@ -9,13 +9,10 @@ import type {
   SubscriptionRow,
 } from './types';
 
+export { monthKey } from './pure';
+
 function now(): string {
   return new Date().toISOString();
-}
-
-/** Der Monat als `YYYY-MM` — die Einheit, in der Geld gezaehlt wird. */
-export function monthKey(date: Date = new Date()): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function changed<T>(value: T): T {
@@ -25,7 +22,7 @@ function changed<T>(value: T): T {
 
 /** Auf Rappen gerundet — mehr Stellen gibt es im Portemonnaie nicht. */
 function rappen(value: number): number {
-  return Math.max(0, Math.round(value * 100) / 100);
+  return Math.max(0, Math.round((value + Number.EPSILON) * 100) / 100);
 }
 
 /** Ausgaben, Budget, Rechnungen, Abos, Sparziele — der Datenbestand von BetterMoney. */
