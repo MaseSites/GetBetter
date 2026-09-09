@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { useTranslate } from '@/i18n';
+import { currentApp } from '@/app/identity';
+import { useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Button, Icon, Screen, Text } from '@/ui';
 
@@ -9,6 +10,7 @@ export default function StartScreen() {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
+  const app = currentApp();
 
   return (
     <Screen
@@ -36,10 +38,10 @@ export default function StartScreen() {
         </View>
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="display" align="center">
-            {t('app.name')}
+            {app.name}
           </Text>
           <Text variant="body" tone="muted" align="center">
-            {t('app.tagline')}
+            {t(app.taglineKey as TranslationKey)}
           </Text>
         </View>
       </View>

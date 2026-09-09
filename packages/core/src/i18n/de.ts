@@ -1,7 +1,12 @@
 /** Die einzige vollstaendig gefuellte Sprache. Alle anderen fallen hierauf zurueck. */
 export const de = {
-  'app.name': 'Better Life',
   'app.tagline': 'Alles, was dein Alltag braucht — an einem Ort.',
+  'apps.getbetter.tagline':
+    'Dein Alltag an einem Ort — und die Schaltzentrale für alle Better-Apps.',
+  'apps.betterfamily.tagline': 'Haushalt zu zweit oder zu viert: Einkaufsliste, Ämtli, Vorräte.',
+  'apps.bettergym.tagline': 'Training, Kalorien und alles, was der Körper braucht.',
+  'apps.betterai.tagline': 'Deine KI. Schweizer Datenschutz, nichts geht an Dritte.',
+  'apps.bettermoney.tagline': 'Budget, Rechnungen und Abos im Blick.',
 
   'common.continue': 'Weiter',
   'common.back': 'Zurück',

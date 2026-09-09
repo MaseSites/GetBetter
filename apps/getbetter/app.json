@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "Better Life",
-    "slug": "better-life",
+    "name": "GetBetter",
+    "slug": "getbetter",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "betterlife",
-    "userInterfaceStyle": "light",
+    "scheme": "getbetter",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#E7F0EB",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

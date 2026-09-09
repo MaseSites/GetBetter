@@ -1,13 +1,15 @@
 {
-  "name": "better-life-proto",
+  "name": "getbetter",
   "version": "0.1.0",
-  "main": "expo-router/entry",
   "private": true,
+  "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "start": "expo start",
-    "web": "expo start --web",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "web": "npm run web -w apps/getbetter",
+    "start": "npm run start -w apps/getbetter",
+    "family": "npm run web -w apps/betterfamily",
+    "gym": "npm run web -w apps/bettergym",
+    "ai": "npm run web -w apps/betterai",
+    "money": "npm run web -w apps/bettermoney",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."
