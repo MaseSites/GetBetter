@@ -35,6 +35,9 @@ const COLLECTIONS = [
   'shoppingItems',
   'chores',
   'alarms',
+  'workouts',
+  'meals',
+  'drinks',
 ];
 
 /** Was nur der Dienst kennt und niemals herausgibt. */

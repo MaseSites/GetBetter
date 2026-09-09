@@ -170,6 +170,36 @@ export type ChoreRow = Row & {
   createdAt: string;
 };
 
+/** Ein Training: was, wie lange, wie anstrengend. */
+export type WorkoutRow = Row & {
+  accountId: string;
+  /** Tag als `YYYY-MM-DD`, damit sich nach Tag gruppieren laesst. */
+  day: string;
+  kind: string;
+  minutes: number;
+  notes: string | null;
+  createdAt: string;
+};
+
+/** Eine Mahlzeit mit ihren Kalorien. */
+export type MealRow = Row & {
+  accountId: string;
+  day: string;
+  name: string;
+  kcal: number;
+  /** Fruehstueck, Mittag, Abend, Snack — frei, aber vorgeschlagen. */
+  slot: string;
+  createdAt: string;
+};
+
+/** Getrunkene Menge eines Tages, in Deziliter. */
+export type DrinkRow = Row & {
+  accountId: string;
+  day: string;
+  amountDl: number;
+  createdAt: string;
+};
+
 export type AlarmRow = Row & {
   accountId: string;
   /** "06:40" */
@@ -196,6 +226,9 @@ export type Schema = {
   shoppingItems: ShoppingItemRow;
   chores: ChoreRow;
   alarms: AlarmRow;
+  workouts: WorkoutRow;
+  meals: MealRow;
+  drinks: DrinkRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -212,6 +245,9 @@ export const COLLECTION_NAMES = [
   'shoppingItems',
   'chores',
   'alarms',
+  'workouts',
+  'meals',
+  'drinks',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;

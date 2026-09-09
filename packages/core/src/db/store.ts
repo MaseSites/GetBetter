@@ -50,6 +50,9 @@ function emptyTables(): Tables {
     shoppingItems: [],
     chores: [],
     alarms: [],
+    workouts: [],
+    meals: [],
+    drinks: [],
   };
 }
 
@@ -242,6 +245,9 @@ export const db = {
   shoppingItems: new Collection('shoppingItems'),
   chores: new Collection('chores'),
   alarms: new Collection('alarms'),
+  workouts: new Collection('workouts'),
+  meals: new Collection('meals'),
+  drinks: new Collection('drinks'),
 } as const;
 
 /** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */

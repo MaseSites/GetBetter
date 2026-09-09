@@ -6,6 +6,7 @@ export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';
 export { calendars, MAX_CALENDARS } from './calendars';
 export { shares } from './shares';
 export { appAccess } from './appAccess';
+export { dayKey, drinks, meals, workouts } from './gym';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -31,6 +32,9 @@ export type {
   CalendarScope,
   CalendarShareRole,
   AppAccessRow,
+  DrinkRow,
+  MealRow,
+  WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,
   ChoreRepeat,

@@ -12,7 +12,7 @@ noch die Zeit, als alles eine App war.
 | ---------------- | ------------------- | ----------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — dazu der Assistent und die Übersicht über alle Apps |
 | **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt                                                        |
-| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan, Schlaf, Trinken, Medikamente, Werte, Kopf frei                                                                   |
+| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                |
 | **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                        |
 | **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele                                                                                                  |
 
@@ -191,6 +191,20 @@ legt an, aktualisiert und löscht die abgewählten Kopien.
 Montag. `colors.ts` hat die sieben Terminfarben.
 
 Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
+
+## BetterGym
+
+`db/gym.ts` und `features/gym/` — drei ausgebaute Module:
+
+- **Training** (`workouts`) — Art, Dauer, Notiz; oben die Minuten dieser Woche
+- **Menüplan** (`meals`) — Mahlzeit, Kalorien, Tagesabschnitt; oben die
+  Tagessumme gegen 2000 kcal
+- **Trinken** (`drinks`) — zwei Knöpfe (2.5 dl, 5 dl), ein Balken, das letzte
+  lässt sich zurücknehmen
+
+`dayKey(date)` ist der Tagesschlüssel `YYYY-MM-DD`, nach dem gruppiert wird.
+Die Zahlen landen über die gemeinsame Datenbank auch auf der BetterGym-Karte
+in GetBetter.
 
 ## Module und Favoriten
 

@@ -5,6 +5,9 @@ import { AiChatView } from '@/features/ai/AiChatView';
 import { AlarmView } from '@/features/alarm/AlarmView';
 import { CalendarView } from '@/features/calendar/CalendarView';
 import { ChoresView } from '@/features/chores/ChoresView';
+import { FitnessView } from '@/features/gym/FitnessView';
+import { MealsView } from '@/features/gym/MealsView';
+import { WaterView } from '@/features/gym/WaterView';
 import { NotesView } from '@/features/notes/NotesView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
@@ -24,6 +27,9 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   alarm: (module) => <AlarmView module={module} />,
   chores: (module) => <ChoresView module={module} />,
   ai: (module) => <AiChatView module={module} />,
+  fitness: (module) => <FitnessView module={module} />,
+  meals: (module) => <MealsView module={module} />,
+  water: (module) => <WaterView module={module} />,
 };
 
 /** Noch nicht gebaut — ehrlich gesagt statt mit erfundenen Zahlen gefuellt. */

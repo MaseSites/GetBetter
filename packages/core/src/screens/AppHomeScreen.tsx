@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { currentApp } from '@/app/identity';
-import { useLiveQuery } from '@/db';
+import { dayKey, meals as mealRepo, useLiveQuery, workouts as workoutRepo } from '@/db';
 import {
   chores as choreRepo,
   shopping as shoppingRepo,
@@ -35,6 +35,8 @@ export function AppHomeScreen() {
     () => (householdId ? choreRepo.list(householdId) : Promise.resolve([])),
     [householdId],
   );
+  const workoutList = useLiveQuery(() => workoutRepo.listDay(account.id, dayKey()), [account.id]);
+  const mealList = useLiveQuery(() => mealRepo.listDay(account.id, dayKey()), [account.id]);
   const tasksOpen = useLiveQuery(
     () => taskRepo.countOpen(account.id, householdId),
     [account.id, householdId],
@@ -46,6 +48,8 @@ export function AppHomeScreen() {
     // Ein Aemtli gilt als offen, solange es heute noch nicht erledigt wurde.
     if (moduleId === 'chores') return choresOpen.data?.length;
     if (moduleId === 'tasks') return tasksOpen.data;
+    if (moduleId === 'fitness') return workoutList.data?.length;
+    if (moduleId === 'meals') return mealList.data?.length;
     return undefined;
   }
 
@@ -68,8 +72,8 @@ export function AppHomeScreen() {
             <Card
               key={module.id}
               title={module.name}
-              subtitle={module.short}
               onPress={() => router.push(`/run/${module.id}`)}
+              style={count === undefined ? { opacity: 0.55 } : undefined}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
                 <View
@@ -86,8 +90,8 @@ export function AppHomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   {count === undefined ? (
-                    <Text variant="caption" tone="faint">
-                      {t('moduleScreen.placeholder.title')}
+                    <Text variant="label" tone="faint">
+                      —
                     </Text>
                   ) : (
                     <Badge

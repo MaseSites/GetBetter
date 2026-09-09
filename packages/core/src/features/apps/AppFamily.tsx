@@ -3,7 +3,7 @@ import { Platform, View } from 'react-native';
 
 import { appUrl } from '@/app/bridge';
 import { APPS, APP_IDS, APP_MODULES, currentApp, storeUrl, type AppId } from '@/app/identity';
-import { appAccess, useLiveQuery } from '@/db';
+import { appAccess, dayKey, meals as mealRepo, useLiveQuery, workouts as workoutRepo } from '@/db';
 import {
   chores as choreRepo,
   events as eventRepo,
@@ -44,6 +44,14 @@ export function AppFamily() {
   const choreList = useLiveQuery(
     () => (householdId ? choreRepo.list(householdId) : Promise.resolve([])),
     [householdId],
+  );
+  const gymMinutes = useLiveQuery(
+    () => (account ? workoutRepo.minutesSince(account.id, dayKey()) : Promise.resolve(0)),
+    [account?.id],
+  );
+  const gymKcal = useLiveQuery(
+    () => (account ? mealRepo.kcalOf(account.id, dayKey()) : Promise.resolve(0)),
+    [account?.id],
   );
   const familyNext = useLiveQuery(
     () =>
@@ -86,9 +94,14 @@ export function AppFamily() {
       ];
     }
     if (id === 'bettergym') {
+      const trained = gymMinutes.data ?? 0;
+      const eaten = gymKcal.data ?? 0;
       return [
-        { label: t('field.training'), value: null },
-        { label: t('field.calories'), value: null },
+        {
+          label: t('field.training'),
+          value: trained > 0 ? t('gym.minutes', { minutes: trained }) : null,
+        },
+        { label: t('field.calories'), value: eaten > 0 ? t('meals.kcal', { kcal: eaten }) : null },
       ];
     }
     if (id === 'bettermoney') {
