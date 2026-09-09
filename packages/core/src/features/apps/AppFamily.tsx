@@ -100,31 +100,31 @@ export function AppFamily() {
         return (
           <Card
             key={id}
-            title={app.name}
-            // Wer die App noch nicht kennt, bekommt den Satz dazu.
-            {...(open ? {} : { subtitle: t(app.taglineKey as TranslationKey) })}
+            {...(open ? { title: app.name } : {})}
             onPress={() => void Linking.openURL(appUrl(id))}
-            style={open ? undefined : { opacity: 0.55 }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: theme.radii.md,
-                  backgroundColor: open ? tint.background : theme.colors.surfaceMuted,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon
-                  name={app.icon as 'grid'}
-                  size={22}
-                  color={open ? tint.foreground : theme.colors.textFaint}
-                />
+              {/* Blass ist nur die App selbst — der Knopf soll auffallen. */}
+              <View style={{ opacity: open ? 1 : 0.5 }}>
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: theme.radii.md,
+                    backgroundColor: open ? tint.background : theme.colors.surfaceMuted,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon
+                    name={app.icon as 'grid'}
+                    size={22}
+                    color={open ? tint.foreground : theme.colors.textFaint}
+                  />
+                </View>
               </View>
 
-              <View style={{ flex: 1, gap: theme.spacing.xs }}>
+              <View style={{ flex: 1, gap: 2, opacity: open ? 1 : 0.5 }}>
                 {open ? (
                   lines.length > 0 ? (
                     lines.map((line) => (
@@ -138,16 +138,24 @@ export function AppFamily() {
                     </Text>
                   )
                 ) : (
-                  <Button
-                    label={t('family.install')}
-                    icon="download"
-                    size="sm"
-                    variant="secondary"
-                    fullWidth={false}
-                    onPress={() => void install(id)}
-                  />
+                  <>
+                    <Text variant="title">{app.name}</Text>
+                    <Text variant="caption" tone="faint">
+                      {t(app.taglineKey as TranslationKey)}
+                    </Text>
+                  </>
                 )}
               </View>
+
+              {open ? null : (
+                <Button
+                  label={t('family.install')}
+                  icon="download"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={() => void install(id)}
+                />
+              )}
             </View>
           </Card>
         );
