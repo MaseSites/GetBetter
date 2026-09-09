@@ -43,8 +43,6 @@ import {
 
 const SESSION_KEY = 'better-life/session/v1';
 
-export type HouseholdChoice = 'created' | 'joined' | 'solo';
-
 export type AppContextValue = {
   /** Das angemeldete Konto, oder null. */
   account: Account | null;
@@ -54,6 +52,9 @@ export type AppContextValue = {
   role: HouseholdRole | null;
   /** Solange Datenbank und Sitzung geladen werden. */
   hydrated: boolean;
+  /** Die gemeinsame Datenbank antwortet nicht. */
+  offline: boolean;
+  retry: () => Promise<void>;
   colorScheme: ColorScheme;
 
   signIn: (email: string, password: string) => Promise<AuthResult>;
@@ -65,7 +66,6 @@ export type AppContextValue = {
   completeOnboarding: (input: {
     firstName: string;
     areas: readonly Area[];
-    householdChoice: HouseholdChoice;
     /** Kommt aus den Fragen beim Einrichten. */
     favouriteIds: readonly string[];
   }) => Promise<void>;
@@ -112,6 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<HouseholdRow | null>(null);
   const [role, setRole] = useState<HouseholdRole | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [offline, setOffline] = useState(false);
   const systemScheme = useColorScheme();
   // Eigene Konstante, sonst haengt der ganze Kontext an jedem Rendern.
   const appearance = useMemo(() => appearanceOf(account), [account]);
@@ -119,34 +120,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     appearance.mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance.mode;
 
   // Sitzung wiederherstellen: Datenbank laden, dann das gemerkte Konto holen.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await ready();
-        const id = await AsyncStorage.getItem(SESSION_KEY);
-        if (id) {
-          const found = await findAccount(id);
-          if (!found) await AsyncStorage.removeItem(SESSION_KEY);
-          if (!cancelled && found) {
-            setAccount(found);
-            const [hh, memberRole] = await loadHousehold(found);
-            if (!cancelled) {
-              setHousehold(hh);
-              setRole(memberRole);
-            }
-          }
+  const hydrate = useCallback(async () => {
+    setHydrated(false);
+    setOffline(false);
+    try {
+      await ready();
+    } catch {
+      // Ohne Datenbank hat es keinen Sinn weiterzumachen — das sagen wir auch.
+      setOffline(true);
+      setHydrated(true);
+      return;
+    }
+    try {
+      const id = await AsyncStorage.getItem(SESSION_KEY);
+      if (id) {
+        const found = await findAccount(id);
+        if (!found) await AsyncStorage.removeItem(SESSION_KEY);
+        if (found) {
+          setAccount(found);
+          const [hh, memberRole] = await loadHousehold(found);
+          setHousehold(hh);
+          setRole(memberRole);
         }
-      } catch {
-        // Ohne Sitzung startet die App einfach beim Anmelden.
-      } finally {
-        if (!cancelled) setHydrated(true);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch {
+      // Ohne Sitzung startet die App einfach beim Anmelden.
+    } finally {
+      setHydrated(true);
+    }
   }, []);
+
+  useEffect(() => {
+    // Der Effekt startet nur das Laden; die Zustaende setzt der Rueckweg.
+    const timer = setTimeout(() => void hydrate(), 0);
+    return () => clearTimeout(timer);
+  }, [hydrate]);
 
   const remember = useCallback(async (next: Account) => {
     setAccount(next);
@@ -199,7 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeOnboarding = useCallback<AppContextValue['completeOnboarding']>(
-    async ({ firstName, areas, householdChoice, favouriteIds }) => {
+    async ({ firstName, areas, favouriteIds }) => {
       if (!account) return;
       const updated = await updateAccount(account.id, {
         firstName: firstName.trim(),
@@ -209,9 +217,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       // Ein neues Konto startet bewusst leer.
       if (updated) setAccount(updated);
-      if (householdChoice === 'created') {
-        await householdRepo.create(account.id, 'Zuhause');
-      }
       const fresh = (await findAccount(account.id)) ?? updated ?? account;
       setAccount(fresh);
       const [hh, memberRole] = await loadHousehold(fresh);
@@ -312,6 +317,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       household,
       role,
       hydrated,
+      offline,
+      retry: hydrate,
       colorScheme,
       signIn,
       signUp,
@@ -332,6 +339,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [
       account,
       hydrated,
+      offline,
+      hydrate,
       signIn,
       signUp,
       signOut,

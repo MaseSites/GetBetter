@@ -4,20 +4,34 @@ import { Platform, View } from 'react-native';
 
 import { appUrl, isInstalled } from '@/app/bridge';
 import { APPS, APP_IDS, APP_MODULES, currentApp, type AppId } from '@/app/identity';
+import { useLiveQuery } from '@/db';
+import { chores as choreRepo, shopping as shoppingRepo } from '@/db/repositories';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { getModule } from '@/mocks/modules';
+import { useApp } from '@/state/AppContext';
 import { moduleTint, useTheme } from '@/theme';
 import { Badge, Card, Icon, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter. Sie sind eigene
- * Programme mit eigenem Speicher — GetBetter sieht deshalb nicht, was darin
- * steht, sondern nur, ob sie da sind, und kann sie oeffnen und beauftragen.
+ * Programme, teilen sich aber die Datenbank — deshalb stehen hier auch die
+ * Zahlen aus ihnen, nicht nur ihre Namen.
  */
 export function AppFamily() {
   const t = useTranslate();
   const theme = useTheme();
   const me = currentApp().id;
+  const { account, household } = useApp();
+  const householdId = household?.id ?? null;
+
+  const shoppingOpen = useLiveQuery(
+    () => (account ? shoppingRepo.countOpen(account.id, householdId) : Promise.resolve(0)),
+    [account?.id, householdId],
+  );
+  const choresOpen = useLiveQuery(
+    () => (householdId ? choreRepo.list(householdId) : Promise.resolve([])).then((r) => r.length),
+    [householdId],
+  );
   const others = APP_IDS.filter((id) => id !== me);
 
   const [installed, setInstalled] = useState<Readonly<Partial<Record<AppId, boolean>>>>({});
@@ -38,6 +52,15 @@ export function AppFamily() {
     // Die Liste der Geschwister-Apps steht fest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Was gerade offen ist — dieselbe Datenbank, also echte Zahlen. */
+  function figure(id: AppId): string | null {
+    if (id !== 'betterfamily') return null;
+    const open = shoppingOpen.data ?? 0;
+    const jobs = choresOpen.data ?? 0;
+    if (open === 0 && jobs === 0) return null;
+    return t('family.figures', { items: open, chores: jobs });
+  }
 
   return (
     <View style={{ gap: theme.spacing.md }}>
@@ -79,11 +102,12 @@ export function AppFamily() {
                   })}
                 </View>
                 <Text variant="caption" tone="faint">
-                  {here === false
-                    ? t('family.missing')
-                    : Platform.OS === 'web'
-                      ? t('family.web')
-                      : t('family.installed')}
+                  {figure(id) ??
+                    (here === false
+                      ? t('family.missing')
+                      : Platform.OS === 'web'
+                        ? t('family.web')
+                        : t('family.installed'))}
                 </Text>
               </View>
             </View>

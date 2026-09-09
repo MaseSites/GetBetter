@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Loading, PhoneFrame } from '@/ui';
+import { EmptyState, Loading, PhoneFrame, Screen } from '@/ui';
 
 export type RootShellProps = {
   /** Wohin es nach der Anmeldung geht. */
@@ -47,7 +48,24 @@ function RouteGuard({ home, hasOnboarding }: Required<RootShellProps>) {
 
 function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   const theme = useTheme();
-  const { hydrated } = useApp();
+  const t = useTranslate();
+  const { hydrated, offline, retry } = useApp();
+
+  // Ohne die gemeinsame Datenbank gibt es nichts zu zeigen — und vor allem
+  // nichts zu schreiben, das spaeter die richtigen Daten ueberschreibt.
+  if (hydrated && offline) {
+    return (
+      <Screen scroll={false} contentStyle={{ flex: 1, justifyContent: 'center' }}>
+        <EmptyState
+          icon="warning"
+          title={t('db.offline.title')}
+          body={t('db.offline.body')}
+          actionLabel={t('db.offline.action')}
+          onAction={() => void retry()}
+        />
+      </Screen>
+    );
+  }
 
   if (!hydrated) {
     return (

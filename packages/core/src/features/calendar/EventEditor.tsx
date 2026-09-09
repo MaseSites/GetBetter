@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { useLiveQuery, type EventRow } from '@/db';
+import { hasHouseholds } from '@/app/identity';
 import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
@@ -117,6 +118,7 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
   const theme = useTheme();
 
   const { calendars, households } = useCalendarAccess();
+  const family = hasHouseholds();
   const editing = draft.event;
   const initialStart = editing ? new Date(editing.startsAt) : null;
   const initialHour = draft.hour ?? 9;
@@ -135,15 +137,21 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
   const [location, setLocation] = useState(editing?.location ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [color, setColor] = useState<EventColorKey>(eventColorKey(editing?.color));
-  const [targets, setTargets] = useState<readonly TargetKey[]>(() => {
-    const keys = rows.map((row) => keyOf(targetOf(row)));
-    return keys.length > 0 ? keys : ['personal'];
-  });
+  // `null` heisst: noch nichts angehakt. Die Vorauswahl richtet sich dann nach
+  // dem, was die App gerade weiss — die Haushalte kommen erst mit der Abfrage.
+  const [chosen, setChosen] = useState<readonly TargetKey[] | null>(
+    rows.length > 0 ? rows.map((row) => keyOf(targetOf(row))) : null,
+  );
   const [isPrivate, setIsPrivate] = useState(editing?.isPrivate ?? false);
   const [error, setError] = useState<{
     field: 'title' | 'date' | 'time' | 'calendar';
     message: string;
   } | null>(null);
+
+  const firstHousehold = households[0];
+  const targets: readonly TargetKey[] =
+    chosen ??
+    (family ? (firstHousehold ? [`house:${firstHousehold.household.id}`] : []) : ['personal']);
 
   function applyDuration(minutes: number) {
     const start = parseTime(startText);
@@ -166,6 +174,11 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
     }
     if (targets.length === 0) {
       setError({ field: 'calendar', message: t('calendar.error.calendar') });
+      return;
+    }
+    // Ohne Haushalt gibt es hier keinen Kalender, in den der Termin passt.
+    if (family && !targets.some((key) => key.startsWith('house:'))) {
+      setError({ field: 'calendar', message: t('calendar.error.household') });
       return;
     }
 
@@ -217,23 +230,25 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
     onClose();
   }
 
-  // Privat, jeder Haushalt unter seinem Namen und jeder eigene Kalender.
-  const choices: { value: TargetKey; label: string }[] = [
-    { value: 'personal', label: t('calendar.scope.personal') },
-    ...households.map((entry) => ({
-      value: `house:${entry.household.id}` as const,
-      label: entry.household.name,
-    })),
-    ...calendars.map((entry) => ({
-      value: `cal:${entry.calendar.id}` as const,
-      label: entry.calendar.name,
-    })),
-  ];
+  // Dieselbe Trennung wie im Kalender: hier die Haushalte, dort das Private.
+  const choices: { value: TargetKey; label: string }[] = family
+    ? households.map((entry) => ({
+        value: `house:${entry.household.id}` as const,
+        label: entry.household.name,
+      }))
+    : [
+        { value: 'personal', label: t('calendar.scope.personal') },
+        ...calendars.map((entry) => ({
+          value: `cal:${entry.calendar.id}` as const,
+          label: entry.calendar.name,
+        })),
+      ];
 
   function toggleTarget(value: TargetKey) {
-    setTargets((current) =>
-      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
-    );
+    setChosen((current) => {
+      const list = current ?? targets;
+      return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+    });
     setError(null);
   }
 
@@ -368,7 +383,7 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
           <Text variant="caption" tone={error?.field === 'calendar' ? 'danger' : 'faint'}>
             {error?.field === 'calendar' ? error.message : t('calendar.field.calendarHint')}
           </Text>
-          {targets.includes('personal') && households.length > 0 ? (
+          {!family && targets.includes('personal') && households.length > 0 ? (
             <View style={[styles.row, { gap: theme.spacing.md }]}>
               <View style={{ flex: 1 }}>
                 <Text variant="label" tone="muted">

@@ -1,4 +1,5 @@
-export { Collection, db, flush, newId, ready, wipeDatabase, SCHEMA_VERSION } from './store';
+export { Collection, DatabaseUnreachable, db, flush, newId, ready, refresh } from './store';
+export { serviceUrl } from './service';
 export type { Query } from './store';
 export { notifyDataChanged, useLiveQuery } from './live';
 export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';

@@ -71,16 +71,28 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
  */
 export const APP_MODULES: Readonly<Record<AppId, readonly string[]>> = {
   getbetter: ['calendar', 'tasks', 'notes', 'alarm', 'documents', 'habits', 'travel', 'contacts'],
-  betterfamily: ['shopping', 'chores', 'recipes', 'plants', 'pets', 'vehicles'],
+  // Der Familienkalender gehoert hierher; den privaten fuehrt GetBetter.
+  betterfamily: ['calendar', 'shopping', 'chores', 'recipes', 'plants', 'pets', 'vehicles'],
   bettergym: ['fitness', 'meals', 'sleep', 'water', 'meds', 'vitals', 'mind'],
   betterai: ['ai'],
   bettermoney: ['budget', 'bills', 'subscriptions', 'savings'],
 };
 
-/** Welche Apps einen Haushalt fuehren. Die anderen kennen ihn gar nicht. */
-export const APPS_WITH_HOUSEHOLD: readonly AppId[] = ['getbetter', 'betterfamily'];
+/**
+ * Haushalte gibt es nur in BetterFamily. GetBetter fuehrt den privaten
+ * Kalender, BetterFamily den der Familie — jede Seite bleibt bei ihrem.
+ */
+export const APPS_WITH_HOUSEHOLD: readonly AppId[] = ['betterfamily'];
 
-/** In welcher App ein Modul steckt. */
+/** Ob diese App mit dem Haushalt arbeitet. */
+export function hasHouseholds(): boolean {
+  return APPS_WITH_HOUSEHOLD.includes(currentApp().id);
+}
+
+/**
+ * In welcher App ein Modul steckt. Der Kalender kommt zweimal vor — dort
+ * entscheidet die Reihenfolge, und GetBetter fuehrt den privaten.
+ */
 export function appOfModule(moduleId: string): AppId | undefined {
   return APP_IDS.find((id) => APP_MODULES[id].includes(moduleId));
 }

@@ -51,6 +51,7 @@ export const de = {
   'onboarding.areas.subtitle':
     'Wähle die Bereiche, um die es bei dir gehen soll. Mehrfach möglich.',
   'onboarding.areas.selected': '{count} gewählt',
+  'onboarding.finish': 'Fertig einrichten',
   'onboarding.questions.title': 'Ein paar Fragen',
   'onboarding.questions.subtitle':
     'Damit wir die passenden Apps gleich für dich vormerken. Alle anderen sind trotzdem da.',
@@ -92,8 +93,12 @@ export const de = {
     'Du nutzt Better Life für dich. Ein Haushalt geht später jederzeit.',
   'onboarding.household.finish': 'Fertig einrichten',
 
+  'db.offline.title': 'Die Datenbank läuft nicht',
+  'db.offline.body':
+    'Alle Better-Apps teilen sich eine Datenbank. Starte sie mit „npm run server“ und versuch es nochmal.',
+  'db.offline.action': 'Nochmal versuchen',
   'auth.error.offline':
-    'Der Kontodienst ist nicht erreichbar. Starte ihn mit „npm run server“ und versuch es nochmal.',
+    'Die Datenbank ist nicht erreichbar. Starte sie mit „npm run server“ und versuch es nochmal.',
   'link.title': 'Konto verbinden',
   'link.working': 'Einen Moment …',
   'link.workingBody': 'Das Konto wird übernommen.',
@@ -113,8 +118,9 @@ export const de = {
   'family.installed': 'Auf diesem Gerät installiert',
   'family.missing': 'Noch nicht installiert',
   'family.web': 'Im Browser: läuft auf einem eigenen Port',
+  'family.figures': '{items} offen auf der Liste · {chores} Ämtli',
   'family.hint':
-    'Jede App hat ihren eigenen Speicher. GetBetter kann ihnen etwas auftragen — zum Beispiel „2 Bananen auf die Einkaufsliste“ — sieht aber nicht hinein.',
+    'Alle Apps teilen sich eine Datenbank. GetBetter kann ihnen auch etwas auftragen — zum Beispiel „2 Bananen auf die Einkaufsliste“.',
   'command.from': 'Auftrag von GetBetter',
   'command.running': 'Wird eingetragen …',
   'command.done': 'Eingetragen',
@@ -123,6 +129,7 @@ export const de = {
   'command.body': 'GetBetter hat das hierher geschickt.',
   'tabs.today': 'Startseite',
   'tabs.home': 'Start',
+  'tabs.familyCalendar': 'Kalender',
   'tabs.chat': 'Chat',
   'tabs.modules': 'Apps',
   'tabs.assistant': 'Assistent',
@@ -321,6 +328,7 @@ export const de = {
   'calendar.field.color': 'Farbe',
   'calendar.field.notes': 'Notiz',
   'calendar.field.notesPlaceholder': 'Optional',
+  'calendar.error.household': 'Dafür braucht es zuerst einen Haushalt.',
   'calendar.error.calendar': 'Mindestens ein Kalender muss angehakt sein.',
   'calendar.error.date': 'Bitte als Datum schreiben, zum Beispiel 08.09.2026.',
   'calendar.field.calendar': 'Kalender',

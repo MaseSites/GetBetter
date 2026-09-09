@@ -2,22 +2,20 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 /**
- * Der Draht zum Kontodienst (`services/accounts`). Er fuehrt die Konten aller
- * Better-Apps an einer Stelle — deshalb gilt dieselbe Anmeldung ueberall.
- *
- * Die Daten der Apps bleiben davon unberuehrt: Termine, Listen und Haushalte
- * liegen weiter auf dem Geraet. Hier geht es nur um "wer bist du".
+ * Der Draht zur gemeinsamen Datenbank (`services/api`). Dort liegen die
+ * Profile und die Daten aller Better-Apps — deshalb gilt dieselbe Anmeldung
+ * ueberall, und was die eine App eintraegt, sieht die andere.
  */
-export const ACCOUNTS_PORT = 8090;
+export const API_PORT = 8090;
 
 /**
  * Im Browser laeuft der Dienst neben den Apps auf demselben Rechner. Auf einem
  * Geraet nehmen wir den Rechner, von dem Expo geladen hat — das ist derselbe.
  */
 export function serviceUrl(): string {
-  if (Platform.OS === 'web') return `http://localhost:${ACCOUNTS_PORT}`;
+  if (Platform.OS === 'web') return `http://localhost:${API_PORT}`;
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  return `http://${host ?? 'localhost'}:${ACCOUNTS_PORT}`;
+  return `http://${host ?? 'localhost'}:${API_PORT}`;
 }
 
 /** Was der Dienst ueber ein Konto herausgibt — nie Salt oder Hash. */

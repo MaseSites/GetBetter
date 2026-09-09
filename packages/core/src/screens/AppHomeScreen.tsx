@@ -59,45 +59,47 @@ export function AppHomeScreen() {
         />
       }
     >
-      {modulesOfApp().map((module) => {
-        const tint = moduleTint(theme, module.id);
-        const count = figure(module.id);
-        return (
-          <Card
-            key={module.id}
-            title={module.name}
-            subtitle={module.short}
-            onPress={() => router.push(`/run/${module.id}`)}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: theme.radii.md,
-                  backgroundColor: tint.background,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon name={module.icon} size={22} color={tint.foreground} />
+      {modulesOfApp()
+        .filter((module) => module.id !== 'calendar')
+        .map((module) => {
+          const tint = moduleTint(theme, module.id);
+          const count = figure(module.id);
+          return (
+            <Card
+              key={module.id}
+              title={module.name}
+              subtitle={module.short}
+              onPress={() => router.push(`/run/${module.id}`)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: theme.radii.md,
+                    backgroundColor: tint.background,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon name={module.icon} size={22} color={tint.foreground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  {count === undefined ? (
+                    <Text variant="caption" tone="faint">
+                      {t('moduleScreen.placeholder.title')}
+                    </Text>
+                  ) : (
+                    <Badge
+                      label={t('today.openCount', { count })}
+                      tone={count > 0 ? 'accent' : 'neutral'}
+                    />
+                  )}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                {count === undefined ? (
-                  <Text variant="caption" tone="faint">
-                    {t('moduleScreen.placeholder.title')}
-                  </Text>
-                ) : (
-                  <Badge
-                    label={t('today.openCount', { count })}
-                    tone={count > 0 ? 'accent' : 'neutral'}
-                  />
-                )}
-              </View>
-            </View>
-          </Card>
-        );
-      })}
+            </Card>
+          );
+        })}
     </Screen>
   );
 }

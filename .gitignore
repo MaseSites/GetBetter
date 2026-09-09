@@ -41,4 +41,4 @@ yarn-error.*
 /android
 
 # Kontodienst: die Konten liegen lokal, nicht im Repo
-services/accounts/data/
+services/api/data/

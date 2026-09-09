@@ -16,7 +16,6 @@ export default function OnboardingLayout() {
         <Stack.Screen name="welcome" />
         <Stack.Screen name="areas" />
         <Stack.Screen name="questions" />
-        <Stack.Screen name="household-step" />
       </Stack>
     </OnboardingProvider>
   );

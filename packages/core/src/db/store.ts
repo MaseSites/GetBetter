@@ -1,19 +1,39 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { notifyDataChanged } from './live';
+import { serviceUrl } from './service';
 import { COLLECTION_NAMES, type CollectionName, type Row, type Schema } from './types';
 
-const KEY_PREFIX = 'better-life/db/v1/';
-const SCHEMA_VERSION_KEY = `${KEY_PREFIX}version`;
-export const SCHEMA_VERSION = 1;
-
+/**
+ * Die Daten liegen in der gemeinsamen Datenbank (`services/api`), nicht mehr
+ * je App auf dem Geraet. Hier drin bleibt eine Abschrift im Arbeitsspeicher:
+ * gelesen wird daraus, geschrieben wird gebuendelt zurueck.
+ *
+ * Weil alle Better-Apps denselben Dienst benutzen, sieht BetterFamily, was
+ * GetBetter eintraegt. Damit das ohne Neuladen auffaellt, fragt der Speicher
+ * regelmaessig nach der Fassungsnummer und laedt bei Bedarf neu.
+ */
 type Tables = { [K in CollectionName]: Schema[K][] };
 
 let tables: Tables | null = null;
 let loading: Promise<Tables> | null = null;
 
-/** Sammlungen, die seit dem letzten Schreiben veraendert wurden. */
+/** Fassungsnummer des Dienstes beim letzten Laden. */
+let revision = -1;
+/** Ohne erfolgreiches Laden wird nichts zurueckgeschrieben — sonst leeren wir sie. */
+let loaded = false;
+
 const dirty = new Set<CollectionName>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+/** So oft fragen wir nach, ob eine andere App etwas geaendert hat. */
+const POLL_MS = 4000;
+
+export class DatabaseUnreachable extends Error {
+  constructor() {
+    super('Die Datenbank ist nicht erreichbar.');
+    this.name = 'DatabaseUnreachable';
+  }
+}
 
 function emptyTables(): Tables {
   return {
@@ -32,39 +52,62 @@ function emptyTables(): Tables {
   };
 }
 
-function parseCollection<K extends CollectionName>(raw: string | null): Schema[K][] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Schema[K][]) : [];
-  } catch {
-    // Ein kaputter Eintrag darf die App nicht blockieren.
-    return [];
+type Snapshot = { revision: number; tables: Partial<Tables> };
+
+async function fetchSnapshot(): Promise<Snapshot> {
+  const response = await fetch(`${serviceUrl()}/v1/db`);
+  if (!response.ok) throw new DatabaseUnreachable();
+  return (await response.json()) as Snapshot;
+}
+
+function apply(snapshot: Snapshot): Tables {
+  const next = emptyTables();
+  for (const name of COLLECTION_NAMES) {
+    const rows = snapshot.tables[name];
+    if (Array.isArray(rows)) next[name] = rows as never;
   }
+  revision = snapshot.revision;
+  tables = next;
+  loaded = true;
+  return next;
 }
 
 async function load(): Promise<Tables> {
   if (tables) return tables;
   if (!loading) {
     loading = (async () => {
-      const keys = COLLECTION_NAMES.map((name) => `${KEY_PREFIX}${name}`);
-      const entries = await AsyncStorage.multiGet([SCHEMA_VERSION_KEY, ...keys]);
-      const byKey = new Map(entries);
-
-      const next = emptyTables();
-      for (const name of COLLECTION_NAMES) {
-        next[name] = parseCollection(byKey.get(`${KEY_PREFIX}${name}`) ?? null) as never;
+      try {
+        const result = apply(await fetchSnapshot());
+        startPolling();
+        return result;
+      } catch {
+        // Beim naechsten Versuch neu anfragen, statt leer weiterzulaufen.
+        loading = null;
+        throw new DatabaseUnreachable();
       }
-
-      if (byKey.get(SCHEMA_VERSION_KEY) !== String(SCHEMA_VERSION)) {
-        await AsyncStorage.setItem(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
-      }
-
-      tables = next;
-      return next;
     })();
   }
   return loading;
+}
+
+/** Holt die Daten neu, wenn eine andere App etwas geschrieben hat. */
+async function poll(): Promise<void> {
+  if (!loaded || dirty.size > 0) return;
+  try {
+    const response = await fetch(`${serviceUrl()}/v1/revision`);
+    if (!response.ok) return;
+    const { revision: latest } = (await response.json()) as { revision: number };
+    if (latest === revision) return;
+    apply(await fetchSnapshot());
+    notifyDataChanged();
+  } catch {
+    // Der Dienst ist gerade weg; die Abschrift bleibt stehen.
+  }
+}
+
+function startPolling(): void {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => void poll(), POLL_MS);
 }
 
 function scheduleFlush(): void {
@@ -75,20 +118,28 @@ function scheduleFlush(): void {
   }, 60);
 }
 
-/** Schreibt alle veraenderten Sammlungen. Wird auch beim Abmelden aufgerufen. */
+/** Schreibt die veraenderten Sammlungen zurueck. */
 export async function flush(): Promise<void> {
-  if (!tables || dirty.size === 0) return;
+  if (!tables || !loaded || dirty.size === 0) return;
   const pending = [...dirty];
   dirty.clear();
-  const pairs: [string, string][] = pending.map((name) => [
-    `${KEY_PREFIX}${name}`,
-    JSON.stringify(tables?.[name] ?? []),
-  ]);
-  try {
-    await AsyncStorage.multiSet(pairs);
-  } catch {
-    // Beim naechsten Schreiben erneut versuchen.
-    pending.forEach((name) => dirty.add(name));
+
+  for (const name of pending) {
+    try {
+      const response = await fetch(`${serviceUrl()}/v1/db/${name}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: tables[name] }),
+      });
+      if (!response.ok) throw new DatabaseUnreachable();
+      const { revision: latest } = (await response.json()) as { revision: number };
+      revision = latest;
+    } catch {
+      // Beim naechsten Schreiben erneut versuchen.
+      dirty.add(name);
+      scheduleFlush();
+      return;
+    }
   }
 }
 
@@ -103,10 +154,7 @@ export type Query<T> = {
   limit?: number;
 };
 
-/**
- * Eine Sammlung. Die Daten liegen im Speicher und werden nach jeder Aenderung
- * gebuendelt zurueckgeschrieben — bei den Datenmengen dieser App genug.
- */
+/** Eine Sammlung. Gelesen wird aus der Abschrift, geschrieben in die Datenbank. */
 export class Collection<K extends CollectionName> {
   constructor(private readonly name: K) {}
 
@@ -194,20 +242,14 @@ export const db = {
   alarms: new Collection('alarms'),
 } as const;
 
-/** Wartet, bis die Daten geladen sind. Der Start zeigt solange den Ladezustand. */
+/** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */
 export function ready(): Promise<unknown> {
   return load();
 }
 
-/** Nur fuer Entwicklung: alles loeschen. */
-export async function wipeDatabase(): Promise<void> {
-  await AsyncStorage.multiRemove([
-    SCHEMA_VERSION_KEY,
-    ...COLLECTION_NAMES.map((name) => `${KEY_PREFIX}${name}`),
-  ]);
-  tables = emptyTables();
-  loading = null;
-  dirty.clear();
+/** Nach einem Schreiben aus einer anderen App: sofort nachsehen. */
+export function refresh(): Promise<void> {
+  return poll();
 }
 
 export function newId(prefix: string): string {

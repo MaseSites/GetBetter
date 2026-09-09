@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { hasHouseholds } from '@/app/identity';
 import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useI18n, type TranslationKey } from '@/i18n';
@@ -33,7 +34,19 @@ import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
 import { TimeGrid } from './TimeGrid';
 
-export function CalendarView({ module }: { module: ModuleDefinition }) {
+export type CalendarViewProps = {
+  module: ModuleDefinition;
+  /** Als Tab ohne Zurueck, als geoeffnetes Modul mit. */
+  showBack?: boolean;
+};
+
+/**
+ * Ein Kalender, zwei Ausschnitte. In GetBetter der private samt eigenen
+ * Kalendern; in BetterFamily nur der des Haushalts. Welcher es ist, sagt
+ * `hasHouseholds()` — die App, in der er laeuft.
+ */
+export function CalendarView({ module, showBack = true }: CalendarViewProps) {
+  const family = hasHouseholds();
   const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
@@ -69,20 +82,22 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const toIso = to.toISOString();
 
   const calendarEntries = useMemo((): PickerEntry[] => {
-    // Der eigene, dann je Haushalt einer unter seinem Namen, dann die eigenen.
-    return [
-      { source: 'personal', label: t('calendar.scope.personal') },
-      ...households.map((entry) => ({
+    // BetterFamily zeigt die Haushalte, GetBetter den privaten und die eigenen.
+    if (family) {
+      return households.map((entry) => ({
         source: `house:${entry.household.id}` as const,
         label: entry.household.name,
-      })),
+      }));
+    }
+    return [
+      { source: 'personal', label: t('calendar.scope.personal') },
       ...myCalendars.map((entry) => ({
         source: `cal:${entry.calendar.id}` as const,
         label: entry.calendar.name,
         color: EVENT_COLORS[entry.calendar.color as EventColorKey] ?? eventColor(null),
       })),
     ];
-  }, [t, households, myCalendars]);
+  }, [t, family, households, myCalendars]);
 
   // Personen: je Haushalt eine Gruppe, darunter, wer freigegeben hat.
   // Wer in zwei Haushalten steht, erscheint nur einmal.
@@ -195,15 +210,19 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
         <Header
           title={module.name}
           subtitle={periodLabel}
-          showBack
-          onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[
-            {
-              icon: 'settings',
-              label: t('calendars.manage'),
-              onPress: () => setManaging(true),
-            },
-          ]}
+          showBack={showBack}
+          onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          actions={
+            family
+              ? []
+              : [
+                  {
+                    icon: 'settings',
+                    label: t('calendars.manage'),
+                    onPress: () => setManaging(true),
+                  },
+                ]
+          }
         >
           <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
             <Pressable

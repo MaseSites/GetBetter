@@ -1,10 +1,11 @@
-import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useOnboarding } from '@/features/onboarding/OnboardingContext';
-import { ONBOARDING_QUESTIONS } from '@/features/onboarding/questions';
+import { favouritesFromAnswers, ONBOARDING_QUESTIONS } from '@/features/onboarding/questions';
 import { StepHeader } from '@/features/onboarding/StepHeader';
 import { useTranslate } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Chip, Screen, Text } from '@/ui';
 
@@ -15,16 +16,29 @@ import { Button, Chip, Screen, Text } from '@/ui';
 export default function QuestionsStep() {
   const t = useTranslate();
   const theme = useTheme();
-  const router = useRouter();
-  const { answers, toggleAnswer } = useOnboarding();
+  const { firstName, areas, answers, toggleAnswer } = useOnboarding();
+  const { completeOnboarding } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    // Der RouteGuard schickt danach selbst in die Tabs.
+    await completeOnboarding({
+      firstName,
+      areas,
+      favouriteIds: favouritesFromAnswers(answers, areas),
+    });
+  }
 
   return (
     <Screen
       header={<StepHeader step="questions" />}
       footer={
         <Button
-          label={answers.length === 0 ? t('common.skip') : t('common.continue')}
-          onPress={() => router.push('/household-step')}
+          label={answers.length === 0 ? t('common.skip') : t('onboarding.finish')}
+          loading={busy}
+          onPress={finish}
         />
       }
     >

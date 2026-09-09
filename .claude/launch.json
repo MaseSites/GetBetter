@@ -5,7 +5,7 @@
       "name": "kontodienst",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "services/accounts/server.js"
+        "services/api/server.js"
       ],
       "port": 8090
     },

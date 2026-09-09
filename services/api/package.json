@@ -1,5 +1,5 @@
 {
-  "name": "@getbetter/accounts-service",
+  "name": "@getbetter/api",
   "version": "0.1.0",
   "private": true,
   "main": "server.js",

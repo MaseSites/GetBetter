@@ -11,7 +11,7 @@ import {
   register,
   type RemoteAccount,
   type ServiceError,
-} from './service';
+} from '@/db/service';
 
 /**
  * Konten liegen im Kontodienst (`services/accounts`), nicht mehr in jeder App

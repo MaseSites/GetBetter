@@ -1,20 +1,21 @@
 # GetBetter und die Better-Apps
 
-Fünf eigenständige Expo-Apps in einem Arbeitsbereich. Im Browser laufen sie als
-Handy, auf einem echten Gerät über Expo Go. Anmeldung und Datenspeicher sind
-echt, liegen aber je App nur auf dem Gerät — es gibt noch keinen Server.
+Fünf eigenständige Expo-Apps in einem Arbeitsbereich, die sich **eine Datenbank
+teilen**. Im Browser laufen sie als Handy, auf einem echten Gerät über Expo Go.
+Anmeldung und Daten sind echt und liegen im Dienst `services/api`, den du
+mitstartest.
 
-| App              | Was drin ist                                                                              | Web  |
-| ---------------- | ----------------------------------------------------------------------------------------- | ---- |
-| **GetBetter**    | Kalender, Aufgaben, Notizen, Wecker und der Assistent — dazu die Übersicht über alle Apps | 8081 |
-| **BetterFamily** | Einkaufsliste, Ämtli, Haushalt                                                            | 8082 |
-| **BetterGym**    | Training, Menüplan, Schlaf, Trinken                                                       | 8083 |
-| **BetterAi**     | Das KI-Gespräch                                                                           | 8084 |
-| **BetterMoney**  | Budget, Rechnungen, Abos, Sparziele                                                       | 8085 |
+| App              | Was drin ist                                                                                | Web  |
+| ---------------- | ------------------------------------------------------------------------------------------- | ---- |
+| **GetBetter**    | Privater Kalender, Aufgaben, Notizen, Wecker, Assistent — dazu die Übersicht über alle Apps | 8081 |
+| **BetterFamily** | Familienkalender, Einkaufsliste, Ämtli, Haushalt                                            | 8082 |
+| **BetterGym**    | Training, Menüplan, Schlaf, Trinken                                                         | 8083 |
+| **BetterAi**     | Das KI-Gespräch                                                                             | 8084 |
+| **BetterMoney**  | Budget, Rechnungen, Abos, Sparziele                                                         | 8085 |
 
 ```bash
 npm install
-npm run server     # Kontodienst, Port 8090
+npm run server     # Datenbank, Port 8090
 npm run web        # GetBetter
 npm run family     # BetterFamily, in einem zweiten Fenster
 ```
@@ -33,26 +34,20 @@ als privat markieren.
 
 ## Wie die Apps zusammenspielen
 
-**Ein Login für alle.** Die Konten liegen in einem kleinen Kontodienst, den du
-mitstartest:
-
-```bash
-npm run server     # Port 8090
-```
-
-Damit meldest du dich in jeder App mit denselben Daten an. Verbunden ist die
-Person — Vorname, Sprache und Aussehen wandern mit. Die Daten der Apps
-(Termine, Listen, Haushalte) liegen weiter je App auf dem Gerät.
+Alle Apps sprechen mit demselben Dienst. Dort liegen die Profile **und** die
+Daten: du meldest dich überall mit denselben Daten an, und was die eine App
+einträgt, sieht die andere. Läuft der Dienst nicht, sagen die Apps das und
+schreiben nichts.
 
 GetBetter kann den anderen Apps ausserdem etwas **auftragen**:
 
 > „pack mir 2 Bananen auf die Einkaufsliste“
 
-Der Assistent erkennt das, öffnet BetterFamily über einen Tiefenlink
-(`betterfamily://befehl/einkauf?text=2%20Bananen`) und die trägt es ein. Das
-wirkt nur, wenn die andere App auf demselben Gerät installiert ist, und geht nur
-in eine Richtung: GetBetter erfährt nicht, was daraus wurde. Echte gemeinsame
-Daten gibt es erst mit einem Server.
+Der Assistent erkennt das und öffnet BetterFamily über einen Tiefenlink
+(`betterfamily://befehl/einkauf?text=2%20Bananen`), die es dann einträgt.
+
+**Wer was führt**: GetBetter hat den privaten Kalender, die Aufgaben, Notizen
+und den Wecker. Haushalte und der Familienkalender liegen in BetterFamily.
 
 Ein neues Konto startet leer.
 

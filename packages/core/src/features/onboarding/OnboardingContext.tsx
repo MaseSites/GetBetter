@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 import type { Area } from '@/mocks/types';
 
-export const ONBOARDING_STEPS = ['welcome', 'areas', 'questions', 'household'] as const;
+export const ONBOARDING_STEPS = ['welcome', 'areas', 'questions'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export function stepNumber(step: OnboardingStep): number {

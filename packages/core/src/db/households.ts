@@ -366,8 +366,6 @@ async function adoptExistingData(accountId: string, householdId: string): Promis
   });
   await Promise.all(sharedTasks.map((row) => db.tasks.update(row.id, { householdId })));
 
-  const personalEvents = await db.events.list({
-    where: (row) => row.accountId === accountId && !row.householdId,
-  });
-  await Promise.all(personalEvents.map((row) => db.events.update(row.id, { householdId })));
+  // Termine bleiben aussen vor: der private Kalender gehoert GetBetter, der
+  // des Haushalts BetterFamily. Ein Beitritt darf das nicht vermischen.
 }
