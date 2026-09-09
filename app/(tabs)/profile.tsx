@@ -8,7 +8,14 @@ import {
   shopping as shoppingRepo,
   tasks as taskRepo,
 } from '@/db/repositories';
-import { LANGUAGES, LANGUAGE_LABEL, formatShortDate, useI18n, type Language } from '@/i18n';
+import {
+  LANGUAGES,
+  LANGUAGE_LABEL,
+  formatShortDate,
+  useI18n,
+  type Language,
+  type TranslationKey,
+} from '@/i18n';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -19,7 +26,7 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const account = useAccount();
   const router = useRouter();
-  const { household, role, setLanguage, signOut } = useApp();
+  const { household, role, setLanguage, signOut, appearance } = useApp();
   const householdId = household?.id ?? null;
   const { access } = useCalendarAccess();
 
@@ -89,6 +96,20 @@ export default function ProfileScreen() {
             {t('household.none.body')}
           </Text>
         )}
+      </Card>
+
+      <Card
+        title={t('appearance.title')}
+        subtitle={t('appearance.subtitle')}
+        onPress={() => router.push('/appearance')}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+          <Badge label={t(`appearance.mode.${appearance.mode}` as TranslationKey)} />
+          <Badge label={t(`appearance.preset.${appearance.preset}` as TranslationKey)} />
+          {appearance.preset === 'mono' ? null : (
+            <Badge label={t(`appearance.accent.${appearance.accent}` as TranslationKey)} />
+          )}
+        </View>
       </Card>
 
       <Card title={t('profile.language')}>

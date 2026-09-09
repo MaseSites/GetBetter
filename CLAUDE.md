@@ -234,6 +234,25 @@ Startfavoriten, in der Reihenfolge der Registry und hoechstens acht
 (`MAX_START_FAVOURITES`). Wer alles ueberspringt, bekommt die Prioritaet-1-Module
 der gewaehlten Bereiche, sonst `DEFAULT_FAVOURITE_IDS` — leer bleibt es nie.
 
+## Aussehen
+
+`/appearance` (aus dem Profil) stellt drei Regler, alle am Konto gespeichert:
+
+|                |                                                                      |
+| -------------- | -------------------------------------------------------------------- |
+| Modus          | Hell, Dunkel oder dem Geraet folgen (`useColorScheme`)               |
+| Voreinstellung | `clean` ruhig, `colorful` jede App in ihrer Farbe, `mono` ohne Farbe |
+| Akzentfarbe    | Acht Toene aus `ACCENTS`, in Schwarzweiss ohne Wirkung               |
+
+`createTheme(scheme, accent, preset)` baut daraus die Palette; der
+`AppContext` haelt sie und gibt sie an den `ThemeProvider`. Konten ohne die
+Felder fallen auf hell / clean / Salbei zurueck.
+
+Jede App hat eine eigene Farbe (`src/theme/modules.ts`). `moduleTint(theme, id)`
+sagt, wie ihr Logo aussieht: zart getoent bei `clean`, gefuellt bei `colorful`,
+grau bei `mono`. Kachel, Detailseite und die Vorschau in den Einstellungen
+benutzen denselben Helfer.
+
 ## Design
 
 Ein erster Aufraeumdurchgang ist gemacht:

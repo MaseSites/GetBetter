@@ -1,12 +1,26 @@
 import { createContext, useContext } from 'react';
 
-import { lightPalette, palettes, type ColorScheme, type Palette } from './colors';
+import {
+  ACCENTS,
+  ACCENT_KEYS,
+  THEME_PRESETS,
+  createPalette,
+  lightPalette,
+  DEFAULT_ACCENT,
+  DEFAULT_PRESET,
+  type AccentKey,
+  type ColorScheme,
+  type Palette,
+  type ThemePreset,
+} from './colors';
 import { radii } from './radii';
 import { spacing } from './spacing';
 import { fontFamily, fontSize, fontWeight, lineHeight } from './typography';
 
 export type Theme = {
   scheme: ColorScheme;
+  accent: AccentKey;
+  preset: ThemePreset;
   colors: Palette;
   spacing: typeof spacing;
   radii: typeof radii;
@@ -16,10 +30,16 @@ export type Theme = {
   fontFamily: string | undefined;
 };
 
-export function createTheme(scheme: ColorScheme): Theme {
+export function createTheme(
+  scheme: ColorScheme,
+  accent: AccentKey = DEFAULT_ACCENT,
+  preset: ThemePreset = DEFAULT_PRESET,
+): Theme {
   return {
     scheme,
-    colors: palettes[scheme],
+    accent,
+    preset,
+    colors: createPalette(scheme, accent, preset),
     spacing,
     radii,
     fontSize,
@@ -40,5 +60,20 @@ export function useTheme(): Theme {
   return useContext(ThemeContext);
 }
 
-export { lightPalette, palettes, radii, spacing, fontSize, lineHeight, fontWeight, fontFamily };
-export type { ColorScheme, Palette };
+export {
+  ACCENTS,
+  ACCENT_KEYS,
+  DEFAULT_ACCENT,
+  DEFAULT_PRESET,
+  THEME_PRESETS,
+  createPalette,
+  lightPalette,
+  radii,
+  spacing,
+  fontSize,
+  lineHeight,
+  fontWeight,
+  fontFamily,
+};
+export type { AccentKey, ColorScheme, Palette, ThemePreset };
+export { moduleTint, MODULE_COLORS } from './modules';

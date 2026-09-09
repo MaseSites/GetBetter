@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useColorScheme } from 'react-native';
 
 import {
   backfillUsernames,
@@ -29,7 +30,17 @@ import {
 } from '@/db';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
-import { ThemeProvider, createTheme, type ColorScheme } from '@/theme';
+import {
+  ACCENT_KEYS,
+  DEFAULT_ACCENT,
+  DEFAULT_PRESET,
+  THEME_PRESETS,
+  ThemeProvider,
+  createTheme,
+  type AccentKey,
+  type ColorScheme,
+  type ThemePreset,
+} from '@/theme';
 
 const SESSION_KEY = 'better-life/session/v1';
 
@@ -59,6 +70,9 @@ export type AppContextValue = {
   }) => Promise<void>;
 
   setLanguage: (language: Language) => Promise<void>;
+  /** Aussehen: was nicht mitgegeben wird, bleibt wie es ist. */
+  appearance: Appearance;
+  setAppearance: (patch: Partial<Appearance>) => Promise<void>;
   toggleFavourite: (moduleId: string) => Promise<void>;
   isFavourite: (moduleId: string) => boolean;
 
@@ -70,6 +84,26 @@ export type AppContextValue = {
   refreshHousehold: () => Promise<void>;
 };
 
+/** Die drei Regler fuer das Aussehen. */
+export type Appearance = {
+  mode: 'light' | 'dark' | 'system';
+  accent: AccentKey;
+  preset: ThemePreset;
+};
+
+function appearanceOf(account: Account | null): Appearance {
+  const mode = account?.themeMode;
+  const accent = account?.accentKey;
+  const preset = account?.themePreset;
+  return {
+    mode: mode === 'dark' || mode === 'system' ? mode : 'light',
+    accent: ACCENT_KEYS.includes(accent as AccentKey) ? (accent as AccentKey) : DEFAULT_ACCENT,
+    preset: THEME_PRESETS.includes(preset as ThemePreset)
+      ? (preset as ThemePreset)
+      : DEFAULT_PRESET,
+  };
+}
+
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -77,7 +111,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<HouseholdRow | null>(null);
   const [role, setRole] = useState<HouseholdRole | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const colorScheme: ColorScheme = 'light';
+  const systemScheme = useColorScheme();
+  // Eigene Konstante, sonst haengt der ganze Kontext an jedem Rendern.
+  const appearance = useMemo(() => appearanceOf(account), [account]);
+  const colorScheme: ColorScheme =
+    appearance.mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance.mode;
 
   // Sitzung wiederherstellen: Datenbank laden, dann das gemerkte Konto holen.
   useEffect(() => {
@@ -186,6 +224,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [account],
   );
 
+  const setAppearance = useCallback<AppContextValue['setAppearance']>(
+    async (patch) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, {
+        ...(patch.mode ? { themeMode: patch.mode } : {}),
+        ...(patch.accent ? { accentKey: patch.accent } : {}),
+        ...(patch.preset ? { themePreset: patch.preset } : {}),
+      });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
   const toggleFavourite = useCallback(
     async (moduleId: string) => {
       if (!account) return;
@@ -243,7 +294,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const t = useMemo<Translate>(() => (key, values) => translate(language, key, values), [language]);
 
-  const theme = useMemo(() => createTheme(colorScheme), [colorScheme]);
+  const theme = useMemo(
+    () => createTheme(colorScheme, appearance.accent, appearance.preset),
+    [colorScheme, appearance.accent, appearance.preset],
+  );
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -257,6 +311,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOut,
       completeOnboarding,
       setLanguage,
+      appearance,
+      setAppearance,
       toggleFavourite,
       isFavourite,
       createHousehold,
@@ -273,6 +329,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOut,
       completeOnboarding,
       setLanguage,
+      colorScheme,
+      appearance,
+      setAppearance,
       toggleFavourite,
       isFavourite,
       household,

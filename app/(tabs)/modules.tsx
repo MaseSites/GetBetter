@@ -6,7 +6,7 @@ import { useTranslate, type TranslationKey } from '@/i18n';
 import { getModule, groupedModules } from '@/mocks/modules';
 import type { Area } from '@/mocks/types';
 import { useApp } from '@/state/AppContext';
-import { useTheme } from '@/theme';
+import { moduleTint, useTheme } from '@/theme';
 import { Divider, EmptyState, Header, Icon, ListItem, Screen, Segmented, Sheet, Text } from '@/ui';
 
 type ModuleView = 'all' | 'favourites';
@@ -87,6 +87,7 @@ export default function MyModulesScreen() {
           <View style={[styles.row, { rowGap: theme.spacing.lg }]}>
             {group.modules.map((module) => {
               const favourite = isFavourite(module.id);
+              const tint = moduleTint(theme, module.id);
               return (
                 <Pressable
                   key={module.id}
@@ -102,14 +103,10 @@ export default function MyModulesScreen() {
                     <View
                       style={[
                         styles.tileIcon,
-                        {
-                          borderRadius: theme.radii.lg,
-                          backgroundColor: theme.colors.surface,
-                          borderColor: theme.colors.border,
-                        },
+                        { borderRadius: theme.radii.lg, backgroundColor: tint.background },
                       ]}
                     >
-                      <Icon name={module.icon} size={26} color={theme.colors.accentStrong} />
+                      <Icon name={module.icon} size={26} color={tint.foreground} />
                     </View>
                     <Pressable
                       accessibilityRole="button"

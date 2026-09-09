@@ -6,7 +6,7 @@ import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
 import { getModule } from '@/mocks/modules';
 import { useApp } from '@/state/AppContext';
-import { useTheme } from '@/theme';
+import { moduleTint, useTheme } from '@/theme';
 import { Badge, Button, Card, EmptyState, Header, Icon, Screen, Text } from '@/ui';
 
 export default function ModuleDetailScreen() {
@@ -18,6 +18,7 @@ export default function ModuleDetailScreen() {
   const module = params.id ? getModule(params.id) : undefined;
   // Hooks laufen vor dem fruehen Return, sonst kippt die Reihenfolge.
   const favouriteAction = useFavouriteAction(module?.id ?? '');
+  const tint = moduleTint(theme, module?.id ?? '');
 
   if (!module) {
     return (
@@ -53,12 +54,12 @@ export default function ModuleDetailScreen() {
             width: 64,
             height: 64,
             borderRadius: theme.radii.lg,
-            backgroundColor: theme.colors.accentSoft,
+            backgroundColor: tint.background,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icon name={module.icon} size={30} color={theme.colors.accentStrong} />
+          <Icon name={module.icon} size={30} color={tint.foreground} />
         </View>
         <View style={{ flex: 1, gap: theme.spacing.xs }}>
           <Text variant="display">{module.name}</Text>

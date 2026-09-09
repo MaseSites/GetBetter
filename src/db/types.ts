@@ -9,6 +9,12 @@ export type Account = Row & {
   passwordSalt: string;
   firstName: string;
   language: string;
+  /** Aussehen: hell, dunkel oder dem Geraet folgen. Alte Zeilen kennen es nicht. */
+  themeMode?: 'light' | 'dark' | 'system';
+  /** Schluessel aus ACCENTS. */
+  accentKey?: string;
+  /** Voreinstellung: clean, colorful oder mono. */
+  themePreset?: string;
   onboarded: boolean;
   selectedAreas: readonly string[];
   favouriteModuleIds: readonly string[];
