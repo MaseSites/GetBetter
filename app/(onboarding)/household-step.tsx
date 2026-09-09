@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useOnboarding } from '@/features/onboarding/OnboardingContext';
+import { favouritesFromAnswers } from '@/features/onboarding/questions';
 import { StepHeader } from '@/features/onboarding/StepHeader';
 import { useTranslate } from '@/i18n';
 import { useApp, type HouseholdChoice } from '@/state/AppContext';
@@ -45,14 +46,19 @@ const OPTIONS: readonly Option[] = [
 export default function HouseholdStep() {
   const t = useTranslate();
   const theme = useTheme();
-  const { firstName, areas } = useOnboarding();
+  const { firstName, areas, answers } = useOnboarding();
   const { completeOnboarding } = useApp();
   const router = useRouter();
   const [choice, setChoice] = useState<HouseholdChoice>('created');
 
   async function finish() {
     // Der RouteGuard schickt danach selbst in die Tabs.
-    await completeOnboarding({ firstName, areas, householdChoice: choice });
+    await completeOnboarding({
+      firstName,
+      areas,
+      householdChoice: choice,
+      favouriteIds: favouritesFromAnswers(answers, areas),
+    });
     // Beitreten braucht einen Code — den gibt man auf dem Haushaltsbildschirm ein.
     if (choice === 'joined') router.push('/household');
   }

@@ -54,6 +54,8 @@ export type AppContextValue = {
     firstName: string;
     areas: readonly Area[];
     householdChoice: HouseholdChoice;
+    /** Kommt aus den Fragen beim Einrichten. */
+    favouriteIds: readonly string[];
   }) => Promise<void>;
 
   setLanguage: (language: Language) => Promise<void>;
@@ -152,12 +154,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeOnboarding = useCallback<AppContextValue['completeOnboarding']>(
-    async ({ firstName, areas, householdChoice }) => {
+    async ({ firstName, areas, householdChoice, favouriteIds }) => {
       if (!account) return;
       const updated = await updateAccount(account.id, {
         firstName: firstName.trim(),
         selectedAreas: areas,
-        favouriteModuleIds: ['calendar', 'tasks', 'shopping', 'notes'],
+        favouriteModuleIds: favouriteIds,
         onboarded: true,
       });
       // Ein neues Konto startet bewusst leer.

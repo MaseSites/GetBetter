@@ -5,7 +5,6 @@ import { AiChatView } from '@/features/ai/AiChatView';
 import { AlarmView } from '@/features/alarm/AlarmView';
 import { CalendarView } from '@/features/calendar/CalendarView';
 import { ChoresView } from '@/features/chores/ChoresView';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { NotesView } from '@/features/notes/NotesView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
@@ -32,7 +31,6 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const favouriteAction = useFavouriteAction(module.id);
 
   return (
     <Screen
@@ -42,7 +40,6 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
           subtitle={module.short}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
         />
       }
       footer={

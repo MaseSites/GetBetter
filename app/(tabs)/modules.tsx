@@ -17,7 +17,8 @@ export default function MyModulesScreen() {
   const router = useRouter();
   const { account, toggleFavourite, isFavourite } = useApp();
 
-  const [view, setView] = useState<ModuleView>('all');
+  // Beim Oeffnen stehen die Favoriten da, nicht die ganze Liste.
+  const [view, setView] = useState<ModuleView>('favourites');
   const [sheetModuleId, setSheetModuleId] = useState<string | null>(null);
   const [homescreenHintFor, setHomescreenHintFor] = useState<string | null>(null);
 
@@ -110,20 +111,34 @@ export default function MyModulesScreen() {
                     >
                       <Icon name={module.icon} size={26} color={theme.colors.accentStrong} />
                     </View>
-                    {favourite && view === 'all' ? (
-                      <View
-                        style={[
-                          styles.star,
-                          {
-                            borderRadius: theme.radii.pill,
-                            backgroundColor: theme.colors.accent,
-                            borderColor: theme.colors.background,
-                          },
-                        ]}
-                      >
-                        <Icon name="star" size={11} color={theme.colors.textOnAccent} />
-                      </View>
-                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: favourite }}
+                      accessibilityLabel={
+                        favourite
+                          ? t('modules.sheet.removeFavourite')
+                          : t('modules.sheet.addFavourite')
+                      }
+                      hitSlop={8}
+                      onPress={() => void toggleFavourite(module.id)}
+                      style={({ pressed }) => [
+                        styles.star,
+                        {
+                          borderRadius: theme.radii.pill,
+                          backgroundColor: favourite
+                            ? theme.colors.accent
+                            : theme.colors.surfaceMuted,
+                          borderColor: theme.colors.background,
+                          opacity: pressed ? 0.6 : 1,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={favourite ? 'starFilled' : 'star'}
+                        size={12}
+                        color={favourite ? theme.colors.textOnAccent : theme.colors.textMuted}
+                      />
+                    </Pressable>
                   </View>
                   <Text variant="caption" align="center" numberOfLines={2}>
                     {module.name}
@@ -205,10 +220,10 @@ const styles = StyleSheet.create({
   },
   star: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
+    top: -6,
+    right: -6,
+    width: 24,
+    height: 24,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

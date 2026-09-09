@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useLiveQuery } from '@/db';
 import { shopping as shoppingRepo } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -29,7 +28,6 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
   const account = useAccount();
   const { household } = useApp();
   const householdId = household?.id ?? null;
-  const favouriteAction = useFavouriteAction(module.id);
 
   const [draft, setDraft] = useState('');
   const list = useLiveQuery(
@@ -55,7 +53,6 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
           subtitle={t('shopping.openCount', { count: openCount })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
         />
       }
       footer={

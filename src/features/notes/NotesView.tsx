@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useLiveQuery } from '@/db';
 import type { NoteRow } from '@/db';
 import { notes as noteRepo } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { formatShortDate, useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -17,7 +16,6 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const favouriteAction = useFavouriteAction(module.id);
 
   const [editing, setEditing] = useState<NoteRow | null>(null);
   const list = useLiveQuery(() => noteRepo.list(account.id), [account.id]);
@@ -36,7 +34,6 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
           subtitle={t('notes.count', { count: items.length })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
         />
       }
       footer={<Button label={t('notes.new')} icon="plus" onPress={createAndOpen} />}

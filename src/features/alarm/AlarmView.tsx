@@ -4,7 +4,6 @@ import { StyleSheet, Switch, View } from 'react-native';
 
 import { useLiveQuery } from '@/db';
 import { alarms as alarmRepo } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -30,7 +29,6 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const favouriteAction = useFavouriteAction(module.id);
 
   const [composing, setComposing] = useState(false);
 
@@ -48,7 +46,6 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
           }
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
         />
       }
       footer={<Button label={t('alarm.add')} icon="plus" onPress={() => setComposing(true)} />}

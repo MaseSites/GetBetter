@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useLiveQuery } from '@/db';
 import { tasks as taskRepo } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { formatShortDate, useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -18,7 +17,6 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
   const account = useAccount();
   const { household } = useApp();
   const householdId = household?.id ?? null;
-  const favouriteAction = useFavouriteAction(module.id);
 
   const [draft, setDraft] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -50,7 +48,6 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
           subtitle={t('tasks.openCount', { count: openTasks.length })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-          actions={[favouriteAction]}
         />
       }
       footer={

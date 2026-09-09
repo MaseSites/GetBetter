@@ -197,10 +197,24 @@ Zwei Stellen leiten sich aus den im Onboarding gewaehlten Bereichen ab:
   gewaehlten Bereiche bekommt eine Karte, sonst wird der Bildschirm zur Wand.
 
 Favoriten liegen als `favouriteModuleIds` im `AppContext` und ueberleben einen
-Neustart. Gesetzt werden sie per Langdruck auf eine Kachel oder ueber den Stern
-oben rechts — `useFavouriteAction(moduleId)` liefert diesen Kopf-Knopf, jeder
-Modul-Bildschirm und die Detailseite benutzen denselben; das Onboarding belegt sie mit den Prioritaet-1-Modulen der
-gewaehlten Bereiche, ohne Onboarding gilt `DEFAULT_FAVOURITE_IDS`.
+Neustart. Gesetzt werden sie **in der Uebersicht**: der Stern sitzt auf der
+Kachel, der Langdruck bietet dasselbe im Blatt an. In der geoeffneten App gibt
+es keinen Stern mehr; nur die Detailseite hat ihn noch ueber
+`useFavouriteAction(moduleId)`.
+
+Der Apps-Tab startet auf **Favoriten** — die ganze Liste holt man sich mit dem
+Segmented oben rechts. Wer noch keine hat, sieht dort den Weg zu "Alle".
+
+## Onboarding
+
+Vier Schritte: Name, Bereiche, **Fragen**, Haushalt.
+
+Der Fragenschritt (`app/(onboarding)/questions.tsx`) stellt fuenf Fragen mit
+Mehrfachauswahl; `src/features/onboarding/questions.ts` haelt sie samt der
+Zuordnung Antwort → Module. `favouritesFromAnswers()` macht daraus die
+Startfavoriten, in der Reihenfolge der Registry und hoechstens acht
+(`MAX_START_FAVOURITES`). Wer alles ueberspringt, bekommt die Prioritaet-1-Module
+der gewaehlten Bereiche, sonst `DEFAULT_FAVOURITE_IDS` — leer bleibt es nie.
 
 ## Design
 

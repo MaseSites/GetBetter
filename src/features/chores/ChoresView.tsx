@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { households as householdRepo, useLiveQuery, type ChoreRepeat, type ChoreRow } from '@/db';
 import { chores as choreRepo } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { formatShortDate, useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -33,7 +32,6 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
   const router = useRouter();
   const account = useAccount();
   const { household } = useApp();
-  const favouriteAction = useFavouriteAction(module.id);
 
   const [composing, setComposing] = useState(false);
   const [assigning, setAssigning] = useState<ChoreRow | null>(null);
@@ -66,7 +64,6 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
       subtitle={household ? household.name : t('chores.noHousehold.title')}
       showBack
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-      actions={[favouriteAction]}
     />
   );
 

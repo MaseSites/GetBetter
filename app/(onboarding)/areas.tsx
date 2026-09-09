@@ -28,7 +28,7 @@ export default function AreasStep() {
       footer={
         <Button
           label={t('common.continue')}
-          onPress={() => router.push('/household-step')}
+          onPress={() => router.push('/questions')}
           disabled={areas.length === 0}
         />
       }

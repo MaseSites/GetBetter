@@ -4,7 +4,6 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
-import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -39,7 +38,6 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const favouriteAction = useFavouriteAction(module.id);
 
   const { access, calendars: myCalendars, households, sharedBy } = useCalendarAccess();
   const [mode, setMode] = useState<CalendarMode>('month');
@@ -205,7 +203,6 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
               label: t('calendars.manage'),
               onPress: () => setManaging(true),
             },
-            favouriteAction,
           ]}
         >
           <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
