@@ -1,8 +1,8 @@
 import * as Linking from 'expo-linking';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { appUrl } from '@/app/bridge';
-import { APPS, APP_IDS, APP_MODULES, currentApp, type AppId } from '@/app/identity';
+import { APPS, APP_IDS, APP_MODULES, currentApp, storeUrl, type AppId } from '@/app/identity';
 import { appAccess, useLiveQuery } from '@/db';
 import {
   chores as choreRepo,
@@ -13,7 +13,7 @@ import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { moduleTint, useTheme } from '@/theme';
-import { Card, Icon, Text } from '@/ui';
+import { Button, Card, Icon, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter.
@@ -57,6 +57,15 @@ export function AppFamily() {
         : Promise.resolve([]),
     [access.accountId, access.householdIds],
   );
+
+  /**
+   * Installieren fuehrt in den Store, sobald es die App dort gibt. Bis dahin
+   * oeffnet der Knopf sie direkt — in der Entwicklung ist das dasselbe Ziel.
+   */
+  async function install(id: AppId) {
+    const store = storeUrl(APPS[id], Platform.OS);
+    await Linking.openURL(store ?? appUrl(id));
+  }
 
   /** Was in einer freigeschalteten App gerade ansteht. */
   function figures(id: AppId): string[] {
@@ -129,9 +138,14 @@ export function AppFamily() {
                     </Text>
                   )
                 ) : (
-                  <Text variant="caption" tone="faint">
-                    {t('family.locked')}
-                  </Text>
+                  <Button
+                    label={t('family.install')}
+                    icon="download"
+                    size="sm"
+                    variant="secondary"
+                    fullWidth={false}
+                    onPress={() => void install(id)}
+                  />
                 )}
               </View>
             </View>

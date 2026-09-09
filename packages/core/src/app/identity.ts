@@ -13,6 +13,11 @@ export type AppId = (typeof APP_IDS)[number];
 export type AppIdentity = {
   id: AppId;
   name: string;
+  /**
+   * Paketname im Store. Steht erst fest, wenn die App veroeffentlicht ist —
+   * bis dahin fuehrt der Installieren-Knopf zur laufenden App.
+   */
+  packageName?: string;
   /** Fuer Tiefenlinks: `betterfamily://…` */
   scheme: string;
   /** Kurz gesagt, wofuer sie da ist. */
@@ -95,6 +100,20 @@ export function hasHouseholds(): boolean {
  */
 export function appOfModule(moduleId: string): AppId | undefined {
   return APP_IDS.find((id) => APP_MODULES[id].includes(moduleId));
+}
+
+const PLAY_STORE = 'https://play.google.com/store/apps/details?id=';
+const APP_STORE = 'https://apps.apple.com/app/';
+
+/**
+ * Wohin der Installieren-Knopf fuehrt. Solange keine App veroeffentlicht ist,
+ * gibt es keine Adresse — dann oeffnet der Knopf die App selbst.
+ */
+export function storeUrl(app: AppIdentity, platform: string): string | null {
+  if (!app.packageName) return null;
+  if (platform === 'android') return `${PLAY_STORE}${app.packageName}`;
+  if (platform === 'ios') return `${APP_STORE}${app.packageName}`;
+  return null;
 }
 
 function isAppId(value: string | undefined): value is AppId {

@@ -45,6 +45,7 @@ export const ICONS = {
   settings: 'options-outline',
   logout: 'log-out-outline',
   plus: 'add',
+  download: 'download-outline',
   trash: 'trash-outline',
   send: 'arrow-up',
   car: 'car-outline',

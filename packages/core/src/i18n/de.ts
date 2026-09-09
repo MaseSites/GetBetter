@@ -115,7 +115,7 @@ export const de = {
   'link.fromApp': 'Konto von {app} holen',
   'link.fromAppHint': 'Dieselbe Anmeldung gilt auch hier.',
   'family.title': 'Apps',
-  'family.locked': 'Nicht freigeschaltet',
+  'family.install': 'Installieren',
   'family.quiet': 'Nichts offen',
   'family.next': '{time} · {title}',
   'family.shopping': '{count} auf der Liste',
