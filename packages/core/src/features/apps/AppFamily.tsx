@@ -13,7 +13,7 @@ import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { moduleTint, useTheme } from '@/theme';
-import { Button, Card, Icon, Text } from '@/ui';
+import { Button, Card, Divider, Icon, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter.
@@ -67,21 +67,37 @@ export function AppFamily() {
     await Linking.openURL(store ?? appUrl(id));
   }
 
-  /** Was in einer freigeschalteten App gerade ansteht. */
-  function figures(id: AppId): string[] {
-    if (id !== 'betterfamily') return [];
-    const lines: string[] = [];
-    const next = familyNext.data?.[0];
-    if (next) {
-      lines.push(
-        t('family.next', { title: next.title, time: formatTime(language, next.startsAt) }),
-      );
+  /**
+   * Die Felder einer App stehen immer da — auch wenn nichts drin ist. So
+   * sieht man, was einen erwartet, statt einer leeren Karte.
+   */
+  function fields(id: AppId): { label: string; value: string | null }[] {
+    if (id === 'betterfamily') {
+      const next = familyNext.data?.[0];
+      const open = shoppingOpen.data ?? 0;
+      const jobs = choreList.data?.length ?? 0;
+      return [
+        {
+          label: t('field.nextAppointment'),
+          value: next ? `${formatTime(language, next.startsAt)} · ${next.title}` : null,
+        },
+        { label: t('field.shopping'), value: open > 0 ? t('field.open', { count: open }) : null },
+        { label: t('field.chores'), value: jobs > 0 ? t('field.open', { count: jobs }) : null },
+      ];
     }
-    const open = shoppingOpen.data ?? 0;
-    if (open > 0) lines.push(t('family.shopping', { count: open }));
-    const jobs = choreList.data?.length ?? 0;
-    if (jobs > 0) lines.push(t('family.chores', { count: jobs }));
-    return lines;
+    if (id === 'bettergym') {
+      return [
+        { label: t('field.training'), value: null },
+        { label: t('field.calories'), value: null },
+      ];
+    }
+    if (id === 'bettermoney') {
+      return [
+        { label: t('field.budget'), value: null },
+        { label: t('field.bills'), value: null },
+      ];
+    }
+    return [{ label: t('field.chat'), value: null }];
   }
 
   return (
@@ -95,14 +111,10 @@ export function AppFamily() {
         const open = unlocked.includes(id);
         const first = APP_MODULES[id][0];
         const tint = moduleTint(theme, first ?? '');
-        const lines = open ? figures(id) : [];
+        const rows = open ? fields(id) : [];
 
         return (
-          <Card
-            key={id}
-            {...(open ? { title: app.name } : {})}
-            onPress={() => void Linking.openURL(appUrl(id))}
-          >
+          <Card key={id} onPress={() => void Linking.openURL(appUrl(id))}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
               {/* Blass ist nur die App selbst — der Knopf soll auffallen. */}
               <View style={{ opacity: open ? 1 : 0.5 }}>
@@ -125,25 +137,11 @@ export function AppFamily() {
               </View>
 
               <View style={{ flex: 1, gap: 2, opacity: open ? 1 : 0.5 }}>
-                {open ? (
-                  lines.length > 0 ? (
-                    lines.map((line) => (
-                      <Text key={line} variant="label">
-                        {line}
-                      </Text>
-                    ))
-                  ) : (
-                    <Text variant="caption" tone="faint">
-                      {t('family.quiet')}
-                    </Text>
-                  )
-                ) : (
-                  <>
-                    <Text variant="title">{app.name}</Text>
-                    <Text variant="caption" tone="faint">
-                      {t(app.taglineKey as TranslationKey)}
-                    </Text>
-                  </>
+                <Text variant="title">{app.name}</Text>
+                {open ? null : (
+                  <Text variant="caption" tone="faint">
+                    {t(app.taglineKey as TranslationKey)}
+                  </Text>
                 )}
               </View>
 
@@ -157,6 +155,33 @@ export function AppFamily() {
                 />
               )}
             </View>
+
+            {open ? (
+              <View style={{ paddingTop: theme.spacing.sm }}>
+                {rows.map((row, index) => (
+                  <View key={row.label}>
+                    {index > 0 ? <Divider /> : null}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: theme.spacing.sm,
+                        paddingVertical: theme.spacing.sm,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text variant="label" tone="muted">
+                          {row.label}
+                        </Text>
+                      </View>
+                      <Text variant="label" tone={row.value ? 'default' : 'faint'}>
+                        {row.value ?? '—'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </Card>
         );
       })}

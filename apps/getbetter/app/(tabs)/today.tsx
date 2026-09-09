@@ -8,13 +8,17 @@ import {
   notes as noteRepo,
   tasks as taskRepo,
 } from '@/db/repositories';
-import { formatLongDate, formatTime, useI18n } from '@/i18n';
 import { AppFamily } from '@/features/apps/AppFamily';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { formatLongDate, formatTime, useI18n } from '@/i18n';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Badge, Card, Divider, EmptyState, Header, ListItem, Loading, Screen, Text } from '@/ui';
+import { Badge, Card, Divider, Header, ListItem, Screen, Text } from '@/ui';
 
+/**
+ * Die Startseite zeigt ihre Felder immer — auch leer. Wer nichts eingetragen
+ * hat, sieht wenigstens, was hier stehen wird, statt einer weissen Flaeche.
+ */
 export default function TodayScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
@@ -26,7 +30,6 @@ export default function TodayScreen() {
 
   const todayIso = new Date().toISOString();
 
-  // Alles hier kommt aus der Datenbank — keine Beispielzahlen mehr.
   const upcoming = useLiveQuery(
     () => eventRepo.listUpcoming(access, todayIso, 5),
     [access.accountId, access.householdIds, access.calendarIds],
@@ -42,9 +45,6 @@ export default function TodayScreen() {
   const tasks = openTasks.data ?? [];
   const notes = noteCount.data ?? 0;
 
-  const stillLoading = upcoming.loading && openTasks.loading;
-  const everythingEmpty = events.length === 0 && tasks.length === 0 && notes === 0;
-
   return (
     <Screen
       header={
@@ -55,20 +55,12 @@ export default function TodayScreen() {
         />
       }
     >
-      {stillLoading ? <Loading /> : null}
-
-      {!stillLoading && everythingEmpty ? (
-        <EmptyState
-          icon="grid"
-          title={t('today.blank.title')}
-          body={t('today.blank.body')}
-          actionLabel={t('today.blank.action')}
-          onAction={() => router.push('/modules')}
-        />
-      ) : null}
-
-      {events.length > 0 ? (
-        <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
+      <Card title={t('today.appointments')} onPress={() => router.push('/run/calendar')}>
+        {events.length === 0 ? (
+          <Text variant="label" tone="faint">
+            {t('today.noAppointments')}
+          </Text>
+        ) : (
           <View>
             {events.map((event, index) => (
               <View key={event.id}>
@@ -85,15 +77,21 @@ export default function TodayScreen() {
               </View>
             ))}
           </View>
-        </Card>
-      ) : null}
+        )}
+      </Card>
 
-      {tasks.length > 0 ? (
-        <Card
-          title={t('today.tasks')}
-          subtitle={t('today.tasks.remaining', { count: tasks.length })}
-          onPress={() => router.push('/run/tasks')}
-        >
+      <Card
+        title={t('today.tasks')}
+        {...(tasks.length > 0
+          ? { subtitle: t('today.tasks.remaining', { count: tasks.length }) }
+          : {})}
+        onPress={() => router.push('/run/tasks')}
+      >
+        {tasks.length === 0 ? (
+          <Text variant="label" tone="faint">
+            {t('today.noTasks')}
+          </Text>
+        ) : (
           <View>
             {tasks.slice(0, 5).map((task, index) => (
               <View key={task.id}>
@@ -108,32 +106,45 @@ export default function TodayScreen() {
               </View>
             ))}
           </View>
-        </Card>
-      ) : null}
+        )}
+      </Card>
 
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-        {nextAlarm.data ? (
-          <View style={{ flex: 1 }}>
-            <Card title={t('today.alarm')} onPress={() => router.push('/run/alarm')}>
-              <Text variant="display">{nextAlarm.data.time}</Text>
-              <Text variant="caption" tone="muted">
-                {nextAlarm.data.label}
+        <View style={{ flex: 1 }}>
+          <Card title={t('today.alarm')} onPress={() => router.push('/run/alarm')}>
+            {nextAlarm.data ? (
+              <>
+                <Text variant="display">{nextAlarm.data.time}</Text>
+                <Text variant="caption" tone="muted">
+                  {nextAlarm.data.label}
+                </Text>
+              </>
+            ) : (
+              <Text variant="label" tone="faint">
+                {t('today.noAlarm')}
               </Text>
-            </Card>
-          </View>
-        ) : null}
+            )}
+          </Card>
+        </View>
 
-        {notes > 0 ? (
-          <View style={{ flex: 1 }}>
-            <Card title={t('today.notes')} onPress={() => router.push('/run/notes')}>
-              <Text variant="display">{notes}</Text>
-              <Text variant="caption" tone="muted">
-                {t('notes.count', { count: notes })}
+        <View style={{ flex: 1 }}>
+          <Card title={t('today.notes')} onPress={() => router.push('/run/notes')}>
+            {notes > 0 ? (
+              <>
+                <Text variant="display">{notes}</Text>
+                <Text variant="caption" tone="muted">
+                  {t('notes.count', { count: notes })}
+                </Text>
+              </>
+            ) : (
+              <Text variant="label" tone="faint">
+                {t('today.noNotes')}
               </Text>
-            </Card>
-          </View>
-        ) : null}
+            )}
+          </Card>
+        </View>
       </View>
+
       <AppFamily />
     </Screen>
   );
