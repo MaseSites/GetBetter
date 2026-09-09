@@ -3,9 +3,14 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
+  bills as billRepo,
   dayKey,
   drinks as drinkRepo,
+  expenses as expenseRepo,
   meals as mealRepo,
+  monthKey,
+  savings as savingsRepo,
+  subscriptions as subscriptionRepo,
   useLiveQuery,
   workouts as workoutRepo,
 } from '@/db';
@@ -20,7 +25,7 @@ import {
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { currentApp, hasHouseholds } from '@/app/identity';
 import { AppFamily } from '@/features/apps/AppFamily';
-import { formatLongDate, formatShortDate, formatTime, useI18n } from '@/i18n';
+import { formatLongDate, formatMoney, formatShortDate, formatTime, useI18n } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -69,6 +74,13 @@ export function WorkspaceScreen() {
   const workoutList = useLiveQuery(() => workoutRepo.listDay(account.id, dayKey()), [account.id]);
   const kcal = useLiveQuery(() => mealRepo.kcalOf(account.id, dayKey()), [account.id]);
   const drunk = useLiveQuery(() => drinkRepo.ofDay(account.id, dayKey()), [account.id]);
+  const spentMonth = useLiveQuery(() => expenseRepo.totalOf(account.id, monthKey()), [account.id]);
+  const openBills = useLiveQuery(() => billRepo.listOpen(account.id), [account.id]);
+  const subscriptionMonthly = useLiveQuery(
+    () => subscriptionRepo.monthlyTotal(account.id),
+    [account.id],
+  );
+  const goalList = useLiveQuery(() => savingsRepo.list(account.id), [account.id]);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -78,6 +90,11 @@ export function WorkspaceScreen() {
   const workoutsToday = workoutList.data ?? [];
   const kcalToday = kcal.data ?? 0;
   const drinkToday = drunk.data ?? 0;
+  const spent = spentMonth.data ?? 0;
+  const bills = openBills.data ?? [];
+  const subscriptionsMonthly = subscriptionMonthly.data ?? 0;
+  const goals = goalList.data ?? [];
+  const money = (value: number) => formatMoney(language, value);
 
   async function addTask() {
     const title = draft.trim();
@@ -233,6 +250,75 @@ export function WorkspaceScreen() {
         <Text variant="label" tone={drinkToday > 0 ? 'default' : 'faint'}>
           {t('water.amount', { amount: (drinkToday / 10).toFixed(1) })}
         </Text>
+      );
+    }
+
+    if (id === 'budget') {
+      return (
+        <Text variant="label" tone={spent > 0 ? 'default' : 'faint'}>
+          {spent > 0 ? t('budget.spent', { amount: money(spent) }) : t('budget.empty.title')}
+        </Text>
+      );
+    }
+
+    if (id === 'bills') {
+      return bills.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('bills.empty.title')}
+        </Text>
+      ) : (
+        bills.slice(0, 3).map((bill, index) => (
+          <View key={bill.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={bill.title}
+              icon="circle"
+              subtitle={formatShortDate(language, bill.dueDay)}
+              right={
+                <Text variant="label" tone="muted">
+                  {money(bill.amountChf)}
+                </Text>
+              }
+              // Antippen heisst bezahlt — wie beim Abhaken einer Aufgabe.
+              onPress={() => void billRepo.setPaid(bill.id, true)}
+            />
+          </View>
+        ))
+      );
+    }
+
+    if (id === 'subscriptions') {
+      return (
+        <Text variant="label" tone={subscriptionsMonthly > 0 ? 'default' : 'faint'}>
+          {subscriptionsMonthly > 0
+            ? t('money.perMonth', { amount: money(subscriptionsMonthly) })
+            : t('subscriptions.empty.title')}
+        </Text>
+      );
+    }
+
+    if (id === 'savings') {
+      return goals.length === 0 ? (
+        <Text variant="label" tone="faint">
+          {t('savings.empty.title')}
+        </Text>
+      ) : (
+        goals.slice(0, 3).map((goal, index) => (
+          <View key={goal.id}>
+            {index > 0 ? <Divider /> : null}
+            <ListItem
+              title={goal.name}
+              right={
+                <Text variant="label" tone="muted">
+                  {t('savings.progress', {
+                    saved: money(goal.savedChf),
+                    target: money(goal.targetChf),
+                  })}
+                </Text>
+              }
+            />
+          </View>
+        ))
       );
     }
 

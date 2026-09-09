@@ -3,14 +3,23 @@ import { Platform, View } from 'react-native';
 
 import { appUrl } from '@/app/bridge';
 import { APPS, APP_IDS, currentApp, storeUrl, type AppId } from '@/app/identity';
-import { appAccess, dayKey, meals as mealRepo, useLiveQuery, workouts as workoutRepo } from '@/db';
+import {
+  appAccess,
+  bills as billRepo,
+  dayKey,
+  expenses as expenseRepo,
+  meals as mealRepo,
+  monthKey,
+  useLiveQuery,
+  workouts as workoutRepo,
+} from '@/db';
 import {
   chores as choreRepo,
   events as eventRepo,
   shopping as shoppingRepo,
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { formatTime, useI18n, type TranslationKey } from '@/i18n';
+import { formatMoney, formatTime, useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { AppIcon, Button, Card, Divider, Text } from '@/ui';
@@ -51,6 +60,14 @@ export function AppFamily() {
   );
   const gymKcal = useLiveQuery(
     () => (account ? mealRepo.kcalOf(account.id, dayKey()) : Promise.resolve(0)),
+    [account?.id],
+  );
+  const moneySpent = useLiveQuery(
+    () => (account ? expenseRepo.totalOf(account.id, monthKey()) : Promise.resolve(0)),
+    [account?.id],
+  );
+  const moneyBills = useLiveQuery(
+    () => (account ? billRepo.listOpen(account.id) : Promise.resolve([])),
     [account?.id],
   );
   const familyNext = useLiveQuery(
@@ -105,9 +122,11 @@ export function AppFamily() {
       ];
     }
     if (id === 'bettermoney') {
+      const spent = moneySpent.data ?? 0;
+      const open = moneyBills.data?.length ?? 0;
       return [
-        { label: t('field.budget'), value: null },
-        { label: t('field.bills'), value: null },
+        { label: t('field.budget'), value: spent > 0 ? formatMoney(language, spent) : null },
+        { label: t('field.bills'), value: open > 0 ? t('field.open', { count: open }) : null },
       ];
     }
     return [{ label: t('field.chat'), value: null }];

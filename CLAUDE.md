@@ -14,7 +14,7 @@ noch die Zeit, als alles eine App war.
 | **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt                                               |
 | **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                         |
 | **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                                 |
-| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — noch Platzhalter                                                                                        |
+| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                     |
 
 `APP_MODULES` in `packages/core/src/app/identity.ts` ist die Wahrheit darüber,
 welche App welche Module führt. `calendar` steht in zwei Apps: GetBetter führt
@@ -214,6 +214,25 @@ Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
 
 `dayKey(date)` ist der Tagesschlüssel `YYYY-MM-DD`, nach dem gruppiert wird.
 
+## BetterMoney
+
+`db/money.ts` und `features/money/` — vier Module, alle in CHF und je Konto:
+
+- **Budget** (`expenses`, `budgets`) — Ausgaben mit Kategorie und Notiz, oben
+  die Monatssumme; wer ein Monatsbudget festlegt, sieht einen Balken und was
+  übrig ist (rot, wenn drüber)
+- **Rechnungen** (`bills`) — offen nach Fälligkeit, überfällig rot; antippen
+  heisst bezahlt. Fälligkeit per Chip: heute, in 7, 14, 30 Tagen
+- **Abos** (`subscriptions`) — monatlich oder jährlich; oben, was das im Monat
+  und im Jahr macht (Jahresabos anteilig)
+- **Sparziele** (`savingsGoals`) — Ziel, Balken, Chips zum Einzahlen; über das
+  Ziel hinaus geht es nicht
+
+`monthKey(date)` ist der Monatsschlüssel `YYYY-MM`. Beträge gehen durch
+`parseAmount` (`features/money/amount.ts`: Komma oder Punkt, Rappen gerundet)
+und werden mit `formatMoney` gezeigt. Löschen nur über den Papierkorb
+(`RemoveButton`) in Zeilen, die selbst nicht drückbar sind.
+
 ## Navigation
 
 Jede App hat dieselben drei Tabs — **Start**, **Funktionen**, **Profil** —,
@@ -236,6 +255,9 @@ weiss — und mit dem, was man direkt tun kann:
 | Einkauf                       | offene Posten, antippen erledigt                    |
 | Ämtli                         | was ansteht                                         |
 | Training / Menüplan / Trinken | die Zahl des Tages                                  |
+| Budget / Abos                 | die Summe des Monats                                |
+| Rechnungen                    | die nächsten drei, antippen heisst bezahlt          |
+| Sparziele                     | die ersten drei mit Stand                           |
 
 Welche Abschnitte erscheinen, sagt `modulesOfApp()`. In GetBetter folgen die
 Karten der anderen Better-Apps (`features/apps/AppFamily.tsx`): wo man schon

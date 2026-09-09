@@ -7,6 +7,7 @@ export { calendars, MAX_CALENDARS } from './calendars';
 export { shares } from './shares';
 export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, workouts } from './gym';
+export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -34,6 +35,12 @@ export type {
   AppAccessRow,
   DrinkRow,
   MealRow,
+  BillRow,
+  BudgetRow,
+  ExpenseRow,
+  SavingsGoalRow,
+  SubscriptionInterval,
+  SubscriptionRow,
   WorkoutRow,
   CalendarShareRow,
   CalendarShareStatus,

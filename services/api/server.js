@@ -38,13 +38,25 @@ const COLLECTIONS = [
   'workouts',
   'meals',
   'drinks',
+  'expenses',
+  'budgets',
+  'bills',
+  'subscriptions',
+  'savingsGoals',
 ];
 
 /** Was nur der Dienst kennt und niemals herausgibt. */
 const SECRET_FIELDS = ['passwordHash', 'passwordSalt'];
 
 /** Felder eines Profils, die jede App aendern darf. */
-const PROFILE_FIELDS = ['firstName', 'language', 'username', 'themeMode', 'accentKey', 'themePreset'];
+const PROFILE_FIELDS = [
+  'firstName',
+  'language',
+  'username',
+  'themeMode',
+  'accentKey',
+  'themePreset',
+];
 
 // ------------------------------------------------------------------ Speicher
 
@@ -197,8 +209,7 @@ async function snapshot() {
   const db = await load();
   const tables = {};
   for (const name of COLLECTIONS) {
-    tables[name] =
-      name === 'accounts' ? db.tables.accounts.map(withoutSecrets) : db.tables[name];
+    tables[name] = name === 'accounts' ? db.tables.accounts.map(withoutSecrets) : db.tables[name];
   }
   return { revision: db.revision, tables };
 }
@@ -277,7 +288,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/v1/health') {
       const db = await load();
-      return send(res, 200, { ok: true, revision: db.revision, accounts: db.tables.accounts.length });
+      return send(res, 200, {
+        ok: true,
+        revision: db.revision,
+        accounts: db.tables.accounts.length,
+      });
     }
 
     if (req.method === 'GET' && url.pathname === '/v1/revision') {

@@ -8,6 +8,10 @@ import { ChoresView } from '@/features/chores/ChoresView';
 import { FitnessView } from '@/features/gym/FitnessView';
 import { MealsView } from '@/features/gym/MealsView';
 import { WaterView } from '@/features/gym/WaterView';
+import { BillsView } from '@/features/money/BillsView';
+import { BudgetView } from '@/features/money/BudgetView';
+import { SavingsView } from '@/features/money/SavingsView';
+import { SubscriptionsView } from '@/features/money/SubscriptionsView';
 import { NotesView } from '@/features/notes/NotesView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
@@ -30,6 +34,10 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   fitness: (module) => <FitnessView module={module} />,
   meals: (module) => <MealsView module={module} />,
   water: (module) => <WaterView module={module} />,
+  budget: (module) => <BudgetView module={module} />,
+  bills: (module) => <BillsView module={module} />,
+  subscriptions: (module) => <SubscriptionsView module={module} />,
+  savings: (module) => <SavingsView module={module} />,
 };
 
 /** Noch nicht gebaut — ehrlich gesagt statt mit erfundenen Zahlen gefuellt. */

@@ -199,6 +199,55 @@ export type DrinkRow = Row & {
   createdAt: string;
 };
 
+/** Eine Ausgabe — dem Tag zugeordnet, nach Monat gezaehlt. */
+export type ExpenseRow = Row & {
+  accountId: string;
+  day: string;
+  amountChf: number;
+  /** Schluessel aus den Vorschlaegen (`food`, `home`, …) oder frei. */
+  category: string;
+  note: string | null;
+  createdAt: string;
+};
+
+/** Das Budget eines Monats (`YYYY-MM`). */
+export type BudgetRow = Row & {
+  accountId: string;
+  month: string;
+  limitChf: number;
+};
+
+/** Eine Rechnung mit Faelligkeit; bezahlt, sobald `paidAt` steht. */
+export type BillRow = Row & {
+  accountId: string;
+  title: string;
+  amountChf: number;
+  /** `YYYY-MM-DD` */
+  dueDay: string;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+export type SubscriptionInterval = 'month' | 'year';
+
+/** Ein laufendes Abo. */
+export type SubscriptionRow = Row & {
+  accountId: string;
+  name: string;
+  amountChf: number;
+  interval: SubscriptionInterval;
+  createdAt: string;
+};
+
+/** Ein Sparziel und was schon drauf liegt. */
+export type SavingsGoalRow = Row & {
+  accountId: string;
+  name: string;
+  targetChf: number;
+  savedChf: number;
+  createdAt: string;
+};
+
 export type AlarmRow = Row & {
   accountId: string;
   /** "06:40" */
@@ -228,6 +277,11 @@ export type Schema = {
   workouts: WorkoutRow;
   meals: MealRow;
   drinks: DrinkRow;
+  expenses: ExpenseRow;
+  budgets: BudgetRow;
+  bills: BillRow;
+  subscriptions: SubscriptionRow;
+  savingsGoals: SavingsGoalRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -247,6 +301,11 @@ export const COLLECTION_NAMES = [
   'workouts',
   'meals',
   'drinks',
+  'expenses',
+  'budgets',
+  'bills',
+  'subscriptions',
+  'savingsGoals',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;
