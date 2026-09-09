@@ -2,7 +2,11 @@
   "name": "getbetter",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "services/*"
+  ],
   "scripts": {
     "web": "npm run web -w apps/getbetter",
     "start": "npm run start -w apps/getbetter",
@@ -12,7 +16,8 @@
     "money": "npm run web -w apps/bettermoney",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "server": "node services/accounts/server.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

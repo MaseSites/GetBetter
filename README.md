@@ -14,6 +14,7 @@ echt, liegen aber je App nur auf dem Gerät — es gibt noch keinen Server.
 
 ```bash
 npm install
+npm run server     # Kontodienst, Port 8090
 npm run web        # GetBetter
 npm run family     # BetterFamily, in einem zweiten Fenster
 ```
@@ -32,11 +33,16 @@ als privat markieren.
 
 ## Wie die Apps zusammenspielen
 
-**Ein Login für alle.** Auf dem Anmeldebildschirm jeder App steht "Konto von
-GetBetter holen" — ein Tipp, und dieselbe Anmeldung gilt auch dort; danach
-funktioniert auch die normale Anmeldung mit E-Mail und Passwort. Verbunden ist
-damit die Person, nicht der Inhalt: Termine, Listen und Haushalte bleiben je
-App getrennt, solange es keinen Server gibt.
+**Ein Login für alle.** Die Konten liegen in einem kleinen Kontodienst, den du
+mitstartest:
+
+```bash
+npm run server     # Port 8090
+```
+
+Damit meldest du dich in jeder App mit denselben Daten an. Verbunden ist die
+Person — Vorname, Sprache und Aussehen wandern mit. Die Daten der Apps
+(Termine, Listen, Haushalte) liegen weiter je App auf dem Gerät.
 
 GetBetter kann den anderen Apps ausserdem etwas **auftragen**:
 

@@ -81,28 +81,37 @@ Sobald es einen Server gibt, ist das die Stelle, an der echte Zahlen erscheinen.
 
 ## Ein Konto für alle Apps
 
-Dieselbe Anmeldung gilt in jeder Better-App. Zwei Dinge machen das möglich,
-ohne dass es einen Server gibt:
+Die Konten liegen im **Kontodienst** (`services/accounts`), nicht mehr in jeder
+App einzeln. Dieselbe Anmeldung gilt damit überall — man meldet sich in
+BetterFamily mit denselben Daten an wie in GetBetter.
 
-1. **Die Kennung kommt aus der E-Mail.** `accountIdFor(email)` ist ein Hash
-   davon — wer sich mit derselben Adresse registriert, hat in jeder App
-   dieselbe Konto-Id. Das ist die Grundlage dafür, dass ein Server die fünf
-   Ablagen später zusammenführen kann.
-2. **Das Konto wandert per Tiefenlink.** Auf dem Anmeldebildschirm jeder
-   Geschwister-App steht "Konto von GetBetter holen". Ein Tipp schickt
-   `getbetter://konto?zurueck=betterfamily`; GetBetter antwortet mit
-   `betterfamily://konto?daten=…`, und die andere App übernimmt Kennung,
-   E-Mail, Benutzername, Vorname, Sprache und Aussehen. Danach funktioniert
-   dort auch die normale Anmeldung mit E-Mail und Passwort.
+```bash
+npm run server     # Port 8090, muss zum Anmelden laufen
+```
 
-`auth/link.ts` hält das Format und `adoptAccount()`; `screens/AccountLinkScreen`
-ist die Route `konto` auf beiden Seiten. Salt und Hash reisen mit, damit die
-Anmeldung in der anderen App eigenständig funktioniert — beides liegt ohnehin
-schon auf demselben Gerät, und mit einem Server fällt dieser Umweg weg.
+| Route                                |                                          |
+| ------------------------------------ | ---------------------------------------- |
+| `POST /v1/accounts`                  | Registrieren                             |
+| `POST /v1/sessions`                  | Anmelden                                 |
+| `GET /v1/accounts/:id`               | Konto lesen                              |
+| `GET /v1/accounts/by-username/:name` | Für Einladungen                          |
+| `PATCH /v1/accounts/:id`             | Vorname, Sprache, Benutzername, Aussehen |
 
-**Was nicht mitwandert, sind die Daten.** Termine, Listen und Haushalte bleiben
-je App getrennt: verbunden ist die Person, nicht der Inhalt. Die Naht für den
-Server sind zwei Dateien: `db/repositories.ts` und `auth/accounts.ts`.
+`auth/service.ts` ist der Draht dorthin, `auth/accounts.ts` die Schicht
+darüber. Jede App hält zusätzlich eine **Abschrift** des Kontos: sie trägt,
+was nur diese App angeht (Favoriten, aktiver Haushalt), und hält die App am
+Laufen, wenn der Dienst gerade nicht antwortet. Beim Start fragt sie nach und
+gleicht ab.
+
+Passwörter prüft nur der Dienst, mit scrypt über Salt und Passwort; Salt und
+Hash verlassen ihn nie. Konten aus der Zeit davor prüfen ihr Passwort beim
+ersten Mal noch lokal und wandern dann von selbst in den Dienst
+(`adoptLegacy`).
+
+**Was der Dienst nicht führt, sind die Daten der Apps.** Termine, Listen und
+Haushalte liegen weiter je App auf dem Gerät: verbunden ist die Person, nicht
+der Inhalt. Der nächste Schritt wäre, die Repositories genauso umzustellen —
+die Naht dafür ist `db/repositories.ts`.
 
 ## Die zwei KI-Oberflächen
 

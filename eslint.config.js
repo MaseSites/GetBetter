@@ -5,6 +5,20 @@ module.exports = [
   ...expoConfig,
   prettier,
   {
-    ignores: ['node_modules/**', '.expo/**', 'dist/**'],
+    // Der Kontodienst laeuft in Node, nicht im Browser.
+    files: ['services/**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        __dirname: 'readonly',
+        Buffer: 'readonly',
+        process: 'readonly',
+        module: 'writable',
+        require: 'readonly',
+      },
+    },
+  },
+  {
+    ignores: ['node_modules/**', '.expo/**', 'dist/**', 'services/*/data/**'],
   },
 ];

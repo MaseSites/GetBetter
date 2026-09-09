@@ -1,3 +1,5 @@
+import { findByUsername } from '@/auth/accounts';
+
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
 import type { Account, CalendarMemberRow, CalendarRow } from './types';
@@ -166,8 +168,7 @@ export const calendars = {
     invitedBy: string,
     username: string,
   ): Promise<InviteResult> {
-    const wanted = username.trim().toLowerCase().replace(/^@/, '');
-    const account = await db.accounts.findBy((row) => row.username === wanted);
+    const account = await findByUsername(username);
     if (!account) return { ok: false, error: 'unknown_user' };
     // Externe bestaetigen selbst.
     return calendars.invite(calendarId, invitedBy, account.id, false);

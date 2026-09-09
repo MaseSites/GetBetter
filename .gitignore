@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Kontodienst: die Konten liegen lokal, nicht im Repo
+services/accounts/data/

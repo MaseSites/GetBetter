@@ -11,7 +11,6 @@ import {
 import { useColorScheme } from 'react-native';
 
 import {
-  backfillUsernames,
   findAccount,
   signIn as signInAccount,
   signUp as signUpAccount,
@@ -125,7 +124,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await ready();
-        await backfillUsernames();
         const id = await AsyncStorage.getItem(SESSION_KEY);
         if (id) {
           const found = await findAccount(id);

@@ -5,8 +5,12 @@ export type Account = Row & {
   email: string;
   /** Eindeutig, klein geschrieben. Darueber laedt man Externe ein. */
   username: string;
-  passwordHash: string;
-  passwordSalt: string;
+  /**
+   * Kommt aus der Zeit, als jede App ihre Passwoerter selbst pruefte.
+   * Heute macht das der Kontodienst; aeltere Zeilen haben die Felder noch.
+   */
+  passwordHash?: string;
+  passwordSalt?: string;
   firstName: string;
   language: string;
   /** Aussehen: hell, dunkel oder dem Geraet folgen. Alte Zeilen kennen es nicht. */

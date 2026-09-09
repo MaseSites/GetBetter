@@ -92,6 +92,8 @@ export const de = {
     'Du nutzt Better Life für dich. Ein Haushalt geht später jederzeit.',
   'onboarding.household.finish': 'Fertig einrichten',
 
+  'auth.error.offline':
+    'Der Kontodienst ist nicht erreichbar. Starte ihn mit „npm run server“ und versuch es nochmal.',
   'link.title': 'Konto verbinden',
   'link.working': 'Einen Moment …',
   'link.workingBody': 'Das Konto wird übernommen.',

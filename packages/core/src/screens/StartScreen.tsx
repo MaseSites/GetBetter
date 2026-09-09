@@ -1,16 +1,10 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import * as Linking from 'expo-linking';
-
-import { accountUrl } from '@/app/bridge';
-import { APPS, currentApp } from '@/app/identity';
+import { currentApp } from '@/app/identity';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Button, Icon, Screen, Text } from '@/ui';
-
-/** Wer das Konto fuehrt: GetBetter ist die Hauptapp. */
-const HOLDER = 'getbetter' as const;
 
 export function StartScreen() {
   const t = useTranslate();
@@ -30,20 +24,6 @@ export function StartScreen() {
             variant="secondary"
             onPress={() => router.push('/sign-up')}
           />
-          {/* Die Hauptapp fuehrt das Konto — die anderen holen es sich dort. */}
-          {app.id === HOLDER ? null : (
-            <>
-              <Button
-                label={t('link.fromApp', { app: APPS[HOLDER].name })}
-                variant="ghost"
-                icon="people"
-                onPress={() => void Linking.openURL(accountUrl(HOLDER, { zurueck: app.id }))}
-              />
-              <Text variant="caption" tone="faint" align="center">
-                {t('link.fromAppHint')}
-              </Text>
-            </>
-          )}
         </View>
       }
     >

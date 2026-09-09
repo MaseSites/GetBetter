@@ -1,3 +1,5 @@
+import { findByUsername } from '@/auth/accounts';
+
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
 import type {
@@ -194,8 +196,7 @@ export const households = {
     invitedBy: string,
     username: string,
   ): Promise<HouseholdInviteResult> {
-    const wanted = username.trim().toLowerCase().replace(/^@/, '');
-    const account = await db.accounts.findBy((row) => row.username === wanted);
+    const account = await findByUsername(username);
     if (!account) return { ok: false, error: 'unknown_user' };
     if (account.id === invitedBy) return { ok: false, error: 'self' };
 

@@ -2,33 +2,81 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "kontodienst",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "services/accounts/server.js"
+      ],
+      "port": 8090
+    },
+    {
       "name": "getbetter",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "apps/getbetter", "--", "--port", "8081"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "apps/getbetter",
+        "--",
+        "--port",
+        "8081"
+      ],
       "port": 8081
     },
     {
       "name": "betterfamily",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "apps/betterfamily", "--", "--port", "8082"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "apps/betterfamily",
+        "--",
+        "--port",
+        "8082"
+      ],
       "port": 8082
     },
     {
       "name": "bettergym",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "apps/bettergym", "--", "--port", "8083"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "apps/bettergym",
+        "--",
+        "--port",
+        "8083"
+      ],
       "port": 8083
     },
     {
       "name": "betterai",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "apps/betterai", "--", "--port", "8084"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "apps/betterai",
+        "--",
+        "--port",
+        "8084"
+      ],
       "port": 8084
     },
     {
       "name": "bettermoney",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "-w", "apps/bettermoney", "--", "--port", "8085"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "-w",
+        "apps/bettermoney",
+        "--",
+        "--port",
+        "8085"
+      ],
       "port": 8085
     }
   ]

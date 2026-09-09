@@ -23,6 +23,7 @@ const ERROR_KEY: Record<AuthError, TranslationKey> = {
   password_too_short: 'auth.error.passwordTooShort',
   not_found: 'auth.error.notFound',
   wrong_password: 'auth.error.wrongPassword',
+  offline: 'auth.error.offline',
 };
 
 /**

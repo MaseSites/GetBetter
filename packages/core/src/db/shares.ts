@@ -1,3 +1,5 @@
+import { findByUsername } from '@/auth/accounts';
+
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
 import type { Account, CalendarShareRow } from './types';
@@ -67,8 +69,7 @@ export const shares = {
   },
 
   async requestByUsername(viewerId: string, username: string): Promise<ShareResult> {
-    const wanted = username.trim().toLowerCase().replace(/^@/, '');
-    const account = await db.accounts.findBy((row) => row.username === wanted);
+    const account = await findByUsername(username);
     if (!account) return { ok: false, error: 'unknown_user' };
     if (account.id === viewerId) return { ok: false, error: 'self' };
 
