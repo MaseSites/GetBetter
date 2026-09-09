@@ -67,54 +67,54 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={`${dayLabel.format(day)}, ${dayEvents.length} Termine`}
                 onPress={() => onOpenDay(day)}
-                style={({ pressed }) => [
-                  styles.cell,
-                  {
-                    backgroundColor: pressed
-                      ? theme.colors.surfaceMuted
-                      : inMonth
-                        ? theme.colors.surface
-                        : 'transparent',
-                    borderRadius: theme.radii.sm,
-                  },
-                ]}
+                style={styles.cell}
               >
                 <View
                   style={[
-                    styles.dayCircle,
-                    today ? { backgroundColor: theme.colors.accent } : null,
+                    styles.cellInner,
+                    {
+                      backgroundColor: inMonth ? theme.colors.surface : 'transparent',
+                      borderRadius: theme.radii.sm,
+                    },
                   ]}
                 >
-                  <Text
-                    variant="caption"
-                    tone={today ? 'onAccent' : inMonth ? 'default' : 'faint'}
-                    style={{ fontWeight: today ? theme.fontWeight.semibold : undefined }}
+                  <View
+                    style={[
+                      styles.dayCircle,
+                      today ? { backgroundColor: theme.colors.accent } : null,
+                    ]}
                   >
-                    {day.getDate()}
-                  </Text>
-                </View>
-
-                <View style={styles.chips}>
-                  {dayEvents.slice(0, MAX_CHIPS).map((event) => (
-                    <View
-                      key={event.id}
-                      style={[styles.chip, { backgroundColor: eventColor(event.color) }]}
+                    <Text
+                      variant="caption"
+                      tone={today ? 'onAccent' : inMonth ? 'default' : 'faint'}
+                      style={{ fontWeight: today ? theme.fontWeight.semibold : undefined }}
                     >
-                      <Text
-                        numberOfLines={1}
-                        variant="caption"
-                        tone="onAccent"
-                        style={styles.chipText}
-                      >
-                        {event.title}
-                      </Text>
-                    </View>
-                  ))}
-                  {overflow > 0 ? (
-                    <Text variant="caption" tone="faint" style={styles.chipText}>
-                      +{overflow}
+                      {day.getDate()}
                     </Text>
-                  ) : null}
+                  </View>
+
+                  <View style={styles.chips}>
+                    {dayEvents.slice(0, MAX_CHIPS).map((event) => (
+                      <View
+                        key={event.id}
+                        style={[styles.chip, { backgroundColor: eventColor(event.color) }]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          variant="caption"
+                          tone="onAccent"
+                          style={styles.chipText}
+                        >
+                          {event.title}
+                        </Text>
+                      </View>
+                    ))}
+                    {overflow > 0 ? (
+                      <Text variant="caption" tone="faint" style={styles.chipText}>
+                        +{overflow}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
               </Pressable>
             );
@@ -129,11 +129,11 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   weekHeader: { flexDirection: 'row', paddingBottom: 6 },
   headerCell: { flex: 1 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: 2 },
-  cell: {
-    // Sieben Spalten mit 2px Abstand dazwischen.
-    width: '14.05%',
-    minHeight: 86,
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  // Genau ein Siebtel, ohne Abstand aussen — sonst rutscht der Sonntag um.
+  cell: { width: '14.2857%', padding: 1.5 },
+  cellInner: {
+    minHeight: 84,
     paddingTop: 3,
     paddingHorizontal: 2,
     alignItems: 'center',

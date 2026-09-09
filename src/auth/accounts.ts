@@ -20,6 +20,26 @@ export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+export function normaliseUsername(input: string): string {
+  return input.trim().toLowerCase().replace(/^@/, '');
+}
+
+/** Aus der E-Mail abgeleitet und bei Bedarf durchnummeriert. */
+async function makeUsername(email: string): Promise<string> {
+  const base = (email.split('@')[0] ?? 'nutzer').replace(/[^a-z0-9._-]/g, '') || 'nutzer';
+  for (let suffix = 0; suffix < 100; suffix += 1) {
+    const candidate = suffix === 0 ? base : `${base}${suffix}`;
+    const taken = await db.accounts.findBy((row) => row.username === candidate);
+    if (!taken) return candidate;
+  }
+  return newId('user').toLowerCase();
+}
+
+export async function findByUsername(username: string): Promise<Account | undefined> {
+  const wanted = normaliseUsername(username);
+  return db.accounts.findBy((row) => row.username === wanted);
+}
+
 export type AuthError =
   'email_invalid' | 'email_taken' | 'password_too_short' | 'not_found' | 'wrong_password';
 
@@ -40,6 +60,7 @@ export async function signUp(emailInput: string, password: string): Promise<Auth
   const account: Account = {
     id: newId('acc'),
     email,
+    username: await makeUsername(email),
     passwordHash: await hash(password, salt),
     passwordSalt: salt,
     firstName: '',
@@ -78,6 +99,20 @@ export async function updateAccount(
   const updated = await db.accounts.update(id, patch);
   notifyDataChanged();
   return updated;
+}
+
+/**
+ * Konten aus der Zeit vor den Benutzernamen bekommen einen. Laeuft einmal
+ * beim Start und ist danach ein Nulldurchlauf.
+ */
+export async function backfillUsernames(): Promise<void> {
+  const missing = await db.accounts.list({
+    where: (row) => !row.username || row.username.length === 0,
+  });
+  for (const account of missing) {
+    await db.accounts.update(account.id, { username: await makeUsername(account.email) });
+  }
+  if (missing.length > 0) notifyDataChanged();
 }
 
 export async function accountCount(): Promise<number> {

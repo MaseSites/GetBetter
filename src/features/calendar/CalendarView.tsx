@@ -2,14 +2,20 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { households as householdRepo, useLiveQuery, type EventRow } from '@/db';
+import {
+  calendars as calendarRepo,
+  households as householdRepo,
+  useLiveQuery,
+  type CalendarScope,
+  type EventRow,
+} from '@/db';
 import { events as eventRepo, type CalendarFilter } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Chip, Header, Icon, Screen, Segmented, Text } from '@/ui';
+import { Button, Card, Chip, Header, Icon, Screen, Segmented, Text } from '@/ui';
 
 import { eventColor } from './colors';
 import {
@@ -22,11 +28,25 @@ import {
   startOfWeek,
   weekDays,
 } from './dates';
+import { CalendarManager } from './CalendarManager';
 import { EventEditor, type EventDraft } from './EventEditor';
+import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
 import { TimeGrid } from './TimeGrid';
 
 type CalendarMode = 'day' | 'week' | 'month';
+
+/** In welchen Kalender ein neuer Termin gehoert, je nach gewaehlter Quelle. */
+function draftScope(source: CalendarFilter): {
+  calendar: CalendarScope;
+  calendarId?: string;
+} {
+  if (source === 'family') return { calendar: 'family' };
+  if (source.startsWith('cal:')) {
+    return { calendar: 'custom', calendarId: source.slice('cal:'.length) };
+  }
+  return { calendar: 'personal' };
+}
 
 export function CalendarView({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
@@ -37,8 +57,10 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const householdId = household?.id ?? null;
   const favouriteAction = useFavouriteAction(module.id);
 
+  const { access, calendars: myCalendars } = useCalendarAccess();
   const [source, setSource] = useState<CalendarFilter>('all');
   const [mode, setMode] = useState<CalendarMode>('month');
+  const [managing, setManaging] = useState(false);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(null);
 
@@ -60,10 +82,13 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const toIso = to.toISOString();
 
   const list = useLiveQuery(
-    () => eventRepo.listBetween(account.id, householdId, fromIso, toIso, source),
-    [account.id, householdId, fromIso, toIso, source],
+    () => eventRepo.listBetween(access, fromIso, toIso, source),
+    [access.accountId, access.householdId, access.calendarIds, fromIso, toIso, source],
   );
   const events = list.data ?? [];
+
+  const inviteList = useLiveQuery(() => calendarRepo.invitesFor(account.id), [account.id]);
+  const invites = inviteList.data ?? [];
 
   const memberList = useLiveQuery(
     () => (householdId ? householdRepo.members(householdId) : Promise.resolve([])),
@@ -140,58 +165,101 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             <StepButton label={t('calendar.next')} icon="forward" onPress={() => step(1)} />
           </View>
 
-          {household ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{
-                gap: theme.spacing.sm,
-                paddingTop: theme.spacing.sm,
-                paddingRight: theme.spacing.lg,
-              }}
-            >
-              <Chip
-                label={t('calendar.source.all')}
-                selected={source === 'all'}
-                onPress={() => setSource('all')}
-              />
-              <Chip
-                label={t('calendar.scope.personal')}
-                selected={source === 'personal'}
-                onPress={() => setSource('personal')}
-              />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              gap: theme.spacing.sm,
+              paddingTop: theme.spacing.sm,
+              paddingRight: theme.spacing.lg,
+            }}
+          >
+            <Chip
+              label={t('calendar.source.all')}
+              selected={source === 'all'}
+              onPress={() => setSource('all')}
+            />
+            <Chip
+              label={t('calendar.scope.personal')}
+              selected={source === 'personal'}
+              onPress={() => setSource('personal')}
+            />
+            {household ? (
               <Chip
                 label={t('calendar.scope.family')}
                 selected={source === 'family'}
                 onPress={() => setSource('family')}
               />
-              {members
-                .filter((member) => member.membership.accountId !== account.id)
-                .map((member) => {
-                  const value: CalendarFilter = `member:${member.membership.accountId}`;
-                  return (
-                    <Chip
-                      key={member.membership.id}
-                      label={member.displayName}
-                      selected={source === value}
-                      onPress={() => setSource(value)}
-                    />
-                  );
-                })}
-            </ScrollView>
-          ) : null}
+            ) : null}
+            {myCalendars.map((entry) => {
+              const value: CalendarFilter = `cal:${entry.calendar.id}`;
+              return (
+                <Chip
+                  key={entry.calendar.id}
+                  label={entry.calendar.name}
+                  selected={source === value}
+                  onPress={() => setSource(value)}
+                />
+              );
+            })}
+            {household
+              ? members
+                  .filter((member) => member.membership.accountId !== account.id)
+                  .map((member) => {
+                    const value: CalendarFilter = `member:${member.membership.accountId}`;
+                    return (
+                      <Chip
+                        key={member.membership.id}
+                        label={member.displayName}
+                        selected={source === value}
+                        onPress={() => setSource(value)}
+                      />
+                    );
+                  })
+              : null}
+            <Chip label={t('calendars.manage')} onPress={() => setManaging(true)} />
+          </ScrollView>
         </Header>
       }
       footer={
         <Button
           label={t('calendar.add')}
           icon="plus"
-          onPress={() =>
-            setDraft({ day: anchor, calendar: source === 'family' ? 'family' : 'personal' })
-          }
+          onPress={() => setDraft({ day: anchor, ...draftScope(source) })}
         />
       }
     >
+      {invites.length > 0 ? (
+        <View style={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}>
+          {invites.map((invite) => (
+            <Card
+              key={invite.membership.id}
+              title={t('calendars.invites.title', {
+                name: invite.calendar?.name ?? t('calendars.invites.unknown'),
+              })}
+              subtitle={t('calendars.invites.body', { name: invite.invitedByName })}
+            >
+              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                <Button
+                  label={t('calendars.invites.accept')}
+                  size="sm"
+                  icon="check"
+                  fullWidth={false}
+                  onPress={() => calendarRepo.respond(invite.membership.id, true)}
+                />
+                <Button
+                  label={t('calendars.invites.decline')}
+                  size="sm"
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={() => calendarRepo.respond(invite.membership.id, false)}
+                />
+              </View>
+            </Card>
+          ))}
+        </View>
+      ) : null}
+
       {mode === 'month' ? (
         <MonthView
           month={anchor}
@@ -215,15 +283,19 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             days={days}
             events={events}
             compact={mode === 'week'}
-            onPressSlot={(day, hour) =>
-              setDraft({ day, hour, calendar: source === 'family' ? 'family' : 'personal' })
-            }
+            onPressSlot={(day, hour) => setDraft({ day, hour, ...draftScope(source) })}
             onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
           />
         </View>
       )}
 
       <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
+
+      <CalendarManager
+        visible={managing}
+        onClose={() => setManaging(false)}
+        calendars={myCalendars}
+      />
     </Screen>
   );
 }

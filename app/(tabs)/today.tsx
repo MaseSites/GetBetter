@@ -10,6 +10,7 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { formatLongDate, formatTime, useI18n } from '@/i18n';
+import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Badge, Card, Divider, EmptyState, Header, ListItem, Loading, Screen, Text } from '@/ui';
@@ -21,13 +22,14 @@ export default function TodayScreen() {
   const account = useAccount();
   const { household } = useApp();
   const householdId = household?.id ?? null;
+  const { access } = useCalendarAccess();
 
   const todayIso = new Date().toISOString();
 
   // Alles hier kommt aus der Datenbank — keine Beispielzahlen mehr.
   const upcoming = useLiveQuery(
-    () => eventRepo.listUpcoming(account.id, householdId, todayIso, 5),
-    [account.id, householdId],
+    () => eventRepo.listUpcoming(access, todayIso, 5),
+    [access.accountId, access.householdId, access.calendarIds],
   );
   const openTasks = useLiveQuery(
     () => taskRepo.listOpen(account.id, householdId),

@@ -85,7 +85,7 @@ export function HouseholdView() {
           <Header
             title={t('household.title')}
             showBack
-            onBack={() => (router.canGoBack() ? router.back() : router.replace('/profile'))}
+            onBack={() => (router.canGoBack() ? router.back() : router.replace('/household'))}
           />
         }
       >
@@ -144,7 +144,7 @@ export function HouseholdView() {
           title={household.name}
           subtitle={t('household.memberCount', { count: members.length })}
           showBack
-          onBack={() => (router.canGoBack() ? router.back() : router.replace('/profile'))}
+          onBack={() => (router.canGoBack() ? router.back() : router.replace('/household'))}
           {...(isAdmin
             ? {
                 actions: [

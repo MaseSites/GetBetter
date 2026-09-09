@@ -27,37 +27,48 @@ function changed<T>(value: T): T {
  * Welchen Ausschnitt des Kalenders jemand gerade sieht.
  * `member:<id>` zeigt den persoenlichen Kalender eines Haushaltsmitglieds.
  */
-export type CalendarFilter = 'personal' | 'family' | 'all' | `member:${string}`;
+export type CalendarFilter = 'personal' | 'family' | 'all' | `cal:${string}` | `member:${string}`;
+
+/** Wer fragt, in welchem Haushalt, und welche eigenen Kalender er hat. */
+export type CalendarAccess = {
+  accountId: string;
+  householdId: string | null;
+  /** Ids der angenommenen eigenen Kalender. */
+  calendarIds: readonly string[];
+};
 
 /** Aeltere Zeilen kennen die neuen Felder noch nicht. */
 function calendarOf(row: EventRow): CalendarScope {
   return row.calendar === 'family' ? 'family' : 'personal';
 }
 
-function isVisible(
-  row: EventRow,
-  viewerId: string,
-  householdId: string | null,
-  filter: CalendarFilter,
-): boolean {
+function isVisible(row: EventRow, access: CalendarAccess, filter: CalendarFilter): boolean {
   const scope = calendarOf(row);
-  const mine = row.accountId === viewerId;
-  const sameHousehold = householdId !== null && row.householdId === householdId;
+  const mine = row.accountId === access.accountId;
+  const sameHousehold = access.householdId !== null && row.householdId === access.householdId;
+  const inMyCalendar = row.calendarId !== null && access.calendarIds.includes(row.calendarId);
 
   if (filter === 'personal') return mine && scope === 'personal';
   if (filter === 'family') return sameHousehold && scope === 'family';
+
+  if (filter.startsWith('cal:')) {
+    const calendarId = filter.slice('cal:'.length);
+    return row.calendarId === calendarId && access.calendarIds.includes(calendarId);
+  }
 
   if (filter.startsWith('member:')) {
     const memberId = filter.slice('member:'.length);
     if (row.accountId !== memberId || scope !== 'personal') return false;
     // Den eigenen Kalender sieht man ganz, fremde nur ohne die privaten Termine.
-    return memberId === viewerId || (sameHousehold && !row.isPrivate);
+    return memberId === access.accountId || (sameHousehold && !row.isPrivate);
   }
 
-  // 'all': alles Eigene, alle Familientermine, und was Mitglieder nicht privat halten.
-  if (mine) return true;
-  if (!sameHousehold) return false;
-  return scope === 'family' || !row.isPrivate;
+  // 'all' zeigt bewusst nur die eigenen Termine — quer ueber alle Kalender,
+  // aber ohne die Eintraege anderer. Fremdes findet man unter Familie
+  // beziehungsweise beim jeweiligen Kalender.
+  if (!mine) return false;
+  if (scope === 'custom') return inMyCalendar;
+  return true;
 }
 
 export const events = {
@@ -66,25 +77,21 @@ export const events = {
   },
 
   listBetween(
-    viewerId: string,
-    householdId: string | null,
+    access: CalendarAccess,
     fromIso: string,
     toIso: string,
     filter: CalendarFilter = 'all',
   ) {
     return db.events.list({
       where: (row) =>
-        row.startsAt >= fromIso &&
-        row.startsAt < toIso &&
-        isVisible(row, viewerId, householdId, filter),
+        row.startsAt >= fromIso && row.startsAt < toIso && isVisible(row, access, filter),
       sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
     });
   },
 
-  listUpcoming(viewerId: string, householdId: string | null, fromIso: string, limit?: number) {
+  listUpcoming(access: CalendarAccess, fromIso: string, limit?: number) {
     return db.events.list({
-      where: (row) =>
-        (row.endsAt ?? row.startsAt) >= fromIso && isVisible(row, viewerId, householdId, 'all'),
+      where: (row) => (row.endsAt ?? row.startsAt) >= fromIso && isVisible(row, access, 'all'),
       sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
       ...(limit !== undefined ? { limit } : {}),
     });
@@ -94,6 +101,7 @@ export const events = {
     accountId: string;
     householdId: string | null;
     calendar: CalendarScope;
+    calendarId?: string | null;
     isPrivate: boolean;
     title: string;
     startsAt: string;
@@ -108,6 +116,7 @@ export const events = {
       accountId: input.accountId,
       householdId: input.householdId,
       calendar: input.calendar,
+      calendarId: input.calendarId ?? null,
       isPrivate: input.calendar === 'personal' ? input.isPrivate : false,
       title: input.title.trim(),
       location: input.location?.trim() || null,

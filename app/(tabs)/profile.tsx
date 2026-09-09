@@ -9,6 +9,7 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { LANGUAGES, LANGUAGE_LABEL, formatShortDate, useI18n, type Language } from '@/i18n';
+import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Avatar, Badge, Button, Card, Chip, Divider, Header, ListItem, Screen, Text } from '@/ui';
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { household, role, setLanguage, signOut } = useApp();
   const householdId = household?.id ?? null;
+  const { access } = useCalendarAccess();
 
   const openTasks = useLiveQuery(
     () => taskRepo.countOpen(account.id, householdId),
@@ -31,8 +33,8 @@ export default function ProfileScreen() {
     [account.id, householdId],
   );
   const upcoming = useLiveQuery(
-    () => eventRepo.listUpcoming(account.id, householdId, new Date().toISOString()),
-    [account.id, householdId],
+    () => eventRepo.listUpcoming(access, new Date().toISOString()),
+    [access.accountId, access.householdId, access.calendarIds],
   );
 
   return (
@@ -70,7 +72,7 @@ export default function ProfileScreen() {
       <Card
         title={t('profile.household')}
         subtitle={household ? household.name : t('profile.household.none')}
-        onPress={() => router.push('/household')}
+        onPress={() => router.push('/manage-household')}
       >
         {household ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>

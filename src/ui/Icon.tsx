@@ -27,6 +27,7 @@ export const ICONS = {
   person: 'person-outline',
   people: 'people-outline',
   home: 'home-outline',
+  sun: 'sunny-outline',
   cart: 'cart-outline',
   wallet: 'wallet-outline',
   heart: 'heart-outline',

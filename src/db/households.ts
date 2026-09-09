@@ -33,7 +33,10 @@ export type HouseholdMember = {
   displayName: string;
 };
 
-export type JoinError = 'code_unknown' | 'already_member';
+/** Mehr als drei Haushalte werden unuebersichtlich. */
+export const MAX_HOUSEHOLDS = 3;
+
+export type JoinError = 'code_unknown' | 'already_member' | 'limit';
 export type JoinResult = { ok: true; household: HouseholdRow } | { ok: false; error: JoinError };
 
 export const households = {
@@ -41,10 +44,32 @@ export const households = {
     return db.households.find(id);
   },
 
-  async of(accountId: string): Promise<HouseholdRow | undefined> {
-    const membership = await db.householdMembers.findBy((row) => row.accountId === accountId);
-    if (!membership) return undefined;
-    return db.households.find(membership.householdId);
+  /** Alle Haushalte, in denen jemand ist — der aktive steht im Konto. */
+  async allOf(accountId: string): Promise<{ household: HouseholdRow; role: HouseholdRole }[]> {
+    const memberships = await db.householdMembers.list({
+      where: (row) => row.accountId === accountId,
+      sort: (a, b) => a.joinedAt.localeCompare(b.joinedAt),
+    });
+    const result: { household: HouseholdRow; role: HouseholdRole }[] = [];
+    for (const membership of memberships) {
+      const household = await db.households.find(membership.householdId);
+      if (household) result.push({ household, role: membership.role });
+    }
+    return result;
+  },
+
+  async countOf(accountId: string): Promise<number> {
+    return db.householdMembers.count((row) => row.accountId === accountId);
+  },
+
+  async canJoinMore(accountId: string): Promise<boolean> {
+    return (await households.countOf(accountId)) < MAX_HOUSEHOLDS;
+  },
+
+  /** Zwischen Haushalten wechseln. Alles Geteilte folgt dem aktiven. */
+  async setActive(accountId: string, householdId: string | null) {
+    await db.accounts.update(accountId, { householdId });
+    notifyDataChanged();
   },
 
   async membership(householdId: string, accountId: string) {
@@ -80,7 +105,9 @@ export const households = {
     return result;
   },
 
-  async create(accountId: string, name: string): Promise<HouseholdRow> {
+  async create(accountId: string, name: string): Promise<HouseholdRow | null> {
+    if (!(await households.canJoinMore(accountId))) return null;
+
     const household: HouseholdRow = {
       id: newId('hh'),
       name: name.trim() || 'Zuhause',
@@ -110,6 +137,7 @@ export const households = {
 
     const existing = await households.membership(household.id, accountId);
     if (existing) return { ok: false, error: 'already_member' };
+    if (!(await households.canJoinMore(accountId))) return { ok: false, error: 'limit' };
 
     await db.householdMembers.insert({
       id: newId('hm'),
@@ -160,7 +188,9 @@ export const households = {
     }
 
     await db.householdMembers.remove(membership.id);
-    await db.accounts.update(accountId, { householdId: null });
+    // Wer noch in einem anderen Haushalt ist, landet dort statt im Nichts.
+    const others = await households.allOf(accountId);
+    await db.accounts.update(accountId, { householdId: others[0]?.household.id ?? null });
 
     // Was nur diese Person betrifft, wandert zurueck in ihren Privatbereich.
     await db.events

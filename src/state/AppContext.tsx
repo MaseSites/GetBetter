@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import {
+  backfillUsernames,
   findAccount,
   signIn as signInAccount,
   signUp as signUpAccount,
@@ -59,7 +60,8 @@ export type AppContextValue = {
   toggleFavourite: (moduleId: string) => Promise<void>;
   isFavourite: (moduleId: string) => boolean;
 
-  createHousehold: (name: string) => Promise<void>;
+  createHousehold: (name: string) => Promise<boolean>;
+  switchHousehold: (householdId: string) => Promise<void>;
   joinHousehold: (code: string) => Promise<JoinResult>;
   leaveHousehold: () => Promise<void>;
   /** Nach Aenderungen im Haushalt: Konto und Haushalt neu laden. */
@@ -81,6 +83,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await ready();
+        await backfillUsernames();
         const id = await AsyncStorage.getItem(SESSION_KEY);
         if (id) {
           const found = await findAccount(id);
@@ -201,8 +204,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createHousehold = useCallback(
     async (name: string) => {
+      if (!account) return false;
+      const created = await householdRepo.create(account.id, name);
+      await refreshHousehold();
+      return created !== null;
+    },
+    [account, refreshHousehold],
+  );
+
+  const switchHousehold = useCallback(
+    async (householdId: string) => {
       if (!account) return;
-      await householdRepo.create(account.id, name);
+      await householdRepo.setActive(account.id, householdId);
       await refreshHousehold();
     },
     [account, refreshHousehold],
@@ -245,6 +258,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toggleFavourite,
       isFavourite,
       createHousehold,
+      switchHousehold,
       joinHousehold,
       leaveHousehold,
       refreshHousehold,
@@ -262,6 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       household,
       role,
       createHousehold,
+      switchHousehold,
       joinHousehold,
       leaveHousehold,
       refreshHousehold,

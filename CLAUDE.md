@@ -45,7 +45,8 @@ npm run lint
 app/                 Routen (Expo Router, dateibasiert)
   (auth)/            Start, Anmelden, Registrieren
   (onboarding)/      Willkommen, Bereiche, Haushalt
-  (tabs)/            Startseite, Module, Assistent, Profil
+  (tabs)/            Startseite, Apps, Assistent, Haushalt, Profil
+  manage-household.tsx  Der aktive Haushalt im Detail
   module/[id].tsx    Modul-Detailseite
   run/[id].tsx       Modul oeffnen (Kalender, Wecker und KI-Chat ausgebaut,
                      Rest Platzhalter)
@@ -81,6 +82,11 @@ Verwalter; wer beitritt, wird Mitglied. Verwalter koennen umbenennen und Rollen
 wechseln — der letzte Verwalter kann sich nicht selbst herabstufen, und beim
 Austritt erbt das aelteste Mitglied die Rolle.
 
+Ein Konto kann in bis zu **3** Haushalten sein (`MAX_HOUSEHOLDS`); der Tab
+"Haushalt" listet sie und schaltet zwischen ihnen um. Der im Konto vermerkte
+`householdId` ist der aktive — Einkaufsliste, Aemtli und Familienkalender
+folgen ihm.
+
 Was der Haushalt teilt:
 
 |               |                                                          |
@@ -108,10 +114,23 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
   und einer Linie fuer die aktuelle Uhrzeit
 - `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz
 
-Sichtbarkeit (`isVisible` in `repositories.ts`):
+### Eigene Kalender
 
+`src/db/calendars.ts` — jeder kann bis zu **5** eigene Kalender fuehren
+(`MAX_CALENDARS`). Geteilt wird ueber `calendarMembers`: Haushaltsmitglieder
+kommen direkt dazu, Externe werden per **Benutzername** eingeladen und muessen
+zustimmen. Offene Einladungen erscheinen als Karte oben im Kalender.
+
+Jedes Konto hat einen eindeutigen `username`, aus der E-Mail abgeleitet.
+`backfillUsernames()` traegt ihn bei aelteren Konten beim Start nach.
+
+### Sichtbarkeit (`isVisible` in `repositories.ts`)
+
+- **Alle** — bewusst nur die _eigenen_ Termine, quer ueber alle Kalender.
+  Fremde Eintraege findet man unter Familie oder beim jeweiligen Mitglied.
 - **Privat** — persoenliche Termine, nur der eigene Kalender
 - **Familie** — Termine im Familienkalender, alle Mitglieder sehen sie
+- **Eigener Kalender** — was in diesem Kalender steht, fuer alle, die dabei sind
 - **Mitglied** — der persoenliche Kalender eines Mitglieds, ohne dessen
   private Termine
 - Persoenliche Termine sind standardmaessig fuer den Haushalt sichtbar;

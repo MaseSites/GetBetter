@@ -39,7 +39,7 @@ export default function TabsLayout() {
   const { account } = useApp();
 
   // Ohne feste Hoehe schneidet die Leiste die Beschriftungen ab.
-  const barHeight = 64 + insets.bottom;
+  const barHeight = 72 + insets.bottom;
 
   // Beim Abmelden bleiben die Tabs kurz stehen; ohne Konto wuerden sie werfen.
   if (!account) return null;
@@ -59,14 +59,16 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontSize: theme.fontSize.xs,
+          lineHeight: 14,
           fontFamily: theme.fontFamily,
           marginTop: 2,
+          marginBottom: 0,
         },
-        tabBarIconStyle: { marginTop: 2 },
+        tabBarIconStyle: { marginTop: 0 },
         sceneStyle: { backgroundColor: theme.colors.background },
       }}
     >
-      <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('home') }} />
+      <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('sun') }} />
       <Tabs.Screen
         name="modules"
         options={{ title: t('tabs.modules'), tabBarIcon: tabIcon('grid') }}
@@ -74,6 +76,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="assistant"
         options={{ title: t('tabs.assistant'), tabBarIcon: tabIcon('sparkles') }}
+      />
+      <Tabs.Screen
+        name="household"
+        options={{ title: t('tabs.household'), tabBarIcon: tabIcon('home') }}
       />
       <Tabs.Screen
         name="profile"
@@ -85,8 +91,8 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   iconPill: {
-    width: 56,
-    height: 30,
+    width: 52,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -3,6 +3,8 @@ export type Row = { id: string };
 
 export type Account = Row & {
   email: string;
+  /** Eindeutig, klein geschrieben. Darueber laedt man Externe ein. */
+  username: string;
   passwordHash: string;
   passwordSalt: string;
   firstName: string;
@@ -34,13 +36,37 @@ export type HouseholdMemberRow = Row & {
 };
 
 /** In welchem Kalender ein Termin liegt. */
-export type CalendarScope = 'personal' | 'family';
+export type CalendarScope = 'personal' | 'family' | 'custom';
+
+/** Ein selbst angelegter Kalender, der geteilt werden kann. */
+export type CalendarRow = Row & {
+  ownerId: string;
+  name: string;
+  /** Schluessel aus EVENT_COLORS. */
+  color: string;
+  createdAt: string;
+};
+
+export type CalendarShareStatus = 'pending' | 'accepted';
+export type CalendarShareRole = 'owner' | 'member';
+
+export type CalendarMemberRow = Row & {
+  calendarId: string;
+  accountId: string;
+  role: CalendarShareRole;
+  status: CalendarShareStatus;
+  invitedBy: string;
+  createdAt: string;
+  respondedAt: string | null;
+};
 
 export type EventRow = Row & {
   accountId: string;
   /** Gesetzt, solange der Termin zu einem Haushalt gehoert. */
   householdId: string | null;
   calendar: CalendarScope;
+  /** Gesetzt, wenn der Termin in einem selbst angelegten Kalender liegt. */
+  calendarId: string | null;
   /** Nur fuer persoenliche Termine: dann sieht ihn niemand sonst. */
   isPrivate: boolean;
   title: string;
@@ -115,6 +141,8 @@ export type Schema = {
   accounts: Account;
   households: HouseholdRow;
   householdMembers: HouseholdMemberRow;
+  calendars: CalendarRow;
+  calendarMembers: CalendarMemberRow;
   events: EventRow;
   tasks: TaskRow;
   notes: NoteRow;
@@ -127,6 +155,8 @@ export const COLLECTION_NAMES = [
   'accounts',
   'households',
   'householdMembers',
+  'calendars',
+  'calendarMembers',
   'events',
   'tasks',
   'notes',
