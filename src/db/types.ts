@@ -81,6 +81,11 @@ export type CalendarShareRow = Row & {
 
 export type EventRow = Row & {
   accountId: string;
+  /**
+   * Derselbe Termin in mehreren Kalendern liegt als mehrere Zeilen mit
+   * gleicher `groupId`. Aeltere Zeilen haben keine — dann gilt die eigene Id.
+   */
+  groupId?: string;
   /** Gesetzt, solange der Termin zu einem Haushalt gehoert. */
   householdId: string | null;
   calendar: CalendarScope;

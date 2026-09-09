@@ -127,9 +127,10 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
 - `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
   und einer Linie fuer die aktuelle Uhrzeit
 - `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
-  Der Zielkalender wird hier gewaehlt: Privat, einer der Haushalte (unter
-  seinem Namen) oder ein eigener. Ein Familientermin landet genau im
-  gewaehlten Haushalt, nicht im gerade aktiven.
+  Die Zielkalender werden hier angehakt, **mehrere sind erlaubt**: Privat,
+  die Haushalte (unter ihrem Namen) und die eigenen Kalender. Ein
+  Familientermin landet genau im gewaehlten Haushalt, nicht im aktiven.
+  Der Knopf zum Anlegen ist der kleine `FloatingButton` unten rechts.
 - `CalendarPicker` — das aufklappbare Menue in der Kopfzeile. Oben die Ansicht
   (Tag/Woche/Monat), darunter je ein Haekchen pro eigenem Kalender mit
   "Alle anzeigen", ganz unten unter **Kalender anzeigen** die Personen.
@@ -178,6 +179,19 @@ Jede angehakte Quelle wird einzeln geprueft, gezeigt wird die Vereinigung.
   der Schalter "Privat" nimmt sie heraus.
 - Die Startseite (`listUpcoming`) zeigt nur Eigenes, quer ueber die eigenen
   Kalender — nie Eintraege anderer Mitglieder.
+
+### Ein Termin in mehreren Kalendern
+
+Liegt ein Termin in mehreren Kalendern, steht er als **mehrere Zeilen** in
+`events`, die sich eine `groupId` teilen (`groupOf(row)` — alte Zeilen ohne
+`groupId` stehen fuer sich). So bleibt die Sichtbarkeit je Kopie richtig: die
+Haushaltskopie sehen die Mitglieder, die private nicht.
+
+`listBetween` und `listUpcoming` entdoppeln nach `groupId` — wer zwei Kalender
+anzeigt, in denen derselbe Termin liegt, sieht ihn trotzdem einmal.
+`events.save(groupId, …)` legt fehlende Kopien an, aktualisiert die
+bleibenden und loescht die abgewaehlten; `events.remove(groupId)` raeumt alle
+Kopien weg.
 
 `dates.ts` haelt die Datumsrechnung ohne Fremdbibliothek; die Woche beginnt
 am Montag. `colors.ts` hat die sieben Terminfarben — Termine ohne Farbe

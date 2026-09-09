@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import type { CalendarScope, EventRow } from '@/db';
-import { events as eventRepo } from '@/db/repositories';
+import { useLiveQuery, type EventRow } from '@/db';
+import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Chip, Icon, Input, Sheet, Text } from '@/ui';
+import { Button, Chip, Icon, Input, Loading, Sheet, Text } from '@/ui';
 
 import {
   EVENT_COLORS,
@@ -34,14 +34,26 @@ export type EventDraft = {
   hour?: number;
 };
 
-/** Wohin der Termin gehoert: privat, in einen Haushalt oder in einen eigenen Kalender. */
-type EventTarget = 'personal' | `house:${string}` | `cal:${string}`;
+/**
+ * Wohin der Termin gehoert. Man kann mehrere anhaken — dann liegt derselbe
+ * Termin in mehreren Kalendern und wird trotzdem nur einmal angezeigt.
+ */
+type TargetKey = 'personal' | `house:${string}` | `cal:${string}`;
 
-function targetOf(event: EventRow | undefined): EventTarget {
-  if (!event) return 'personal';
-  if (event.calendarId) return `cal:${event.calendarId}`;
-  if (event.calendar === 'family' && event.householdId) return `house:${event.householdId}`;
+function keyOf(target: EventTarget): TargetKey {
+  if (target.calendar === 'custom' && target.calendarId) return `cal:${target.calendarId}`;
+  if (target.calendar === 'family' && target.householdId) return `house:${target.householdId}`;
   return 'personal';
+}
+
+function targetFor(key: TargetKey): EventTarget {
+  if (key.startsWith('cal:')) {
+    return { calendar: 'custom', calendarId: key.slice('cal:'.length), householdId: null };
+  }
+  if (key.startsWith('house:')) {
+    return { calendar: 'family', calendarId: null, householdId: key.slice('house:'.length) };
+  }
+  return { calendar: 'personal', calendarId: null, householdId: null };
 }
 
 export type EventEditorProps = {
@@ -52,17 +64,24 @@ export type EventEditorProps = {
 
 const DURATIONS = [30, 60, 90, 120] as const;
 
-function scopeOf(target: EventTarget): CalendarScope {
-  if (target === 'personal') return 'personal';
-  return target.startsWith('house:') ? 'family' : 'custom';
-}
-
 export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
   const t = useTranslate();
   const editing = draft?.event;
+  const groupId = editing ? groupOf(editing) : null;
+
+  // Beim Bearbeiten kommen die Geschwister dazu: derselbe Termin kann in
+  // mehreren Kalendern liegen, und alle sollen vorgewaehlt sein.
+  const siblings = useLiveQuery(
+    () => (groupId ? eventRepo.group(groupId) : Promise.resolve([])),
+    [groupId],
+  );
+  // `useLiveQuery` haelt beim Wechsel kurz die alten Daten — deshalb pruefen wir
+  // nicht auf "geladen", sondern darauf, dass die Zeilen zu diesem Termin gehoeren.
+  const rows = siblings.data ?? [];
+  const ready = groupId === null || rows.some((row) => groupOf(row) === groupId);
+
   // Ein neuer Entwurf baut das Formular neu auf — kein Abgleich per Effekt.
-  const draftKey =
-    editing?.id ?? (draft ? `${draft.day.toISOString()}:${draft.hour ?? ''}` : 'none');
+  const draftKey = groupId ?? (draft ? `${draft.day.toISOString()}:${draft.hour ?? ''}` : 'none');
 
   return (
     <Sheet
@@ -71,16 +90,29 @@ export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
       title={editing ? t('calendar.edit') : t('calendar.add')}
       fullScreen
     >
-      {draft ? (
-        <EventForm key={draftKey} draft={draft} accountId={accountId} onClose={onClose} />
+      {draft && ready ? (
+        <EventForm
+          key={draftKey}
+          draft={draft}
+          accountId={accountId}
+          rows={rows}
+          onClose={onClose}
+        />
       ) : null}
+      {draft && !ready ? <Loading /> : null}
     </Sheet>
   );
 }
 
-type EventFormProps = { draft: EventDraft; accountId: string; onClose: () => void };
+type EventFormProps = {
+  draft: EventDraft;
+  accountId: string;
+  /** Alle Kopien des bearbeiteten Termins; beim Anlegen leer. */
+  rows: readonly EventRow[];
+  onClose: () => void;
+};
 
-function EventForm({ draft, accountId, onClose }: EventFormProps) {
+function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
   const t = useTranslate();
   const theme = useTheme();
 
@@ -103,11 +135,15 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const [location, setLocation] = useState(editing?.location ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [color, setColor] = useState<EventColorKey>(eventColorKey(editing?.color));
-  const [target, setTarget] = useState<EventTarget>(targetOf(editing));
+  const [targets, setTargets] = useState<readonly TargetKey[]>(() => {
+    const keys = rows.map((row) => keyOf(targetOf(row)));
+    return keys.length > 0 ? keys : ['personal'];
+  });
   const [isPrivate, setIsPrivate] = useState(editing?.isPrivate ?? false);
-  const [error, setError] = useState<{ field: 'title' | 'date' | 'time'; message: string } | null>(
-    null,
-  );
+  const [error, setError] = useState<{
+    field: 'title' | 'date' | 'time' | 'calendar';
+    message: string;
+  } | null>(null);
 
   function applyDuration(minutes: number) {
     const start = parseTime(startText);
@@ -126,6 +162,10 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
     const day = parseDateValue(dateText);
     if (!day) {
       setError({ field: 'date', message: t('calendar.error.date') });
+      return;
+    }
+    if (targets.length === 0) {
+      setError({ field: 'calendar', message: t('calendar.error.calendar') });
       return;
     }
 
@@ -150,52 +190,35 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
       endsAt = endDate.toISOString();
     }
 
-    const scope = scopeOf(target);
-    const calendarId = target.startsWith('cal:') ? target.slice('cal:'.length) : null;
-    // Ein Familientermin gehoert genau dem gewaehlten Haushalt.
-    const householdId = target.startsWith('house:') ? target.slice('house:'.length) : null;
+    const fields = {
+      isPrivate,
+      title,
+      startsAt,
+      endsAt,
+      location,
+      notes,
+      allDay,
+      color,
+    };
+    const chosen = targets.map(targetFor);
 
     if (editing) {
-      await eventRepo.update(editing.id, {
-        title: title.trim(),
-        startsAt,
-        endsAt,
-        location: location.trim() || null,
-        notes: notes.trim() || null,
-        allDay,
-        color,
-        calendar: scope,
-        calendarId,
-        isPrivate: scope === 'personal' ? isPrivate : false,
-        householdId,
-      });
+      await eventRepo.save(groupOf(editing), accountId, fields, chosen);
     } else {
-      await eventRepo.create({
-        accountId,
-        householdId,
-        calendar: scope,
-        calendarId,
-        isPrivate,
-        title,
-        startsAt,
-        endsAt,
-        location,
-        notes,
-        allDay,
-        color,
-      });
+      await eventRepo.create({ accountId, ...fields }, chosen);
     }
     onClose();
   }
 
   async function remove() {
     if (!editing) return;
-    await eventRepo.remove(editing.id);
+    // Loescht den Termin in allen Kalendern, in denen er liegt.
+    await eventRepo.remove(groupOf(editing));
     onClose();
   }
 
   // Privat, jeder Haushalt unter seinem Namen und jeder eigene Kalender.
-  const targets: { value: EventTarget; label: string }[] = [
+  const choices: { value: TargetKey; label: string }[] = [
     { value: 'personal', label: t('calendar.scope.personal') },
     ...households.map((entry) => ({
       value: `house:${entry.household.id}` as const,
@@ -206,6 +229,13 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
       label: entry.calendar.name,
     })),
   ];
+
+  function toggleTarget(value: TargetKey) {
+    setTargets((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+    );
+    setError(null);
+  }
 
   function shiftDay(delta: number) {
     const day = parseDateValue(dateText);
@@ -320,22 +350,25 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         </View>
       )}
 
-      {targets.length > 1 ? (
+      {choices.length > 1 ? (
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="label" tone="muted">
             {t('calendar.field.calendar')}
           </Text>
           <View style={[styles.row, { gap: theme.spacing.sm, flexWrap: 'wrap' }]}>
-            {targets.map((entry) => (
+            {choices.map((entry) => (
               <Chip
                 key={entry.value}
                 label={entry.label}
-                selected={target === entry.value}
-                onPress={() => setTarget(entry.value)}
+                selected={targets.includes(entry.value)}
+                onPress={() => toggleTarget(entry.value)}
               />
             ))}
           </View>
-          {target === 'personal' && households.length > 0 ? (
+          <Text variant="caption" tone={error?.field === 'calendar' ? 'danger' : 'faint'}>
+            {error?.field === 'calendar' ? error.message : t('calendar.field.calendarHint')}
+          </Text>
+          {targets.includes('personal') && households.length > 0 ? (
             <View style={[styles.row, { gap: theme.spacing.md }]}>
               <View style={{ flex: 1 }}>
                 <Text variant="label" tone="muted">

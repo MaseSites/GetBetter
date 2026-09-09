@@ -45,6 +45,18 @@ export type CalendarAccess = {
   canSee: readonly string[];
 };
 
+/** Kopien desselben Termins gehoeren zusammen; alte Zeilen stehen fuer sich. */
+export function groupOf(row: EventRow): string {
+  return row.groupId ?? row.id;
+}
+
+/** Wohin eine Kopie gehoert. Ein Termin kann in mehreren Kalendern liegen. */
+export type EventTarget = {
+  calendar: CalendarScope;
+  calendarId: string | null;
+  householdId: string | null;
+};
+
 /** Aeltere Zeilen kennen die neuen Felder noch nicht — die gelten als persoenlich. */
 function calendarOf(row: EventRow): CalendarScope {
   if (row.calendar === 'family') return 'family';
@@ -87,6 +99,17 @@ function isVisible(
   return sources.some((source) => matchesSource(row, access, source));
 }
 
+/** Liegt ein Termin in mehreren angezeigten Kalendern, steht er trotzdem einmal da. */
+function dedupe(rows: readonly EventRow[]): EventRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const group = groupOf(row);
+    if (seen.has(group)) return false;
+    seen.add(group);
+    return true;
+  });
+}
+
 export const events = {
   find(id: string) {
     return db.events.find(id);
@@ -98,11 +121,13 @@ export const events = {
     toIso: string,
     sources: readonly CalendarSource[],
   ) {
-    return db.events.list({
-      where: (row) =>
-        row.startsAt >= fromIso && row.startsAt < toIso && isVisible(row, access, sources),
-      sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
-    });
+    return db.events
+      .list({
+        where: (row) =>
+          row.startsAt >= fromIso && row.startsAt < toIso && isVisible(row, access, sources),
+        sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
+      })
+      .then(dedupe);
   },
 
   /** Fuer die Startseite: alles Eigene, quer ueber die eigenen Kalender. */
@@ -112,58 +137,124 @@ export const events = {
       ...access.householdIds.map((id) => `house:${id}` as const),
       ...access.calendarIds.map((id) => `cal:${id}` as const),
     ];
-    return db.events.list({
-      where: (row) =>
-        (row.endsAt ?? row.startsAt) >= fromIso &&
-        row.accountId === access.accountId &&
-        isVisible(row, access, own),
-      sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
-      ...(limit !== undefined ? { limit } : {}),
-    });
+    return db.events
+      .list({
+        where: (row) =>
+          (row.endsAt ?? row.startsAt) >= fromIso &&
+          row.accountId === access.accountId &&
+          isVisible(row, access, own),
+        sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
+      })
+      .then((rows) => {
+        const unique = dedupe(rows);
+        return limit === undefined ? unique : unique.slice(0, limit);
+      });
   },
 
-  async create(input: {
-    accountId: string;
-    householdId: string | null;
-    calendar: CalendarScope;
-    calendarId?: string | null;
-    isPrivate: boolean;
-    title: string;
-    startsAt: string;
-    endsAt?: string | null;
-    location?: string | null;
-    notes?: string | null;
-    allDay?: boolean;
-    color?: string | null;
-  }): Promise<EventRow> {
-    const row: EventRow = {
-      id: newId('ev'),
-      accountId: input.accountId,
-      householdId: input.householdId,
-      calendar: input.calendar,
-      calendarId: input.calendarId ?? null,
-      isPrivate: input.calendar === 'personal' ? input.isPrivate : false,
-      title: input.title.trim(),
-      location: input.location?.trim() || null,
-      notes: input.notes?.trim() || null,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt ?? null,
-      allDay: input.allDay ?? false,
-      color: input.color ?? null,
-      createdAt: now(),
-    };
-    return changed(await db.events.insert(row));
+  /** Alle Kopien eines Termins, damit der Editor die Kalender vorwaehlen kann. */
+  group(groupId: string) {
+    return db.events.list({ where: (row) => groupOf(row) === groupId });
   },
 
-  async update(id: string, patch: Partial<Omit<EventRow, 'id' | 'accountId'>>) {
-    return changed(await db.events.update(id, patch));
+  async create(
+    input: EventFields & { accountId: string },
+    targets: readonly EventTarget[],
+  ): Promise<void> {
+    const groupId = newId('evg');
+    for (const target of targets) {
+      await db.events.insert({
+        id: newId('ev'),
+        groupId,
+        accountId: input.accountId,
+        ...fieldsFor(input, target),
+        createdAt: now(),
+      });
+    }
+    changed(null);
   },
 
-  async remove(id: string) {
-    await db.events.remove(id);
+  /**
+   * Speichert einen bestehenden Termin samt seiner Kopien: was wegfaellt wird
+   * geloescht, was bleibt aktualisiert, was dazukommt angelegt.
+   */
+  async save(
+    groupId: string,
+    accountId: string,
+    input: EventFields,
+    targets: readonly EventTarget[],
+  ) {
+    const rows = await db.events.list({ where: (row) => groupOf(row) === groupId });
+    const keep = new Set<string>();
+
+    for (const target of targets) {
+      const key = targetKey(target);
+      keep.add(key);
+      const existing = rows.find((row) => targetKey(targetOf(row)) === key);
+      if (existing) {
+        await db.events.update(existing.id, { groupId, ...fieldsFor(input, target) });
+      } else {
+        await db.events.insert({
+          id: newId('ev'),
+          groupId,
+          accountId,
+          ...fieldsFor(input, target),
+          createdAt: now(),
+        });
+      }
+    }
+
+    for (const row of rows) {
+      if (!keep.has(targetKey(targetOf(row)))) await db.events.remove(row.id);
+    }
+    changed(null);
+  },
+
+  /** Loescht den Termin in allen Kalendern, in denen er liegt. */
+  async remove(groupId: string) {
+    await db.events.removeWhere((row) => groupOf(row) === groupId);
     changed(null);
   },
 };
+
+/** Die Felder, die alle Kopien eines Termins gemeinsam haben. */
+export type EventFields = {
+  isPrivate: boolean;
+  title: string;
+  startsAt: string;
+  endsAt?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  allDay?: boolean;
+  color?: string | null;
+};
+
+export function targetOf(row: EventRow): EventTarget {
+  return {
+    calendar: calendarOf(row),
+    calendarId: row.calendarId ?? null,
+    householdId: row.householdId ?? null,
+  };
+}
+
+function targetKey(target: EventTarget): string {
+  return `${target.calendar}:${target.calendarId ?? ''}:${target.householdId ?? ''}`;
+}
+
+function fieldsFor(input: EventFields, target: EventTarget) {
+  return {
+    householdId: target.householdId,
+    calendar: target.calendar,
+    calendarId: target.calendarId,
+    isPrivate: target.calendar === 'personal' ? input.isPrivate : false,
+    title: input.title.trim(),
+    location: input.location?.trim() || null,
+    notes: input.notes?.trim() || null,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt ?? null,
+    allDay: input.allDay ?? false,
+    color: input.color ?? null,
+  };
+}
 
 // --------------------------------------------------------------- Aufgaben
 

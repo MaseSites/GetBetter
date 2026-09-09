@@ -8,7 +8,7 @@ import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, Header, Icon, Screen, Text } from '@/ui';
+import { Button, Card, FloatingButton, Header, Icon, Screen, Text } from '@/ui';
 
 import { eventColor, EVENT_COLORS, type EventColorKey } from './colors';
 import {
@@ -250,9 +250,6 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
           </View>
         </Header>
       }
-      footer={
-        <Button label={t('calendar.add')} icon="plus" onPress={() => setDraft({ day: anchor })} />
-      }
     >
       {invites.length > 0 ? (
         <View style={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}>
@@ -342,6 +339,8 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
           />
         </View>
       )}
+
+      <FloatingButton label={t('calendar.add')} onPress={() => setDraft({ day: anchor })} />
 
       <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
 
