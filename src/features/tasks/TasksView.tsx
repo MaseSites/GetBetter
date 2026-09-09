@@ -7,7 +7,7 @@ import { tasks as taskRepo } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { formatShortDate, useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useAccount } from '@/state/AppContext';
+import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Badge, Card, Divider, EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
 
@@ -16,19 +16,27 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const { household } = useApp();
+  const householdId = household?.id ?? null;
   const favouriteAction = useFavouriteAction(module.id);
 
   const [draft, setDraft] = useState('');
   const [showDone, setShowDone] = useState(false);
 
-  const open = useLiveQuery(() => taskRepo.listOpen(account.id), [account.id]);
-  const done = useLiveQuery(() => taskRepo.listDone(account.id), [account.id]);
+  const open = useLiveQuery(
+    () => taskRepo.listOpen(account.id, householdId),
+    [account.id, householdId],
+  );
+  const done = useLiveQuery(
+    () => taskRepo.listDone(account.id, householdId),
+    [account.id, householdId],
+  );
 
   async function add() {
     const title = draft.trim();
     if (title.length === 0) return;
     setDraft('');
-    await taskRepo.create({ accountId: account.id, title });
+    await taskRepo.create({ accountId: account.id, householdId, title });
   }
 
   const openTasks = open.data ?? [];

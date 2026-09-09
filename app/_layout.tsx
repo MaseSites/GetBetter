@@ -69,6 +69,7 @@ function Shell() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="module/[id]" />
         <Stack.Screen name="run/[id]" />
+        <Stack.Screen name="household" />
         <Stack.Screen name="ui-kit" />
       </Stack>
     </>

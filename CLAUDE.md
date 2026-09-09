@@ -73,6 +73,31 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 | Installierbar | Nein, eingebaut                                                         | Entfaellt — alle Module sind da (im Abo enthalten)    |
 | Daten         | Liest und schreibt deine Module, fragt vor dem Eintragen                | Sieht deine Daten nicht                               |
 
+## Haushalte
+
+`src/db/households.ts` — Haushalt, Mitgliedschaften, Rollen. Ein Haushalt hat
+einen sechsstelligen Einladungscode (ohne I, O, 0, 1). Wer anlegt, wird
+Verwalter; wer beitritt, wird Mitglied. Verwalter koennen umbenennen und Rollen
+wechseln — der letzte Verwalter kann sich nicht selbst herabstufen, und beim
+Austritt erbt das aelteste Mitglied die Rolle.
+
+Was der Haushalt teilt:
+
+|               |                                                          |
+| ------------- | -------------------------------------------------------- |
+| Einkaufsliste | Alle sehen und aendern dieselbe Liste                    |
+| Kalender      | Familientermine, plus was Mitglieder nicht privat halten |
+| Aemtli        | Mit Zuteilung an ein Mitglied                            |
+| Aufgaben      | Nur die, die als geteilt markiert sind                   |
+
+Beim Eintritt wandert mit, was ohnehin geteilt gedacht war (Einkaufsliste,
+geteilte Aufgaben). Beim Austritt bleibt Geteiltes beim Haushalt, Privates
+geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
+
+> **Kein Server.** Zwei Konten auf demselben Geraet teilen sich einen Haushalt
+> wirklich. Ueber Geraete hinweg braucht es den Server — die Sichtbarkeitslogik
+> in `repositories.ts` ist aber schon die richtige.
+
 ## Kalender
 
 `src/features/calendar/` — drei Ansichten ueber denselben Datenbestand:
@@ -80,7 +105,16 @@ Sie werden leicht verwechselt, sind aber verschiedene Dinge:
 - `MonthView` — Raster mit farbigen Punkten, darunter die Agenda des gewaehlten Tages
 - `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
   und einer Linie fuer die aktuelle Uhrzeit
-- `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Farbe, Ort, Notiz
+- `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz
+
+Sichtbarkeit (`isVisible` in `repositories.ts`):
+
+- **Privat** — persoenliche Termine, nur der eigene Kalender
+- **Familie** — Termine im Familienkalender, alle Mitglieder sehen sie
+- **Mitglied** — der persoenliche Kalender eines Mitglieds, ohne dessen
+  private Termine
+- Persoenliche Termine sind standardmaessig fuer den Haushalt sichtbar;
+  der Schalter "Privat" nimmt sie heraus.
 
 `dates.ts` haelt die Datumsrechnung ohne Fremdbibliothek; die Woche beginnt
 am Montag. `colors.ts` hat die sieben Terminfarben — Termine ohne Farbe

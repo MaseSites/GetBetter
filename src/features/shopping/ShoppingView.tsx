@@ -7,7 +7,7 @@ import { shopping as shoppingRepo } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useTranslate } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useAccount } from '@/state/AppContext';
+import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
   Button,
@@ -27,10 +27,15 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const { household } = useApp();
+  const householdId = household?.id ?? null;
   const favouriteAction = useFavouriteAction(module.id);
 
   const [draft, setDraft] = useState('');
-  const list = useLiveQuery(() => shoppingRepo.list(account.id), [account.id]);
+  const list = useLiveQuery(
+    () => shoppingRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
   const items = list.data ?? [];
   const openCount = items.filter((item) => !item.done).length;
   const doneCount = items.length - openCount;
@@ -39,7 +44,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
     const name = draft.trim();
     if (name.length === 0) return;
     setDraft('');
-    await shoppingRepo.add({ accountId: account.id, name });
+    await shoppingRepo.add({ accountId: account.id, householdId, name });
   }
 
   return (
@@ -155,7 +160,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
           label={t('shopping.clearDone', { count: doneCount })}
           variant="secondary"
           icon="trash"
-          onPress={() => shoppingRepo.clearDone(account.id)}
+          onPress={() => shoppingRepo.clearDone(account.id, householdId)}
         />
       ) : null}
     </Screen>

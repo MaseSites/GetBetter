@@ -18,10 +18,13 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 function emptyTables(): Tables {
   return {
     accounts: [],
+    households: [],
+    householdMembers: [],
     events: [],
     tasks: [],
     notes: [],
     shoppingItems: [],
+    chores: [],
     alarms: [],
   };
 }
@@ -175,10 +178,13 @@ export class Collection<K extends CollectionName> {
 
 export const db = {
   accounts: new Collection('accounts'),
+  households: new Collection('households'),
+  householdMembers: new Collection('householdMembers'),
   events: new Collection('events'),
   tasks: new Collection('tasks'),
   notes: new Collection('notes'),
   shoppingItems: new Collection('shoppingItems'),
+  chores: new Collection('chores'),
   alarms: new Collection('alarms'),
 } as const;
 

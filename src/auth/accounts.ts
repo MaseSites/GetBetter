@@ -47,7 +47,7 @@ export async function signUp(emailInput: string, password: string): Promise<Auth
     onboarded: false,
     selectedAreas: [],
     favouriteModuleIds: [],
-    householdName: null,
+    householdId: null,
     createdAt: new Date().toISOString(),
   };
 

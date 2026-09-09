@@ -2,14 +2,14 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { useLiveQuery, type EventRow } from '@/db';
-import { events as eventRepo } from '@/db/repositories';
+import { households as householdRepo, useLiveQuery, type EventRow } from '@/db';
+import { events as eventRepo, type CalendarFilter } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useAccount } from '@/state/AppContext';
+import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Header, Icon, Screen, Segmented, Text } from '@/ui';
+import { Button, Chip, Header, Icon, Screen, Segmented, Text } from '@/ui';
 
 import { eventColor } from './colors';
 import {
@@ -33,8 +33,11 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const { household } = useApp();
+  const householdId = household?.id ?? null;
   const favouriteAction = useFavouriteAction(module.id);
 
+  const [source, setSource] = useState<CalendarFilter>('all');
   const [mode, setMode] = useState<CalendarMode>('month');
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(null);
@@ -57,10 +60,16 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const toIso = to.toISOString();
 
   const list = useLiveQuery(
-    () => eventRepo.listBetween(account.id, fromIso, toIso),
-    [account.id, fromIso, toIso],
+    () => eventRepo.listBetween(account.id, householdId, fromIso, toIso, source),
+    [account.id, householdId, fromIso, toIso, source],
   );
   const events = list.data ?? [];
+
+  const memberList = useLiveQuery(
+    () => (householdId ? householdRepo.members(householdId) : Promise.resolve([])),
+    [householdId],
+  );
+  const members = memberList.data ?? [];
 
   function step(direction: number) {
     if (mode === 'month') setAnchor((current) => addMonths(current, direction));
@@ -130,10 +139,57 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             </Pressable>
             <StepButton label={t('calendar.next')} icon="forward" onPress={() => step(1)} />
           </View>
+
+          {household ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                gap: theme.spacing.sm,
+                paddingTop: theme.spacing.sm,
+                paddingRight: theme.spacing.lg,
+              }}
+            >
+              <Chip
+                label={t('calendar.source.all')}
+                selected={source === 'all'}
+                onPress={() => setSource('all')}
+              />
+              <Chip
+                label={t('calendar.scope.personal')}
+                selected={source === 'personal'}
+                onPress={() => setSource('personal')}
+              />
+              <Chip
+                label={t('calendar.scope.family')}
+                selected={source === 'family'}
+                onPress={() => setSource('family')}
+              />
+              {members
+                .filter((member) => member.membership.accountId !== account.id)
+                .map((member) => {
+                  const value: CalendarFilter = `member:${member.membership.accountId}`;
+                  return (
+                    <Chip
+                      key={member.membership.id}
+                      label={member.displayName}
+                      selected={source === value}
+                      onPress={() => setSource(value)}
+                    />
+                  );
+                })}
+            </ScrollView>
+          ) : null}
         </Header>
       }
       footer={
-        <Button label={t('calendar.add')} icon="plus" onPress={() => setDraft({ day: anchor })} />
+        <Button
+          label={t('calendar.add')}
+          icon="plus"
+          onPress={() =>
+            setDraft({ day: anchor, calendar: source === 'family' ? 'family' : 'personal' })
+          }
+        />
       }
     >
       {mode === 'month' ? (
@@ -156,7 +212,9 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             days={days}
             events={events}
             compact={mode === 'week'}
-            onPressSlot={(day, hour) => setDraft({ day, hour })}
+            onPressSlot={(day, hour) =>
+              setDraft({ day, hour, calendar: source === 'family' ? 'family' : 'personal' })
+            }
             onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
           />
         </View>

@@ -10,12 +10,39 @@ export type Account = Row & {
   onboarded: boolean;
   selectedAreas: readonly string[];
   favouriteModuleIds: readonly string[];
-  householdName: string | null;
+  /** Der Haushalt, in dem dieses Konto gerade ist. */
+  householdId: string | null;
   createdAt: string;
 };
 
+export type HouseholdRow = Row & {
+  name: string;
+  /** Sechs Zeichen, damit man ihn vorlesen kann. */
+  inviteCode: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+/** Verwalter duerfen den Haushalt aendern und Mitglieder verwalten. */
+export type HouseholdRole = 'admin' | 'member';
+
+export type HouseholdMemberRow = Row & {
+  householdId: string;
+  accountId: string;
+  role: HouseholdRole;
+  joinedAt: string;
+};
+
+/** In welchem Kalender ein Termin liegt. */
+export type CalendarScope = 'personal' | 'family';
+
 export type EventRow = Row & {
   accountId: string;
+  /** Gesetzt, solange der Termin zu einem Haushalt gehoert. */
+  householdId: string | null;
+  calendar: CalendarScope;
+  /** Nur fuer persoenliche Termine: dann sieht ihn niemand sonst. */
+  isPrivate: boolean;
   title: string;
   location: string | null;
   notes: string | null;
@@ -29,9 +56,11 @@ export type EventRow = Row & {
 
 export type TaskRow = Row & {
   accountId: string;
+  householdId: string | null;
   title: string;
   done: boolean;
   dueAt: string | null;
+  /** Geteilte Aufgaben sehen alle im Haushalt. */
   shared: boolean;
   createdAt: string;
   completedAt: string | null;
@@ -47,9 +76,26 @@ export type NoteRow = Row & {
 
 export type ShoppingItemRow = Row & {
   accountId: string;
+  /** Gesetzt, sobald man in einem Haushalt ist — dann teilen sich alle die Liste. */
+  householdId: string | null;
   name: string;
   quantity: string | null;
   done: boolean;
+  createdAt: string;
+};
+
+/** Wie oft ein Aemtli wiederkehrt. */
+export type ChoreRepeat = 'once' | 'daily' | 'weekly' | 'monthly';
+
+export type ChoreRow = Row & {
+  householdId: string;
+  title: string;
+  /** Konto-Id des zustaendigen Mitglieds, oder null fuer offen. */
+  assignedTo: string | null;
+  repeat: ChoreRepeat;
+  dueAt: string | null;
+  lastDoneAt: string | null;
+  lastDoneBy: string | null;
   createdAt: string;
 };
 
@@ -67,19 +113,25 @@ export type AlarmRow = Row & {
 /** Name -> Zeilentyp. Eine Stelle, an der alle Sammlungen stehen. */
 export type Schema = {
   accounts: Account;
+  households: HouseholdRow;
+  householdMembers: HouseholdMemberRow;
   events: EventRow;
   tasks: TaskRow;
   notes: NoteRow;
   shoppingItems: ShoppingItemRow;
+  chores: ChoreRow;
   alarms: AlarmRow;
 };
 
 export const COLLECTION_NAMES = [
   'accounts',
+  'households',
+  'householdMembers',
   'events',
   'tasks',
   'notes',
   'shoppingItems',
+  'chores',
   'alarms',
 ] as const satisfies readonly (keyof Schema)[];
 

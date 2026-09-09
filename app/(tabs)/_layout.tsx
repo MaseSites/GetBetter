@@ -3,6 +3,7 @@ import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Icon } from '@/ui';
 import type { IconName } from '@/ui/Icon';
@@ -35,9 +36,13 @@ export default function TabsLayout() {
   const theme = useTheme();
   const t = useTranslate();
   const insets = useSafeAreaInsets();
+  const { account } = useApp();
 
   // Ohne feste Hoehe schneidet die Leiste die Beschriftungen ab.
   const barHeight = 64 + insets.bottom;
+
+  // Beim Abmelden bleiben die Tabs kurz stehen; ohne Konto wuerden sie werfen.
+  if (!account) return null;
 
   return (
     <Tabs

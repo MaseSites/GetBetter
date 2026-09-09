@@ -9,6 +9,11 @@ Ort und Notiz, und legt beim Antippen einer freien Stunde gleich einen an.
 Ebenfalls ausgebaut: Aufgaben, Notizen, Einkaufsliste, Wecker. Die uebrigen
 Module zeigen einen Platzhalter, der das sagt.
 
+**Haushalte**: anlegen oder mit einem sechsstelligen Code beitreten, Rollen
+Verwalter und Mitglied. Im Haushalt teilen sich alle die Einkaufsliste, den
+Familienkalender und die Aemtli samt Zuteilung. Persoenliche Termine lassen
+sich als privat markieren — die sieht dann niemand sonst.
+
 Ein neues Konto startet leer.
 
 ```bash

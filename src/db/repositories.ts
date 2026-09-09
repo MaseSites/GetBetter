@@ -1,6 +1,15 @@
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
-import type { AlarmRow, EventRow, NoteRow, ShoppingItemRow, TaskRow } from './types';
+import type {
+  AlarmRow,
+  CalendarScope,
+  ChoreRepeat,
+  ChoreRow,
+  EventRow,
+  NoteRow,
+  ShoppingItemRow,
+  TaskRow,
+} from './types';
 
 function now(): string {
   return new Date().toISOString();
@@ -14,29 +23,78 @@ function changed<T>(value: T): T {
 
 // ---------------------------------------------------------------- Termine
 
+/**
+ * Welchen Ausschnitt des Kalenders jemand gerade sieht.
+ * `member:<id>` zeigt den persoenlichen Kalender eines Haushaltsmitglieds.
+ */
+export type CalendarFilter = 'personal' | 'family' | 'all' | `member:${string}`;
+
+/** Aeltere Zeilen kennen die neuen Felder noch nicht. */
+function calendarOf(row: EventRow): CalendarScope {
+  return row.calendar === 'family' ? 'family' : 'personal';
+}
+
+function isVisible(
+  row: EventRow,
+  viewerId: string,
+  householdId: string | null,
+  filter: CalendarFilter,
+): boolean {
+  const scope = calendarOf(row);
+  const mine = row.accountId === viewerId;
+  const sameHousehold = householdId !== null && row.householdId === householdId;
+
+  if (filter === 'personal') return mine && scope === 'personal';
+  if (filter === 'family') return sameHousehold && scope === 'family';
+
+  if (filter.startsWith('member:')) {
+    const memberId = filter.slice('member:'.length);
+    if (row.accountId !== memberId || scope !== 'personal') return false;
+    // Den eigenen Kalender sieht man ganz, fremde nur ohne die privaten Termine.
+    return memberId === viewerId || (sameHousehold && !row.isPrivate);
+  }
+
+  // 'all': alles Eigene, alle Familientermine, und was Mitglieder nicht privat halten.
+  if (mine) return true;
+  if (!sameHousehold) return false;
+  return scope === 'family' || !row.isPrivate;
+}
+
 export const events = {
-  listUpcoming(accountId: string, fromIso: string, limit?: number) {
+  find(id: string) {
+    return db.events.find(id);
+  },
+
+  listBetween(
+    viewerId: string,
+    householdId: string | null,
+    fromIso: string,
+    toIso: string,
+    filter: CalendarFilter = 'all',
+  ) {
     return db.events.list({
-      where: (row) => row.accountId === accountId && (row.endsAt ?? row.startsAt) >= fromIso,
+      where: (row) =>
+        row.startsAt >= fromIso &&
+        row.startsAt < toIso &&
+        isVisible(row, viewerId, householdId, filter),
+      sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
+    });
+  },
+
+  listUpcoming(viewerId: string, householdId: string | null, fromIso: string, limit?: number) {
+    return db.events.list({
+      where: (row) =>
+        (row.endsAt ?? row.startsAt) >= fromIso && isVisible(row, viewerId, householdId, 'all'),
       sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
       ...(limit !== undefined ? { limit } : {}),
     });
   },
 
-  listBetween(accountId: string, fromIso: string, toIso: string) {
-    return db.events.list({
-      where: (row) =>
-        row.accountId === accountId && row.startsAt >= fromIso && row.startsAt < toIso,
-      sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
-    });
-  },
-
-  find(id: string) {
-    return db.events.find(id);
-  },
-
   async create(input: {
     accountId: string;
+    householdId: string | null;
+    calendar: CalendarScope;
+    isPrivate: boolean;
     title: string;
     startsAt: string;
     endsAt?: string | null;
@@ -48,6 +106,9 @@ export const events = {
     const row: EventRow = {
       id: newId('ev'),
       accountId: input.accountId,
+      householdId: input.householdId,
+      calendar: input.calendar,
+      isPrivate: input.calendar === 'personal' ? input.isPrivate : false,
       title: input.title.trim(),
       location: input.location?.trim() || null,
       notes: input.notes?.trim() || null,
@@ -72,10 +133,16 @@ export const events = {
 
 // --------------------------------------------------------------- Aufgaben
 
+/** Eigene Aufgaben plus die, die im Haushalt geteilt sind. */
+function taskVisible(row: TaskRow, viewerId: string, householdId: string | null): boolean {
+  if (row.accountId === viewerId) return true;
+  return row.shared && householdId !== null && row.householdId === householdId;
+}
+
 export const tasks = {
-  listOpen(accountId: string) {
+  listOpen(viewerId: string, householdId: string | null) {
     return db.tasks.list({
-      where: (row) => row.accountId === accountId && !row.done,
+      where: (row) => !row.done && taskVisible(row, viewerId, householdId),
       sort: (a, b) => {
         // Was eine Frist hat, steht oben, danach das Aelteste zuerst.
         if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
@@ -86,20 +153,21 @@ export const tasks = {
     });
   },
 
-  listDone(accountId: string, limit = 30) {
+  listDone(viewerId: string, householdId: string | null, limit = 30) {
     return db.tasks.list({
-      where: (row) => row.accountId === accountId && row.done,
+      where: (row) => row.done && taskVisible(row, viewerId, householdId),
       sort: (a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''),
       limit,
     });
   },
 
-  countOpen(accountId: string) {
-    return db.tasks.count((row) => row.accountId === accountId && !row.done);
+  countOpen(viewerId: string, householdId: string | null) {
+    return db.tasks.count((row) => !row.done && taskVisible(row, viewerId, householdId));
   },
 
   async create(input: {
     accountId: string;
+    householdId: string | null;
     title: string;
     dueAt?: string | null;
     shared?: boolean;
@@ -107,6 +175,7 @@ export const tasks = {
     const row: TaskRow = {
       id: newId('tk'),
       accountId: input.accountId,
+      householdId: input.householdId,
       title: input.title.trim(),
       done: false,
       dueAt: input.dueAt ?? null,
@@ -121,18 +190,13 @@ export const tasks = {
     return changed(await db.tasks.update(id, { done, completedAt: done ? now() : null }));
   },
 
-  async rename(id: string, title: string) {
-    return changed(await db.tasks.update(id, { title: title.trim() }));
+  async setShared(id: string, shared: boolean) {
+    return changed(await db.tasks.update(id, { shared }));
   },
 
   async remove(id: string) {
     await db.tasks.remove(id);
     changed(null);
-  },
-
-  async clearDone(accountId: string) {
-    const removed = await db.tasks.removeWhere((row) => row.accountId === accountId && row.done);
-    return changed(removed);
   },
 };
 
@@ -179,10 +243,22 @@ export const notes = {
 
 // ---------------------------------------------------------- Einkaufsliste
 
+/**
+ * Im Haushalt teilen sich alle dieselbe Liste; allein sieht man nur die eigene.
+ */
+function shoppingVisible(
+  row: ShoppingItemRow,
+  viewerId: string,
+  householdId: string | null,
+): boolean {
+  if (householdId !== null) return row.householdId === householdId;
+  return row.accountId === viewerId && !row.householdId;
+}
+
 export const shopping = {
-  list(accountId: string) {
+  list(viewerId: string, householdId: string | null) {
     return db.shoppingItems.list({
-      where: (row) => row.accountId === accountId,
+      where: (row) => shoppingVisible(row, viewerId, householdId),
       sort: (a, b) => {
         if (a.done !== b.done) return a.done ? 1 : -1;
         return a.createdAt.localeCompare(b.createdAt);
@@ -190,18 +266,22 @@ export const shopping = {
     });
   },
 
-  countOpen(accountId: string) {
-    return db.shoppingItems.count((row) => row.accountId === accountId && !row.done);
+  countOpen(viewerId: string, householdId: string | null) {
+    return db.shoppingItems.count(
+      (row) => !row.done && shoppingVisible(row, viewerId, householdId),
+    );
   },
 
   async add(input: {
     accountId: string;
+    householdId: string | null;
     name: string;
     quantity?: string | null;
   }): Promise<ShoppingItemRow> {
     const row: ShoppingItemRow = {
       id: newId('sh'),
       accountId: input.accountId,
+      householdId: input.householdId,
       name: input.name.trim(),
       quantity: input.quantity?.trim() || null,
       done: false,
@@ -219,13 +299,96 @@ export const shopping = {
     changed(null);
   },
 
-  async clearDone(accountId: string) {
+  async clearDone(viewerId: string, householdId: string | null) {
     const removed = await db.shoppingItems.removeWhere(
-      (row) => row.accountId === accountId && row.done,
+      (row) => row.done && shoppingVisible(row, viewerId, householdId),
     );
     return changed(removed);
   },
 };
+
+// ----------------------------------------------------------------- Aemtli
+
+export const chores = {
+  list(householdId: string) {
+    return db.chores.list({
+      where: (row) => row.householdId === householdId,
+      sort: (a, b) => {
+        // Offene zuerst, danach nach Faelligkeit.
+        if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
+        if (a.dueAt) return -1;
+        if (b.dueAt) return 1;
+        return a.createdAt.localeCompare(b.createdAt);
+      },
+    });
+  },
+
+  listFor(householdId: string, accountId: string) {
+    return db.chores.list({
+      where: (row) => row.householdId === householdId && row.assignedTo === accountId,
+      sort: (a, b) => a.createdAt.localeCompare(b.createdAt),
+    });
+  },
+
+  async create(input: {
+    householdId: string;
+    title: string;
+    assignedTo?: string | null;
+    repeat?: ChoreRepeat;
+    dueAt?: string | null;
+  }): Promise<ChoreRow> {
+    const row: ChoreRow = {
+      id: newId('ch'),
+      householdId: input.householdId,
+      title: input.title.trim(),
+      assignedTo: input.assignedTo ?? null,
+      repeat: input.repeat ?? 'weekly',
+      dueAt: input.dueAt ?? null,
+      lastDoneAt: null,
+      lastDoneBy: null,
+      createdAt: now(),
+    };
+    return changed(await db.chores.insert(row));
+  },
+
+  async assign(id: string, accountId: string | null) {
+    return changed(await db.chores.update(id, { assignedTo: accountId }));
+  },
+
+  /** Erledigt: Zeitstempel setzen und bei Wiederholung neu faellig machen. */
+  async complete(id: string, byAccountId: string) {
+    const chore = await db.chores.find(id);
+    if (!chore) return undefined;
+    const done = now();
+    const next = nextDue(chore.repeat, new Date());
+    return changed(
+      await db.chores.update(id, {
+        lastDoneAt: done,
+        lastDoneBy: byAccountId,
+        dueAt: next ? next.toISOString() : null,
+      }),
+    );
+  },
+
+  async update(id: string, patch: Partial<Omit<ChoreRow, 'id' | 'householdId'>>) {
+    return changed(await db.chores.update(id, patch));
+  },
+
+  async remove(id: string) {
+    await db.chores.remove(id);
+    changed(null);
+  },
+};
+
+function nextDue(repeat: ChoreRepeat, from: Date): Date | null {
+  if (repeat === 'once') return null;
+  const next = new Date(from);
+  next.setHours(0, 0, 0, 0);
+  if (repeat === 'daily') next.setDate(next.getDate() + 1);
+  if (repeat === 'weekly') next.setDate(next.getDate() + 7);
+  if (repeat === 'monthly') next.setMonth(next.getMonth() + 1);
+  return next;
+}
 
 // ----------------------------------------------------------------- Wecker
 

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { useLiveQuery } from '@/db';
@@ -10,20 +11,28 @@ import {
 import { LANGUAGES, LANGUAGE_LABEL, formatShortDate, useI18n, type Language } from '@/i18n';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Avatar, Button, Card, Chip, Divider, Header, ListItem, Screen, Text } from '@/ui';
+import { Avatar, Badge, Button, Card, Chip, Divider, Header, ListItem, Screen, Text } from '@/ui';
 
 export default function ProfileScreen() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const account = useAccount();
-  const { setLanguage, signOut } = useApp();
+  const router = useRouter();
+  const { household, role, setLanguage, signOut } = useApp();
+  const householdId = household?.id ?? null;
 
-  const openTasks = useLiveQuery(() => taskRepo.countOpen(account.id), [account.id]);
+  const openTasks = useLiveQuery(
+    () => taskRepo.countOpen(account.id, householdId),
+    [account.id, householdId],
+  );
   const noteCount = useLiveQuery(() => noteRepo.count(account.id), [account.id]);
-  const shoppingOpen = useLiveQuery(() => shoppingRepo.countOpen(account.id), [account.id]);
+  const shoppingOpen = useLiveQuery(
+    () => shoppingRepo.countOpen(account.id, householdId),
+    [account.id, householdId],
+  );
   const upcoming = useLiveQuery(
-    () => eventRepo.listUpcoming(account.id, new Date().toISOString()),
-    [account.id],
+    () => eventRepo.listUpcoming(account.id, householdId, new Date().toISOString()),
+    [account.id, householdId],
   );
 
   return (
@@ -58,13 +67,27 @@ export default function ProfileScreen() {
         </Text>
       </Card>
 
-      {account.householdName ? (
-        <Card title={t('profile.household')} subtitle={account.householdName}>
+      <Card
+        title={t('profile.household')}
+        subtitle={household ? household.name : t('profile.household.none')}
+        onPress={() => router.push('/household')}
+      >
+        {household ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+            <Badge
+              label={role === 'admin' ? t('household.role.admin') : t('household.role.member')}
+              tone={role === 'admin' ? 'accent' : 'neutral'}
+            />
+            <Text variant="caption" tone="faint">
+              {t('household.invite.title')}: {household.inviteCode}
+            </Text>
+          </View>
+        ) : (
           <Text variant="label" tone="muted">
-            {t('profile.household.soon')}
+            {t('household.none.body')}
           </Text>
-        </Card>
-      ) : null}
+        )}
+      </Card>
 
       <Card title={t('profile.language')}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>

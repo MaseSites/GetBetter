@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -46,11 +47,14 @@ export default function HouseholdStep() {
   const theme = useTheme();
   const { firstName, areas } = useOnboarding();
   const { completeOnboarding } = useApp();
+  const router = useRouter();
   const [choice, setChoice] = useState<HouseholdChoice>('created');
 
-  function finish() {
+  async function finish() {
     // Der RouteGuard schickt danach selbst in die Tabs.
-    completeOnboarding({ firstName, areas, householdChoice: choice });
+    await completeOnboarding({ firstName, areas, householdChoice: choice });
+    // Beitreten braucht einen Code — den gibt man auf dem Haushaltsbildschirm ein.
+    if (choice === 'joined') router.push('/household');
   }
 
   return (

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import type { EventRow } from '@/db';
+import type { CalendarScope, EventRow } from '@/db';
 import { events as eventRepo } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Icon, Input, Sheet, Text } from '@/ui';
+import { Button, Icon, Input, Segmented, Sheet, Text } from '@/ui';
 
 import {
   EVENT_COLORS,
@@ -31,6 +32,8 @@ export type EventDraft = {
   day: Date;
   /** Vorgeschlagene Startzeit, wenn man in ein leeres Zeitfeld tippt. */
   hour?: number;
+  /** In welchem Kalender der neue Termin landen soll. */
+  calendar?: CalendarScope;
 };
 
 export type EventEditorProps = {
@@ -68,6 +71,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const t = useTranslate();
   const theme = useTheme();
 
+  const { household } = useApp();
   const editing = draft.event;
   const initialStart = editing ? new Date(editing.startsAt) : null;
   const initialHour = draft.hour ?? 9;
@@ -86,6 +90,10 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const [location, setLocation] = useState(editing?.location ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [color, setColor] = useState<EventColorKey>(eventColorKey(editing?.color));
+  const [calendar, setCalendar] = useState<CalendarScope>(
+    editing?.calendar === 'family' ? 'family' : (draft.calendar ?? 'personal'),
+  );
+  const [isPrivate, setIsPrivate] = useState(editing?.isPrivate ?? false);
   const [error, setError] = useState<{ field: 'title' | 'date' | 'time'; message: string } | null>(
     null,
   );
@@ -131,15 +139,8 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
       endsAt = endDate.toISOString();
     }
 
-    const payload = {
-      title,
-      startsAt,
-      endsAt,
-      location,
-      notes,
-      allDay,
-      color,
-    };
+    // Ohne Haushalt gibt es nur den persoenlichen Kalender.
+    const scope: CalendarScope = household ? calendar : 'personal';
 
     if (editing) {
       await eventRepo.update(editing.id, {
@@ -150,9 +151,24 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         notes: notes.trim() || null,
         allDay,
         color,
+        calendar: scope,
+        isPrivate: scope === 'personal' ? isPrivate : false,
+        householdId: household?.id ?? null,
       });
     } else {
-      await eventRepo.create({ accountId, ...payload });
+      await eventRepo.create({
+        accountId,
+        householdId: household?.id ?? null,
+        calendar: scope,
+        isPrivate,
+        title,
+        startsAt,
+        endsAt,
+        location,
+        notes,
+        allDay,
+        color,
+      });
     }
     onClose();
   }
@@ -275,6 +291,42 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
           </View>
         </View>
       )}
+
+      {household ? (
+        <View style={{ gap: theme.spacing.sm }}>
+          <Text variant="label" tone="muted">
+            {t('calendar.field.calendar')}
+          </Text>
+          <Segmented
+            accessibilityLabel={t('calendar.field.calendar')}
+            value={calendar}
+            onChange={setCalendar}
+            options={[
+              { value: 'personal', label: t('calendar.scope.personal') },
+              { value: 'family', label: t('calendar.scope.family') },
+            ]}
+          />
+          {calendar === 'personal' ? (
+            <View style={[styles.row, { gap: theme.spacing.md }]}>
+              <View style={{ flex: 1 }}>
+                <Text variant="label" tone="muted">
+                  {t('calendar.field.private')}
+                </Text>
+                <Text variant="caption" tone="faint">
+                  {isPrivate ? t('calendar.field.privateOn') : t('calendar.field.privateOff')}
+                </Text>
+              </View>
+              <Switch
+                value={isPrivate}
+                onValueChange={setIsPrivate}
+                accessibilityLabel={t('calendar.field.private')}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
+                thumbColor={theme.colors.surface}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={{ gap: theme.spacing.sm }}>
         <Text variant="label" tone="muted">

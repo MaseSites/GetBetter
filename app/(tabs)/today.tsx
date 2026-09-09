@@ -10,7 +10,7 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { formatLongDate, formatTime, useI18n } from '@/i18n';
-import { useAccount } from '@/state/AppContext';
+import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Badge, Card, Divider, EmptyState, Header, ListItem, Loading, Screen, Text } from '@/ui';
 
@@ -19,16 +19,24 @@ export default function TodayScreen() {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const { household } = useApp();
+  const householdId = household?.id ?? null;
 
   const todayIso = new Date().toISOString();
 
   // Alles hier kommt aus der Datenbank — keine Beispielzahlen mehr.
   const upcoming = useLiveQuery(
-    () => eventRepo.listUpcoming(account.id, todayIso, 5),
-    [account.id],
+    () => eventRepo.listUpcoming(account.id, householdId, todayIso, 5),
+    [account.id, householdId],
   );
-  const openTasks = useLiveQuery(() => taskRepo.listOpen(account.id), [account.id]);
-  const shoppingItems = useLiveQuery(() => shoppingRepo.list(account.id), [account.id]);
+  const openTasks = useLiveQuery(
+    () => taskRepo.listOpen(account.id, householdId),
+    [account.id, householdId],
+  );
+  const shoppingItems = useLiveQuery(
+    () => shoppingRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
   const noteCount = useLiveQuery(() => noteRepo.count(account.id), [account.id]);
   const nextAlarm = useLiveQuery(() => alarmRepo.nextEnabled(account.id), [account.id]);
 

@@ -4,11 +4,13 @@ import { View } from 'react-native';
 import { AiChatView } from '@/features/ai/AiChatView';
 import { AlarmView } from '@/features/alarm/AlarmView';
 import { CalendarView } from '@/features/calendar/CalendarView';
+import { ChoresView } from '@/features/chores/ChoresView';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { NotesView } from '@/features/notes/NotesView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
 import { useI18n } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { getModule } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useTheme } from '@/theme';
@@ -21,6 +23,7 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   notes: (module) => <NotesView module={module} />,
   shopping: (module) => <ShoppingView module={module} />,
   alarm: (module) => <AlarmView module={module} />,
+  chores: (module) => <ChoresView module={module} />,
   ai: (module) => <AiChatView module={module} />,
 };
 
@@ -75,9 +78,13 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
 export default function ModuleRunScreen() {
   const { t } = useI18n();
   const router = useRouter();
+  const { account } = useApp();
 
   const params = useLocalSearchParams<{ id?: string }>();
   const module = params.id ? getModule(params.id) : undefined;
+
+  // Beim Abmelden steht dieser Bildschirm kurz ohne Konto da.
+  if (!account) return null;
 
   if (!module) {
     return (
