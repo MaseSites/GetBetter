@@ -191,10 +191,13 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
 
         {showNow ? (
           <View
-            pointerEvents="none"
             style={[
               styles.nowLine,
-              { top: (nowMinutes / 60) * HOUR_HEIGHT, left: GUTTER_WIDTH - 4 },
+              {
+                pointerEvents: 'none',
+                top: (nowMinutes / 60) * HOUR_HEIGHT,
+                left: GUTTER_WIDTH - 4,
+              },
             ]}
           >
             <View style={[styles.nowDot, { backgroundColor: theme.colors.danger }]} />

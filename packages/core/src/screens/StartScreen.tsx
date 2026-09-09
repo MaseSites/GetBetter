@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { currentApp } from '@/app/identity';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Icon, Screen, Text } from '@/ui';
+import { AppIcon, Button, Screen, Text } from '@/ui';
 
 export function StartScreen() {
   const t = useTranslate();
@@ -28,14 +28,7 @@ export function StartScreen() {
       }
     >
       <View style={[styles.hero, { gap: theme.spacing.lg }]}>
-        <View
-          style={[
-            styles.mark,
-            { backgroundColor: theme.colors.accentSoft, borderRadius: theme.radii.xl },
-          ]}
-        >
-          <Icon name="sparkles" size={32} color={theme.colors.accentStrong} />
-        </View>
+        <AppIcon appId={app.id} size="xl" />
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="display" align="center">
             {app.name}
@@ -52,5 +45,4 @@ export function StartScreen() {
 const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center' },
   hero: { alignItems: 'center' },
-  mark: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
 });

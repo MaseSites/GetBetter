@@ -78,6 +78,14 @@ export function moduleTint(
   theme: { scheme: ColorScheme; preset: ThemePreset; colors: Palette },
   moduleId: string,
 ): ModuleTint {
+  return hueTint(theme, MODULE_HUE[moduleId] ?? 'slate');
+}
+
+/** Dasselbe fuer eine Farbe direkt — so tragen die Apps selbst ihr Logo. */
+export function hueTint(
+  theme: { scheme: ColorScheme; preset: ThemePreset; colors: Palette },
+  hueName: string,
+): ModuleTint {
   if (theme.preset === 'mono') {
     const base = theme.scheme === 'light' ? '#3C3C38' : '#D3D3CD';
     const edge = theme.scheme === 'light' ? '#141412' : '#A8A8A3';
@@ -88,7 +96,7 @@ export function moduleTint(
     };
   }
 
-  const hue = MODULE_COLORS[moduleId] ?? HUES.slate;
+  const hue = HUES[hueName as Hue] ?? HUES.slate;
   const tone = theme.scheme === 'light' ? hue.light : hue.dark;
   const [from, to] = tone;
 

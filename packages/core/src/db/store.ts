@@ -1,4 +1,4 @@
-import { notifyDataChanged } from './live';
+import { notifyDataChanged } from './events';
 import { serviceUrl } from './service';
 import { COLLECTION_NAMES, type CollectionName, type Row, type Schema } from './types';
 

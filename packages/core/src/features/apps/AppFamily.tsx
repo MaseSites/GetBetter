@@ -2,7 +2,7 @@ import * as Linking from 'expo-linking';
 import { Platform, View } from 'react-native';
 
 import { appUrl } from '@/app/bridge';
-import { APPS, APP_IDS, APP_MODULES, currentApp, storeUrl, type AppId } from '@/app/identity';
+import { APPS, APP_IDS, currentApp, storeUrl, type AppId } from '@/app/identity';
 import { appAccess, dayKey, meals as mealRepo, useLiveQuery, workouts as workoutRepo } from '@/db';
 import {
   chores as choreRepo,
@@ -13,7 +13,7 @@ import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, Divider, ModuleIcon, Text } from '@/ui';
+import { AppIcon, Button, Card, Divider, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter.
@@ -122,7 +122,6 @@ export function AppFamily() {
       {others.map((id) => {
         const app = APPS[id];
         const open = unlocked.includes(id);
-        const first = APP_MODULES[id][0];
         const rows = open ? fields(id) : [];
 
         return (
@@ -133,7 +132,7 @@ export function AppFamily() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
               {/* Blass ist nur die App selbst — der Knopf soll auffallen. */}
               <View style={{ opacity: open ? 1 : 0.5 }}>
-                <ModuleIcon moduleId={first ?? ''} icon={app.icon as 'grid'} />
+                <AppIcon appId={id} />
               </View>
 
               <View style={{ flex: 1, gap: 2, opacity: open ? 1 : 0.5 }}>

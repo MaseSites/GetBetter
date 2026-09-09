@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { subscribeDataChanged } from './events';
 import { ready } from './store';
 
-/**
- * Ein kleiner Ersatz fuer einen Query-Cache: Schreiboperationen melden sich,
- * laufende Abfragen laden dann neu. Reicht fuer eine App dieser Groesse.
- */
-const listeners = new Set<() => void>();
-
-export function notifyDataChanged(): void {
-  listeners.forEach((listener) => listener());
-}
+export { notifyDataChanged } from './events';
 
 export type LiveQuery<T> = {
   data: T | undefined;
@@ -41,13 +34,7 @@ export function useLiveQuery<T>(
   });
 
   // Auf fremde Schreiboperationen hoeren.
-  useEffect(() => {
-    const listener = () => setRevision((value) => value + 1);
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
+  useEffect(() => subscribeDataChanged(() => setRevision((value) => value + 1)), []);
 
   useEffect(() => {
     let cancelled = false;

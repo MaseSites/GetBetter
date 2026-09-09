@@ -78,7 +78,6 @@ function StatusBarMock() {
   return (
     <View
       style={[styles.statusBar, { height: STATUS_BAR_HEIGHT, paddingHorizontal: theme.spacing.xl }]}
-      pointerEvents="none"
     >
       <Text variant="caption" style={{ fontWeight: theme.fontWeight.semibold }}>
         9:41
@@ -108,12 +107,10 @@ const styles = StyleSheet.create({
   frame: {
     overflow: 'hidden',
     borderWidth: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 18 },
+    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.18)',
   },
   statusBar: {
+    pointerEvents: 'none',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

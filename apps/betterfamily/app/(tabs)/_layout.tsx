@@ -16,18 +16,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen
-        name="home"
-        options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('grid') }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{ title: t('tabs.familyCalendar'), tabBarIcon: tabIcon('calendar') }}
-      />
-      <Tabs.Screen
-        name="household"
-        options={{ title: t('tabs.household'), tabBarIcon: tabIcon('people') }}
-      />
+      <Tabs.Screen name="home" options={{ title: t('tabs.start'), tabBarIcon: tabIcon('home') }} />
       <Tabs.Screen
         name="finder"
         options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('grid') }}

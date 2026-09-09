@@ -1,3 +1,4 @@
+export { AppIcon } from './AppIcon';
 export { Avatar } from './Avatar';
 export { Badge } from './Badge';
 export { Button } from './Button';
@@ -19,6 +20,7 @@ export { Segmented } from './Segmented';
 export { Sheet } from './Sheet';
 export { Text } from './Text';
 
+export type { AppIconProps } from './AppIcon';
 export type { AvatarProps } from './Avatar';
 export type { BadgeProps, BadgeTone } from './Badge';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';

@@ -1,7 +1,10 @@
 import * as Crypto from 'expo-crypto';
 
-import { db, notifyDataChanged } from '@/db';
-import type { Account } from '@/db';
+// Bewusst nicht ueber `@/db`: die Repositories dort brauchen `findByUsername`
+// von hier — ueber den Index gaebe das einen Kreis.
+import { notifyDataChanged } from '@/db/events';
+import { db } from '@/db/store';
+import type { Account } from '@/db/types';
 
 import {
   authenticate,

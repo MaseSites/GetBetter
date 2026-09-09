@@ -9,7 +9,7 @@ mitstartest.
 | ---------------- | ------------------------------------------------------------------------------------------- | ---- |
 | **GetBetter**    | Privater Kalender, Aufgaben, Notizen, Wecker, Assistent — dazu die Übersicht über alle Apps | 8081 |
 | **BetterFamily** | Familienkalender, Einkaufsliste, Ämtli, Haushalt                                            | 8082 |
-| **BetterGym**    | Training, Menüplan, Schlaf, Trinken                                                         | 8083 |
+| **BetterGym**    | Training, Menüplan, Trinken                                                                 | 8083 |
 | **BetterAi**     | Das KI-Gespräch                                                                             | 8084 |
 | **BetterMoney**  | Budget, Rechnungen, Abos, Sparziele                                                         | 8085 |
 
@@ -21,17 +21,20 @@ npm run all        # Datenbank und alle fünf Apps auf einmal
 Einzeln geht auch: `npm run server`, `npm run web`, `npm run family`,
 `npm run gym`, `npm run ai`, `npm run money`.
 
+Jede App hat drei Tabs: **Start** (was gerade ansteht, direkt bearbeitbar),
+**Funktionen** (die Logos dieser App) und **Profil**. GetBetter hat dazu den
+**Assistenten**.
+
 Der **Kalender** in GetBetter hat Tages-, Wochen- und Monatsansicht, Termine mit
 Farbe, Ort und Notiz, und legt beim Antippen einer freien Stunde gleich einen an.
 Ein Termin kann in mehreren Kalendern liegen und wird trotzdem einmal angezeigt.
 Ausgebaut sind ausserdem Aufgaben, Notizen, Wecker (GetBetter), Einkaufsliste und
-Ämtli (BetterFamily) sowie der Chat (BetterAi). Die übrigen Module zeigen einen
-Platzhalter, der das sagt.
+Ämtli (BetterFamily), Training, Menüplan und Trinken (BetterGym) sowie der Chat
+(BetterAi). Die übrigen Funktionen stehen unter **Kommt noch** und sagen das.
 
-**Haushalte**: anlegen oder mit einem sechsstelligen Code beitreten, Rollen
-Verwalter und Mitglied. Im Haushalt teilen sich alle die Einkaufsliste, den
-Familienkalender und die Ämtli samt Zuteilung. Persönliche Termine lassen sich
-als privat markieren.
+**Haushalte** (BetterFamily): anlegen oder mit einem sechsstelligen Code
+beitreten, Rollen Verwalter und Mitglied. Im Haushalt teilen sich alle die
+Einkaufsliste, den Familienkalender und die Ämtli samt Zuteilung.
 
 ## Wie die Apps zusammenspielen
 
@@ -51,5 +54,25 @@ Der Assistent erkennt das und öffnet BetterFamily über einen Tiefenlink
 und den Wecker. Haushalte und der Familienkalender liegen in BetterFamily.
 
 Ein neues Konto startet leer.
+
+## Veröffentlichen
+
+Jede App ist für den Store vorbereitet: `apps/<name>/app.json` trägt Name,
+Version, `ch.better.<name>` als Bundle- und Paketkennung, Splash und Icons;
+`apps/<name>/eas.json` die Bauprofile `development`, `preview`, `production`.
+
+```bash
+node scripts/icons.js                       # alle Bilder neu aus dem Code
+cd apps/getbetter
+EXPO_PUBLIC_API_URL=https://api.example.ch eas build --profile production
+```
+
+`EXPO_PUBLIC_API_URL` sagt der App, wo die Datenbank läuft — ohne sie nimmt sie
+den Rechner, von dem Expo geladen hat. Der mitgelieferte Dienst ist für die
+Entwicklung gedacht (kein HTTPS, keine Zugriffstoken); vor einer echten
+Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
+Sobald eine App im Store ist, kommt ihr `packageName` in `APPS`
+(`packages/core/src/app/identity.ts`) — dann führt der Installieren-Knopf in
+GetBetter dorthin.
 
 Die Konventionen und der genaue Aufbau stehen in [CLAUDE.md](CLAUDE.md).

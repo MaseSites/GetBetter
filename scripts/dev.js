@@ -11,11 +11,31 @@ const ROOT = path.resolve(__dirname, '..');
 
 const SERVICES = [
   { name: 'db      ', command: 'node', args: ['services/api/server.js'] },
-  { name: 'getbetter', command: 'npm', args: ['run', 'web', '-w', 'apps/getbetter', '--', '--port', '8081'] },
-  { name: 'family  ', command: 'npm', args: ['run', 'web', '-w', 'apps/betterfamily', '--', '--port', '8082'] },
-  { name: 'gym     ', command: 'npm', args: ['run', 'web', '-w', 'apps/bettergym', '--', '--port', '8083'] },
-  { name: 'ai      ', command: 'npm', args: ['run', 'web', '-w', 'apps/betterai', '--', '--port', '8084'] },
-  { name: 'money   ', command: 'npm', args: ['run', 'web', '-w', 'apps/bettermoney', '--', '--port', '8085'] },
+  {
+    name: 'getbetter',
+    command: 'npm',
+    args: ['run', 'web', '-w', 'apps/getbetter', '--', '--port', '8081'],
+  },
+  {
+    name: 'family  ',
+    command: 'npm',
+    args: ['run', 'web', '-w', 'apps/betterfamily', '--', '--port', '8082'],
+  },
+  {
+    name: 'gym     ',
+    command: 'npm',
+    args: ['run', 'web', '-w', 'apps/bettergym', '--', '--port', '8083'],
+  },
+  {
+    name: 'ai      ',
+    command: 'npm',
+    args: ['run', 'web', '-w', 'apps/betterai', '--', '--port', '8084'],
+  },
+  {
+    name: 'money   ',
+    command: 'npm',
+    args: ['run', 'web', '-w', 'apps/bettermoney', '--', '--port', '8085'],
+  },
 ];
 
 const children = SERVICES.map(({ name, command, args }) => {

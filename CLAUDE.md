@@ -1,23 +1,25 @@
 # GetBetter und die Better-Apps
 
-Fünf eigenständige Expo-Apps in einem Arbeitsbereich. **GetBetter** ist die
-Hauptapp und die Schaltzentrale; die anderen decken je einen Bereich ab.
-Der ursprüngliche Plan liegt in
+Fünf eigenständige Expo-Apps in einem Arbeitsbereich, die sich einen Kern und
+**eine Datenbank** teilen. **GetBetter** ist die Hauptapp und die Schaltzentrale;
+die anderen decken je einen Bereich ab. Der ursprüngliche Plan liegt in
 [docs/plan-prototyp-hauptapp.md](docs/plan-prototyp-hauptapp.md); er beschreibt
 noch die Zeit, als alles eine App war.
 
 ## Die Apps
 
-| App              | Ordner              | Schema            | Web  | Was drin ist                                                                                                                         |
-| ---------------- | ------------------- | ----------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — dazu der Assistent und die Übersicht über alle Apps |
-| **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt                                                        |
-| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                |
-| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                        |
-| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele                                                                                                  |
+| App              | Ordner              | Schema            | Web  | Was drin ist                                                                                                                                  |
+| ---------------- | ------------------- | ----------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Dokumente, Gewohnheiten, Reisen, Kontakte — dazu der Assistent und die Übersicht über alle Apps |
+| **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt                                               |
+| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training, Menüplan und Trinken sind ausgebaut; Schlaf, Medikamente, Werte, Kopf frei sind Platzhalter                                         |
+| **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Das KI-Gespräch, sonst nichts                                                                                                                 |
+| **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — noch Platzhalter                                                                                        |
 
 `APP_MODULES` in `packages/core/src/app/identity.ts` ist die Wahrheit darüber,
-welche App welche Module führt — jedes Modul gehört genau einer App.
+welche App welche Module führt. `calendar` steht in zwei Apps: GetBetter führt
+den privaten, BetterFamily den Familienkalender — `hasHouseholds()` entscheidet,
+welcher gemeint ist.
 
 ## Starten
 
@@ -32,6 +34,7 @@ npm run ai         # BetterAi (8084)
 npm run money      # BetterMoney (8085)
 npm run typecheck  # tsc über alles
 npm run lint
+node scripts/icons.js   # alle Bilder neu erzeugen
 ```
 
 `/ui-kit` (nur in GetBetter) zeigt jeden UI-Baustein in allen Zuständen.
@@ -44,25 +47,66 @@ packages/core/src/     Der gemeinsame Kern — jede App zieht ihn über `@/…`
   screens/             Bildschirme, die alle Apps gleich brauchen
   theme/ ui/ i18n/     Aussehen, Bausteine, Sprache
   db/ auth/ state/     Speicher, Konten, Sitzung
-  features/            Kalender, Aufgaben, Notizen, Einkauf, Ämtli, Wecker, KI,
-                       Assistent, Haushalt, Onboarding
+  features/            Kalender, Aufgaben, Notizen, Einkauf, Ämtli, Wecker, Gym,
+                       KI, Assistent, Haushalt, Onboarding, Apps
+  assets/              Erzeugte Logos (nicht von Hand anfassen)
 apps/<name>/
   app/                 Nur die Routen — meist einzeilige Verweise auf den Kern
-  app.json             Name, Schema, Farbe
+  app.json             Name, Schema, Store-Kennung, Splash, Icons
+  eas.json             Bauprofile
+  assets/              Erzeugte Store-Bilder
   metro.config.js      Beobachtet auch den Kern ausserhalb des App-Ordners
+services/api/          Die Datenbank: ein Node-Dienst ohne Abhängigkeiten
+scripts/               dev.js (alles starten), icons.js (alle Bilder)
 ```
 
-Die Routen sind absichtlich dünn: `export { AppsScreen as default } from '@/screens';`.
+Die Routen sind absichtlich dünn: `export { WorkspaceScreen as default } from '@/screens';`.
 Was an einer App wirklich anders ist, steht in ihrer `app.json` und in ihrem
 `(tabs)/_layout.tsx`.
 
-## Wie die Apps zusammenspielen
+## Eine Datenbank für alle Apps
 
-Jede App ist ein eigenes Programm mit **eigenem Speicher**. Es gibt keinen
-Server, also auch keine gemeinsame Datenbank: BetterFamily kennt die Termine
-aus GetBetter nicht, und GetBetter sieht nicht in die Einkaufsliste.
+`services/api/server.js` hält alles in einer JSON-Datei
+(`services/api/data/db.json`, nicht im Git): Konten, Termine, Listen,
+Haushalte, Training. Jede App lädt beim Start den ganzen Stand (`GET /v1/db`),
+hält ihn im Speicher (`db/store.ts`) und schreibt geänderte Sammlungen zurück
+(`PUT /v1/db/:collection`). Alle vier Sekunden fragt sie nach der Revision und
+lädt neu, wenn eine andere App etwas geändert hat — so landen die Zahlen aus
+BetterGym ohne Neuladen auf der GetBetter-Karte.
 
-Was trotzdem geht, sind **Aufträge per Tiefenlink** (`packages/core/src/app/bridge.ts`):
+Antwortet der Dienst nicht, zeigt `RootShell` einen Bildschirm mit „Nochmal
+versuchen“. Ohne erfolgreiches Laden wird nie geschrieben, damit ein leerer
+Stand nichts überschreibt.
+
+| Route                                |                                          |
+| ------------------------------------ | ---------------------------------------- |
+| `GET /v1/db`                         | Alles, ohne Passwort-Hashes              |
+| `PUT /v1/db/:collection`             | Eine Sammlung ersetzen                   |
+| `GET /v1/revision`                   | Hat sich etwas geändert?                 |
+| `POST /v1/accounts`                  | Registrieren                             |
+| `POST /v1/sessions`                  | Anmelden                                 |
+| `GET /v1/accounts/:id`               | Konto lesen                              |
+| `GET /v1/accounts/by-username/:name` | Für Einladungen                          |
+| `PATCH /v1/accounts/:id`             | Vorname, Sprache, Benutzername, Aussehen |
+
+`db/service.ts` ist der Draht dorthin (`serviceUrl()`, im Bau über
+`EXPO_PUBLIC_API_URL` übersteuerbar), `auth/accounts.ts` die Schicht darüber.
+Passwörter prüft nur der Dienst, mit scrypt über Salt und Passwort; Salt und
+Hash verlassen ihn nie. Konten-Ids sind aus der E-Mail abgeleitet, damit jede
+App dasselbe Konto meint.
+
+Die Sammlung `appAccess` merkt sich, in welcher App ein Konto schon einmal war
+(`appAccess.markSeen`). Darauf beruht in GetBetter der Unterschied zwischen
+„freigeschaltet“ und „Installieren“.
+
+Der Dienst ist für die Entwicklung gedacht: kein HTTPS, keine Zugriffstoken,
+keine Ratenbegrenzung (siehe `services/api/README.md`). Vor einer echten
+Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
+
+## Aufträge zwischen den Apps
+
+Neben der gemeinsamen Datenbank gibt es **Aufträge per Tiefenlink**
+(`packages/core/src/app/bridge.ts`):
 
 ```
 getbetter        →  betterfamily://befehl/einkauf?text=2%20Bananen
@@ -71,45 +115,8 @@ getbetter        →  betterfamily://befehl/einkauf?text=2%20Bananen
 Der Assistent in GetBetter erkennt ein paar Muster
 (`features/assistant/route.ts`) und schickt sie los; die andere App fängt sie
 auf ihrer Route `befehl/[command]` auf, trägt sie ein und sagt, was daraus
-wurde. Drei Grenzen gehören zur Wahrheit dazu:
-
-- Es wirkt nur, wenn die andere App auf demselben Gerät installiert ist.
-- Es geht nur in eine Richtung — GetBetter erfährt das Ergebnis nicht.
-- Im Browser gibt es keine Schemata; dort nimmt die Brücke `localhost:<port>`.
-
-## Ein Konto für alle Apps
-
-Die Konten liegen im **Kontodienst** (`services/accounts`), nicht mehr in jeder
-App einzeln. Dieselbe Anmeldung gilt damit überall — man meldet sich in
-BetterFamily mit denselben Daten an wie in GetBetter.
-
-```bash
-npm run server     # Port 8090, muss zum Anmelden laufen
-```
-
-| Route                                |                                          |
-| ------------------------------------ | ---------------------------------------- |
-| `POST /v1/accounts`                  | Registrieren                             |
-| `POST /v1/sessions`                  | Anmelden                                 |
-| `GET /v1/accounts/:id`               | Konto lesen                              |
-| `GET /v1/accounts/by-username/:name` | Für Einladungen                          |
-| `PATCH /v1/accounts/:id`             | Vorname, Sprache, Benutzername, Aussehen |
-
-`auth/service.ts` ist der Draht dorthin, `auth/accounts.ts` die Schicht
-darüber. Jede App hält zusätzlich eine **Abschrift** des Kontos: sie trägt,
-was nur diese App angeht (Favoriten, aktiver Haushalt), und hält die App am
-Laufen, wenn der Dienst gerade nicht antwortet. Beim Start fragt sie nach und
-gleicht ab.
-
-Passwörter prüft nur der Dienst, mit scrypt über Salt und Passwort; Salt und
-Hash verlassen ihn nie. Konten aus der Zeit davor prüfen ihr Passwort beim
-ersten Mal noch lokal und wandern dann von selbst in den Dienst
-(`adoptLegacy`).
-
-**Was der Dienst nicht führt, sind die Daten der Apps.** Termine, Listen und
-Haushalte liegen weiter je App auf dem Gerät: verbunden ist die Person, nicht
-der Inhalt. Der nächste Schritt wäre, die Repositories genauso umzustellen —
-die Naht dafür ist `db/repositories.ts`.
+wurde. Es wirkt nur, wenn die andere App auf demselben Gerät installiert ist;
+im Browser gibt es keine Schemata, dort nimmt die Brücke `localhost:<port>`.
 
 ## Die zwei KI-Oberflächen
 
@@ -119,11 +126,11 @@ die Naht dafür ist `db/repositories.ts`.
 | Wo    | `features/assistant/AssistantView.tsx`                            | `screens/AiHomeScreen.tsx`    |
 | Daten | Liest deine GetBetter-Daten, schickt Aufträge an die anderen Apps | Sieht deine Daten nicht       |
 
-Der Assistent hat keinen Kopfbereich: in der Mitte steht "Wie kann ich dich
-unterstützen?", unten das Feld. Hinter beiden steckt noch kein Modell — was
+Der Assistent hat keinen Kopfbereich: in der Mitte steht „Wie kann ich dich
+unterstützen?“, unten das Feld. Hinter beiden steckt noch kein Modell — was
 nicht als Auftrag erkannt wird, beantwortet er einmal ehrlich.
 
-## Haushalte
+## Haushalte (BetterFamily)
 
 `db/households.ts` — Haushalt, Mitgliedschaften, Rollen. Ein Haushalt hat einen
 sechsstelligen Einladungscode (ohne I, O, 0, 1). Wer anlegt, wird Verwalter; wer
@@ -137,13 +144,16 @@ wird auf drei Wegen (`HouseholdInvite`): Link, Benutzername, Code.
 Status gelten als angenommen. Eine Zusage stellt den aktiven Haushalt bewusst
 **nicht** um — nur wer in keinem ist, landet gleich im neuen.
 
-Haushalte gibt es in **GetBetter** (für die Familienkalender) und in
-**BetterFamily** (für Einkaufsliste und Ämtli) — `APPS_WITH_HOUSEHOLD` sagt es.
-Beide führen ihren eigenen, solange es keinen Server gibt.
+Haushalte gibt es **nur in BetterFamily** (`APPS_WITH_HOUSEHOLD`). Dort ist der
+Haushalt eine Funktion wie jede andere: eine Kachel unter Funktionen, ein
+Abschnitt auf der Startseite, die Route `/household`. Beim Beitritt werden
+Einkaufsliste und Ämtli in den Haushalt übernommen — Termine nicht, die
+bleiben privat.
 
-## Kalender (GetBetter)
+## Kalender
 
-`features/calendar/` — drei Ansichten über denselben Datenbestand:
+`features/calendar/` — drei Ansichten über denselben Datenbestand, in GetBetter
+über den privaten Kalender, in BetterFamily über den der Haushalte:
 
 - `MonthView` — Raster mit Kästchen: jeder Tag zeigt seine Termine als farbige
   Streifen, `+N` wenn mehr da sind. Ein Tag antippen führt in seine Tagesansicht.
@@ -154,7 +164,7 @@ Beide führen ihren eigenen, solange es keinen Server gibt.
   Anlegen ist der kleine `FloatingButton` unten rechts.
 - `CalendarPicker` — das aufklappbare Menü in der Kopfzeile: oben die Ansicht,
   darunter je ein Häkchen pro Kalender, unten unter **Kalender anzeigen** die
-  Personen. "Kalender verwalten" sitzt als Zahnrad oben rechts.
+  Personen. „Kalender verwalten“ sitzt als Zahnrad oben rechts.
 
 ### Eigene Kalender
 
@@ -166,7 +176,7 @@ per **Benutzername** eingeladen und müssen zustimmen.
 
 Unter **Kalender anzeigen** stehen die Haushaltsmitglieder — je Haushalt eine
 Gruppe, mit Überschrift erst, wenn mehrere welche beisteuern. Darunter
-**Andere**: Konten ausserhalb, die zugestimmt haben. "Andere Person anzeigen"
+**Andere**: Konten ausserhalb, die zugestimmt haben. „Andere Person anzeigen“
 fragt per Benutzername an (`db/shares.ts`, Sammlung `calendarShares`).
 Private Termine bleiben auch danach verborgen.
 
@@ -203,55 +213,73 @@ Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
   lässt sich zurücknehmen
 
 `dayKey(date)` ist der Tagesschlüssel `YYYY-MM-DD`, nach dem gruppiert wird.
-Die Zahlen landen über die gemeinsame Datenbank auch auf der BetterGym-Karte
-in GetBetter.
 
-## Startseite und Finder
+## Navigation
 
-Jede App hat zwei Uebersichten, und keine davon ist ein Kachelbrett.
+Jede App hat dieselben drei Tabs — **Start**, **Funktionen**, **Profil** —,
+GetBetter dazu den **Assistenten**, BetterAi nur **Chat** und **Profil**. Alles
+andere (Haushalt, Aussehen, die volle Ansicht einer Funktion) liegt dahinter
+als Route. Keine der beiden Übersichten ist ein Kachelbrett.
 
 ### Die Startseite (`screens/WorkspaceScreen.tsx`)
 
 Gruss und Datum, darunter je Funktion ein Abschnitt mit dem, was sie gerade
 weiss — und mit dem, was man direkt tun kann:
 
-| Funktion                       | Was dort steht und geht                             |
-| ------------------------------ | --------------------------------------------------- |
-| Kalender                       | die naechsten Termine                               |
-| Aufgaben                       | offene Aufgaben, antippen hakt ab, Feld zum Anlegen |
-| Notizen                        | die letzten drei                                    |
-| Wecker                         | der naechste                                        |
-| Einkauf                        | offene Posten, antippen erledigt                    |
-| Aemtli                         | was ansteht                                         |
-| Training / Menueplan / Trinken | die Zahl des Tages                                  |
+| Funktion                      | Was dort steht und geht                             |
+| ----------------------------- | --------------------------------------------------- |
+| Haushalt (BetterFamily)       | der aktive Haushalt                                 |
+| Kalender                      | die nächsten Termine                                |
+| Aufgaben                      | offene Aufgaben, antippen hakt ab, Feld zum Anlegen |
+| Notizen                       | die letzten drei                                    |
+| Wecker                        | der nächste                                         |
+| Einkauf                       | offene Posten, antippen erledigt                    |
+| Ämtli                         | was ansteht                                         |
+| Training / Menüplan / Trinken | die Zahl des Tages                                  |
 
 Welche Abschnitte erscheinen, sagt `modulesOfApp()`. In GetBetter folgen die
-Karten der anderen Better-Apps, ganz unten steht **Kommt noch** — was diese
-App fuehrt, aber noch nicht kann, blass und ohne etwas vorzugeben. Nur die
-Kopfzeile eines Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter
-gehoeren der Funktion.
+Karten der anderen Better-Apps (`features/apps/AppFamily.tsx`): wo man schon
+einmal drin war, stehen feste Felder mit Wert oder „—“; wo nicht, das Logo
+blass, ein Satz und ein farbiger **Installieren**-Knopf (`storeUrl`, sonst die
+laufende App). Ganz unten steht **Kommt noch** — was diese App führt, aber noch
+nicht kann. Nur die Kopfzeile eines Abschnitts führt in die volle Ansicht; die
+Zeilen darunter gehören der Funktion. Kein Knopf im Knopf: eine `Card` ist nur
+dann drückbar, wenn sie keinen eigenen Knopf enthält — im Browser wäre das
+ungültiges HTML und fällt beim Rendern auf.
 
 ### Funktionen (`screens/FunctionsScreen.tsx`)
 
 Der zweite Tab zeigt die Funktionen **dieser** App als Logos, drei
 nebeneinander: oben, was wirklich etwas tut, darunter unter **Kommt noch**
 blass der Rest. `BUILT_MODULE_IDS` in `mocks/modules.ts` ist die eine Stelle,
-die weiss, was gebaut ist.
+die weiss, was gebaut ist. Nie die Funktionen anderer Apps.
 
-### Die Logos (`ui/ModuleIcon.tsx`)
+**Favoriten gibt es nicht.** Kein Stern, keine Auswahl, kein Fragenschritt beim
+Einrichten — alle Funktionen sind immer da.
 
-Drei Schichten statt eines Farbflecks: ein abgerundetes Quadrat mit
-Farbverlauf (`expo-linear-gradient`), darauf ein heller Bogen als Licht, in der
-Mitte das Symbol. Die Farben stehen in `theme/modules.ts` — je Funktion zwei
-Toene, je einer fuer hell und dunkel. Drei Groessen: `sm` in Listen, `md` auf
-Karten, `lg` im Raster.
+## Die Bilder (`scripts/icons.js`)
 
-Keine einzige Bilddatei: das Logo entsteht aus Formen und faerbt sich mit dem
-Aussehen mit — in "farbig" gefuellt, in "ruhig" zurueckgenommen, in
-"schwarzweiss" grau.
+Alle Logos sind **echte PNGs**, erzeugt aus dem, was im Code steht: Farbe aus
+`theme/modules.ts`, Symbol aus `mocks/modules.ts` und `ui/Icon.tsx` (Ionicons,
+MIT), die Apps aus `app/identity.ts`. Ein Logo ist ein abgerundetes Quadrat
+mit Farbverlauf, einem Lichtbogen und weissem Symbol.
 
-**Favoriten gibt es nicht mehr.** Kein Stern, keine Auswahl, kein
-Fragenschritt beim Einrichten — alle Funktionen sind immer da.
+```
+packages/core/src/assets/modules/<id>.png, <id>-mono.png   je Funktion, 256 px
+packages/core/src/assets/apps/<app>.png, <app>-mono.png     je App, 256 px
+packages/core/src/assets/index.ts                           die require()-Tabelle
+apps/<app>/assets/                                          Store-Icon 1024 px,
+                                                            Android-Ebenen, Splash, Favicon
+```
+
+`ui/ModuleIcon.tsx` und `ui/AppIcon.tsx` zeigen diese Bilder (in
+„schwarzweiss“ die graue Fassung) und zeichnen die Form nur dann selbst, wenn es
+zu einer Id kein Bild gibt. Grössen: `sm` 28 in Listen, `md` 44 auf Karten,
+`lg` 64 im Raster, `xl` 88 auf der Startseite.
+
+Farbe oder Symbol ändern heisst: im Code ändern, `node scripts/icons.js`
+laufen lassen, die Bilder mit einchecken. Nie ein Bild von Hand in `assets/`
+legen.
 
 ## Onboarding (GetBetter)
 
@@ -261,7 +289,7 @@ sie legen gleich los.
 ## Aussehen
 
 `/appearance` (aus dem Profil, in jeder App) stellt drei Regler, am Konto
-gespeichert:
+gespeichert und damit in allen Apps gleich:
 
 |                |                                                                      |
 | -------------- | -------------------------------------------------------------------- |
@@ -270,7 +298,25 @@ gespeichert:
 | Akzentfarbe    | Acht Töne aus `ACCENTS`, in Schwarzweiss ohne Wirkung                |
 
 Jedes Modul hat eine eigene Farbe (`theme/modules.ts`); `moduleTint(theme, id)`
-macht daraus das Logo.
+und `hueTint(theme, hue)` machen daraus die gezeichnete Fassung eines Logos.
+
+## Veröffentlichen
+
+Jede App ist für den Store vorbereitet:
+
+- `app.json` — Name, `version` 1.0.0, `ios.bundleIdentifier` und
+  `android.package` `ch.better.<slug>`, Splash in der App-Farbe, adaptive
+  Android-Icons, Favicon. `buildNumber` / `versionCode` je Release erhöhen.
+- `eas.json` — Profile `development`, `preview`, `production`.
+- `EXPO_PUBLIC_API_URL` beim Bauen setzen: das ist die eine Stelle, an der aus
+  dem Entwicklungsdienst der echte wird.
+- Sobald eine App im Store ist, ihren `packageName` in `APPS` eintragen — dann
+  führt der Installieren-Knopf in GetBetter dorthin.
+
+```bash
+cd apps/getbetter
+EXPO_PUBLIC_API_URL=https://api.example.ch eas build --profile production
+```
 
 ## Regeln
 
@@ -278,8 +324,10 @@ macht daraus das Logo.
   `useTheme()`.
 - **Kein Text im Code.** Jeder sichtbare String geht durch `t('key')`.
   Neue Schlüssel in `i18n/de.ts`, die anderen Sprachen fallen darauf zurück.
+  Umlaute ausschreiben — „Ämtli“, nicht „Aemtli“.
 - **Datum und Zahlen über `Intl`.** Helfer in `i18n/format.ts`, Schweizer Locale.
-- **Daten kommen aus `db/repositories.ts`**, gelesen über `useLiveQuery`.
+- **Daten kommen aus `db/repositories.ts`** (und `db/gym.ts`, `db/households.ts`,
+  …), gelesen über `useLiveQuery`.
 - **Kein Bildschirm greift direkt auf den Speicher zu** — immer über ein
   Repository.
 - **Was alle Apps teilen, gehört in den Kern.** In `apps/<name>/app` steht nur,
@@ -288,19 +336,11 @@ macht daraus das Logo.
   Browser in den Telefonrahmen. Dort nie `flex: 0` schreiben, wo eine Höhe
   gelten soll — daraus wird `flex-basis: 0%`, und das Blatt fällt zusammen.
 - **Kein leerer Bildschirm.** Wo nichts ist, steht ein `EmptyState`.
+- **Kein Knopf im Knopf.** Eine drückbare `Card` enthält keinen `Button`.
+- **Im Web ohne Warnungen.** `boxShadow` statt `shadow*`, `pointerEvents` im
+  Stil statt als Prop.
 - **Unveränderlich.** Zustand wird kopiert, nie mutiert.
 - **TypeScript strict**, inklusive `noUncheckedIndexedAccess`. `npm run typecheck`
   und `npm run lint` müssen sauber sein, bevor etwas als fertig gilt.
-
-## Wo die Naht zum Server liegt
-
-Zwei Dateien im Kern, sonst nichts:
-
-- `db/repositories.ts` — die Abfragen. Gleiche Signaturen, andere Quelle.
-- `auth/accounts.ts` — Registrieren und Anmelden.
-
-Passwörter liegen lokal als SHA-256 über Salt + Passwort. Für einen Speicher auf
-dem Gerät vertretbar, ersetzt aber keine Server-Anmeldung. Mit einem Server
-wachsen die fünf Apps zu einem Konto und einer Datenlage zusammen — dann kann
-GetBetter auch echte Zahlen der anderen Apps zeigen, statt nur Aufträge zu
-schicken.
+- **`services/api/data/` bleibt draussen.** Die Datei enthält Passwort-Hashes
+  und gehört nie ins Git.

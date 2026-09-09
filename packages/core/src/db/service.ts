@@ -9,10 +9,16 @@ import { Platform } from 'react-native';
 export const API_PORT = 8090;
 
 /**
- * Im Browser laeuft der Dienst neben den Apps auf demselben Rechner. Auf einem
- * Geraet nehmen wir den Rechner, von dem Expo geladen hat — das ist derselbe.
+ * Wo die Datenbank laeuft.
+ *
+ * Veroeffentlicht: `EXPO_PUBLIC_API_URL` beim Bauen setzen — das ist die eine
+ * Stelle, an der aus dem Entwicklungsdienst der echte wird.
+ * In der Entwicklung: im Browser auf demselben Rechner; auf einem Geraet der
+ * Rechner, von dem Expo geladen hat — das ist derselbe.
  */
 export function serviceUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_API_URL;
+  if (configured && configured.length > 0) return configured.replace(/\/$/, '');
   if (Platform.OS === 'web') return `http://localhost:${API_PORT}`;
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${host ?? 'localhost'}:${API_PORT}`;

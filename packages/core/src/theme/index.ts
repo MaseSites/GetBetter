@@ -76,4 +76,4 @@ export {
   fontFamily,
 };
 export type { AccentKey, ColorScheme, Palette, ThemePreset };
-export { moduleTint, MODULE_COLORS } from './modules';
+export { hueTint, moduleTint, MODULE_COLORS } from './modules';

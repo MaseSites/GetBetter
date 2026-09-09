@@ -36,7 +36,8 @@ export const de = {
   'auth.hasAccount': 'Schon ein Konto? Anmelden',
   'auth.signOut': 'Abmelden',
   'auth.passwordHint': 'Mindestens acht Zeichen.',
-  'auth.localHint': 'Konto und Daten liegen nur auf diesem Gerät. Es geht nichts an einen Server.',
+  'auth.localHint':
+    'Ein Konto für alle Better-Apps. Was du hier einträgst, sehen die anderen Apps auch.',
   'auth.error.emailInvalid': 'Das sieht nicht nach einer E-Mail-Adresse aus.',
   'auth.error.emailTaken': 'Für diese E-Mail gibt es schon ein Konto.',
   'auth.error.passwordTooShort': 'Das Passwort braucht mindestens acht Zeichen.',
@@ -74,8 +75,7 @@ export const de = {
   'link.working': 'Einen Moment …',
   'link.workingBody': 'Das Konto wird übernommen.',
   'link.adopted': 'Konto übernommen',
-  'link.adoptedBody':
-    'Dieselbe Anmeldung gilt jetzt auch hier. Deine Daten bleiben je App getrennt, solange es keinen Server gibt.',
+  'link.adoptedBody': 'Dieselbe Anmeldung gilt jetzt auch hier — mit denselben Daten.',
   'link.sent': 'An {app} geschickt',
   'link.sentBody': 'Dort kannst du dich jetzt mit derselben Anmeldung bewegen.',
   'link.needsSignIn': 'Erst hier anmelden',
@@ -215,7 +215,6 @@ export const de = {
   'profile.data': 'Deine Daten',
   'profile.data.subtitle': 'Was gerade in der Datenbank liegt',
   'profile.since': 'Konto seit {date}',
-  'profile.household.soon': 'Geteilte Haushalte kommen, sobald es einen Server gibt.',
   'profile.household': 'Haushalt',
   'profile.household.members': '{count} Mitglieder',
   'profile.household.none': 'Du bist noch in keinem Haushalt.',

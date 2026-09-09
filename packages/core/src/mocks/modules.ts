@@ -115,7 +115,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'meals',
     area: 'health',
-    name: 'Menuplan',
+    name: 'Menüplan',
     short: 'Was diese Woche auf den Tisch kommt',
     description:
       'Plant Mahlzeiten fuer die Woche und schickt fehlende Zutaten auf die Einkaufsliste des Haushalts.',
@@ -205,7 +205,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'chores',
     area: 'household',
-    name: 'Aemtli',
+    name: 'Ämtli',
     short: 'Wer macht was, und wann war es zuletzt dran',
     description:
       'Verteilt wiederkehrende Arbeiten im Haushalt und zeigt, wann etwas zuletzt gemacht wurde.',

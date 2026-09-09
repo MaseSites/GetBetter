@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { currentApp } from '@/app/identity';
+import { currentApp, hasHouseholds } from '@/app/identity';
 import { useTranslate } from '@/i18n';
 import { BUILT_MODULE_IDS, modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
@@ -20,7 +20,22 @@ export function FunctionsScreen() {
   const app = currentApp();
 
   const mine = modulesOfApp();
-  const ready = mine.filter((module) => BUILT_MODULE_IDS.includes(module.id));
+  // Der Haushalt ist in BetterFamily eine Funktion wie jede andere.
+  const household: ModuleDefinition[] = hasHouseholds()
+    ? [
+        {
+          id: 'household',
+          area: 'household',
+          name: t('tabs.household'),
+          short: '',
+          description: '',
+          icon: 'people',
+          priority: 1,
+          permissions: { read: [], write: [] },
+        },
+      ]
+    : [];
+  const ready = [...household, ...mine.filter((module) => BUILT_MODULE_IDS.includes(module.id))];
   const soon = mine.filter((module) => !BUILT_MODULE_IDS.includes(module.id));
 
   return (
@@ -28,7 +43,10 @@ export function FunctionsScreen() {
       header={<Header large title={t('functions.title')} subtitle={app.name} />}
       gap={theme.spacing.xl}
     >
-      <Grid modules={ready} onOpen={(id) => router.push(`/run/${id}`)} />
+      <Grid
+        modules={ready}
+        onOpen={(id) => router.push(id === 'household' ? '/household' : `/run/${id}`)}
+      />
 
       {soon.length > 0 ? (
         <View style={{ gap: theme.spacing.md }}>

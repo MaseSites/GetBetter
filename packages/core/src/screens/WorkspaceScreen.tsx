@@ -18,7 +18,7 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { currentApp } from '@/app/identity';
+import { currentApp, hasHouseholds } from '@/app/identity';
 import { AppFamily } from '@/features/apps/AppFamily';
 import { formatLongDate, formatShortDate, formatTime, useI18n } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
@@ -253,6 +253,26 @@ export function WorkspaceScreen() {
         />
       }
     >
+      {hasHouseholds() ? (
+        <Section
+          module={{
+            id: 'household',
+            area: 'household',
+            name: t('tabs.household'),
+            short: '',
+            description: '',
+            icon: 'people',
+            priority: 1,
+            permissions: { read: [], write: [] },
+          }}
+          onOpen={() => router.push('/household')}
+        >
+          <Text variant="label" tone={household ? 'default' : 'faint'}>
+            {household ? household.name : t('household.none.title')}
+          </Text>
+        </Section>
+      ) : null}
+
       {built.map((module) => (
         <Section key={module.id} module={module} onOpen={() => router.push(`/run/${module.id}`)}>
           {content(module.id)}

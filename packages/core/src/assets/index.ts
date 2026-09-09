@@ -1,0 +1,78 @@
+/* Von scripts/icons.js erzeugt — nicht von Hand aendern. */
+import type { ImageSourcePropType } from 'react-native';
+
+export const MODULE_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
+  ai: require('./modules/ai.png'),
+  alarm: require('./modules/alarm.png'),
+  bills: require('./modules/bills.png'),
+  budget: require('./modules/budget.png'),
+  calendar: require('./modules/calendar.png'),
+  chores: require('./modules/chores.png'),
+  contacts: require('./modules/contacts.png'),
+  documents: require('./modules/documents.png'),
+  fitness: require('./modules/fitness.png'),
+  habits: require('./modules/habits.png'),
+  household: require('./modules/household.png'),
+  meals: require('./modules/meals.png'),
+  meds: require('./modules/meds.png'),
+  mind: require('./modules/mind.png'),
+  notes: require('./modules/notes.png'),
+  pets: require('./modules/pets.png'),
+  plants: require('./modules/plants.png'),
+  recipes: require('./modules/recipes.png'),
+  savings: require('./modules/savings.png'),
+  shopping: require('./modules/shopping.png'),
+  sleep: require('./modules/sleep.png'),
+  subscriptions: require('./modules/subscriptions.png'),
+  tasks: require('./modules/tasks.png'),
+  travel: require('./modules/travel.png'),
+  vehicles: require('./modules/vehicles.png'),
+  vitals: require('./modules/vitals.png'),
+  water: require('./modules/water.png'),
+};
+
+export const MODULE_IMAGES_MONO: Readonly<Record<string, ImageSourcePropType>> = {
+  ai: require('./modules/ai-mono.png'),
+  alarm: require('./modules/alarm-mono.png'),
+  bills: require('./modules/bills-mono.png'),
+  budget: require('./modules/budget-mono.png'),
+  calendar: require('./modules/calendar-mono.png'),
+  chores: require('./modules/chores-mono.png'),
+  contacts: require('./modules/contacts-mono.png'),
+  documents: require('./modules/documents-mono.png'),
+  fitness: require('./modules/fitness-mono.png'),
+  habits: require('./modules/habits-mono.png'),
+  household: require('./modules/household-mono.png'),
+  meals: require('./modules/meals-mono.png'),
+  meds: require('./modules/meds-mono.png'),
+  mind: require('./modules/mind-mono.png'),
+  notes: require('./modules/notes-mono.png'),
+  pets: require('./modules/pets-mono.png'),
+  plants: require('./modules/plants-mono.png'),
+  recipes: require('./modules/recipes-mono.png'),
+  savings: require('./modules/savings-mono.png'),
+  shopping: require('./modules/shopping-mono.png'),
+  sleep: require('./modules/sleep-mono.png'),
+  subscriptions: require('./modules/subscriptions-mono.png'),
+  tasks: require('./modules/tasks-mono.png'),
+  travel: require('./modules/travel-mono.png'),
+  vehicles: require('./modules/vehicles-mono.png'),
+  vitals: require('./modules/vitals-mono.png'),
+  water: require('./modules/water-mono.png'),
+};
+
+export const APP_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
+  getbetter: require('./apps/getbetter.png'),
+  betterfamily: require('./apps/betterfamily.png'),
+  bettergym: require('./apps/bettergym.png'),
+  betterai: require('./apps/betterai.png'),
+  bettermoney: require('./apps/bettermoney.png'),
+};
+
+export const APP_IMAGES_MONO: Readonly<Record<string, ImageSourcePropType>> = {
+  getbetter: require('./apps/getbetter-mono.png'),
+  betterfamily: require('./apps/betterfamily-mono.png'),
+  bettergym: require('./apps/bettergym-mono.png'),
+  betterai: require('./apps/betterai-mono.png'),
+  bettermoney: require('./apps/bettermoney-mono.png'),
+};
