@@ -65,6 +65,23 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
   },
 };
 
+/**
+ * Welche App welche Module fuehrt. Zusammen ergeben sie die Registry —
+ * jedes Modul gehoert genau einer App.
+ */
+export const APP_MODULES: Readonly<Record<AppId, readonly string[]>> = {
+  getbetter: ['calendar', 'tasks', 'notes', 'alarm', 'documents', 'habits', 'travel', 'contacts'],
+  betterfamily: ['shopping', 'chores', 'recipes', 'plants', 'pets', 'vehicles'],
+  bettergym: ['fitness', 'meals', 'sleep', 'water', 'meds', 'vitals', 'mind'],
+  betterai: ['ai'],
+  bettermoney: ['budget', 'bills', 'subscriptions', 'savings'],
+};
+
+/** In welcher App ein Modul steckt. */
+export function appOfModule(moduleId: string): AppId | undefined {
+  return APP_IDS.find((id) => APP_MODULES[id].includes(moduleId));
+}
+
 function isAppId(value: string | undefined): value is AppId {
   return value !== undefined && (APP_IDS as readonly string[]).includes(value);
 }

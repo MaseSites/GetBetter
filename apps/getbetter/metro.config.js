@@ -12,6 +12,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.resolver.disableHierarchicalLookup = true;
+// Kein `disableHierarchicalLookup`: Expo loest einige Pakete (z. B. expo-asset)
+// ueber die eigene Aufloesung, die dabei ausfaellt.
 
 module.exports = config;

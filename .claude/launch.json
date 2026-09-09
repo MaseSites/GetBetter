@@ -2,10 +2,34 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "expo-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081", "--clear"],
+      "name": "getbetter",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "apps/getbetter", "--", "--port", "8081"],
       "port": 8081
+    },
+    {
+      "name": "betterfamily",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "apps/betterfamily", "--", "--port", "8082"],
+      "port": 8082
+    },
+    {
+      "name": "bettergym",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "apps/bettergym", "--", "--port", "8083"],
+      "port": 8083
+    },
+    {
+      "name": "betterai",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "apps/betterai", "--", "--port", "8084"],
+      "port": 8084
+    },
+    {
+      "name": "bettermoney",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "-w", "apps/bettermoney", "--", "--port", "8085"],
+      "port": 8085
     }
   ]
 }
