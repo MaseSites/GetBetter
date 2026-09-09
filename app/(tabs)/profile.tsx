@@ -34,7 +34,7 @@ export default function ProfileScreen() {
   );
   const upcoming = useLiveQuery(
     () => eventRepo.listUpcoming(access, new Date().toISOString()),
-    [access.accountId, access.householdId, access.calendarIds],
+    [access.accountId, access.householdIds, access.calendarIds],
   );
 
   return (

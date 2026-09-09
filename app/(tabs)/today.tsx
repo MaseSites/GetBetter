@@ -29,7 +29,7 @@ export default function TodayScreen() {
   // Alles hier kommt aus der Datenbank — keine Beispielzahlen mehr.
   const upcoming = useLiveQuery(
     () => eventRepo.listUpcoming(access, todayIso, 5),
-    [access.accountId, access.householdId, access.calendarIds],
+    [access.accountId, access.householdIds, access.calendarIds],
   );
   const openTasks = useLiveQuery(
     () => taskRepo.listOpen(account.id, householdId),

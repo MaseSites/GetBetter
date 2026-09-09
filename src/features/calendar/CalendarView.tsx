@@ -2,18 +2,12 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import {
-  calendars as calendarRepo,
-  households as householdRepo,
-  shares as shareRepo,
-  useLiveQuery,
-  type EventRow,
-} from '@/db';
+import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
 import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useAccount, useApp } from '@/state/AppContext';
+import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Card, Header, Icon, Screen, Text } from '@/ui';
 
@@ -45,7 +39,6 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const { household } = useApp();
   const favouriteAction = useFavouriteAction(module.id);
 
   const { access, calendars: myCalendars, households, sharedBy } = useCalendarAccess();
@@ -77,31 +70,21 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
-  const householdIds = households.map((entry) => entry.household.id);
-  const memberList = useLiveQuery(async () => {
-    const groups = [];
-    for (const id of householdIds) {
-      const found = await householdRepo.find(id);
-      if (!found) continue;
-      groups.push({ household: found, members: await householdRepo.members(id) });
-    }
-    return groups;
-  }, [householdIds]);
-  // Eigene Konstante, damit die useMemo unten nicht bei jedem Rendern laufen.
-  const memberGroups = useMemo(() => memberList.data ?? [], [memberList.data]);
-
   const calendarEntries = useMemo((): PickerEntry[] => {
-    const list: PickerEntry[] = [{ source: 'personal', label: t('calendar.scope.personal') }];
-    if (household) list.push({ source: 'family', label: t('calendar.scope.family') });
-    myCalendars.forEach((entry) => {
-      list.push({
-        source: `cal:${entry.calendar.id}`,
+    // Der eigene, dann je Haushalt einer unter seinem Namen, dann die eigenen.
+    return [
+      { source: 'personal', label: t('calendar.scope.personal') },
+      ...households.map((entry) => ({
+        source: `house:${entry.household.id}` as const,
+        label: entry.household.name,
+      })),
+      ...myCalendars.map((entry) => ({
+        source: `cal:${entry.calendar.id}` as const,
         label: entry.calendar.name,
         color: EVENT_COLORS[entry.calendar.color as EventColorKey] ?? eventColor(null),
-      });
-    });
-    return list;
-  }, [t, household, myCalendars]);
+      })),
+    ];
+  }, [t, households, myCalendars]);
 
   // Personen: je Haushalt eine Gruppe, darunter, wer freigegeben hat.
   // Wer in zwei Haushalten steht, erscheint nur einmal.
@@ -114,18 +97,18 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
       return { source: `member:${id}`, label };
     };
 
-    const byHousehold = memberGroups
-      .map((group) => ({
-        key: group.household.id,
-        title: group.household.name,
-        entries: group.members
+    const byHousehold = households
+      .map((entry) => ({
+        key: entry.household.id,
+        title: entry.household.name,
+        entries: entry.members
           .map((member) => take(member.membership.accountId, member.displayName))
           .filter((entry): entry is PickerEntry => entry !== null),
       }))
       .filter((group) => group.entries.length > 0);
 
     // Die Ueberschrift hilft erst, wenn mehrere Haushalte Leute beisteuern.
-    const households: PickerGroup[] =
+    const groups: PickerGroup[] =
       byHousehold.length > 1
         ? byHousehold
         : byHousehold.map(({ key, entries }) => ({ key, entries }));
@@ -135,9 +118,9 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
       .filter((entry): entry is PickerEntry => entry !== null);
 
     return others.length > 0
-      ? [...households, { key: 'shared', title: t('calendar.picker.others'), entries: others }]
-      : households;
-  }, [memberGroups, sharedBy, account.id, t]);
+      ? [...groups, { key: 'shared', title: t('calendar.picker.others'), entries: others }]
+      : groups;
+  }, [households, sharedBy, account.id, t]);
 
   const selected = useMemo(() => {
     const known = new Set(
@@ -175,7 +158,7 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
 
   const list = useLiveQuery(
     () => eventRepo.listBetween(access, fromIso, toIso, selected),
-    [access.accountId, access.householdId, access.calendarIds, fromIso, toIso, selected],
+    [access.accountId, access.householdIds, access.calendarIds, fromIso, toIso, selected],
   );
   const events = list.data ?? [];
 

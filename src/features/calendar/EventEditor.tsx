@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import type { CalendarScope, EventRow } from '@/db';
 import { events as eventRepo } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
-import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Chip, Icon, Input, Sheet, Text } from '@/ui';
 
@@ -35,13 +34,14 @@ export type EventDraft = {
   hour?: number;
 };
 
-/** Wohin der Termin gehoert: privat, in den Haushalt oder in einen eigenen Kalender. */
-type EventTarget = 'personal' | 'family' | `cal:${string}`;
+/** Wohin der Termin gehoert: privat, in einen Haushalt oder in einen eigenen Kalender. */
+type EventTarget = 'personal' | `house:${string}` | `cal:${string}`;
 
 function targetOf(event: EventRow | undefined): EventTarget {
   if (!event) return 'personal';
   if (event.calendarId) return `cal:${event.calendarId}`;
-  return event.calendar === 'family' ? 'family' : 'personal';
+  if (event.calendar === 'family' && event.householdId) return `house:${event.householdId}`;
+  return 'personal';
 }
 
 export type EventEditorProps = {
@@ -53,9 +53,8 @@ export type EventEditorProps = {
 const DURATIONS = [30, 60, 90, 120] as const;
 
 function scopeOf(target: EventTarget): CalendarScope {
-  if (target === 'family') return 'family';
   if (target === 'personal') return 'personal';
-  return 'custom';
+  return target.startsWith('house:') ? 'family' : 'custom';
 }
 
 export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
@@ -85,8 +84,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const t = useTranslate();
   const theme = useTheme();
 
-  const { household } = useApp();
-  const { calendars } = useCalendarAccess();
+  const { calendars, households } = useCalendarAccess();
   const editing = draft.event;
   const initialStart = editing ? new Date(editing.startsAt) : null;
   const initialHour = draft.hour ?? 9;
@@ -154,6 +152,8 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
 
     const scope = scopeOf(target);
     const calendarId = target.startsWith('cal:') ? target.slice('cal:'.length) : null;
+    // Ein Familientermin gehoert genau dem gewaehlten Haushalt.
+    const householdId = target.startsWith('house:') ? target.slice('house:'.length) : null;
 
     if (editing) {
       await eventRepo.update(editing.id, {
@@ -167,12 +167,12 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         calendar: scope,
         calendarId,
         isPrivate: scope === 'personal' ? isPrivate : false,
-        householdId: household?.id ?? null,
+        householdId,
       });
     } else {
       await eventRepo.create({
         accountId,
-        householdId: household?.id ?? null,
+        householdId,
         calendar: scope,
         calendarId,
         isPrivate,
@@ -194,10 +194,13 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
     onClose();
   }
 
-  // Privat, der Haushalt und jeder eigene Kalender — nur was es wirklich gibt.
+  // Privat, jeder Haushalt unter seinem Namen und jeder eigene Kalender.
   const targets: { value: EventTarget; label: string }[] = [
     { value: 'personal', label: t('calendar.scope.personal') },
-    ...(household ? [{ value: 'family' as const, label: t('calendar.scope.family') }] : []),
+    ...households.map((entry) => ({
+      value: `house:${entry.household.id}` as const,
+      label: entry.household.name,
+    })),
     ...calendars.map((entry) => ({
       value: `cal:${entry.calendar.id}` as const,
       label: entry.calendar.name,
@@ -332,7 +335,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
               />
             ))}
           </View>
-          {target === 'personal' && household ? (
+          {target === 'personal' && households.length > 0 ? (
             <View style={[styles.row, { gap: theme.spacing.md }]}>
               <View style={{ flex: 1 }}>
                 <Text variant="label" tone="muted">

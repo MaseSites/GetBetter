@@ -127,7 +127,9 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
 - `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
   und einer Linie fuer die aktuelle Uhrzeit
 - `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
-  Der Zielkalender wird hier gewaehlt: Privat, Haushalt oder ein eigener.
+  Der Zielkalender wird hier gewaehlt: Privat, einer der Haushalte (unter
+  seinem Namen) oder ein eigener. Ein Familientermin landet genau im
+  gewaehlten Haushalt, nicht im gerade aktiven.
 - `CalendarPicker` — das aufklappbare Menue in der Kopfzeile. Oben die Ansicht
   (Tag/Woche/Monat), darunter je ein Haekchen pro eigenem Kalender mit
   "Alle anzeigen", ganz unten unter **Kalender anzeigen** die Personen.
@@ -166,11 +168,12 @@ eigenen Kalender.
 Jede angehakte Quelle wird einzeln geprueft, gezeigt wird die Vereinigung.
 
 - **Privat** — persoenliche Termine, nur der eigene Kalender
-- **Familie** — Termine im Familienkalender, alle Mitglieder sehen sie
+- **Haushalt** — je Haushalt eine eigene Quelle (`house:<id>`), benannt nach
+  dem Haushalt. Wer in dreien ist, hat drei davon.
 - **Eigener Kalender** — was in diesem Kalender steht, fuer alle, die dabei sind
 - **Mitglied** — der persoenliche Kalender einer anderen Person, ohne deren
-  private Termine. Erlaubt ist das mit gemeinsamem Haushalt (irgendeinem der
-  eigenen, nicht nur dem aktiven) oder mit einer angenommenen Anfrage.
+  private Termine. Wer das darf, steht in `access.canSee`: alle aus den
+  eigenen Haushalten plus die angenommenen Anfragen.
 - Persoenliche Termine sind standardmaessig fuer den Haushalt sichtbar;
   der Schalter "Privat" nimmt sie heraus.
 - Die Startseite (`listUpcoming`) zeigt nur Eigenes, quer ueber die eigenen

@@ -236,7 +236,6 @@ export const de = {
   'calendar.field.privateOn': 'Nur du siehst diesen Termin.',
   'calendar.field.privateOff': 'Dein Haushalt sieht diesen Termin.',
   'calendar.scope.personal': 'Privat',
-  'calendar.scope.family': 'Familie',
   'calendar.picker.title': 'Ansicht und Kalender',
   'calendar.picker.calendars': 'Angezeigte Kalender',
   'calendar.picker.all': 'Alle anzeigen',

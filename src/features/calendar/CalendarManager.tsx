@@ -1,19 +1,19 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import {
   calendars as calendarRepo,
-  households as householdRepo,
   useLiveQuery,
   MAX_CALENDARS,
   type CalendarWithRole,
 } from '@/db';
 import { useTranslate } from '@/i18n';
-import { useAccount, useApp } from '@/state/AppContext';
+import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Badge, Button, Divider, Icon, Input, ListItem, Loading, Sheet, Text } from '@/ui';
 
 import { EVENT_COLORS, EVENT_COLOR_KEYS, colorLabelKey, type EventColorKey } from './colors';
+import { useCalendarAccess } from './useCalendarAccess';
 
 export type CalendarManagerProps = {
   visible: boolean;
@@ -29,7 +29,7 @@ export function CalendarManager({ visible, onClose, calendars }: CalendarManager
   const t = useTranslate();
   const theme = useTheme();
   const account = useAccount();
-  const { household } = useApp();
+  const { households, loading } = useCalendarAccess();
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -38,13 +38,23 @@ export function CalendarManager({ visible, onClose, calendars }: CalendarManager
   const [inviteFor, setInviteFor] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const memberList = useLiveQuery(
-    () => (household ? householdRepo.members(household.id) : Promise.resolve([])),
-    [household?.id],
-  );
-  const householdMembers = (memberList.data ?? []).filter(
-    (entry) => entry.membership.accountId !== account.id,
-  );
+  // Alle Haushalte, nicht nur der aktive — jede Person nur einmal.
+  const householdGroups = useMemo(() => {
+    const seen = new Set<string>([account.id]);
+    return households
+      .map((entry) => ({
+        key: entry.household.id,
+        title: entry.household.name,
+        members: entry.members
+          .filter((member) => {
+            if (seen.has(member.membership.accountId)) return false;
+            seen.add(member.membership.accountId);
+            return true;
+          })
+          .map((member) => ({ accountId: member.membership.accountId, name: member.displayName })),
+      }))
+      .filter((group) => group.members.length > 0);
+  }, [households, account.id]);
 
   const atLimit = calendars.length >= MAX_CALENDARS;
 
@@ -110,10 +120,7 @@ export function CalendarManager({ visible, onClose, calendars }: CalendarManager
               <CalendarShare
                 calendarId={entry.calendar.id}
                 canManage={entry.isOwner}
-                householdMembers={householdMembers.map((m) => ({
-                  accountId: m.membership.accountId,
-                  name: m.displayName,
-                }))}
+                householdGroups={householdGroups}
                 username={username}
                 onUsername={(value) => {
                   setUsername(value);
@@ -192,17 +199,24 @@ export function CalendarManager({ visible, onClose, calendars }: CalendarManager
           </Text>
         ) : null}
 
-        {memberList.loading ? <Loading compact /> : null}
+        {loading ? <Loading compact /> : null}
         <View style={{ height: theme.spacing.xl }} />
       </View>
     </Sheet>
   );
 }
 
+/** Eine Gruppe Leute aus einem Haushalt; der Titel steht nur bei mehreren da. */
+type HouseholdGroup = {
+  key: string;
+  title: string;
+  members: readonly { accountId: string; name: string }[];
+};
+
 type ShareProps = {
   calendarId: string;
   canManage: boolean;
-  householdMembers: readonly { accountId: string; name: string }[];
+  householdGroups: readonly HouseholdGroup[];
   username: string;
   onUsername: (value: string) => void;
   onInviteUsername: () => void;
@@ -213,7 +227,7 @@ type ShareProps = {
 function CalendarShare({
   calendarId,
   canManage,
-  householdMembers,
+  householdGroups,
   username,
   onUsername,
   onInviteUsername,
@@ -225,6 +239,14 @@ function CalendarShare({
 
   const list = useLiveQuery(() => calendarRepo.members(calendarId), [calendarId]);
   const members = list.data ?? [];
+  // Wer schon dabei ist, braucht keinen Knopf mehr — leere Gruppen fallen weg.
+  const alreadyIn = new Set(members.map((member) => member.membership.accountId));
+  const groups = householdGroups
+    .map((group) => ({
+      ...group,
+      members: group.members.filter((member) => !alreadyIn.has(member.accountId)),
+    }))
+    .filter((group) => group.members.length > 0);
 
   return (
     <View
@@ -262,24 +284,33 @@ function CalendarShare({
 
       {canManage ? (
         <>
-          {householdMembers.length > 0 ? (
+          {groups.length > 0 ? (
             <View style={{ gap: theme.spacing.sm }}>
               <Text variant="caption" tone="faint">
                 {t('calendars.fromHousehold')}
               </Text>
-              <View style={[styles.row, { gap: theme.spacing.sm, flexWrap: 'wrap' }]}>
-                {householdMembers.map((member) => (
-                  <Button
-                    key={member.accountId}
-                    label={member.name}
-                    size="sm"
-                    variant="secondary"
-                    fullWidth={false}
-                    icon="plus"
-                    onPress={() => onInviteMember(member.accountId)}
-                  />
-                ))}
-              </View>
+              {groups.map((group) => (
+                <View key={group.key} style={{ gap: theme.spacing.xs }}>
+                  {groups.length > 1 ? (
+                    <Text variant="caption" tone="faint">
+                      {group.title}
+                    </Text>
+                  ) : null}
+                  <View style={[styles.row, { gap: theme.spacing.sm, flexWrap: 'wrap' }]}>
+                    {group.members.map((member) => (
+                      <Button
+                        key={member.accountId}
+                        label={member.name}
+                        size="sm"
+                        variant="secondary"
+                        fullWidth={false}
+                        icon="plus"
+                        onPress={() => onInviteMember(member.accountId)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))}
             </View>
           ) : null}
 
