@@ -61,11 +61,9 @@ export function Header({
         styles.wrap,
         {
           paddingHorizontal: theme.spacing.lg,
-          paddingTop: theme.spacing.md + insets.top,
+          paddingTop: theme.spacing.lg + insets.top,
           paddingBottom: theme.spacing.md,
           gap: theme.spacing.sm,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.colors.border,
           backgroundColor: theme.colors.background,
         },
       ]}

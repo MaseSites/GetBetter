@@ -13,6 +13,25 @@ const STATUS_BAR_HEIGHT = 44;
 
 type Props = { children: ReactNode };
 
+export type PhoneFrameMetrics = {
+  /** Ob der Telefonrahmen gerade gezeichnet wird. */
+  framed: boolean;
+  width: number;
+  height: number;
+};
+
+/**
+ * Damit sich Blaetter und Dialoge in den Rahmen legen statt ueber das
+ * ganze Browserfenster. Auf dem Geraet ist `framed` immer false.
+ */
+export function usePhoneFrame(): PhoneFrameMetrics {
+  const { width, height } = useWindowDimensions();
+  if (Platform.OS !== 'web' || width < PHONE_WIDTH + 64 || height < 560) {
+    return { framed: false, width, height };
+  }
+  return { framed: true, width: PHONE_WIDTH, height: Math.min(PHONE_HEIGHT, height - 64) };
+}
+
 /**
  * P-002: Auf Web legt diese Komponente den Inhalt in einen zentrierten Telefonrahmen.
  * Auf einem echten Geraet rendert sie die Kinder unveraendert.

@@ -6,7 +6,7 @@ export const en: Translations = {
   'common.continue': 'Continue',
   'common.back': 'Back',
   'tabs.today': 'Home',
-  'tabs.modules': 'Modules',
+  'tabs.modules': 'Apps',
   'tabs.assistant': 'Assistant',
   'tabs.profile': 'Profile',
 };

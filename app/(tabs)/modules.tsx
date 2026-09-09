@@ -46,6 +46,7 @@ export default function MyModulesScreen() {
     <Screen
       header={
         <Header
+          large
           title={t('modules.title')}
           subtitle={
             view === 'all'
@@ -199,7 +200,6 @@ const styles = StyleSheet.create({
   tileIcon: {
     width: 64,
     height: 64,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

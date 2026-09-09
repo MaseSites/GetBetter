@@ -39,12 +39,11 @@ export function Text({
       lineHeight: theme.lineHeight.lg,
       fontWeight: theme.fontWeight.semibold,
     },
+    // Fruher in Grossbuchstaben — das trug zu viel Gewicht.
     section: {
       fontSize: theme.fontSize.sm,
       lineHeight: theme.lineHeight.sm,
-      fontWeight: theme.fontWeight.semibold,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
+      fontWeight: theme.fontWeight.medium,
     },
     body: {
       fontSize: theme.fontSize.md,

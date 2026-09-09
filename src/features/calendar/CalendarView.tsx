@@ -197,8 +197,11 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
           month={anchor}
           selected={anchor}
           events={events}
-          onSelect={setAnchor}
-          onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
+          onOpenDay={(day) => {
+            // Ein Tag antippen fuehrt in seine Tagesansicht.
+            setAnchor(day);
+            setMode('day');
+          }}
         />
       ) : (
         <View style={styles.fill}>

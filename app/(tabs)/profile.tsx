@@ -36,7 +36,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <Screen header={<Header title={t('profile.title')} />}>
+    <Screen header={<Header large title={t('profile.title')} />}>
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.lg }}>
           <Avatar name={account.firstName || account.email} size={56} />

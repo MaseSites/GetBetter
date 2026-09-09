@@ -6,7 +6,7 @@ export const it: Translations = {
   'common.continue': 'Avanti',
   'common.back': 'Indietro',
   'tabs.today': 'Home',
-  'tabs.modules': 'Moduli',
+  'tabs.modules': 'App',
   'tabs.assistant': 'Assistente',
   'tabs.profile': 'Profilo',
 };

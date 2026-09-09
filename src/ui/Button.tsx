@@ -36,13 +36,13 @@ export function Button({
 
   const background: Record<ButtonVariant, string> = {
     primary: theme.colors.accent,
-    secondary: theme.colors.surface,
+    secondary: theme.colors.surfaceMuted,
     ghost: 'transparent',
     danger: theme.colors.dangerSoft,
   };
   const pressedBackground: Record<ButtonVariant, string> = {
     primary: theme.colors.accentStrong,
-    secondary: theme.colors.surfaceMuted,
+    secondary: theme.colors.border,
     ghost: theme.colors.surfaceMuted,
     danger: theme.colors.dangerSoft,
   };
@@ -54,7 +54,7 @@ export function Button({
   };
   const border: Record<ButtonVariant, string> = {
     primary: theme.colors.accent,
-    secondary: theme.colors.border,
+    secondary: theme.colors.surfaceMuted,
     ghost: 'transparent',
     danger: theme.colors.dangerSoft,
   };

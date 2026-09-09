@@ -102,7 +102,8 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
 
 `src/features/calendar/` — drei Ansichten ueber denselben Datenbestand:
 
-- `MonthView` — Raster mit farbigen Punkten, darunter die Agenda des gewaehlten Tages
+- `MonthView` — Raster mit Kaestchen: jeder Tag zeigt seine Termine als farbige
+  Streifen, `+N` wenn mehr da sind. Ein Tag antippen fuehrt in seine Tagesansicht.
 - `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
   und einer Linie fuer die aktuelle Uhrzeit
 - `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz
@@ -138,6 +139,23 @@ Neustart. Gesetzt werden sie per Langdruck auf eine Kachel oder ueber den Stern
 oben rechts — `useFavouriteAction(moduleId)` liefert diesen Kopf-Knopf, jeder
 Modul-Bildschirm und die Detailseite benutzen denselben; das Onboarding belegt sie mit den Prioritaet-1-Modulen der
 gewaehlten Bereiche, ohne Onboarding gilt `DEFAULT_FAVOURITE_IDS`.
+
+## Design
+
+Ein erster Aufraeumdurchgang ist gemacht:
+
+- Karten ohne Rahmen — Weiss auf gedaempftem Hintergrund trennt genug.
+- Abschnittsbeschriftungen nicht mehr in Grossbuchstaben.
+- Keine Trennlinien unter dem Kopf- und ueber dem Fussbereich.
+- Zweitrangige Knoepfe gefuellt statt umrandet.
+- Weichere Radien, grosse Titel auf den Tab-Wurzeln.
+
+`Sheet` legt sich im Browser in den Telefonrahmen statt ueber das ganze
+Fenster — `usePhoneFrame()` liefert dafuer die Masse.
+
+Die Module heissen in der Oberflaeche **Apps**. Routen und Code-Bezeichner
+bleiben `modules` / `ModuleDefinition`, damit die Umbenennung nicht durch
+den ganzen Baum faerbt.
 
 ## Regeln
 

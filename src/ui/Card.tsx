@@ -29,10 +29,9 @@ export function Card({
 }: CardProps) {
   const theme = useTheme();
 
+  // Kein Rahmen: Weiss auf dem gedaempften Hintergrund trennt genug.
   const base: ViewStyle = {
     backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderWidth: 1,
     borderRadius: theme.radii.lg,
     padding: padded ? theme.spacing.lg : 0,
     gap: theme.spacing.md,

@@ -53,6 +53,7 @@ export default function TodayScreen() {
     <Screen
       header={
         <Header
+          large
           title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
           subtitle={formatLongDate(language, todayIso)}
         />

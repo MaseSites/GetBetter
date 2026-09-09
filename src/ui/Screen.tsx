@@ -70,8 +70,6 @@ export function Screen({
               padding: theme.spacing.lg,
               paddingBottom: theme.spacing.lg + insets.bottom,
               gap: theme.spacing.sm,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderTopColor: theme.colors.border,
               backgroundColor: theme.colors.background,
             },
           ]}

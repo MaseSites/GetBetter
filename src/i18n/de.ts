@@ -59,7 +59,7 @@ export const de = {
   'onboarding.household.finish': 'Fertig einrichten',
 
   'tabs.today': 'Startseite',
-  'tabs.modules': 'Module',
+  'tabs.modules': 'Apps',
   'tabs.assistant': 'Assistent',
   'tabs.profile': 'Profil',
 
@@ -69,7 +69,7 @@ export const de = {
   'today.tasks': 'Offene Aufgaben',
   'today.tasks.empty': 'Keine offenen Aufgaben. Auch das ist ein Ergebnis.',
   'today.tasks.remaining': 'noch {count} offen',
-  'today.moduleCards': 'Aus deinen Modulen',
+  'today.moduleCards': 'Aus deinen Apps',
   'today.openAssistant': 'Assistent öffnen',
   'today.allDay': 'Ganztägig',
   'today.household': 'Haushalt',
@@ -80,18 +80,18 @@ export const de = {
   'today.blank.title': 'Noch nichts eingetragen',
   'today.blank.body':
     'Termine, Aufgaben, Einkäufe und Notizen erscheinen hier, sobald du sie anlegst.',
-  'today.blank.action': 'Zu den Modulen',
+  'today.blank.action': 'Zu den Apps',
 
-  'modules.title': 'Meine Module',
-  'modules.subtitle': 'Alles da, nach Bereich sortiert',
-  'modules.tileHint': 'Lang druecken fuer mehr',
+  'modules.title': 'Apps',
+  'modules.subtitle': 'Nach Bereich sortiert',
+  'modules.tileHint': 'Lang drücken für mehr',
   'modules.view': 'Ansicht',
   'modules.view.all': 'Alle',
   'modules.view.favourites': 'Favoriten',
   'modules.favouriteCount': '{count} Favoriten',
   'modules.noFavourites.title': 'Noch keine Favoriten',
   'modules.noFavourites.body':
-    'Druck lang auf ein Modul und waehl "Zu Favoriten", dann steht es hier.',
+    'Drück lang auf eine App und wähl «Zu Favoriten», dann steht sie hier.',
   'modules.sheet.addFavourite': 'Zu Favoriten',
   'modules.sheet.removeFavourite': 'Aus Favoriten entfernen',
   'modules.sheet.addToHomescreen': 'Zum Homescreen hinzufügen',
@@ -101,16 +101,16 @@ export const de = {
   'modules.sheet.details': 'Details ansehen',
   'modules.sheet.uninstall': 'Deinstallieren',
 
-  'detail.about': 'Was dieses Modul macht',
-  'detail.access': 'Worauf dieses Modul zugreift',
-  'detail.access.none': 'Dieses Modul greift auf keine deiner Daten zu.',
+  'detail.about': 'Was diese App macht',
+  'detail.access': 'Worauf diese App zugreift',
+  'detail.access.none': 'Diese App greift auf keine deiner Daten zu.',
   'detail.open': 'Öffnen',
   'detail.addFavourite': 'Zu Favoriten',
   'detail.removeFavourite': 'Aus Favoriten entfernen',
   'detail.favourite': 'Favorit',
-  'detail.notFound.title': 'Modul nicht gefunden',
-  'detail.notFound.body': 'Dieses Modul gibt es nicht. Geh zurück zu Entdecken.',
-  'detail.notFound.action': 'Zu den Modulen',
+  'detail.notFound.title': 'App nicht gefunden',
+  'detail.notFound.body': 'Diese App gibt es nicht.',
+  'detail.notFound.action': 'Zu den Apps',
 
   'profile.title': 'Profil',
   'profile.noName': 'Ohne Namen',
@@ -151,7 +151,7 @@ export const de = {
   'assistant.touches': 'Betrifft: {list}',
 
   'aiChat.intro':
-    'Ganz normale KI. Frag, was du willst — sie sieht deine Module und deine Daten nicht.',
+    'Ganz normale KI. Frag, was du willst — sie sieht deine Apps und deine Daten nicht.',
   'aiChat.placeholder': 'Frag mich etwas',
   'aiChat.new': 'Neues Gespräch',
   'aiChat.empty.title': 'Frag einfach',
@@ -159,7 +159,7 @@ export const de = {
     'Vom Rezeptvorschlag bis zum Brief an die Verwaltung. Ohne Zugriff auf deine Daten.',
 
   'detail.includedInPlan': 'Im Abo enthalten',
-  'detail.includedInPlan.body': 'Dieses Modul kostet nichts extra. Es gehört zu deinem Abo.',
+  'detail.includedInPlan.body': 'Diese App kostet nichts extra. Sie gehört zu deinem Abo.',
 
   'alarm.next': 'Naechster Wecker {time} — {label}',
   'alarm.noneActive': 'Kein Wecker aktiv',
@@ -320,9 +320,9 @@ export const de = {
   'calendar.addHint': 'Im Prototyp ohne Funktion.',
   'calendar.empty': 'Nichts eingetragen.',
 
-  'moduleScreen.placeholder.title': 'Platzhalter',
+  'moduleScreen.placeholder.title': 'Noch nicht gebaut',
   'moduleScreen.placeholder.body':
-    'So sieht es aus, wenn du ein Modul öffnest. Inhalte kommen in einer späteren Phase.',
+    'So sieht es aus, wenn du eine App öffnest. Inhalte kommen später.',
 
   'area.health': 'Gesundheit',
   'area.organisation': 'Organisation',

@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import type { EventRow } from '@/db';
-import { formatTime, useI18n } from '@/i18n';
+import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Text } from '@/ui';
 
@@ -12,18 +12,23 @@ export type MonthViewProps = {
   month: Date;
   selected: Date;
   events: readonly EventRow[];
-  onSelect: (day: Date) => void;
-  onPressEvent: (event: EventRow) => void;
+  /** Ein Tag antippen heisst: diesen Tag im Detail ansehen. */
+  onOpenDay: (day: Date) => void;
 };
 
-const MAX_DOTS = 3;
+/** Mehr passt in ein Kaestchen nicht, ohne dass es unleserlich wird. */
+const MAX_CHIPS = 3;
 
-export function MonthView({ month, selected, events, onSelect, onPressEvent }: MonthViewProps) {
-  const { t, language } = useI18n();
+export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps) {
+  const { language } = useI18n();
   const theme = useTheme();
 
   const grid = monthGrid(month);
   const headerDays = weekDays(month);
+  const weekdayFormat = new Intl.DateTimeFormat(language === 'de' ? 'de-CH' : language, {
+    weekday: 'short',
+  });
+  const dayLabel = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'long' });
 
   function eventsOn(day: Date): EventRow[] {
     return events
@@ -34,159 +39,115 @@ export function MonthView({ month, selected, events, onSelect, onPressEvent }: M
       });
   }
 
-  const selectedEvents = eventsOn(selected);
-
   return (
     <View style={styles.fill}>
-      {/* Wochentage */}
       <View style={styles.weekHeader}>
         {headerDays.map((day) => (
           <View key={day.toISOString()} style={styles.headerCell}>
             <Text variant="caption" tone="faint" align="center">
-              {new Intl.DateTimeFormat(language === 'de' ? 'de-CH' : language, {
-                weekday: 'short',
-              })
-                .format(day)
-                .slice(0, 2)}
+              {weekdayFormat.format(day).slice(0, 2)}
             </Text>
           </View>
         ))}
       </View>
 
-      {/* Raster */}
-      <View style={[styles.grid, { borderTopColor: theme.colors.border }]}>
-        {grid.map((day) => {
-          const dayEvents = eventsOn(day);
-          const inMonth = isSameMonth(day, month);
-          const isSelected = isSameDay(day, selected);
-          const today = isToday(day);
+      <ScrollView style={styles.fill} showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {grid.map((day) => {
+            const dayEvents = eventsOn(day);
+            const inMonth = isSameMonth(day, month);
+            const isSelected = isSameDay(day, selected);
+            const today = isToday(day);
+            const overflow = dayEvents.length - MAX_CHIPS;
 
-          return (
-            <Pressable
-              key={day.toISOString()}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={new Intl.DateTimeFormat('de-CH', {
-                day: 'numeric',
-                month: 'long',
-              }).format(day)}
-              onPress={() => onSelect(day)}
-              style={styles.cell}
-            >
-              <View
-                style={[
-                  styles.dayCircle,
-                  isSelected
-                    ? { backgroundColor: theme.colors.accent }
-                    : today
-                      ? { borderWidth: 1, borderColor: theme.colors.accent }
-                      : null,
-                ]}
-              >
-                <Text
-                  variant="label"
-                  tone={
-                    isSelected ? 'onAccent' : inMonth ? (today ? 'accent' : 'default') : 'faint'
-                  }
-                >
-                  {day.getDate()}
-                </Text>
-              </View>
-              <View style={styles.dots}>
-                {dayEvents.slice(0, MAX_DOTS).map((event) => (
-                  <View
-                    key={event.id}
-                    style={[styles.dot, { backgroundColor: eventColor(event.color) }]}
-                  />
-                ))}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Agenda des gewaehlten Tages */}
-      <View style={[styles.agenda, { borderTopColor: theme.colors.border }]}>
-        <ScrollView
-          contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text variant="section" tone="muted">
-            {new Intl.DateTimeFormat('de-CH', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            }).format(selected)}
-          </Text>
-
-          {selectedEvents.length === 0 ? (
-            <Text variant="label" tone="faint">
-              {t('calendar.empty')}
-            </Text>
-          ) : (
-            selectedEvents.map((event) => (
+            return (
               <Pressable
-                key={event.id}
+                key={day.toISOString()}
                 accessibilityRole="button"
-                accessibilityLabel={event.title}
-                onPress={() => onPressEvent(event)}
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${dayLabel.format(day)}, ${dayEvents.length} Termine`}
+                onPress={() => onOpenDay(day)}
                 style={({ pressed }) => [
-                  styles.agendaRow,
+                  styles.cell,
                   {
-                    gap: theme.spacing.md,
-                    paddingVertical: theme.spacing.sm,
-                    opacity: pressed ? 0.6 : 1,
+                    backgroundColor: pressed
+                      ? theme.colors.surfaceMuted
+                      : inMonth
+                        ? theme.colors.surface
+                        : 'transparent',
+                    borderRadius: theme.radii.sm,
                   },
                 ]}
               >
                 <View
                   style={[
-                    styles.bar,
-                    { backgroundColor: eventColor(event.color), borderRadius: theme.radii.sm },
+                    styles.dayCircle,
+                    today ? { backgroundColor: theme.colors.accent } : null,
                   ]}
-                />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="body">{event.title}</Text>
-                  <Text variant="caption" tone="muted">
-                    {event.allDay
-                      ? t('today.allDay')
-                      : `${formatTime(language, event.startsAt)}${
-                          event.endsAt ? ` – ${formatTime(language, event.endsAt)}` : ''
-                        }`}
-                    {event.location ? ` · ${event.location}` : ''}
+                >
+                  <Text
+                    variant="caption"
+                    tone={today ? 'onAccent' : inMonth ? 'default' : 'faint'}
+                    style={{ fontWeight: today ? theme.fontWeight.semibold : undefined }}
+                  >
+                    {day.getDate()}
                   </Text>
                 </View>
+
+                <View style={styles.chips}>
+                  {dayEvents.slice(0, MAX_CHIPS).map((event) => (
+                    <View
+                      key={event.id}
+                      style={[styles.chip, { backgroundColor: eventColor(event.color) }]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        variant="caption"
+                        tone="onAccent"
+                        style={styles.chipText}
+                      >
+                        {event.title}
+                      </Text>
+                    </View>
+                  ))}
+                  {overflow > 0 ? (
+                    <Text variant="caption" tone="faint" style={styles.chipText}>
+                      +{overflow}
+                    </Text>
+                  ) : null}
+                </View>
               </Pressable>
-            ))
-          )}
-        </ScrollView>
-      </View>
+            );
+          })}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  weekHeader: { flexDirection: 'row', paddingVertical: 6 },
+  weekHeader: { flexDirection: 'row', paddingBottom: 6 },
   headerCell: { flex: 1 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: StyleSheet.hairlineWidth },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: 2 },
   cell: {
-    width: `${100 / 7}%`,
-    height: 52,
+    // Sieben Spalten mit 2px Abstand dazwischen.
+    width: '14.05%',
+    minHeight: 86,
+    paddingTop: 3,
+    paddingHorizontal: 2,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 4,
+    gap: 3,
   },
   dayCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dots: { flexDirection: 'row', gap: 3, marginTop: 3, height: 6 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
-  agenda: { flex: 1, borderTopWidth: StyleSheet.hairlineWidth },
-  agendaRow: { flexDirection: 'row', alignItems: 'center' },
-  bar: { width: 4, alignSelf: 'stretch', minHeight: 32 },
+  chips: { alignSelf: 'stretch', gap: 2 },
+  chip: { borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1 },
+  chipText: { fontSize: 9, lineHeight: 12 },
 });
