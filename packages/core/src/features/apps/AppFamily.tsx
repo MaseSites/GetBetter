@@ -127,7 +127,10 @@ export function AppFamily() {
         const rows = open ? fields(id) : [];
 
         return (
-          <Card key={id} onPress={() => void Linking.openURL(appUrl(id))}>
+          // Freigeschaltet fuehrt die ganze Karte in die App. Ist sie es nicht,
+          // gehoert der Tipp dem Installieren-Knopf — ein Knopf im Knopf waere
+          // im Browser ungueltiges HTML und faellt beim Rendern auf.
+          <Card key={id} {...(open ? { onPress: () => void Linking.openURL(appUrl(id)) } : {})}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
               {/* Blass ist nur die App selbst — der Knopf soll auffallen. */}
               <View style={{ opacity: open ? 1 : 0.5 }}>
