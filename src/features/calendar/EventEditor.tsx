@@ -6,7 +6,7 @@ import { events as eventRepo } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Icon, Input, Segmented, Sheet, Text } from '@/ui';
+import { Button, Chip, Icon, Input, Sheet, Text } from '@/ui';
 
 import {
   EVENT_COLORS,
@@ -25,6 +25,7 @@ import {
   startOfDay,
   withTime,
 } from './dates';
+import { useCalendarAccess } from './useCalendarAccess';
 
 export type EventDraft = {
   /** Gesetzt beim Bearbeiten, leer beim Anlegen. */
@@ -32,9 +33,16 @@ export type EventDraft = {
   day: Date;
   /** Vorgeschlagene Startzeit, wenn man in ein leeres Zeitfeld tippt. */
   hour?: number;
-  /** In welchem Kalender der neue Termin landen soll. */
-  calendar?: CalendarScope;
 };
+
+/** Wohin der Termin gehoert: privat, in den Haushalt oder in einen eigenen Kalender. */
+type EventTarget = 'personal' | 'family' | `cal:${string}`;
+
+function targetOf(event: EventRow | undefined): EventTarget {
+  if (!event) return 'personal';
+  if (event.calendarId) return `cal:${event.calendarId}`;
+  return event.calendar === 'family' ? 'family' : 'personal';
+}
 
 export type EventEditorProps = {
   draft: EventDraft | null;
@@ -43,6 +51,12 @@ export type EventEditorProps = {
 };
 
 const DURATIONS = [30, 60, 90, 120] as const;
+
+function scopeOf(target: EventTarget): CalendarScope {
+  if (target === 'family') return 'family';
+  if (target === 'personal') return 'personal';
+  return 'custom';
+}
 
 export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
   const t = useTranslate();
@@ -72,6 +86,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const theme = useTheme();
 
   const { household } = useApp();
+  const { calendars } = useCalendarAccess();
   const editing = draft.event;
   const initialStart = editing ? new Date(editing.startsAt) : null;
   const initialHour = draft.hour ?? 9;
@@ -90,9 +105,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
   const [location, setLocation] = useState(editing?.location ?? '');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [color, setColor] = useState<EventColorKey>(eventColorKey(editing?.color));
-  const [calendar, setCalendar] = useState<CalendarScope>(
-    editing?.calendar === 'family' ? 'family' : (draft.calendar ?? 'personal'),
-  );
+  const [target, setTarget] = useState<EventTarget>(targetOf(editing));
   const [isPrivate, setIsPrivate] = useState(editing?.isPrivate ?? false);
   const [error, setError] = useState<{ field: 'title' | 'date' | 'time'; message: string } | null>(
     null,
@@ -139,8 +152,8 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
       endsAt = endDate.toISOString();
     }
 
-    // Ohne Haushalt gibt es nur den persoenlichen Kalender.
-    const scope: CalendarScope = household ? calendar : 'personal';
+    const scope = scopeOf(target);
+    const calendarId = target.startsWith('cal:') ? target.slice('cal:'.length) : null;
 
     if (editing) {
       await eventRepo.update(editing.id, {
@@ -152,6 +165,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         allDay,
         color,
         calendar: scope,
+        calendarId,
         isPrivate: scope === 'personal' ? isPrivate : false,
         householdId: household?.id ?? null,
       });
@@ -160,6 +174,7 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         accountId,
         householdId: household?.id ?? null,
         calendar: scope,
+        calendarId,
         isPrivate,
         title,
         startsAt,
@@ -178,6 +193,16 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
     await eventRepo.remove(editing.id);
     onClose();
   }
+
+  // Privat, der Haushalt und jeder eigene Kalender — nur was es wirklich gibt.
+  const targets: { value: EventTarget; label: string }[] = [
+    { value: 'personal', label: t('calendar.scope.personal') },
+    ...(household ? [{ value: 'family' as const, label: t('calendar.scope.family') }] : []),
+    ...calendars.map((entry) => ({
+      value: `cal:${entry.calendar.id}` as const,
+      label: entry.calendar.name,
+    })),
+  ];
 
   function shiftDay(delta: number) {
     const day = parseDateValue(dateText);
@@ -292,21 +317,22 @@ function EventForm({ draft, accountId, onClose }: EventFormProps) {
         </View>
       )}
 
-      {household ? (
+      {targets.length > 1 ? (
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="label" tone="muted">
             {t('calendar.field.calendar')}
           </Text>
-          <Segmented
-            accessibilityLabel={t('calendar.field.calendar')}
-            value={calendar}
-            onChange={setCalendar}
-            options={[
-              { value: 'personal', label: t('calendar.scope.personal') },
-              { value: 'family', label: t('calendar.scope.family') },
-            ]}
-          />
-          {calendar === 'personal' ? (
+          <View style={[styles.row, { gap: theme.spacing.sm, flexWrap: 'wrap' }]}>
+            {targets.map((entry) => (
+              <Chip
+                key={entry.value}
+                label={entry.label}
+                selected={target === entry.value}
+                onPress={() => setTarget(entry.value)}
+              />
+            ))}
+          </View>
+          {target === 'personal' && household ? (
             <View style={[styles.row, { gap: theme.spacing.md }]}>
               <View style={{ flex: 1 }}>
                 <Text variant="label" tone="muted">

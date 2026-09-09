@@ -24,10 +24,12 @@ function changed<T>(value: T): T {
 // ---------------------------------------------------------------- Termine
 
 /**
- * Welchen Ausschnitt des Kalenders jemand gerade sieht.
- * `member:<id>` zeigt den persoenlichen Kalender eines Haushaltsmitglieds.
+ * Eine einzelne Quelle im Kalender. Angezeigt wird die Vereinigung der
+ * angehakten Quellen — deshalb eine Liste statt eines einzelnen Filters.
+ * `cal:<id>` ist ein selbst angelegter Kalender, `member:<id>` der
+ * persoenliche Kalender eines Haushaltsmitglieds.
  */
-export type CalendarFilter = 'personal' | 'family' | 'all' | `cal:${string}` | `member:${string}`;
+export type CalendarSource = 'personal' | 'family' | `cal:${string}` | `member:${string}`;
 
 /** Wer fragt, in welchem Haushalt, und welche eigenen Kalender er hat. */
 export type CalendarAccess = {
@@ -37,38 +39,39 @@ export type CalendarAccess = {
   calendarIds: readonly string[];
 };
 
-/** Aeltere Zeilen kennen die neuen Felder noch nicht. */
+/** Aeltere Zeilen kennen die neuen Felder noch nicht — die gelten als persoenlich. */
 function calendarOf(row: EventRow): CalendarScope {
-  return row.calendar === 'family' ? 'family' : 'personal';
+  if (row.calendar === 'family') return 'family';
+  if (row.calendar === 'custom') return 'custom';
+  return 'personal';
 }
 
-function isVisible(row: EventRow, access: CalendarAccess, filter: CalendarFilter): boolean {
+/** Passt ein Termin zu genau dieser Quelle? */
+function matchesSource(row: EventRow, access: CalendarAccess, source: CalendarSource): boolean {
   const scope = calendarOf(row);
   const mine = row.accountId === access.accountId;
   const sameHousehold = access.householdId !== null && row.householdId === access.householdId;
-  const inMyCalendar = row.calendarId !== null && access.calendarIds.includes(row.calendarId);
 
-  if (filter === 'personal') return mine && scope === 'personal';
-  if (filter === 'family') return sameHousehold && scope === 'family';
+  if (source === 'personal') return mine && scope === 'personal';
+  if (source === 'family') return sameHousehold && scope === 'family';
 
-  if (filter.startsWith('cal:')) {
-    const calendarId = filter.slice('cal:'.length);
+  if (source.startsWith('cal:')) {
+    const calendarId = source.slice('cal:'.length);
     return row.calendarId === calendarId && access.calendarIds.includes(calendarId);
   }
 
-  if (filter.startsWith('member:')) {
-    const memberId = filter.slice('member:'.length);
-    if (row.accountId !== memberId || scope !== 'personal') return false;
-    // Den eigenen Kalender sieht man ganz, fremde nur ohne die privaten Termine.
-    return memberId === access.accountId || (sameHousehold && !row.isPrivate);
-  }
+  const memberId = source.slice('member:'.length);
+  if (row.accountId !== memberId || scope !== 'personal') return false;
+  // Den eigenen Kalender sieht man ganz, fremde nur ohne die privaten Termine.
+  return memberId === access.accountId || (sameHousehold && !row.isPrivate);
+}
 
-  // 'all' zeigt bewusst nur die eigenen Termine — quer ueber alle Kalender,
-  // aber ohne die Eintraege anderer. Fremdes findet man unter Familie
-  // beziehungsweise beim jeweiligen Kalender.
-  if (!mine) return false;
-  if (scope === 'custom') return inMyCalendar;
-  return true;
+function isVisible(
+  row: EventRow,
+  access: CalendarAccess,
+  sources: readonly CalendarSource[],
+): boolean {
+  return sources.some((source) => matchesSource(row, access, source));
 }
 
 export const events = {
@@ -80,18 +83,27 @@ export const events = {
     access: CalendarAccess,
     fromIso: string,
     toIso: string,
-    filter: CalendarFilter = 'all',
+    sources: readonly CalendarSource[],
   ) {
     return db.events.list({
       where: (row) =>
-        row.startsAt >= fromIso && row.startsAt < toIso && isVisible(row, access, filter),
+        row.startsAt >= fromIso && row.startsAt < toIso && isVisible(row, access, sources),
       sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
     });
   },
 
+  /** Fuer die Startseite: alles Eigene, quer ueber die eigenen Kalender. */
   listUpcoming(access: CalendarAccess, fromIso: string, limit?: number) {
+    const own: CalendarSource[] = [
+      'personal',
+      'family',
+      ...access.calendarIds.map((id) => `cal:${id}` as const),
+    ];
     return db.events.list({
-      where: (row) => (row.endsAt ?? row.startsAt) >= fromIso && isVisible(row, access, 'all'),
+      where: (row) =>
+        (row.endsAt ?? row.startsAt) >= fromIso &&
+        row.accountId === access.accountId &&
+        isVisible(row, access, own),
       sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
       ...(limit !== undefined ? { limit } : {}),
     });

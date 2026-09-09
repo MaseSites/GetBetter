@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
@@ -45,8 +45,12 @@ export function Sheet({
             { backgroundColor: theme.colors.overlay },
             frame.framed
               ? {
-                  // flex:1 wuerde die Buehne sonst ausfuellen statt das Telefon nachzubilden.
-                  flex: 0,
+                  // Die Buehne darf das Blatt nicht ausfuellen, es soll so gross
+                  // sein wie das Telefon. `flex: 0` waere hier falsch: daraus
+                  // wird `flex-basis: 0%`, und die Hoehe faellt auf null.
+                  flexGrow: 0,
+                  flexShrink: 0,
+                  flexBasis: 'auto',
                   width: frame.width,
                   height: frame.height,
                   borderRadius: 34,
@@ -109,7 +113,18 @@ export function Sheet({
                 </Pressable>
               </View>
             ) : null}
-            <View style={[styles.body, { paddingHorizontal: theme.spacing.lg }]}>{children}</View>
+            {/* Laengere Formulare muessen rollen, sonst ist der Knopf unten nicht erreichbar. */}
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={{
+                paddingHorizontal: theme.spacing.lg,
+                paddingBottom: theme.spacing.lg,
+              }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
           </View>
         </View>
       </View>

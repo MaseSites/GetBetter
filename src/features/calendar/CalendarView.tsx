@@ -6,16 +6,15 @@ import {
   calendars as calendarRepo,
   households as householdRepo,
   useLiveQuery,
-  type CalendarScope,
   type EventRow,
 } from '@/db';
-import { events as eventRepo, type CalendarFilter } from '@/db/repositories';
+import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useFavouriteAction } from '@/features/modules/useFavouriteAction';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, Chip, Header, Icon, Screen, Segmented, Text } from '@/ui';
+import { Button, Card, Header, Icon, Screen, Text } from '@/ui';
 
 import { eventColor } from './colors';
 import {
@@ -29,24 +28,11 @@ import {
   weekDays,
 } from './dates';
 import { CalendarManager } from './CalendarManager';
+import { CalendarPicker, buildEntries, type CalendarMode } from './CalendarPicker';
 import { EventEditor, type EventDraft } from './EventEditor';
 import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
 import { TimeGrid } from './TimeGrid';
-
-type CalendarMode = 'day' | 'week' | 'month';
-
-/** In welchen Kalender ein neuer Termin gehoert, je nach gewaehlter Quelle. */
-function draftScope(source: CalendarFilter): {
-  calendar: CalendarScope;
-  calendarId?: string;
-} {
-  if (source === 'family') return { calendar: 'family' };
-  if (source.startsWith('cal:')) {
-    return { calendar: 'custom', calendarId: source.slice('cal:'.length) };
-  }
-  return { calendar: 'personal' };
-}
 
 export function CalendarView({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
@@ -58,9 +44,11 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const favouriteAction = useFavouriteAction(module.id);
 
   const { access, calendars: myCalendars } = useCalendarAccess();
-  const [source, setSource] = useState<CalendarFilter>('all');
   const [mode, setMode] = useState<CalendarMode>('month');
   const [managing, setManaging] = useState(false);
+  const [picking, setPicking] = useState(false);
+  // Leer heisst: noch nichts abgewaehlt, also alles zeigen.
+  const [hidden, setHidden] = useState<readonly CalendarSource[]>([]);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(null);
 
@@ -81,20 +69,38 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
+  const memberList = useLiveQuery(
+    () => (householdId ? householdRepo.members(householdId) : Promise.resolve([])),
+    [householdId],
+  );
+  // Eigene Konstante, damit useMemo unten nicht bei jedem Rendern neu laeuft.
+  const members = useMemo(() => memberList.data ?? [], [memberList.data]);
+
+  const entries = useMemo(
+    () =>
+      buildEntries(
+        { personal: t('calendar.scope.personal'), family: t('calendar.scope.family') },
+        household !== null,
+        myCalendars,
+        members,
+        account.id,
+      ),
+    [t, household, myCalendars, members, account.id],
+  );
+
+  const selected = useMemo(
+    () => entries.map((entry) => entry.source).filter((source) => !hidden.includes(source)),
+    [entries, hidden],
+  );
+
   const list = useLiveQuery(
-    () => eventRepo.listBetween(access, fromIso, toIso, source),
-    [access.accountId, access.householdId, access.calendarIds, fromIso, toIso, source],
+    () => eventRepo.listBetween(access, fromIso, toIso, selected),
+    [access.accountId, access.householdId, access.calendarIds, fromIso, toIso, selected],
   );
   const events = list.data ?? [];
 
   const inviteList = useLiveQuery(() => calendarRepo.invitesFor(account.id), [account.id]);
   const invites = inviteList.data ?? [];
-
-  const memberList = useLiveQuery(
-    () => (householdId ? householdRepo.members(householdId) : Promise.resolve([])),
-    [householdId],
-  );
-  const members = memberList.data ?? [];
 
   function step(direction: number) {
     if (mode === 'month') setAnchor((current) => addMonths(current, direction));
@@ -133,16 +139,27 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
           actions={[favouriteAction]}
         >
           <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
-            <Segmented
-              accessibilityLabel={t('calendar.view')}
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'day', label: t('calendar.view.day') },
-                { value: 'week', label: t('calendar.view.week') },
-                { value: 'month', label: t('calendar.view.month') },
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('calendar.picker.title')}
+              accessibilityState={{ expanded: picking }}
+              onPress={() => setPicking(true)}
+              style={({ pressed }) => [
+                styles.pickerButton,
+                {
+                  borderRadius: theme.radii.pill,
+                  backgroundColor: pressed ? theme.colors.border : theme.colors.surfaceMuted,
+                  gap: theme.spacing.xs,
+                  paddingHorizontal: theme.spacing.md,
+                },
               ]}
-            />
+            >
+              <Text variant="caption" tone="muted">
+                {t(`calendar.view.${mode}` as TranslationKey)} ·{' '}
+                {t('calendar.picker.selected', { count: selected.length })}
+              </Text>
+              <Icon name="down" size={14} color={theme.colors.textMuted} />
+            </Pressable>
             <View style={{ flex: 1 }} />
             <StepButton label={t('calendar.previous')} icon="back" onPress={() => step(-1)} />
             <Pressable
@@ -164,69 +181,10 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             </Pressable>
             <StepButton label={t('calendar.next')} icon="forward" onPress={() => step(1)} />
           </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              gap: theme.spacing.sm,
-              paddingTop: theme.spacing.sm,
-              paddingRight: theme.spacing.lg,
-            }}
-          >
-            <Chip
-              label={t('calendar.source.all')}
-              selected={source === 'all'}
-              onPress={() => setSource('all')}
-            />
-            <Chip
-              label={t('calendar.scope.personal')}
-              selected={source === 'personal'}
-              onPress={() => setSource('personal')}
-            />
-            {household ? (
-              <Chip
-                label={t('calendar.scope.family')}
-                selected={source === 'family'}
-                onPress={() => setSource('family')}
-              />
-            ) : null}
-            {myCalendars.map((entry) => {
-              const value: CalendarFilter = `cal:${entry.calendar.id}`;
-              return (
-                <Chip
-                  key={entry.calendar.id}
-                  label={entry.calendar.name}
-                  selected={source === value}
-                  onPress={() => setSource(value)}
-                />
-              );
-            })}
-            {household
-              ? members
-                  .filter((member) => member.membership.accountId !== account.id)
-                  .map((member) => {
-                    const value: CalendarFilter = `member:${member.membership.accountId}`;
-                    return (
-                      <Chip
-                        key={member.membership.id}
-                        label={member.displayName}
-                        selected={source === value}
-                        onPress={() => setSource(value)}
-                      />
-                    );
-                  })
-              : null}
-            <Chip label={t('calendars.manage')} onPress={() => setManaging(true)} />
-          </ScrollView>
         </Header>
       }
       footer={
-        <Button
-          label={t('calendar.add')}
-          icon="plus"
-          onPress={() => setDraft({ day: anchor, ...draftScope(source) })}
-        />
+        <Button label={t('calendar.add')} icon="plus" onPress={() => setDraft({ day: anchor })} />
       }
     >
       {invites.length > 0 ? (
@@ -283,13 +241,34 @@ export function CalendarView({ module }: { module: ModuleDefinition }) {
             days={days}
             events={events}
             compact={mode === 'week'}
-            onPressSlot={(day, hour) => setDraft({ day, hour, ...draftScope(source) })}
+            onPressSlot={(day, hour) => setDraft({ day, hour })}
             onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
           />
         </View>
       )}
 
       <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
+
+      <CalendarPicker
+        visible={picking}
+        onClose={() => setPicking(false)}
+        mode={mode}
+        onMode={setMode}
+        entries={entries}
+        selected={selected}
+        onToggle={(source) =>
+          setHidden((current) =>
+            current.includes(source)
+              ? current.filter((item) => item !== source)
+              : [...current, source],
+          )
+        }
+        onAll={(all) => setHidden(all ? [] : entries.map((entry) => entry.source))}
+        onManage={() => {
+          setPicking(false);
+          setManaging(true);
+        }}
+      />
 
       <CalendarManager
         visible={managing}
@@ -434,6 +413,11 @@ function AllDayRow({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   toolbar: { flexDirection: 'row', alignItems: 'center' },
+  pickerButton: {
+    height: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   todayButton: {
     height: 28,
     paddingHorizontal: 10,

@@ -126,7 +126,12 @@ geht mit. Verlaesst die letzte Person den Haushalt, wird er aufgeloest.
   Streifen, `+N` wenn mehr da sind. Ein Tag antippen fuehrt in seine Tagesansicht.
 - `TimeGrid` — Zeitraster fuer Tag und Woche, mit Ueberlappung nebeneinander
   und einer Linie fuer die aktuelle Uhrzeit
-- `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz
+- `EventEditor` — Titel, ganztaegig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
+  Der Zielkalender wird hier gewaehlt: Privat, Haushalt oder ein eigener.
+- `CalendarPicker` — das aufklappbare Menue in der Kopfzeile. Oben die Ansicht
+  (Tag/Woche/Monat), darunter je ein Haekchen pro Kalender, dazu "Alle anzeigen"
+  und der Weg zu "Kalender verwalten". Angezeigt wird die Vereinigung der
+  angehakten Quellen; der Knopf in der Leiste sagt, wie viele es sind.
 
 ### Eigene Kalender
 
@@ -138,10 +143,10 @@ zustimmen. Offene Einladungen erscheinen als Karte oben im Kalender.
 Jedes Konto hat einen eindeutigen `username`, aus der E-Mail abgeleitet.
 `backfillUsernames()` traegt ihn bei aelteren Konten beim Start nach.
 
-### Sichtbarkeit (`isVisible` in `repositories.ts`)
+### Sichtbarkeit (`matchesSource` / `isVisible` in `repositories.ts`)
 
-- **Alle** — bewusst nur die _eigenen_ Termine, quer ueber alle Kalender.
-  Fremde Eintraege findet man unter Familie oder beim jeweiligen Mitglied.
+Jede angehakte Quelle wird einzeln geprueft, gezeigt wird die Vereinigung.
+
 - **Privat** — persoenliche Termine, nur der eigene Kalender
 - **Familie** — Termine im Familienkalender, alle Mitglieder sehen sie
 - **Eigener Kalender** — was in diesem Kalender steht, fuer alle, die dabei sind
@@ -149,6 +154,8 @@ Jedes Konto hat einen eindeutigen `username`, aus der E-Mail abgeleitet.
   private Termine
 - Persoenliche Termine sind standardmaessig fuer den Haushalt sichtbar;
   der Schalter "Privat" nimmt sie heraus.
+- Die Startseite (`listUpcoming`) zeigt nur Eigenes, quer ueber die eigenen
+  Kalender — nie Eintraege anderer Mitglieder.
 
 `dates.ts` haelt die Datumsrechnung ohne Fremdbibliothek; die Woche beginnt
 am Montag. `colors.ts` hat die sieben Terminfarben — Termine ohne Farbe
@@ -202,6 +209,10 @@ den ganzen Baum faerbt.
   Nach jedem Schreiben laufen offene Abfragen von selbst neu.
 - **Kein Bildschirm greift direkt auf den Speicher zu** — immer ueber ein
   Repository, damit ein Serverwechsel nur diese eine Schicht trifft.
+- **Blaetter rollen.** `Sheet` legt seinen Inhalt in eine `ScrollView` und im
+  Browser in den Telefonrahmen. Dort nie `flex: 0` schreiben, wo eine Hoehe
+  gelten soll — daraus wird `flex-basis: 0%`, und das Blatt faellt auf null
+  zusammen (unsichtbar, aber es faengt weiter alle Klicks ab).
 - **Kein leerer Bildschirm.** Wo nichts ist, steht ein `EmptyState` mit Grund und
   Ausweg; wo geladen wird, steht `Loading`.
 - **Unveraenderlich.** Zustand wird kopiert, nie mutiert.
