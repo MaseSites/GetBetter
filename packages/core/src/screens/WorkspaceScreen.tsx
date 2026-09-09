@@ -19,7 +19,8 @@ import {
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { currentApp } from '@/app/identity';
-import { formatShortDate, formatTime, useI18n, type TranslationKey } from '@/i18n';
+import { AppFamily } from '@/features/apps/AppFamily';
+import { formatLongDate, formatShortDate, formatTime, useI18n } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
@@ -247,8 +248,8 @@ export function WorkspaceScreen() {
       header={
         <Header
           large
-          title={main ? t('workspace.title') : app.name}
-          subtitle={main ? t('workspace.subtitle') : t(app.taglineKey as TranslationKey)}
+          title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
+          subtitle={formatLongDate(language, new Date().toISOString())}
         />
       }
     >
@@ -257,6 +258,8 @@ export function WorkspaceScreen() {
           {content(module.id)}
         </Section>
       ))}
+
+      {main ? <AppFamily /> : null}
 
       {pending.length > 0 ? (
         <View style={{ gap: theme.spacing.sm }}>

@@ -29,6 +29,10 @@ export default function TabsLayout() {
         options={{ title: t('tabs.household'), tabBarIcon: tabIcon('people') }}
       />
       <Tabs.Screen
+        name="finder"
+        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('search') }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{ title: t('tabs.profile'), tabBarIcon: tabIcon('person') }}
       />

@@ -71,7 +71,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('sun') }} />
       <Tabs.Screen
         name="modules"
-        options={{ title: t('tabs.modules'), tabBarIcon: tabIcon('grid') }}
+        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('search') }}
       />
       <Tabs.Screen
         name="assistant"

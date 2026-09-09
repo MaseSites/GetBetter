@@ -206,12 +206,14 @@ Noch nicht drin: Wiederholungen, mehrtägige Termine, Erinnerungen.
 Die Zahlen landen über die gemeinsame Datenbank auch auf der BetterGym-Karte
 in GetBetter.
 
-## Die Arbeitsflaeche statt eines Kachelbretts
+## Startseite und Finder
 
-`screens/WorkspaceScreen.tsx` ist der zweite Tab jeder App — in GetBetter
-heisst er **Organisation**, in den anderen **Funktionen**. Er listet keine
-Apps auf, sondern zeigt je Funktion, was sie gerade weiss, und laesst einen
-direkt etwas tun:
+Jede App hat zwei Uebersichten, und keine davon ist ein Kachelbrett.
+
+### Die Startseite (`screens/WorkspaceScreen.tsx`)
+
+Gruss und Datum, darunter je Funktion ein Abschnitt mit dem, was sie gerade
+weiss — und mit dem, was man direkt tun kann:
 
 | Funktion                       | Was dort steht und geht                             |
 | ------------------------------ | --------------------------------------------------- |
@@ -223,16 +225,26 @@ direkt etwas tun:
 | Aemtli                         | was ansteht                                         |
 | Training / Menueplan / Trinken | die Zahl des Tages                                  |
 
-Welche Abschnitte erscheinen, sagt `modulesOfApp()` — jede App zeigt nur ihre
-eigenen. Was noch nicht gebaut ist, steht unten unter **Kommt noch**, blass
-und ohne so zu tun, als koenne es schon etwas. Nur die Kopfzeile eines
-Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter gehoeren der
-Funktion selbst.
+Welche Abschnitte erscheinen, sagt `modulesOfApp()`. In GetBetter folgen die
+Karten der anderen Better-Apps, ganz unten steht **Kommt noch** — was diese
+App fuehrt, aber noch nicht kann, blass und ohne etwas vorzugeben. Nur die
+Kopfzeile eines Abschnitts fuehrt in die volle Ansicht; die Zeilen darunter
+gehoeren der Funktion.
+
+### Der Finder (`screens/FinderScreen.tsx`)
+
+Der zweite Tab heisst **Alles** und ist die Antwort auf "wie finde ich vom
+Wecker bis zum Kalender alles wieder":
+
+- oben ein Suchfeld ueber Name und Beschreibung **aller** Funktionen, quer
+  ueber alle fuenf Apps
+- darunter die haeufigsten Handgriffe als farbige Felder (Termin, Aufgabe,
+  Notiz, Wecker)
+- dann alles nach App geordnet, als Pillen mit Logo. Was einer anderen App
+  gehoert, ist als solches gekennzeichnet und oeffnet sie.
 
 **Favoriten gibt es nicht mehr.** Kein Stern, keine Auswahl, kein
-Fragenschritt beim Einrichten — alle Funktionen einer App sind immer da, in
-fester Reihenfolge. Das war der Kern der Beschwerde: eine Liste von "Apps"
-innerhalb einer App ist keine Ordnung, sondern eine zweite Startseite.
+Fragenschritt beim Einrichten — alle Funktionen sind immer da.
 
 ## Onboarding (GetBetter)
 
