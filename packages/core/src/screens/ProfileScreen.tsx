@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
+import { APPS_WITH_HOUSEHOLD, currentApp } from '@/app/identity';
 import { useLiveQuery } from '@/db';
 import {
   events as eventRepo,
@@ -29,6 +30,7 @@ export function ProfileScreen() {
   const { household, role, setLanguage, signOut, appearance } = useApp();
   const householdId = household?.id ?? null;
   const { access } = useCalendarAccess();
+  const hasHousehold = APPS_WITH_HOUSEHOLD.includes(currentApp().id);
 
   const openTasks = useLiveQuery(
     () => taskRepo.countOpen(account.id, householdId),
@@ -76,27 +78,29 @@ export function ProfileScreen() {
         </Text>
       </Card>
 
-      <Card
-        title={t('profile.household')}
-        subtitle={household ? household.name : t('profile.household.none')}
-        onPress={() => router.push('/manage-household')}
-      >
-        {household ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-            <Badge
-              label={role === 'admin' ? t('household.role.admin') : t('household.role.member')}
-              tone={role === 'admin' ? 'accent' : 'neutral'}
-            />
-            <Text variant="caption" tone="faint">
-              {t('household.invite.title')}: {household.inviteCode}
+      {hasHousehold ? (
+        <Card
+          title={t('profile.household')}
+          subtitle={household ? household.name : t('profile.household.none')}
+          onPress={() => router.push('/manage-household')}
+        >
+          {household ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <Badge
+                label={role === 'admin' ? t('household.role.admin') : t('household.role.member')}
+                tone={role === 'admin' ? 'accent' : 'neutral'}
+              />
+              <Text variant="caption" tone="faint">
+                {t('household.invite.title')}: {household.inviteCode}
+              </Text>
+            </View>
+          ) : (
+            <Text variant="label" tone="muted">
+              {t('household.none.body')}
             </Text>
-          </View>
-        ) : (
-          <Text variant="label" tone="muted">
-            {t('household.none.body')}
-          </Text>
-        )}
-      </Card>
+          )}
+        </Card>
+      ) : null}
 
       <Card
         title={t('appearance.title')}

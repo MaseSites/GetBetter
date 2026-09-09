@@ -3,8 +3,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
+import { sendCommand } from '@/app/bridge';
+import { APPS } from '@/app/identity';
 import { ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
 import type { AssistantMessage } from '@/mocks/types';
+
+import { route } from './route';
 import { useTheme } from '@/theme';
 import { EmptyState, Icon, Input, Loading, Screen, Text } from '@/ui';
 
@@ -49,7 +53,26 @@ export function AssistantView() {
     if (text.length === 0 || thinking) return;
     setDraft('');
     append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
-    respondLater(t('assistant.reply'));
+
+    // Was in eine andere Better-App gehoert, wird dorthin geschickt.
+    const routed = route(text);
+    if (!routed) {
+      respondLater(t('assistant.reply'));
+      return;
+    }
+
+    const target = APPS[routed.command.app].name;
+    setThinking(true);
+    void sendCommand(routed.command).then((sent) => {
+      setThinking(false);
+      append({
+        id: `a-${(nextId.current += 1)}`,
+        role: 'assistant',
+        text: sent
+          ? t('assistant.handedOver', { app: target, subject: routed.subject })
+          : t('assistant.notInstalled', { app: target }),
+      });
+    });
   }
 
   function send() {

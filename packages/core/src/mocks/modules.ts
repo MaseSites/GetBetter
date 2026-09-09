@@ -1,3 +1,5 @@
+import { APP_MODULES, currentApp } from '../app/identity';
+
 import { AREAS, type Area, type ModuleDefinition } from './types';
 
 /**
@@ -312,8 +314,17 @@ export function getModule(id: string): ModuleDefinition | undefined {
   return MODULES_BY_ID[id];
 }
 
+/**
+ * Die Module der laufenden App. Jedes Modul gehoert genau einer Better-App —
+ * BetterFamily zeigt also nie den Kalender, GetBetter nie die Einkaufsliste.
+ */
+export function modulesOfApp(): readonly ModuleDefinition[] {
+  const mine = APP_MODULES[currentApp().id];
+  return MODULES.filter((module) => mine.includes(module.id));
+}
+
 export function modulesInArea(area: Area): readonly ModuleDefinition[] {
-  return MODULES.filter((module) => module.area === area);
+  return modulesOfApp().filter((module) => module.area === area);
 }
 
 /**
@@ -328,11 +339,13 @@ export type ModuleGroup = {
 export function groupedModules(preferredAreas: readonly Area[] = []): readonly ModuleGroup[] {
   const first = AREAS.filter((area) => preferredAreas.includes(area));
   const rest = AREAS.filter((area) => !preferredAreas.includes(area));
-  return [...first, ...rest].map((area) => ({ area, modules: modulesInArea(area) }));
+  return [...first, ...rest]
+    .map((area) => ({ area, modules: modulesInArea(area) }))
+    .filter((group) => group.modules.length > 0);
 }
 
 /** Womit die Favoriten starten, wenn jemand das Onboarding ueberspringt. */
-export const DEFAULT_FAVOURITE_IDS: readonly string[] = ['calendar', 'tasks', 'shopping', 'meals'];
+export const DEFAULT_FAVOURITE_IDS: readonly string[] = ['calendar', 'tasks', 'notes', 'alarm'];
 
 /**
  * Was in "Heute" eine Karte bekommt: die wichtigsten Module der gewaehlten
@@ -340,7 +353,7 @@ export const DEFAULT_FAVOURITE_IDS: readonly string[] = ['calendar', 'tasks', 's
  */
 export function highlightedModuleIds(areas: readonly Area[]): readonly string[] {
   const relevant = areas.length > 0 ? areas : AREAS;
-  return MODULES.filter((module) => relevant.includes(module.area) && module.priority === 1).map(
-    (module) => module.id,
-  );
+  return modulesOfApp()
+    .filter((module) => relevant.includes(module.area) && module.priority === 1)
+    .map((module) => module.id);
 }

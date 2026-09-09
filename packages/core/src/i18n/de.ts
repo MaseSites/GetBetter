@@ -92,7 +92,21 @@ export const de = {
     'Du nutzt Better Life für dich. Ein Haushalt geht später jederzeit.',
   'onboarding.household.finish': 'Fertig einrichten',
 
+  'family.title': 'Deine Better-Apps',
+  'family.installed': 'Auf diesem Gerät installiert',
+  'family.missing': 'Noch nicht installiert',
+  'family.web': 'Im Browser: läuft auf einem eigenen Port',
+  'family.hint':
+    'Jede App hat ihren eigenen Speicher. GetBetter kann ihnen etwas auftragen — zum Beispiel „2 Bananen auf die Einkaufsliste“ — sieht aber nicht hinein.',
+  'command.from': 'Auftrag von GetBetter',
+  'command.running': 'Wird eingetragen …',
+  'command.done': 'Eingetragen',
+  'command.unknown': 'Unbekannter Auftrag: {command}',
+  'command.needsHousehold': 'Dafür braucht es einen Haushalt',
+  'command.body': 'GetBetter hat das hierher geschickt.',
   'tabs.today': 'Startseite',
+  'tabs.home': 'Start',
+  'tabs.chat': 'Chat',
   'tabs.modules': 'Apps',
   'tabs.assistant': 'Assistent',
   'tabs.household': 'Haushalt',
@@ -203,6 +217,9 @@ export const de = {
   'assistant.empty.body': 'Schreib einfach, was du brauchst.',
   'assistant.placeholder': 'Schreib, was du brauchst',
   'assistant.send': 'Senden',
+  'assistant.handedOver': '{app} übernimmt das: „{subject}“ ist unterwegs.',
+  'assistant.notInstalled':
+    '{app} ist auf diesem Gerät nicht installiert — ohne sie kann ich das nicht eintragen.',
   'assistant.reply':
     'Das kann ich noch nicht — hinter mir steckt bisher kein Modell. Sobald eines da ist, trage ich so etwas für dich ein und frage vorher nach.',
   'assistant.thinking': 'Denkt nach …',
@@ -240,6 +257,7 @@ export const de = {
   'alarm.day.so': 'So',
 
   'tasks.openCount': '{count} offen',
+  'today.openCount': '{count} offen',
   'tasks.doneCount': '{count} erledigt',
   'tasks.placeholder': 'Neue Aufgabe',
   'tasks.add': 'Aufgabe hinzufügen',

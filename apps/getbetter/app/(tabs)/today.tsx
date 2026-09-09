@@ -6,10 +6,10 @@ import {
   alarms as alarmRepo,
   events as eventRepo,
   notes as noteRepo,
-  shopping as shoppingRepo,
   tasks as taskRepo,
 } from '@/db/repositories';
 import { formatLongDate, formatTime, useI18n } from '@/i18n';
+import { AppFamily } from '@/features/apps/AppFamily';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -35,21 +35,15 @@ export default function TodayScreen() {
     () => taskRepo.listOpen(account.id, householdId),
     [account.id, householdId],
   );
-  const shoppingItems = useLiveQuery(
-    () => shoppingRepo.list(account.id, householdId),
-    [account.id, householdId],
-  );
   const noteCount = useLiveQuery(() => noteRepo.count(account.id), [account.id]);
   const nextAlarm = useLiveQuery(() => alarmRepo.nextEnabled(account.id), [account.id]);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
-  const shoppingOpen = (shoppingItems.data ?? []).filter((item) => !item.done);
   const notes = noteCount.data ?? 0;
 
   const stillLoading = upcoming.loading && openTasks.loading;
-  const everythingEmpty =
-    events.length === 0 && tasks.length === 0 && shoppingOpen.length === 0 && notes === 0;
+  const everythingEmpty = events.length === 0 && tasks.length === 0 && notes === 0;
 
   return (
     <Screen
@@ -117,21 +111,6 @@ export default function TodayScreen() {
         </Card>
       ) : null}
 
-      {shoppingOpen.length > 0 ? (
-        <Card
-          title={t('today.shopping')}
-          subtitle={t('shopping.openCount', { count: shoppingOpen.length })}
-          onPress={() => router.push('/run/shopping')}
-        >
-          <Text variant="label" tone="muted">
-            {shoppingOpen
-              .slice(0, 6)
-              .map((item) => item.name)
-              .join(', ')}
-          </Text>
-        </Card>
-      ) : null}
-
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
         {nextAlarm.data ? (
           <View style={{ flex: 1 }}>
@@ -155,6 +134,7 @@ export default function TodayScreen() {
           </View>
         ) : null}
       </View>
+      <AppFamily />
     </Screen>
   );
 }

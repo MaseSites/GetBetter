@@ -77,6 +77,9 @@ export const APP_MODULES: Readonly<Record<AppId, readonly string[]>> = {
   bettermoney: ['budget', 'bills', 'subscriptions', 'savings'],
 };
 
+/** Welche Apps einen Haushalt fuehren. Die anderen kennen ihn gar nicht. */
+export const APPS_WITH_HOUSEHOLD: readonly AppId[] = ['getbetter', 'betterfamily'];
+
 /** In welcher App ein Modul steckt. */
 export function appOfModule(moduleId: string): AppId | undefined {
   return APP_IDS.find((id) => APP_MODULES[id].includes(moduleId));
