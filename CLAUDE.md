@@ -23,6 +23,8 @@ welche App welche Module führt — jedes Modul gehört genau einer App.
 
 ```bash
 npm install        # einmal, für alle Arbeitsbereiche
+npm run all        # Datenbank und alle fünf Apps auf einmal
+npm run server     # nur die Datenbank (8090)
 npm run web        # GetBetter im Browser (8081)
 npm run family     # BetterFamily (8082)
 npm run gym        # BetterGym (8083)

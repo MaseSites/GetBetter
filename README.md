@@ -15,10 +15,11 @@ mitstartest.
 
 ```bash
 npm install
-npm run server     # Datenbank, Port 8090
-npm run web        # GetBetter
-npm run family     # BetterFamily, in einem zweiten Fenster
+npm run all        # Datenbank und alle fünf Apps auf einmal
 ```
+
+Einzeln geht auch: `npm run server`, `npm run web`, `npm run family`,
+`npm run gym`, `npm run ai`, `npm run money`.
 
 Der **Kalender** in GetBetter hat Tages-, Wochen- und Monatsansicht, Termine mit
 Farbe, Ort und Notiz, und legt beim Antippen einer freien Stunde gleich einen an.

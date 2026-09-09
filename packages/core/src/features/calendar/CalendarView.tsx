@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { hasHouseholds } from '@/app/identity';
+import { APPS, hasHouseholds } from '@/app/identity';
 import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useI18n, type TranslationKey } from '@/i18n';
@@ -58,7 +58,8 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const [picking, setPicking] = useState(false);
   // Leer heisst: kein eigener Kalender abgewaehlt, also alle zeigen.
   const [hidden, setHidden] = useState<readonly CalendarSource[]>([]);
-  // Fremde Kalender kommen nur dazu, wenn man sie ausdruecklich anhakt.
+  // Fremde Kalender — Personen wie andere Apps — kommen nur dazu, wenn man
+  // sie ausdruecklich anhakt.
   const [shownPeople, setShownPeople] = useState<readonly CalendarSource[]>([]);
   const [askMessage, setAskMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
@@ -130,10 +131,26 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
       .map((person) => take(person.share.ownerId, person.displayName))
       .filter((entry): entry is PickerEntry => entry !== null);
 
-    return others.length > 0
-      ? [...groups, { key: 'shared', title: t('calendar.picker.others'), entries: others }]
-      : groups;
-  }, [households, sharedBy, account.id, t]);
+    const withOthers =
+      others.length > 0
+        ? [...groups, { key: 'shared', title: t('calendar.picker.others'), entries: others }]
+        : groups;
+
+    // GetBetter fuehrt keine Haushalte, kann ihre Kalender aber zeigen —
+    // so laeuft in der Hauptapp alles zusammen.
+    if (family || households.length === 0) return withOthers;
+    return [
+      ...withOthers,
+      {
+        key: 'apps',
+        title: APPS.betterfamily.name,
+        entries: households.map((entry) => ({
+          source: `house:${entry.household.id}` as const,
+          label: entry.household.name,
+        })),
+      },
+    ];
+  }, [households, sharedBy, account.id, t, family]);
 
   const selected = useMemo(() => {
     const known = new Set(
@@ -376,7 +393,10 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         waiting={waiting}
         selected={selected}
         onToggle={(source) => {
-          if (source.startsWith('member:')) {
+          const inGroups = peopleGroups.some((group) =>
+            group.entries.some((entry) => entry.source === source),
+          );
+          if (inGroups) {
             setShownPeople((current) =>
               current.includes(source)
                 ? current.filter((item) => item !== source)

@@ -11,10 +11,9 @@ import {
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
-import { getModule } from '@/mocks/modules';
 import { useApp } from '@/state/AppContext';
 import { moduleTint, useTheme } from '@/theme';
-import { Badge, Card, Icon, Text } from '@/ui';
+import { Card, Icon, Text } from '@/ui';
 
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter.
@@ -130,17 +129,9 @@ export function AppFamily() {
                     </Text>
                   )
                 ) : (
-                  <>
-                    <View style={{ flexDirection: 'row', gap: theme.spacing.xs, flexWrap: 'wrap' }}>
-                      {APP_MODULES[id].slice(0, 3).map((moduleId) => {
-                        const module = getModule(moduleId);
-                        return module ? <Badge key={moduleId} label={module.name} /> : null;
-                      })}
-                    </View>
-                    <Text variant="caption" tone="faint">
-                      {t('family.locked')}
-                    </Text>
-                  </>
+                  <Text variant="caption" tone="faint">
+                    {t('family.locked')}
+                  </Text>
                 )}
               </View>
             </View>

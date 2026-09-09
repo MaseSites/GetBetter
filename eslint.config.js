@@ -6,7 +6,7 @@ module.exports = [
   prettier,
   {
     // Der Kontodienst laeuft in Node, nicht im Browser.
-    files: ['services/**/*.js'],
+    files: ['services/**/*.js', 'scripts/**/*.js'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: {
