@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --health:#D0524A; --home:#B0701F; --money:#2E8C7A; --ai:#8A56C8;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --e2:0 10px 28px -12px rgba(20,21,15,.20), 0 0 0 1px rgba(20,21,15,.05);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    .sheet{width:960px;min-height:3060px;padding:56px 56px 64px}
+
+    .kicker{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+    .h0{font-family:var(--dis);font-weight:800;font-size:52px;line-height:52px;
+      letter-spacing:-.04em;margin:12px 0 0}
+    .lede{font-size:16px;line-height:24px;color:var(--ink2);margin:14px 0 0;max-width:600px;text-wrap:pretty}
+    .rule{height:1px;background:var(--line);margin:38px 0 30px}
+
+    .h2{font-family:var(--dis);font-weight:700;font-size:13px;letter-spacing:.1em;
+      text-transform:uppercase;margin:0 0 16px;color:var(--ink)}
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+    .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+    .grid5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+
+    .sw{border-radius:12px;overflow:hidden;box-shadow:var(--e1);background:var(--card)}
+    .sw .chip{height:64px;display:block}
+    .sw .meta{display:block;padding:9px 11px 11px}
+    .sw .n{display:block;font-size:12.5px;font-weight:600}
+    .sw .v{display:block;font-size:11.5px;color:var(--ink3);margin-top:2px}
+
+    .note{font-size:13.5px;line-height:20px;color:var(--ink2);margin:12px 0 0;max-width:640px;text-wrap:pretty}
+    .note b{color:var(--ink);font-weight:600}
+
+    .type{border-top:1px solid var(--line);padding:14px 0;display:grid;
+      grid-template-columns:150px minmax(0,1fr);gap:24px;align-items:baseline}
+    .tspec{font-size:12px;color:var(--ink3);line-height:17px}
+    .tspec b{display:block;color:var(--ink);font-weight:600;font-size:12.5px}
+    .d1{font-family:var(--dis);font-weight:800;font-size:56px;line-height:54px;letter-spacing:-.045em}
+    .d2{font-family:var(--dis);font-weight:700;font-size:34px;line-height:36px;letter-spacing:-.022em}
+    .d3{font-family:var(--dis);font-weight:700;font-size:22px;line-height:26px;letter-spacing:-.018em}
+    .b1{font-size:15px;line-height:21px;letter-spacing:-.006em}
+    .b2{font-size:13px;line-height:18px;color:var(--ink2)}
+    .b3{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+
+    .box{background:var(--card);border-radius:16px;box-shadow:var(--e1);padding:18px 20px 20px}
+    .boxlab{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+      color:var(--ink3);margin-bottom:14px}
+
+    .btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .btn{min-height:44px;padding:0 18px;border-radius:12px;font-size:14.5px;font-weight:600;
+      display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:0;
+      transition:transform 160ms var(--ease-out), box-shadow 200ms var(--ease-out)}
+    .btn:active{transform:scale(.97)}
+    .btn.p{background:var(--ink);color:var(--paper)}
+    .btn.s{background:var(--sunken);color:var(--ink)}
+    .btn.g{background:transparent;color:var(--ink2);box-shadow:inset 0 0 0 1.5px var(--line2)}
+    .btn.sig{background:var(--signal);color:var(--ink)}
+    .btn.dis{background:var(--sunken);color:var(--line2);cursor:not-allowed}
+
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .measure{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink3)}
+    .measure i{display:block;height:14px;border-radius:3px;background:var(--signal)}
+    .rad{display:flex;gap:10px;align-items:flex-end}
+    .rad div{width:56px;height:56px;background:var(--sunken);box-shadow:inset 0 0 0 1.5px var(--line2);
+      display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;
+      font-size:11px;color:var(--ink3);font-weight:600}
+
+    .elev{display:flex;gap:16px}
+    .elev div{flex:1;height:74px;border-radius:14px;background:var(--card);
+      display:flex;align-items:center;justify-content:center;font-size:12px;
+      font-weight:600;color:var(--ink2)}
+    .ez{box-shadow:none;outline:1px solid var(--line)}
+    .e-1{box-shadow:var(--e1)}
+    .e-2{box-shadow:var(--e2)}
+
+    .mot{border-top:1px solid var(--line);padding:11px 0;display:grid;
+      grid-template-columns:190px 130px minmax(0,1fr);gap:16px;font-size:13px;align-items:center}
+    .mot b{font-weight:600}
+    .mot code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink2)}
+
+    .dark{background:#121410;color:#F2F1E9;border-radius:16px;padding:18px 20px 20px}
+    .dark .boxlab{color:#787B6E}
+  </style>
+</helmet>
+
+<div class="sheet">
+
+  <div class="kicker">GetBetter · Fundament</div>
+  <h1 class="h0">Warmes Grau, eine Signalfarbe,<br>Zahlen die man sieht.</h1>
+  <p class="lede">Das heutige System ist neutral bis zur Unsichtbarkeit: fünf Schriftgrössen bis 28 px, Grau plus ein austauschbarer Akzent. Dieses Fundament dreht drei Schrauben — eine echte Grössenhierarchie, warme statt kalte Neutraltöne, und genau <b>eine</b> Farbe, die etwas bedeutet.</p>
+
+  <div class="rule"></div>
+
+  <h2 class="h2">Grundton — warm, nicht blaugrau</h2>
+  <div class="grid5">
+    <div class="sw"><span class="chip" style="background:#FBFAF7;box-shadow:inset 0 0 0 1px #E5E2D9"></span><span class="meta"><span class="n">Papier</span><span class="v">#FBFAF7</span></span></div>
+    <div class="sw"><span class="chip" style="background:#F2F0E9"></span><span class="meta"><span class="n">Vertieft</span><span class="v">#F2F0E9</span></span></div>
+    <div class="sw"><span class="chip" style="background:#D2CEC2"></span><span class="meta"><span class="n">Linie stark</span><span class="v">#D2CEC2</span></span></div>
+    <div class="sw"><span class="chip" style="background:#55574C"></span><span class="meta"><span class="n">Schrift ruhig</span><span class="v">#55574C</span></span></div>
+    <div class="sw"><span class="chip" style="background:#14150F"></span><span class="meta"><span class="n">Tinte</span><span class="v">#14150F</span></span></div>
+  </div>
+  <p class="note">Alle Neutraltöne tragen einen Hauch Grün-Gelb. Auf dem Bildschirm liest sich das als Papier statt als Systemgrau — und es ist der Grund, warum die App neben Notion oder TickTick sofort anders wirkt, bevor ein einziges Element auffällt.</p>
+
+  <div class="rule"></div>
+
+  <h2 class="h2">Signal — die einzige Farbe mit Bedeutung</h2>
+  <div class="grid3">
+    <div class="sw"><span class="chip" style="background:#C9F23F"></span><span class="meta"><span class="n">Signal</span><span class="v">#C9F23F · jetzt, erledigt, Fortschritt</span></span></div>
+    <div class="sw"><span class="chip" style="background:#5E7610"></span><span class="meta"><span class="n">Signal tief</span><span class="v">#5E7610 · Signal auf Papier, Links</span></span></div>
+    <div class="sw"><span class="chip" style="background:#121410"></span><span class="meta"><span class="n">Papier dunkel</span><span class="v">#121410 · derselbe Signalton hält</span></span></div>
+  </div>
+  <p class="note">Signal darf nie dekorieren. Es markiert <b>jetzt</b> (die Zeitmarke), <b>erledigt</b> (Haken) und <b>Fortschritt</b> (Balken). Sonst nichts. Genau diese Sparsamkeit macht es zur Marke — und sie funktioniert in Hell und Dunkel unverändert.</p>
+
+  <div class="rule"></div>
+
+  <h2 class="h2">Bereiche — Punkt und Symbol, nie Fläche</h2>
+  <div class="grid5">
+    <div class="sw"><span class="chip" style="background:#4A5FD0"></span><span class="meta"><span class="n">Organisation</span><span class="v">#4A5FD0 · 9 Funktionen</span></span></div>
+    <div class="sw"><span class="chip" style="background:#D0524A"></span><span class="meta"><span class="n">Gesundheit</span><span class="v">#D0524A · 7 Funktionen</span></span></div>
+    <div class="sw"><span class="chip" style="background:#B0701F"></span><span class="meta"><span class="n">Haushalt</span><span class="v">#B0701F · 6 Funktionen</span></span></div>
+    <div class="sw"><span class="chip" style="background:#2E8C7A"></span><span class="meta"><span class="n">Geld</span><span class="v">#2E8C7A · 4 Funktionen</span></span></div>
+    <div class="sw"><span class="chip" style="background:#8A56C8"></span><span class="meta"><span class="n">Assistent</span><span class="v">#8A56C8 · quer über alles</span></span></div>
+  </div>
+  <p class="note">Statt zwölf ähnlich entsättigter Modultöne gibt es fünf klar unterscheidbare Bereiche auf gleicher Helligkeit. Sie erscheinen als 8-px-Punkt, als Symbolfarbe und als Quadrat in der Überschrift — <b>nie als Kartenhintergrund</b>. Damit bleibt die Fläche ruhig und der Bereich trotzdem in einer Zehntelsekunde erkennbar.</p>
+
+  <div class="rule"></div>
+
+  <h2 class="h2">Schrift — Bricolage Grotesque + Instrument Sans</h2>
+  <div class="type"><div class="tspec"><b>Display 56 / 54</b>Bricolage 800 · −4.5 %<br>Zahl des Tages</div><div class="d1">1240</div></div>
+  <div class="type"><div class="tspec"><b>Titel 34 / 36</b>Bricolage 700 · −2.2 %<br>Begrüssung, Bildschirmtitel</div><div class="d2">Hallo Severin</div></div>
+  <div class="type"><div class="tspec"><b>Abschnitt 22 / 26</b>Bricolage 700 · −1.8 %</div><div class="d3">Diese Woche</div></div>
+  <div class="type"><div class="tspec"><b>Fliesstext 15 / 21</b>Instrument Sans 400–600</div><div class="b1">Keine offenen Aufgaben. Auch das ist ein Ergebnis.</div></div>
+  <div class="type"><div class="tspec"><b>Sekundär 13 / 18</b>Instrument Sans 400</div><div class="b2">60 Min geplant · diese Woche 145 von 180</div></div>
+  <div class="type"><div class="tspec"><b>Marke 11 / 14</b>Instrument Sans 600 · +9 %</div><div class="b3">Dienstag, 9. September</div></div>
+  <p class="note">Sechs Stufen statt fünf, und oben ist Platz: von 11 px bis 56 px. Der Sprung von Fliesstext auf Display beträgt fast das Vierfache — <b>deshalb sieht man eine Kalorienzahl, ohne sie zu suchen</b>. Alle Zahlen laufen tabellarisch (<code>tabular-nums</code>), damit Werte in Listen nicht springen.</p>
+
+  <div class="rule"></div>
+
+  <div class="grid2">
+    <div>
+      <h2 class="h2">Bausteine</h2>
+      <div class="box">
+        <div class="boxlab">Knöpfe · Mindesthöhe 44 px</div>
+        <div class="btns">
+          <button class="btn p">Eintragen</button>
+          <button class="btn sig">Erledigt</button>
+          <button class="btn s">Abbrechen</button>
+          <button class="btn g">Mehr</button>
+          <button class="btn dis" disabled>Gesperrt</button>
+        </div>
+        <p class="note" style="margin-top:14px">Symbolknöpfe ohne Beschriftung dürfen kleiner <b>aussehen</b> — 36 bis 44 px. Ihre <b>Tippfläche</b> bleibt immer 44 px, in React Native über <code>hitSlop</code>.</p>
+      </div>
+      <div class="box" style="margin-top:16px">
+        <div class="boxlab">Radien</div>
+        <div class="rad">
+          <div style="border-radius:6px">6</div>
+          <div style="border-radius:12px">12</div>
+          <div style="border-radius:16px">16</div>
+          <div style="border-radius:22px">22</div>
+          <div style="border-radius:999px">Pille</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2 class="h2">Abstand und Tiefe</h2>
+      <div class="box">
+        <div class="boxlab">Abstände · Basis 4</div>
+        <div class="stack">
+          <span class="measure"><i style="width:4px"></i> 4 — innerhalb einer Zeile</span>
+          <span class="measure"><i style="width:8px"></i> 8 — zwischen Geschwistern</span>
+          <span class="measure"><i style="width:12px"></i> 12 — Karteninnenrand</span>
+          <span class="measure"><i style="width:20px"></i> 20 — Bildschirmrand</span>
+          <span class="measure"><i style="width:32px"></i> 32 — zwischen Abschnitten</span>
+        </div>
+      </div>
+      <div class="box" style="margin-top:16px">
+        <div class="boxlab">Tiefe · drei Stufen, mehr nicht</div>
+        <div class="elev">
+          <div class="ez">flach</div>
+          <div class="e-1">Karte</div>
+          <div class="e-2">aktiv</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2 class="h2">Bewegung — kurz, ease-out, nie dekorativ</h2>
+  <div class="mot" style="border-top:0"><b>Knopfdruck</b><code>160 ms</code><span>scale(.97) · sofortige Rückmeldung, nie weglassen</span></div>
+  <div class="mot"><b>Zeile, Chip</b><code>140 ms</code><span>Hintergrund, nur bei Maus (<code>hover: hover</code>)</span></div>
+  <div class="mot"><b>Blatt, Dialog</b><code>240 ms</code><span>von <code>scale(.96)</code> und <code>opacity 0</code> — nie von Null</span></div>
+  <div class="mot"><b>Kurve</b><code>ease-out</code><span><code>cubic-bezier(.23, 1, .32, 1)</code> · <code>ease-in</code> ist verboten, es fühlt sich träge an</span></div>
+  <div class="mot"><b>Tastatur</b><code>0 ms</code><span>Was über Tastatur oder Kurzbefehl passiert, animiert nie</span></div>
+  <p class="note">Und <code>prefers-reduced-motion</code> wird respektiert: Farbe und Deckkraft bleiben, Bewegung fällt weg.</p>
+
+  <div class="rule"></div>
+
+  <div class="dark">
+    <div class="boxlab">Dunkel — kein invertiertes Hell</div>
+    <div class="grid5" style="margin-top:4px">
+      <div class="sw" style="background:#1B1E17"><span class="chip" style="background:#121410;box-shadow:inset 0 0 0 1px #2A2E24"></span><span class="meta"><span class="n" style="color:#F2F1E9">Papier</span><span class="v">#121410</span></span></div>
+      <div class="sw" style="background:#1B1E17"><span class="chip" style="background:#1B1E17;box-shadow:inset 0 0 0 1px #2A2E24"></span><span class="meta"><span class="n" style="color:#F2F1E9">Karte</span><span class="v">#1B1E17</span></span></div>
+      <div class="sw" style="background:#1B1E17"><span class="chip" style="background:#3A3F33"></span><span class="meta"><span class="n" style="color:#F2F1E9">Linie stark</span><span class="v">#3A3F33</span></span></div>
+      <div class="sw" style="background:#1B1E17"><span class="chip" style="background:#A3A698"></span><span class="meta"><span class="n" style="color:#F2F1E9">Schrift ruhig</span><span class="v">#A3A698</span></span></div>
+      <div class="sw" style="background:#1B1E17"><span class="chip" style="background:#C9F23F"></span><span class="meta"><span class="n" style="color:#F2F1E9">Signal</span><span class="v">unverändert</span></span></div>
+    </div>
+    <p class="note" style="color:#A3A698">Im Dunkeln kehrt sich die aktive Karte um: aus Tinte auf Weiss wird Signal auf Tinte. Die Bereichsfarben werden aufgehellt, damit sie auf #121410 dieselbe wahrgenommene Kraft haben — 4.5:1 gegen den Hintergrund in beiden Modi.</p>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":960,"height":3060}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

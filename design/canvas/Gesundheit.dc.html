@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --health:#D0524A;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.97)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .nav{display:flex;align-items:center;gap:12px;padding-top:56px;padding-bottom:10px}
+    .back{width:40px;height:40px;border-radius:999px;background:var(--card);
+      box-shadow:var(--e1);display:flex;align-items:center;justify-content:center}
+    .crumb{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+      letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .crumb i{width:8px;height:8px;border-radius:2px;background:var(--health);display:block}
+    .title{font-family:var(--dis);font-weight:700;font-size:30px;line-height:32px;
+      letter-spacing:-.022em;margin:2px 0 0}
+
+    .body{flex:1;overflow:hidden;padding-top:12px;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 97%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 97%,transparent 100%)}
+    .block{background:var(--card);border-radius:18px;box-shadow:var(--e1);
+      padding:13px 16px 14px;margin-bottom:8px}
+    .bh{display:flex;align-items:baseline;gap:8px}
+    .blab{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .bmore{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+
+    /* Die grosse Zahl — das, was der heutigen Skala fehlt */
+    .big{font-family:var(--dis);font-weight:800;font-size:56px;line-height:54px;
+      letter-spacing:-.045em;margin-top:9px;display:flex;align-items:baseline;gap:8px}
+    .big small{font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink3);
+      letter-spacing:0}
+    .seg{display:flex;gap:3px;margin-top:14px;height:9px}
+    .seg i{display:block;border-radius:999px;background:var(--ink)}
+    .seg i.rest{background:var(--line);flex:1}
+    .legend{display:flex;gap:14px;margin-top:11px;flex-wrap:wrap}
+    .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2)}
+    .lg i{width:7px;height:7px;border-radius:2px;background:var(--ink);display:block}
+    .lg.q i{background:var(--line2)}
+
+    /* Trinken */
+    .glasses{display:flex;gap:5px;margin-top:13px}
+    .gl{flex:1;height:38px;border-radius:7px;border:1.5px solid var(--line2);background:transparent}
+    .gl.on{background:var(--signal);border-color:var(--signal-deep)}
+    .acts{display:flex;gap:8px;margin-top:13px}
+    .act{flex:1;min-height:44px;border-radius:12px;background:var(--sunken);
+      font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+    .act.primary{background:var(--ink);color:var(--paper)}
+
+    /* Woche */
+    .week{display:flex;align-items:flex-end;gap:7px;height:64px;margin-top:14px}
+    .day{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;justify-content:flex-end}
+    .col{width:100%;border-radius:5px;background:var(--line);min-height:4px}
+    .col.on{background:var(--ink)}
+    .col.today{background:var(--signal)}
+    .dl{font-size:10px;font-weight:600;color:var(--ink3)}
+    .dl.today{color:var(--ink)}
+
+    /* Werte */
+    .spark{margin-top:12px}
+    .vrow{display:flex;align-items:baseline;gap:10px;margin-top:9px}
+    .vnum{font-family:var(--dis);font-weight:700;font-size:26px;letter-spacing:-.03em}
+    .vdelta{font-size:12px;font-weight:600;color:var(--signal-deep)}
+    .vsince{margin-left:auto;font-size:12px;color:var(--ink3)}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fab{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad">
+    <div class="nav">
+      <button class="back">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m14 5-7 7 7 7"></path></svg>
+      </button>
+      <span class="crumb"><i></i> Gesundheit</span>
+    </div>
+    <h1 class="title">Dienstag</h1>
+  </div>
+
+  <div class="body pad">
+
+    <div class="block">
+      <div class="bh">
+        <span class="blab">Gegessen</span>
+        <span class="bmore">Menüplan</span>
+      </div>
+      <div class="big">1240 <small>von 2000 kcal</small></div>
+      <div class="seg">
+        <i style="flex:.19"></i>
+        <i style="flex:.26"></i>
+        <i style="flex:.17"></i>
+        <i class="rest"></i>
+      </div>
+      <div class="legend">
+        <span class="lg"><i></i> Morgen 380</span>
+        <span class="lg"><i></i> Mittag 520</span>
+        <span class="lg"><i></i> Snack 340</span>
+        <span class="lg q"><i></i> Abend offen</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="bh">
+        <span class="blab">Getrunken</span>
+        <span class="bmore">1.2 von 2.5 l</span>
+      </div>
+      <div class="glasses">
+        <span class="gl on"></span><span class="gl on"></span><span class="gl on"></span>
+        <span class="gl on"></span><span class="gl on"></span><span class="gl"></span>
+        <span class="gl"></span><span class="gl"></span><span class="gl"></span><span class="gl"></span>
+      </div>
+      <div class="acts">
+        <button class="act primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          2.5 dl
+        </button>
+        <button class="act primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          5 dl
+        </button>
+        <button class="act">Zurück</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="bh">
+        <span class="blab">Training</span>
+        <span class="bmore">145 von 180 Min</span>
+      </div>
+      <div class="week">
+        <div class="day"><span class="col on" style="height:46px"></span><span class="dl">Mo</span></div>
+        <div class="day"><span class="col" style="height:4px"></span><span class="dl">Di</span></div>
+        <div class="day"><span class="col on" style="height:62px"></span><span class="dl">Mi</span></div>
+        <div class="day"><span class="col on" style="height:30px"></span><span class="dl">Do</span></div>
+        <div class="day"><span class="col" style="height:4px"></span><span class="dl">Fr</span></div>
+        <div class="day"><span class="col on" style="height:52px"></span><span class="dl">Sa</span></div>
+        <div class="day"><span class="col today" style="height:38px"></span><span class="dl today">So</span></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="bh">
+        <span class="blab">Gewicht</span>
+        <span class="bmore">30 Tage</span>
+      </div>
+      <div class="spark">
+        <svg width="100%" height="36" viewBox="0 0 320 46" preserveAspectRatio="none" fill="none">
+          <polyline points="0,14 32,17 64,12 96,21 128,19 160,26 192,24 224,31 256,29 288,34 316,33"
+            stroke="#14150F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+          <circle cx="316" cy="33" r="4" fill="#C9F23F" stroke="#14150F" stroke-width="2"></circle>
+        </svg>
+      </div>
+      <div class="vrow">
+        <span class="vnum">78.4</span>
+        <span class="vdelta">−1.6 kg</span>
+        <span class="vsince">seit dem 10. August</span>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fab">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

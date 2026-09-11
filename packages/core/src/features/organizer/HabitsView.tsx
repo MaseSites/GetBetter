@@ -191,7 +191,7 @@ function HabitCard({
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="title">{habit.name}</Text>
             <View style={[styles.head, { gap: theme.spacing.xs }]}>
-              {streak > 0 ? <Icon name="flame" size={14} color={theme.colors.accent} /> : null}
+              {streak > 0 ? <Icon name="flame" size={14} color={theme.colors.accentStrong} /> : null}
               <Text variant="caption" tone={streak > 0 ? 'accent' : 'faint'}>
                 {streak > 0
                   ? t(streak === 1 ? 'habits.streak.one' : 'habits.streak', { days: streak })

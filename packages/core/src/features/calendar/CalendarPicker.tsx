@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { CalendarSource } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Divider, Icon, Input, Segmented, Sheet, Text } from '@/ui';
+import { Button, Checkbox, Divider, Icon, Input, Segmented, Sheet, Text } from '@/ui';
 
 export type CalendarMode = 'day' | 'week' | 'month';
 
@@ -66,9 +66,9 @@ export function CalendarPicker({
 
   return (
     <Sheet visible={visible} onClose={onClose} title={t('calendar.picker.title')}>
-      <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.lg }}>
+      <View style={{ gap: theme.spacing.xl, paddingBottom: theme.spacing.lg }}>
         <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="label" tone="muted">
+          <Text variant="section" tone="muted">
             {t('calendar.view')}
           </Text>
           <Segmented
@@ -84,7 +84,7 @@ export function CalendarPicker({
         </View>
 
         <View style={{ gap: theme.spacing.xs }}>
-          <Text variant="label" tone="muted">
+          <Text variant="section" tone="muted">
             {t('calendar.picker.calendars')}
           </Text>
 
@@ -107,12 +107,9 @@ export function CalendarPicker({
         </View>
 
         <View style={{ gap: theme.spacing.xs }}>
-          <View style={[styles.row, { gap: theme.spacing.sm }]}>
-            <Icon name="person" size={16} color={theme.colors.textMuted} />
-            <Text variant="label" tone="muted">
-              {t('calendar.picker.people')}
-            </Text>
-          </View>
+          <Text variant="section" tone="muted">
+            {t('calendar.picker.people')}
+          </Text>
 
           {people.map((group) => (
             <View key={group.key}>
@@ -173,14 +170,21 @@ export function CalendarPicker({
               style={({ pressed }) => [
                 styles.row,
                 {
-                  paddingVertical: theme.spacing.md,
+                  minHeight: 44,
                   gap: theme.spacing.md,
                   opacity: pressed ? 0.6 : 1,
                 },
               ]}
             >
-              <Icon name="plus" size={22} color={theme.colors.accentStrong} />
-              <Text variant="body" tone="accent">
+              <View
+                style={[
+                  styles.plus,
+                  { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radii.xs },
+                ]}
+              >
+                <Icon name="plus" size={14} color={theme.colors.textMuted} />
+              </View>
+              <Text variant="body" tone="muted">
                 {t('calendar.picker.other')}
               </Text>
             </Pressable>
@@ -213,17 +217,13 @@ function CheckRow({
       style={({ pressed }) => [
         styles.row,
         {
-          paddingVertical: theme.spacing.md,
+          minHeight: 44,
           gap: theme.spacing.md,
           opacity: pressed ? 0.6 : 1,
         },
       ]}
     >
-      <Icon
-        name={checked ? 'checkCircle' : 'circle'}
-        size={22}
-        color={checked ? theme.colors.accent : theme.colors.borderStrong}
-      />
+      <Checkbox checked={checked} />
       {color ? <View style={[styles.dot, { backgroundColor: color }]} /> : null}
       <View style={{ flex: 1 }}>
         <Text variant="body" tone={checked ? 'default' : 'muted'}>
@@ -237,4 +237,5 @@ function CheckRow({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  plus: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --home:#B0701F;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.98)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .nav{display:flex;align-items:center;gap:10px;padding-top:56px}
+    .crumb{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+      letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .crumb i{width:8px;height:8px;border-radius:2px;background:var(--home);display:block}
+    .code{margin-left:auto;display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;
+      border-radius:999px;background:var(--sunken);font-size:12px;font-weight:600;color:var(--ink2);
+      letter-spacing:.08em}
+    .title{font-family:var(--dis);font-weight:700;font-size:30px;line-height:32px;
+      letter-spacing:-.022em;margin:6px 0 0}
+    .who{display:flex;align-items:center;gap:8px;margin-top:12px}
+    .avs{display:flex}
+    .av{width:30px;height:30px;border-radius:999px;flex:none;display:flex;align-items:center;
+      justify-content:center;font-size:11px;font-weight:600;color:#FBFAF7;
+      box-shadow:0 0 0 2px var(--paper)}
+    .av + .av{margin-left:-8px}
+    .whot{font-size:13px;color:var(--ink2)}
+
+    .body{flex:1;overflow:hidden;padding-top:18px;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%)}
+
+    .sec{display:flex;align-items:baseline;gap:8px;padding:0 2px 9px}
+    .sname{font-family:var(--dis);font-weight:700;font-size:13px;letter-spacing:.06em;
+      text-transform:uppercase}
+    .scount{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+
+    .card{background:var(--card);border-radius:16px;box-shadow:var(--e1);overflow:hidden}
+    .card + .sec{padding-top:22px}
+
+    .it{display:flex;align-items:center;gap:12px;min-height:46px;padding:0 14px;width:100%;text-align:left;
+      transition:background 140ms var(--ease-out)}
+    .it + .it{box-shadow:inset 0 1px 0 var(--line)}
+    .bx{width:21px;height:21px;border-radius:7px;flex:none;
+      box-shadow:inset 0 0 0 1.7px var(--line2)}
+    .bx.on{background:var(--signal);box-shadow:none;color:var(--ink);
+      display:flex;align-items:center;justify-content:center}
+    .itxt{font-size:15px;font-weight:500;letter-spacing:-.006em}
+    .it.done .itxt{color:var(--ink3);text-decoration:line-through}
+    .by{margin-left:auto;font-size:12px;color:var(--ink3)}
+    @media (hover:hover) and (pointer:fine){ .it:hover{background:var(--sunken)} }
+
+    .add{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;
+      box-shadow:inset 0 1px 0 var(--line);color:var(--ink3);font-size:15px}
+    .add .plus{width:21px;height:21px;border-radius:7px;flex:none;background:var(--sunken);
+      display:flex;align-items:center;justify-content:center;color:var(--ink2)}
+
+    .ch{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 14px;width:100%;text-align:left}
+    .ch + .ch{box-shadow:inset 0 1px 0 var(--line)}
+    .cht{min-width:0}
+    .ch1{display:block;font-size:15px;font-weight:500;letter-spacing:-.006em}
+    .ch2{display:block;font-size:12.5px;color:var(--ink3);margin-top:2px}
+    .due{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+      color:var(--ink3);white-space:nowrap}
+    .due.now{color:var(--ink);background:var(--signal);border-radius:999px;padding:4px 9px}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fabt{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad">
+    <div class="nav">
+      <span class="crumb"><i></i> Haushalt</span>
+      <span class="code">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>
+        K7XM2P
+      </span>
+    </div>
+    <h1 class="title">Bürki</h1>
+    <div class="who">
+      <span class="avs">
+        <span class="av" style="background:#4A5FD0">SB</span>
+        <span class="av" style="background:#B0701F">LE</span>
+        <span class="av" style="background:#2E8C7A">NO</span>
+      </span>
+      <span class="whot">Severin, Lena, Noah · 3 von 3</span>
+    </div>
+  </div>
+
+  <div class="body pad">
+
+    <div class="sec">
+      <span class="sname">Einkaufsliste</span>
+      <span class="scount">6 offen</span>
+    </div>
+    <div class="card">
+      <button class="it">
+        <span class="bx"></span>
+        <span class="itxt">Vollkornbrot</span>
+        <span class="by">Lena</span>
+      </button>
+      <button class="it">
+        <span class="bx"></span>
+        <span class="itxt">2 Bananen</span>
+        <span class="by">Assistent</span>
+      </button>
+      <button class="it">
+        <span class="bx"></span>
+        <span class="itxt">Pouletbrust, 400 g</span>
+        <span class="by">aus Rezept</span>
+      </button>
+      <button class="it">
+        <span class="bx"></span>
+        <span class="itxt">Naturjoghurt</span>
+        <span class="by">Severin</span>
+      </button>
+      <button class="it done">
+        <span class="bx on">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"></path></svg>
+        </span>
+        <span class="itxt">Kaffeebohnen</span>
+        <span class="by">Noah</span>
+      </button>
+      <div class="add">
+        <span class="plus">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        </span>
+        Etwas ergänzen
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="sname">Ämtli</span>
+      <span class="scount">2 dir zugeteilt</span>
+    </div>
+    <div class="card">
+      <button class="ch">
+        <span class="av" style="background:#4A5FD0">SB</span>
+        <span class="cht">
+          <span class="ch1">Badezimmer putzen</span>
+          <span class="ch2">Zuletzt Lena, vor 9 Tagen</span>
+        </span>
+        <span class="due now">Heute</span>
+      </button>
+      <button class="ch">
+        <span class="av" style="background:#4A5FD0">SB</span>
+        <span class="cht">
+          <span class="ch1">Abfall rausbringen</span>
+          <span class="ch2">Jeden Donnerstag</span>
+        </span>
+        <span class="due">In 2 Tagen</span>
+      </button>
+      <button class="ch">
+        <span class="av" style="background:#B0701F">LE</span>
+        <span class="cht">
+          <span class="ch1">Pflanzen giessen</span>
+          <span class="ch2">Zuletzt Severin, vor 3 Tagen</span>
+        </span>
+        <span class="due">Sonntag</span>
+      </button>
+    </div>
+
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fabt">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

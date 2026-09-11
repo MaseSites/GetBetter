@@ -11,6 +11,7 @@ import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
+  AddBar,
   Badge,
   Button,
   Card,
@@ -117,45 +118,13 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
         />
       }
       footer={
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-          <View style={{ flex: 1 }}>
-            <Input
-              value={draft}
-              onChangeText={setDraft}
-              placeholder={t('tasks.placeholder')}
-              onSubmitEditing={add}
-              returnKeyType="done"
-              accessibilityLabel={t('tasks.placeholder')}
-            />
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('tasks.add')}
-            accessibilityState={{ disabled: draft.trim().length === 0 }}
-            disabled={draft.trim().length === 0}
-            onPress={add}
-            style={({ pressed }) => [
-              styles.addButton,
-              {
-                borderRadius: theme.radii.md,
-                backgroundColor:
-                  draft.trim().length === 0
-                    ? theme.colors.disabledBackground
-                    : pressed
-                      ? theme.colors.accentStrong
-                      : theme.colors.accent,
-              },
-            ]}
-          >
-            <Icon
-              name="plus"
-              size={22}
-              color={
-                draft.trim().length === 0 ? theme.colors.disabledText : theme.colors.textOnAccent
-              }
-            />
-          </Pressable>
-        </View>
+        <AddBar
+          value={draft}
+          onChangeText={setDraft}
+          onSubmit={() => void add()}
+          placeholder={t('tasks.placeholder')}
+          addLabel={t('tasks.add')}
+        />
       }
     >
       {open.loading && openTasks.length === 0 ? <Loading /> : null}

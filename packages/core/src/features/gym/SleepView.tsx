@@ -34,7 +34,7 @@ const BEDTIMES = ['21:30', '22:00', '22:30', '23:00', '23:30', '00:00'] as const
 const WAKE_TIMES = ['05:30', '06:00', '06:30', '07:00', '07:30', '08:00'] as const;
 const QUALITIES = [1, 2, 3] as const;
 /** Acht Stunden gelten als voll; die Stunde davor ist zum Runterkommen. */
-const TARGET_MINUTES = 8 * 60;
+export const TARGET_MINUTES = 8 * 60;
 const WIND_DOWN_MINUTES = 60;
 const AVERAGE_NIGHTS = 7;
 

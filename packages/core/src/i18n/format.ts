@@ -46,6 +46,23 @@ export function formatMonth(language: Language, date: Date): string {
   );
 }
 
+/** "Dienstag" */
+export function formatWeekdayLong(language: Language, date: Date): string {
+  return new Intl.DateTimeFormat(localeFor(language), { weekday: 'long' }).format(date);
+}
+
+/** "September" */
+export function formatMonthName(language: Language, date: Date): string {
+  return new Intl.DateTimeFormat(localeFor(language), { month: 'long' }).format(date);
+}
+
+/** "18. September" */
+export function formatDayMonth(language: Language, date: Date): string {
+  return new Intl.DateTimeFormat(localeFor(language), { day: 'numeric', month: 'long' }).format(
+    date,
+  );
+}
+
 export function formatNumber(language: Language, value: number): string {
   return new Intl.NumberFormat(localeFor(language)).format(value);
 }

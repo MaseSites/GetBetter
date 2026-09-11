@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@500;600;700&display=swap">
+  <style>
+    :root{
+      --paper:#F5F4F0; --ink:#0B0B0A; --ink2:#5C5C57; --ink3:#93938C;
+      --line:#0B0B0A; --hair:#C9C8C1; --red:#E03A21;
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Archivo", system-ui, -apple-system, sans-serif;
+      --nar:"Archivo Narrow", "Archivo", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--red);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.98)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:18px;padding-right:18px}
+
+    .masthead{padding-top:56px;padding-bottom:10px;border-bottom:2px solid var(--line)}
+    .mrow{display:flex;align-items:baseline;justify-content:space-between}
+    .wordmark{font-family:var(--nar);font-weight:700;font-size:13px;letter-spacing:.22em;
+      text-transform:uppercase}
+    .no{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+    .dateline{font-family:var(--nar);font-weight:700;font-size:44px;line-height:44px;
+      letter-spacing:-.02em;margin-top:10px;text-transform:uppercase}
+    .dsub{display:flex;gap:14px;margin-top:6px;padding-bottom:8px;
+      font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+    .dsub em{font-style:normal;color:var(--red)}
+
+    .body{flex:1;overflow:hidden;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 91%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 91%,transparent 100%)}
+
+    .entry{display:grid;grid-template-columns:52px minmax(0,1fr) auto;column-gap:12px;
+      align-items:baseline;padding:13px 0;border-bottom:1px solid var(--hair)}
+    .hh{font-family:var(--nar);font-weight:700;font-size:17px;letter-spacing:-.01em}
+    .ttl{display:block;font-size:15px;font-weight:600;letter-spacing:-.008em}
+    .sub{display:block;font-size:12.5px;color:var(--ink2);margin-top:2px}
+    .cat{font-family:var(--nar);font-weight:700;font-size:10px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--ink3);white-space:nowrap}
+    .entry.on{background:var(--ink);color:var(--paper);margin:0 -18px;padding-left:18px;padding-right:18px;
+      border-bottom-color:var(--ink)}
+    .entry.on .sub{color:#B4B4AC}
+    .entry.on .cat{color:var(--red)}
+    .nowbar{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:2px solid var(--red)}
+    .nowbar b{font-family:var(--nar);font-weight:700;font-size:11px;letter-spacing:.18em;
+      text-transform:uppercase;color:var(--red)}
+    .nowbar i{flex:1;height:2px;background:var(--red)}
+
+    .ledger{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+      border-top:2px solid var(--line);border-bottom:2px solid var(--line)}
+    .cell{padding:11px 12px 13px}
+    .cell + .cell{border-left:1px solid var(--hair)}
+    .clab{font-family:var(--nar);font-weight:700;font-size:10px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--ink3)}
+    .cval{font-family:var(--nar);font-weight:700;font-size:28px;line-height:28px;
+      letter-spacing:-.025em;margin-top:6px}
+    .cval span{font-family:var(--ui);font-size:11px;font-weight:600;color:var(--ink3);
+      letter-spacing:0;margin-left:3px}
+
+    .tabs{display:flex;align-items:center;justify-content:space-between;
+      padding:12px 18px 26px;border-top:2px solid var(--line)}
+    .tab{font-family:var(--nar);font-weight:700;font-size:11px;letter-spacing:.16em;
+      text-transform:uppercase;color:var(--ink3);min-height:44px;display:flex;align-items:center}
+    .tab.sel{color:var(--ink);box-shadow:inset 0 -2px 0 var(--red)}
+    .tab.dot{width:34px;height:34px;border-radius:0;background:var(--red);color:var(--paper);
+      justify-content:center;min-height:34px;align-self:center}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad masthead">
+    <div class="mrow">
+      <span class="wordmark">GetBetter</span>
+      <span class="no">Nr. 254 · SB</span>
+    </div>
+    <div class="dateline">Dienstag<br>9. September</div>
+    <div class="dsub"><span>7 Einträge</span><span><em>3 brauchen dich</em></span></div>
+  </div>
+
+  <div class="body pad">
+
+    <div class="entry">
+      <span class="hh">06.40</span>
+      <span><span class="ttl">Wecker</span><span class="sub">Nach dem ersten Termin gestellt</span></span>
+      <span class="cat">Org</span>
+    </div>
+    <div class="entry">
+      <span class="hh">08.30</span>
+      <span><span class="ttl">Standup</span><span class="sub">Büro Zürich, bis 09.00</span></span>
+      <span class="cat">Kal</span>
+    </div>
+
+    <div class="nowbar"><b>Jetzt 09.14</b><i></i></div>
+
+    <div class="entry on">
+      <span class="hh">12.00</span>
+      <span><span class="ttl">Pouletsalat</span><span class="sub">520 kcal · Einkauf gedeckt</span></span>
+      <span class="cat">Menü</span>
+    </div>
+    <div class="entry">
+      <span class="hh">14.00</span>
+      <span><span class="ttl">Krankenkasse</span><span class="sub">CHF 328.40 fällig</span></span>
+      <span class="cat">Geld</span>
+    </div>
+    <div class="entry">
+      <span class="hh">17.30</span>
+      <span><span class="ttl">Beine</span><span class="sub">60 Min · Woche 145/180</span></span>
+      <span class="cat">Sport</span>
+    </div>
+    <div class="entry">
+      <span class="hh">18.30</span>
+      <span><span class="ttl">Einkauf</span><span class="sub">6 Posten · Lena ergänzte Brot</span></span>
+      <span class="cat">Haus</span>
+    </div>
+
+  </div>
+
+  <div class="ledger">
+    <div class="cell"><div class="clab">Wasser</div><div class="cval">1.2<span>/2.5 l</span></div></div>
+    <div class="cell"><div class="clab">Kalorien</div><div class="cval">1240<span>kcal</span></div></div>
+    <div class="cell"><div class="clab">Woche</div><div class="cval">412<span>CHF</span></div></div>
+  </div>
+
+  <nav class="tabs">
+    <span class="tab sel">Heute</span>
+    <span class="tab">Bereiche</span>
+    <span class="tab dot">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path></svg>
+    </span>
+    <span class="tab">Suche</span>
+    <span class="tab">Profil</span>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

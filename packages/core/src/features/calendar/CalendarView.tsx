@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { APPS, hasHouseholds } from '@/app/identity';
 import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
@@ -9,7 +9,7 @@ import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, FloatingButton, Header, Icon, Screen, Text } from '@/ui';
+import { Button, Card, FloatingButton, Header, Icon, Screen, Text, usePressScale } from '@/ui';
 
 import { eventColor, EVENT_COLORS, type EventColorKey } from './colors';
 import {
@@ -32,7 +32,7 @@ import {
 import { EventEditor, type EventDraft } from './EventEditor';
 import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
-import { TimeGrid } from './TimeGrid';
+import { GUTTER_WIDTH, TimeGrid } from './TimeGrid';
 
 export type CalendarViewProps = {
   module: ModuleDefinition;
@@ -44,6 +44,10 @@ export type CalendarViewProps = {
  * Ein Kalender, zwei Ausschnitte. In GetBetter der private samt eigenen
  * Kalendern; in BetterFamily nur der des Haushalts. Welcher es ist, sagt
  * `hasHouseholds()` — die App, in der er laeuft.
+ *
+ * Gestaltet wie im Entwurf: gross der Zeitraum als Titel, ein Tipp darauf
+ * oeffnet Ansicht und Kalenderauswahl; darunter die Woche als Leiste und
+ * das Zeitraster mit weissen Terminkarten.
  */
 export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const family = hasHouseholds();
@@ -53,7 +57,8 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const account = useAccount();
 
   const { access, calendars: myCalendars, households, sharedBy } = useCalendarAccess();
-  const [mode, setMode] = useState<CalendarMode>('month');
+  // Wie im Entwurf beginnt der Kalender beim heutigen Tag, nicht beim Monat.
+  const [mode, setMode] = useState<CalendarMode>('day');
   const [managing, setManaging] = useState(false);
   const [picking, setPicking] = useState(false);
   // Leer heisst: kein eigener Kalender abgewaehlt, also alle zeigen.
@@ -206,11 +211,8 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
       return new Intl.DateTimeFormat('de-CH', { month: 'long', year: 'numeric' }).format(anchor);
     }
     if (mode === 'day') {
-      return new Intl.DateTimeFormat('de-CH', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      }).format(anchor);
+      // Das Datum steht in der Wochenleiste darunter — oben reicht der Wochentag.
+      return new Intl.DateTimeFormat('de-CH', { weekday: 'long' }).format(anchor);
     }
     const week = weekDays(anchor);
     const first = week[0] ?? anchor;
@@ -225,8 +227,6 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
       padded={false}
       header={
         <Header
-          title={module.name}
-          subtitle={periodLabel}
           showBack={showBack}
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           actions={
@@ -241,44 +241,51 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
                 ]
           }
         >
-          <View style={[styles.toolbar, { gap: theme.spacing.sm, paddingTop: theme.spacing.sm }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('calendar.picker.title')}
-              accessibilityState={{ expanded: picking }}
-              onPress={() => setPicking(true)}
-              style={({ pressed }) => [
-                styles.pickerButton,
-                {
-                  borderRadius: theme.radii.pill,
-                  backgroundColor: pressed ? theme.colors.border : theme.colors.surfaceMuted,
-                  gap: theme.spacing.xs,
-                  paddingHorizontal: theme.spacing.md,
-                },
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${module.name}: ${t('calendar.picker.title')}`}
+            accessibilityState={{ expanded: picking }}
+            onPress={() => setPicking(true)}
+            style={[styles.titleRow, { gap: theme.spacing.sm }]}
+          >
+            <Text
+              variant="display"
+              numberOfLines={1}
+              style={[
+                styles.shrink,
+                { fontSize: theme.fontSize.title, lineHeight: theme.lineHeight.title },
               ]}
             >
-              <Text variant="caption" tone="muted">
-                {t(`calendar.view.${mode}` as TranslationKey)} ·{' '}
-                {t('calendar.picker.selected', { count: selected.length })}
-              </Text>
-              <Icon name="down" size={14} color={theme.colors.textMuted} />
-            </Pressable>
-            <View style={{ flex: 1 }} />
+              {periodLabel}
+            </Text>
+            <Icon name="down" size={18} color={theme.colors.textFaint} />
+            <Text
+              variant="label"
+              tone="faint"
+              numberOfLines={1}
+              style={[styles.shrink, { fontWeight: theme.fontWeight.semibold }]}
+            >
+              {`${t(`calendar.view.${mode}` as TranslationKey)} · ${t('calendar.picker.selected', { count: selected.length })}`}
+            </Text>
+          </Pressable>
+
+          <View style={[styles.toolbar, { gap: theme.spacing.sm }]}>
+            <View style={styles.grow} />
             <StepButton label={t('calendar.previous')} icon="back" onPress={() => step(-1)} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('calendar.today')}
               onPress={() => setAnchor(startOfDay(new Date()))}
-              style={({ pressed }) => [
+              style={[
                 styles.todayButton,
                 {
                   borderRadius: theme.radii.pill,
-                  borderColor: theme.colors.border,
-                  backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
+                  backgroundColor: theme.colors.surfaceMuted,
+                  paddingHorizontal: theme.spacing.md,
                 },
               ]}
             >
-              <Text variant="caption" tone="muted">
+              <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
                 {t('calendar.today')}
               </Text>
             </Pressable>
@@ -288,7 +295,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
       }
     >
       {invites.length > 0 ? (
-        <View style={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}>
+        <View style={{ padding: theme.spacing.edge, gap: theme.spacing.sm }}>
           {invites.map((invite) => (
             <Card
               key={invite.membership.id}
@@ -319,7 +326,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
       ) : null}
 
       {requests.length > 0 ? (
-        <View style={{ paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm }}>
+        <View style={{ paddingHorizontal: theme.spacing.edge, gap: theme.spacing.sm }}>
           {requests.map((person) => (
             <Card
               key={person.share.id}
@@ -360,7 +367,12 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         />
       ) : (
         <View style={styles.fill}>
-          <DayHeader days={days} anchor={anchor} onSelect={setAnchor} mode={mode} />
+          <WeekStrip
+            days={mode === 'day' ? weekDays(anchor) : days}
+            anchor={anchor}
+            onSelect={setAnchor}
+            alignToGrid={mode === 'week'}
+          />
           <AllDayRow
             days={days}
             events={events}
@@ -424,6 +436,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   );
 }
 
+/** Runder Knopf zum Blaettern — wie der Zurueck-Knopf, nur kleiner. */
 function StepButton({
   label,
   icon,
@@ -434,40 +447,66 @@ function StepButton({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const press = usePressScale();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => [
-        styles.stepButton,
-        { opacity: pressed ? 0.5 : 1, borderRadius: theme.radii.pill },
-      ]}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      hitSlop={theme.spacing.xs}
     >
-      <Icon name={icon} size={20} color={theme.colors.textMuted} />
+      <Animated.View
+        style={[
+          styles.stepButton,
+          theme.elevation.card,
+          {
+            borderRadius: theme.radii.pill,
+            backgroundColor: theme.colors.surface,
+            transform: [{ scale: press.scale }],
+          },
+        ]}
+      >
+        <Icon name={icon} size={16} color={theme.colors.text} />
+      </Animated.View>
     </Pressable>
   );
 }
 
-function DayHeader({
+/**
+ * Die Woche als Leiste: Wochentag klein, Datum gross; der gewaehlte Tag liegt
+ * als Tinte-Feld darunter, der Wochentag darin in Signalgruen.
+ */
+function WeekStrip({
   days,
   anchor,
   onSelect,
-  mode,
+  alignToGrid,
 }: {
   days: readonly Date[];
   anchor: Date;
   onSelect: (day: Date) => void;
-  mode: CalendarMode;
+  /** In der Wochenansicht stehen die Tage genau ueber ihren Spalten. */
+  alignToGrid: boolean;
 }) {
   const theme = useTheme();
-  if (mode === 'day') return null;
 
   return (
-    <View style={[styles.dayHeader, { borderBottomColor: theme.colors.border, paddingLeft: 44 }]}>
+    <View
+      style={[
+        styles.strip,
+        {
+          gap: alignToGrid ? 0 : theme.spacing.xs,
+          paddingLeft: alignToGrid ? GUTTER_WIDTH : theme.spacing.edge,
+          paddingRight: alignToGrid ? 0 : theme.spacing.edge,
+          paddingBottom: theme.spacing.sm,
+        },
+      ]}
+    >
       {days.map((day) => {
         const selected = isSameDay(day, anchor);
+        const today = isToday(day);
         return (
           <Pressable
             key={day.toISOString()}
@@ -478,28 +517,41 @@ function DayHeader({
               day: 'numeric',
             }).format(day)}
             onPress={() => onSelect(day)}
-            style={styles.dayHeaderCell}
+            style={[
+              styles.stripCell,
+              {
+                gap: theme.spacing.xs,
+                paddingVertical: theme.spacing.sm,
+                borderRadius: theme.radii.sm,
+                backgroundColor: selected ? theme.colors.inverse : 'transparent',
+              },
+            ]}
           >
-            <Text variant="caption" tone="faint">
+            <Text
+              variant="overline"
+              style={{
+                fontSize: theme.fontSize.micro,
+                lineHeight: theme.lineHeight.micro,
+                letterSpacing: theme.tracking.label,
+                color: selected ? theme.colors.accent : theme.colors.textFaint,
+              }}
+            >
               {new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(day).slice(0, 2)}
             </Text>
-            <View
-              style={[
-                styles.dayHeaderCircle,
-                selected
-                  ? { backgroundColor: theme.colors.accent }
-                  : isToday(day)
-                    ? { borderWidth: 1, borderColor: theme.colors.accent }
-                    : null,
-              ]}
+            <Text
+              variant="title"
+              style={{
+                fontSize: theme.fontSize.md,
+                lineHeight: theme.lineHeight.md,
+                color: selected
+                  ? theme.colors.onInverse
+                  : today
+                    ? theme.colors.accentStrong
+                    : theme.colors.text,
+              }}
             >
-              <Text
-                variant="label"
-                tone={selected ? 'onAccent' : isToday(day) ? 'accent' : 'default'}
-              >
-                {day.getDate()}
-              </Text>
-            </View>
+              {day.getDate()}
+            </Text>
           </Pressable>
         );
       })}
@@ -528,11 +580,11 @@ function AllDayRow({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={[styles.allDay, { borderBottomColor: theme.colors.border }]}
+      style={styles.allDay}
       contentContainerStyle={{
         gap: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.edge,
+        paddingBottom: theme.spacing.sm,
       }}
     >
       {allDay.map((event) => (
@@ -543,10 +595,17 @@ function AllDayRow({
           onPress={() => onPressEvent(event)}
           style={[
             styles.allDayChip,
-            { backgroundColor: eventColor(event.color), borderRadius: theme.radii.sm },
+            theme.elevation.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radii.sm,
+              gap: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+            },
           ]}
         >
-          <Text variant="caption" tone="onAccent" numberOfLines={1}>
+          <View style={[styles.allDayDot, { backgroundColor: eventColor(event.color) }]} />
+          <Text variant="label" numberOfLines={1} style={{ fontWeight: theme.fontWeight.semibold }}>
             {event.title}
           </Text>
         </Pressable>
@@ -557,29 +616,15 @@ function AllDayRow({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  grow: { flex: 1 },
+  shrink: { flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
   toolbar: { flexDirection: 'row', alignItems: 'center' },
-  pickerButton: {
-    height: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  todayButton: {
-    height: 28,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  dayHeader: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: 6, gap: 2 },
-  dayHeaderCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  allDay: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth },
-  allDayChip: { paddingHorizontal: 8, paddingVertical: 4, maxWidth: 160 },
+  todayButton: { minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  stepButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  strip: { flexDirection: 'row' },
+  stripCell: { flex: 1, alignItems: 'center', minHeight: 54 },
+  allDay: { flexGrow: 0 },
+  allDayChip: { flexDirection: 'row', alignItems: 'center', minHeight: 32, maxWidth: 200 },
+  allDayDot: { width: 8, height: 8, borderRadius: 999 },
 });

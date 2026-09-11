@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --home:#B0701F;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.98)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .me{display:flex;align-items:center;gap:14px;padding-top:56px;padding-bottom:4px}
+    .big{width:60px;height:60px;border-radius:999px;background:var(--ink);color:var(--paper);
+      font-family:var(--dis);font-weight:700;font-size:20px;letter-spacing:.01em;
+      display:flex;align-items:center;justify-content:center;flex:none}
+    .name{display:block;font-family:var(--dis);font-weight:700;font-size:26px;line-height:28px;
+      letter-spacing:-.022em}
+    .hand{display:block;font-size:13.5px;color:var(--ink3);margin-top:3px}
+
+    .body{flex:1;overflow:hidden;padding-top:4px;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%)}
+
+    .sec{display:flex;align-items:baseline;gap:8px;padding:16px 2px 6px}
+    .sname{font-family:var(--dis);font-weight:700;font-size:13px;letter-spacing:.06em;
+      text-transform:uppercase}
+
+    .card{background:var(--card);border-radius:16px;box-shadow:var(--e1);overflow:hidden}
+    .r{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;width:100%;text-align:left;
+      transition:background 140ms var(--ease-out)}
+    .r + .r{box-shadow:inset 0 1px 0 var(--line)}
+    .rl{font-size:15px;font-weight:500;letter-spacing:-.006em}
+    .rv{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:14px;color:var(--ink2)}
+    .chev{color:var(--line2)}
+    @media (hover:hover) and (pointer:fine){ .r:hover{background:var(--sunken)} }
+
+    .modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .mode{border-radius:14px;padding:7px 7px 9px;background:var(--card);box-shadow:var(--e1);
+      transition:box-shadow 200ms var(--ease-out), transform 160ms var(--ease-out)}
+    .mode.on{box-shadow:0 0 0 2px var(--ink), var(--e1)}
+    .prev{height:56px;border-radius:9px;overflow:hidden;position:relative;display:block}
+    .prev .ln{position:absolute;left:9px;height:5px;border-radius:999px}
+    .prev .sg{position:absolute;left:9px;height:5px;border-radius:999px;background:var(--signal)}
+    .ml{display:block;font-size:11.5px;font-weight:600;text-align:center;margin-top:7px}
+
+    .colors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .col{display:flex;align-items:center;gap:11px;background:var(--card);border-radius:14px;
+      padding:12px 13px;box-shadow:var(--e1);text-align:left}
+    .col.on{box-shadow:0 0 0 2px var(--ink), var(--e1)}
+    .dot{width:26px;height:26px;border-radius:999px;flex:none}
+    .cl{font-size:14px;font-weight:600;letter-spacing:-.006em}
+    .cl small{display:block;font-size:11.5px;font-weight:400;color:var(--ink3);margin-top:2px}
+
+    .out{width:100%;min-height:50px;border-radius:14px;background:var(--sunken);
+      font-size:15px;font-weight:600;color:var(--ink2);margin-top:16px;
+      display:flex;align-items:center;justify-content:center}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fabt{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad me">
+    <span class="big">SB</span>
+    <span>
+      <span class="name">Severin</span>
+      <span class="hand">@severin · seit Mai 2026</span>
+    </span>
+  </div>
+
+  <div class="body pad">
+
+    <div class="sec"><span class="sname">Aussehen</span></div>
+    <div class="modes">
+      <button class="mode on">
+        <span class="prev" style="background:#FBFAF7;box-shadow:inset 0 0 0 1px #E5E2D9">
+          <span class="ln" style="top:9px;width:34px;background:#14150F"></span>
+          <span class="ln" style="top:19px;width:22px;background:#D2CEC2"></span>
+          <span class="sg" style="top:29px;width:28px"></span>
+          <span class="ln" style="top:39px;width:18px;background:#D2CEC2"></span>
+        </span>
+        <span class="ml">Hell</span>
+      </button>
+      <button class="mode">
+        <span class="prev" style="background:#121410">
+          <span class="ln" style="top:9px;width:34px;background:#F2F1E9"></span>
+          <span class="ln" style="top:19px;width:22px;background:#3A3F33"></span>
+          <span class="sg" style="top:29px;width:28px"></span>
+          <span class="ln" style="top:39px;width:18px;background:#3A3F33"></span>
+        </span>
+        <span class="ml">Dunkel</span>
+      </button>
+      <button class="mode">
+        <span class="prev" style="background:linear-gradient(105deg,#FBFAF7 0 50%,#121410 50% 100%);box-shadow:inset 0 0 0 1px #E5E2D9">
+          <span class="ln" style="top:9px;width:34px;background:#6E7064"></span>
+          <span class="ln" style="top:19px;width:22px;background:#6E7064"></span>
+          <span class="sg" style="top:29px;width:28px"></span>
+          <span class="ln" style="top:39px;width:18px;background:#6E7064"></span>
+        </span>
+        <span class="ml">Gerät</span>
+      </button>
+    </div>
+
+    <div class="sec"><span class="sname">Farbe</span></div>
+    <div class="colors">
+      <button class="col on">
+        <span class="dot" style="background:#C9F23F"></span>
+        <span class="cl">Signal<small>Grün für jetzt und erledigt</small></span>
+      </button>
+      <button class="col">
+        <span class="dot" style="background:#14150F"></span>
+        <span class="cl">Ruhig<small>Ganz ohne Farbe</small></span>
+      </button>
+    </div>
+
+    <div class="sec"><span class="sname">Konto</span></div>
+    <div class="card">
+      <button class="r">
+        <span class="rl">Vorname</span>
+        <span class="rv">Severin<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="r">
+        <span class="rl">Benutzername</span>
+        <span class="rv">severin<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="r">
+        <span class="rl">Sprache</span>
+        <span class="rv">Deutsch<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+    </div>
+
+    <div class="sec"><span class="sname">Haushalte</span></div>
+    <div class="card">
+      <button class="r">
+        <span class="rl">Bürki</span>
+        <span class="rv">Verwalter · 3<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="r">
+        <span class="rl" style="color:var(--ink2)">Haushalt beitreten</span>
+        <span class="rv"><svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+    </div>
+
+    <button class="out">Abmelden</button>
+
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fabt">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

@@ -13,9 +13,19 @@ import {
   type Palette,
   type ThemePreset,
 } from './colors';
+import { createElevation, type Elevation, type ElevationLevel } from './elevation';
+import { duration, easing, pressScale } from './motion';
 import { radii } from './radii';
 import { spacing } from './spacing';
-import { fontFamily, fontSize, fontWeight, lineHeight } from './typography';
+import {
+  fontFamily,
+  fontFamilyDisplay,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  numeric,
+  tracking,
+} from './typography';
 
 export type Theme = {
   scheme: ColorScheme;
@@ -27,7 +37,14 @@ export type Theme = {
   fontSize: typeof fontSize;
   lineHeight: typeof lineHeight;
   fontWeight: typeof fontWeight;
+  tracking: typeof tracking;
   fontFamily: string | undefined;
+  /** Fuer Zahlen und Titel. */
+  fontFamilyDisplay: string | undefined;
+  /** Drei Stufen Tiefe, im Dunkeln ohne Schlagschatten. */
+  elevation: Elevation;
+  /** Dauern, Kurven und wie stark etwas beim Druecken nachgibt. */
+  motion: { duration: typeof duration; easing: typeof easing; pressScale: typeof pressScale };
 };
 
 export function createTheme(
@@ -45,7 +62,11 @@ export function createTheme(
     fontSize,
     lineHeight,
     fontWeight,
+    tracking,
     fontFamily,
+    fontFamilyDisplay,
+    elevation: createElevation(scheme),
+    motion: { duration, easing, pressScale },
   };
 }
 
@@ -73,7 +94,21 @@ export {
   fontSize,
   lineHeight,
   fontWeight,
+  tracking,
   fontFamily,
+  fontFamilyDisplay,
+  numeric,
+  duration,
+  easing,
+  pressScale,
 };
-export type { AccentKey, ColorScheme, Palette, ThemePreset };
-export { hueTint, moduleTint, MODULE_COLORS } from './modules';
+export type { AccentKey, ColorScheme, Palette, ThemePreset, Elevation, ElevationLevel };
+export {
+  hueTint,
+  moduleTint,
+  moduleSoft,
+  moduleBase,
+  areaOfModule,
+  MODULE_COLORS,
+} from './modules';
+export type { ModuleTint } from './modules';

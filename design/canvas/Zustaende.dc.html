@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --health:#D0524A; --home:#B0701F; --money:#2E8C7A;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --e2:0 10px 28px -12px rgba(20,21,15,.20), 0 0 0 1px rgba(20,21,15,.05);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--sunken);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+    .sheet{width:1300px;min-height:1340px;padding:44px 44px 52px}
+
+    .kicker{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+    .h0{font-family:var(--dis);font-weight:800;font-size:36px;line-height:38px;
+      letter-spacing:-.032em;margin:10px 0 0}
+    .lede{font-size:15px;line-height:22px;color:var(--ink2);margin:11px 0 0;max-width:720px;text-wrap:pretty}
+
+    .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;margin-top:30px}
+    .colhead{font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.1em;
+      text-transform:uppercase;margin-bottom:11px}
+    .colnote{font-size:13px;line-height:19px;color:var(--ink2);margin-top:12px;text-wrap:pretty}
+    .phone{height:600px;border-radius:26px;background:var(--paper);overflow:hidden;
+      box-shadow:0 14px 34px -18px rgba(20,21,15,.30), 0 0 0 1px rgba(20,21,15,.07);
+      display:flex;flex-direction:column;padding:26px 18px 18px}
+
+    .ptop{display:flex;align-items:center;gap:9px}
+    .pcrumb{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;
+      letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .pcrumb i{width:8px;height:8px;border-radius:2px;display:block}
+    .ptitle{font-family:var(--dis);font-weight:700;font-size:24px;line-height:26px;
+      letter-spacing:-.022em;margin:5px 0 0}
+
+    /* 1 — Leer */
+    .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;padding:0 14px 40px}
+    .emark{width:64px;height:64px;border-radius:18px;background:var(--sunken);
+      display:flex;align-items:center;justify-content:center;color:var(--ink3)}
+    .etitle{font-family:var(--dis);font-weight:700;font-size:19px;letter-spacing:-.018em;margin-top:16px}
+    .ebody{font-size:14px;line-height:20px;color:var(--ink2);margin-top:8px;max-width:250px;text-wrap:pretty}
+    .ebtn{min-height:46px;padding:0 20px;border-radius:13px;background:var(--ink);color:var(--paper);
+      font-size:14.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;margin-top:18px;
+      transition:transform 160ms var(--ease-out)}
+    .ebtn:active{transform:scale(.97)}
+
+    /* 2 — Laden */
+    .sk{border-radius:6px;background:var(--sunken);display:block;
+      animation:pulse 1400ms var(--ease-out) infinite}
+    .skcard{background:var(--card);border-radius:14px;box-shadow:var(--e1);padding:13px 14px 14px;
+      margin-top:9px}
+    .skrow{display:flex;align-items:center;gap:10px}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+    @media (prefers-reduced-motion:reduce){ .sk{animation:none;opacity:.75} }
+
+    /* 3 — Fehler */
+    .alert{background:var(--card);border-radius:16px;box-shadow:0 0 0 1.5px var(--ink), var(--e1);
+      padding:14px 15px 15px;margin-top:16px}
+    .arow{display:flex;align-items:center;gap:9px}
+    .abadge{width:26px;height:26px;border-radius:999px;background:var(--ink);color:var(--signal);
+      display:flex;align-items:center;justify-content:center;flex:none}
+    .atitle{font-size:14.5px;font-weight:600;letter-spacing:-.008em}
+    .abody{font-size:13px;line-height:19px;color:var(--ink2);margin-top:8px;text-wrap:pretty}
+    .aacts{display:flex;gap:8px;margin-top:13px}
+    .abtn{flex:1;min-height:44px;border-radius:12px;font-size:14px;font-weight:600;
+      display:flex;align-items:center;justify-content:center;transition:transform 160ms var(--ease-out)}
+    .abtn:active{transform:scale(.97)}
+    .abtn.p{background:var(--ink);color:var(--paper)}
+    .abtn.s{background:var(--sunken);color:var(--ink2)}
+    .stale{margin-top:16px;opacity:.55}
+    .stalelab{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+      color:var(--ink3);margin-bottom:8px}
+    .srow{display:flex;align-items:center;gap:11px;min-height:44px;padding:0 13px;
+      background:var(--card);border-radius:12px;margin-bottom:7px;box-shadow:var(--e1)}
+    .sname{font-size:14.5px;font-weight:500}
+    .sval{margin-left:auto;font-size:13px;color:var(--ink3)}
+
+    /* Zustandsreihe */
+    .states{margin-top:34px;background:var(--card);border-radius:20px;box-shadow:var(--e1);
+      padding:22px 24px 26px}
+    .sthead{font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.1em;
+      text-transform:uppercase}
+    .stlede{font-size:13.5px;line-height:20px;color:var(--ink2);margin:9px 0 20px;max-width:760px}
+    .strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
+    .cellw{min-width:0}
+    .cl{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--ink3);margin-bottom:9px}
+    .btn{width:100%;min-height:46px;border-radius:13px;background:var(--ink);color:var(--paper);
+      font-size:14.5px;font-weight:600;display:flex;align-items:center;justify-content:center}
+    .btn.hov{background:#24261D}
+    .btn.act{transform:scale(.97);background:#24261D}
+    .btn.foc{box-shadow:0 0 0 2px var(--card), 0 0 0 4.5px var(--signal-deep)}
+    .btn.dis{background:var(--sunken);color:var(--line2)}
+    .rowd{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-radius:12px;
+      background:var(--card);box-shadow:var(--e1);font-size:14.5px;font-weight:500}
+    .rowd.hov{background:var(--sunken)}
+    .rowd.act{background:var(--sunken);transform:scale(.99)}
+    .rowd.foc{box-shadow:0 0 0 2px var(--signal-deep)}
+    .rowd .bx{width:20px;height:20px;border-radius:7px;flex:none;box-shadow:inset 0 0 0 1.7px var(--line2)}
+    .rowd .bx.on{background:var(--signal);box-shadow:none;color:var(--ink);
+      display:flex;align-items:center;justify-content:center}
+    .rowd.dis{opacity:.45}
+    .ms{font-size:11.5px;color:var(--ink3);margin-top:7px}
+  </style>
+</helmet>
+
+<div class="sheet">
+
+  <div class="kicker">GetBetter · Fundament</div>
+  <h1 class="h0">Die Zustände, die heute fehlen</h1>
+  <p class="lede">Eine App wird nicht daran gemessen, wie sie mit vollen Daten aussieht, sondern wie sie sich verhält, wenn nichts da ist, wenn es dauert und wenn etwas schiefgeht. Diese drei Bildschirme gibt es im Code bisher nicht.</p>
+
+  <div class="cols">
+
+    <div class="cellw">
+      <div class="colhead">1 · Leer</div>
+      <div class="phone">
+        <div class="ptop"><span class="pcrumb"><i style="background:#B0701F"></i> Haushalt</span></div>
+        <div class="ptitle">Einkaufsliste</div>
+        <div class="empty">
+          <span class="emark">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h2.2l2.3 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>
+          </span>
+          <div class="etitle">Liste ist leer</div>
+          <div class="ebody">Was fehlt, trägst du unten ein. Oder du sagst es dem Assistenten, dann steht es auch bei Lena drin.</div>
+          <button class="ebtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            Etwas ergänzen
+          </button>
+        </div>
+      </div>
+      <p class="colnote">Kein trauriges Maskottchen, kein „Ups". Ein Satz, der sagt was jetzt geht, und genau ein Knopf. Der Ton bleibt trocken — leer ist kein Fehler.</p>
+    </div>
+
+    <div class="cellw">
+      <div class="colhead">2 · Ladend</div>
+      <div class="phone">
+        <span class="sk" style="width:120px;height:10px"></span>
+        <span class="sk" style="width:168px;height:28px;margin-top:12px;border-radius:8px"></span>
+        <span class="sk" style="width:230px;height:11px;margin-top:12px"></span>
+
+        <div class="skcard">
+          <div class="skrow">
+            <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+            <span class="sk" style="width:88px;height:11px"></span>
+            <span class="sk" style="width:52px;height:9px;margin-left:auto"></span>
+          </div>
+          <span class="sk" style="width:196px;height:9px;margin-top:9px"></span>
+        </div>
+        <div class="skcard">
+          <div class="skrow">
+            <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+            <span class="sk" style="width:104px;height:11px"></span>
+            <span class="sk" style="width:44px;height:9px;margin-left:auto"></span>
+          </div>
+          <span class="sk" style="width:168px;height:9px;margin-top:9px"></span>
+        </div>
+        <div class="skcard">
+          <div class="skrow">
+            <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+            <span class="sk" style="width:72px;height:11px"></span>
+            <span class="sk" style="width:60px;height:9px;margin-left:auto"></span>
+          </div>
+          <span class="sk" style="width:210px;height:9px;margin-top:9px"></span>
+        </div>
+        <div class="skcard">
+          <div class="skrow">
+            <span class="sk" style="width:16px;height:16px;border-radius:999px"></span>
+            <span class="sk" style="width:96px;height:11px"></span>
+            <span class="sk" style="width:48px;height:9px;margin-left:auto"></span>
+          </div>
+          <span class="sk" style="width:180px;height:9px;margin-top:9px"></span>
+        </div>
+      </div>
+      <p class="colnote">Kein Kreisel. Das Gerüst des Tagesbands steht schon da und füllt sich — dadurch springt beim Eintreffen der Daten nichts, und das Warten fühlt sich kürzer an, als es ist.</p>
+    </div>
+
+    <div class="cellw">
+      <div class="colhead">3 · Fehler</div>
+      <div class="phone">
+        <div class="ptop"><span class="pcrumb"><i style="background:#4A5FD0"></i> Organisation</span></div>
+        <div class="ptitle">Hallo Severin</div>
+
+        <div class="alert">
+          <div class="arow">
+            <span class="abadge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"></path></svg>
+            </span>
+            <span class="atitle">Kein Kontakt zum Konto</span>
+          </div>
+          <div class="abody">Deine Daten liegen auf dem Gerät und sind vollständig da. Nur Anmelden und Teilen gehen gerade nicht.</div>
+          <div class="aacts">
+            <button class="abtn p">Nochmals</button>
+            <button class="abtn s">Später</button>
+          </div>
+        </div>
+
+        <div class="stale">
+          <div class="stalelab">Stand von 08:52</div>
+          <div class="srow"><span class="sname">Standup</span><span class="sval">08:30</span></div>
+          <div class="srow"><span class="sname">Pouletsalat</span><span class="sval">12:00</span></div>
+          <div class="srow"><span class="sname">Krankenkasse</span><span class="sval">14:00</span></div>
+          <div class="srow"><span class="sname">Beine</span><span class="sval">17:30</span></div>
+        </div>
+      </div>
+      <p class="colnote">Der Fehler blockiert nichts. Was auf dem Gerät liegt, bleibt sichtbar — nur abgeblendet und mit Zeitstempel. Die App sagt, was noch geht, nicht nur was kaputt ist.</p>
+    </div>
+
+  </div>
+
+  <div class="states">
+    <div class="sthead">Zustände jedes bedienbaren Elements</div>
+    <p class="stlede">Das ist die Stelle, an der die meisten Oberflächen auffliegen: sie sehen auf dem Bild gut aus und fühlen sich tot an. Jeder Knopf und jede Zeile hat alle fünf Zustände — der Fokusring ist Pflicht, nicht Kür.</p>
+
+    <div class="strip">
+      <div class="cellw">
+        <div class="cl">Ruhe</div>
+        <button class="btn">Eintragen</button>
+        <div class="ms">—</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Zeiger darüber</div>
+        <button class="btn hov">Eintragen</button>
+        <div class="ms">140 ms, nur mit Maus</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Gedrückt</div>
+        <button class="btn act">Eintragen</button>
+        <div class="ms">scale(.97), 160 ms</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Tastaturfokus</div>
+        <button class="btn foc">Eintragen</button>
+        <div class="ms">2 px Ring, nie entfernen</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Gesperrt</div>
+        <button class="btn dis" disabled>Eintragen</button>
+        <div class="ms">kein Schatten, kein Zeiger</div>
+      </div>
+    </div>
+
+    <div class="strip" style="margin-top:22px">
+      <div class="cellw">
+        <div class="cl">Ruhe</div>
+        <div class="rowd"><span class="bx"></span> Vollkornbrot</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Zeiger darüber</div>
+        <div class="rowd hov"><span class="bx"></span> Vollkornbrot</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Gedrückt</div>
+        <div class="rowd act"><span class="bx"></span> Vollkornbrot</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Tastaturfokus</div>
+        <div class="rowd foc"><span class="bx"></span> Vollkornbrot</div>
+      </div>
+      <div class="cellw">
+        <div class="cl">Erledigt</div>
+        <div class="rowd dis"><span class="bx on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></span> <span style="text-decoration:line-through">Vollkornbrot</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1300,"height":1340}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

@@ -2,29 +2,46 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "kontodienst",
-      "runtimeExecutable": "node",
+      "name": "all",
+      "runtimeExecutable": "npm",
       "runtimeArgs": [
-        "services/api/server.js"
+        "run",
+        "all"
       ],
       "port": 8090
     },
     {
-      "name": "getbetter",
+      "name": "getbetter-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
-        "web",
-        "-w",
-        "apps/getbetter",
-        "--",
-        "--port",
-        "8081"
+        "web"
       ],
       "port": 8081
     },
     {
-      "name": "betterfamily",
+      "name": "accounts",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "server"
+      ],
+      "port": 8090
+    },
+    {
+      "name": "design-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8123",
+        "--directory",
+        "design/canvas/preview"
+      ],
+      "port": 8123
+    },
+    {
+      "name": "family-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
@@ -38,7 +55,7 @@
       "port": 8082
     },
     {
-      "name": "bettergym",
+      "name": "gym-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
@@ -52,7 +69,7 @@
       "port": 8083
     },
     {
-      "name": "betterai",
+      "name": "ai-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
@@ -66,7 +83,7 @@
       "port": 8084
     },
     {
-      "name": "bettermoney",
+      "name": "money-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",

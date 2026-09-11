@@ -17,7 +17,7 @@ export default function WelcomeStep() {
   const [busy, setBusy] = useState(false);
 
   async function finish() {
-    if (busy) return;
+    if (busy || firstName.trim().length === 0) return;
     setBusy(true);
     // Der RouteGuard schickt danach selbst in die Tabs.
     await completeOnboarding({ firstName, areas: [] });
@@ -26,7 +26,14 @@ export default function WelcomeStep() {
   return (
     <Screen
       header={<StepHeader step="welcome" onBack={signOut} />}
-      footer={<Button label={t('onboarding.finish')} onPress={finish} loading={busy} />}
+      footer={
+        <Button
+          label={t('onboarding.finish')}
+          onPress={finish}
+          loading={busy}
+          disabled={firstName.trim().length === 0}
+        />
+      }
     >
       <View style={{ gap: theme.spacing.xs }}>
         <Text variant="display">{t('onboarding.name.title')}</Text>

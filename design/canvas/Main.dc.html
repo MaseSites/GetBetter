@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --health:#D0524A; --home:#B0701F; --money:#2E8C7A; --ai:#8A56C8;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --e2:0 10px 28px -12px rgba(20,21,15,.20), 0 0 0 1px rgba(20,21,15,.05);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.97)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden;position:relative}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .top{display:flex;align-items:center;justify-content:space-between;
+      padding-top:56px;padding-bottom:14px}
+    .date{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .avatar{width:36px;height:36px;border-radius:999px;background:var(--ink);color:var(--paper);
+      font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.02em;
+      display:flex;align-items:center;justify-content:center}
+    .greet{font-family:var(--dis);font-weight:700;font-size:34px;line-height:36px;
+      letter-spacing:-.022em;margin:0}
+    .sub{font-size:14px;line-height:20px;color:var(--ink2);margin:8px 0 0;max-width:272px;text-wrap:pretty}
+
+    .thread{margin-top:22px;flex:1;overflow:hidden;position:relative;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 88%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 88%,transparent 100%)}
+    .band{display:grid;grid-template-columns:44px 18px minmax(0,1fr);column-gap:10px}
+    .t{font-size:12px;font-weight:600;color:var(--ink3);padding-top:13px;text-align:right}
+    .rail{position:relative;display:flex;justify-content:center}
+    .rail::before{content:"";position:absolute;top:0;bottom:0;width:1.5px;background:var(--line)}
+    .dot{position:relative;width:9px;height:9px;border-radius:999px;margin-top:15px;
+      background:var(--card);border:2px solid var(--line2)}
+    .item{padding:11px 12px 12px;margin-bottom:6px;border-radius:14px;
+      background:var(--card);box-shadow:var(--e1);
+      transition:box-shadow 200ms var(--ease-out)}
+    .h{display:flex;align-items:center;gap:7px}
+    .h svg{flex:none}
+    .name{font-size:15px;font-weight:600;letter-spacing:-.008em}
+    .meta{font-size:13px;line-height:18px;color:var(--ink2);margin-top:3px}
+    .tag{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.05em;
+      text-transform:uppercase;color:var(--ink3)}
+
+    .org .dot{border-color:var(--org)}
+    .org .h svg{color:var(--org)}
+    .health .dot{border-color:var(--health)}
+    .health .h svg{color:var(--health)}
+    .home .dot{border-color:var(--home)}
+    .home .h svg{color:var(--home)}
+    .money .dot{border-color:var(--money)}
+    .money .h svg{color:var(--money)}
+
+    .now{display:grid;grid-template-columns:44px 18px minmax(0,1fr);column-gap:10px;
+      align-items:center;margin:4px 0 10px}
+    .now .t{padding:0;color:var(--ink);font-weight:700}
+    .now .rail::before{background:var(--signal)}
+    .pin{width:11px;height:11px;border-radius:999px;background:var(--signal);
+      border:2.5px solid var(--paper);box-shadow:0 0 0 1.5px var(--signal)}
+    .nowline{height:1.5px;background:linear-gradient(90deg,var(--signal),transparent)}
+
+    .item.live{background:var(--ink);color:#F7F6F0;box-shadow:var(--e2)}
+    .item.live .meta{color:#B9BBAE}
+    .item.live .tag{color:var(--signal)}
+    .health .item.live .h svg{color:var(--signal)}
+    .prog{height:4px;border-radius:999px;background:rgba(247,246,240,.16);margin-top:10px;overflow:hidden}
+    .prog i{display:block;height:100%;width:38%;border-radius:999px;background:var(--signal)}
+
+    .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+      padding-top:14px;padding-bottom:12px}
+    .stat{background:var(--sunken);border-radius:14px;padding:11px 11px 12px}
+    .slab{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+    .sval{font-family:var(--dis);font-weight:700;font-size:22px;line-height:24px;
+      letter-spacing:-.02em;margin-top:5px;display:flex;align-items:baseline;gap:3px}
+    .sval em{font-style:normal;font-size:11px;font-weight:600;color:var(--ink3);font-family:var(--ui)}
+    .bar{height:3px;border-radius:999px;background:var(--line2);margin-top:8px;overflow:hidden}
+    .bar i{display:block;height:100%;border-radius:999px;background:var(--ink)}
+    .bar.on i{background:var(--signal-deep)}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fab{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+    @media (hover:hover) and (pointer:fine){
+      .item:hover{box-shadow:var(--e2)}
+    }
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad">
+    <div class="top">
+      <div class="date">Dienstag, 9. September</div>
+      <button class="avatar">SB</button>
+    </div>
+    <h1 class="greet">Hallo Severin</h1>
+    <p class="sub">Drei Sachen brauchen dich heute. Der Rest läuft von selbst.</p>
+  </div>
+
+  <div class="thread pad">
+
+    <div class="band org">
+      <div class="t">06:40</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 1.5M5 3 2.5 5.5M19 3l2.5 2.5"></path></svg>
+          <span class="name">Wecker</span>
+          <span class="tag">Organisation</span>
+        </div>
+        <div class="meta">Hat dich geweckt. Der erste Termin war der Grund.</div>
+      </div>
+    </div>
+
+    <div class="band org">
+      <div class="t">08:30</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+          <span class="name">Standup</span>
+          <span class="tag">Kalender</span>
+        </div>
+        <div class="meta">Büro Zürich · bis 09:00</div>
+      </div>
+    </div>
+
+    <div class="now">
+      <div class="t">09:14</div>
+      <div class="rail"><span class="pin"></span></div>
+      <div class="nowline"></div>
+    </div>
+
+    <div class="band health">
+      <div class="t">12:00</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item live">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3v8a3 3 0 0 0 6 0V3M8 11v10"></path><path d="M18 3c-1.5 2-2 4-2 6.5 0 1.5.7 2.5 2 2.5v9"></path></svg>
+          <span class="name">Pouletsalat</span>
+          <span class="tag">Menüplan</span>
+        </div>
+        <div class="meta">520 kcal · das Rezept steht, der Einkauf ist gedeckt</div>
+        <div class="prog"><i></i></div>
+      </div>
+    </div>
+
+    <div class="band money">
+      <div class="t">14:00</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3.5v17l2.5-1.6 2.5 1.6 2-1.6 2 1.6 2.5-1.6 2.5 1.6v-17L16.5 5 14 3.4 12 5 10 3.4 7.5 5Z"></path><path d="M9 9.5h6M9 13.5h4"></path></svg>
+          <span class="name">Krankenkasse</span>
+          <span class="tag">Fällig</span>
+        </div>
+        <div class="meta">CHF 328.40 · heute noch ohne Mahnung</div>
+      </div>
+    </div>
+
+    <div class="band health">
+      <div class="t">17:30</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"></path></svg>
+          <span class="name">Beine</span>
+          <span class="tag">Training</span>
+        </div>
+        <div class="meta">60 Min geplant · diese Woche 145 von 180</div>
+      </div>
+    </div>
+
+    <div class="band home">
+      <div class="t">18:30</div>
+      <div class="rail"><span class="dot"></span></div>
+      <div class="item">
+        <div class="h">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 4h2.2l2.3 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>
+          <span class="name">Einkauf</span>
+          <span class="tag">Haushalt</span>
+        </div>
+        <div class="meta">6 Posten offen · Lena hat Brot ergänzt</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="stats pad">
+    <div class="stat">
+      <div class="slab">Wasser</div>
+      <div class="sval">1.2<em>/ 2.5 l</em></div>
+      <div class="bar"><i style="width:48%"></i></div>
+    </div>
+    <div class="stat">
+      <div class="slab">Kalorien</div>
+      <div class="sval">1240<em>kcal</em></div>
+      <div class="bar on"><i style="width:62%"></i></div>
+    </div>
+    <div class="stat">
+      <div class="slab">Woche</div>
+      <div class="sval">412<em>CHF</em></div>
+      <div class="bar"><i style="width:71%"></i></div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fab">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

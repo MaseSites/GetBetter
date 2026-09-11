@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#121410; --sunken:#0C0E0A; --card:#1B1E17;
+      --ink:#F2F1E9; --ink2:#A3A698; --ink3:#787B6E;
+      --line:#2A2E24; --line2:#3A3F33;
+      --signal:#C9F23F; --signal-deep:#A8D22B;
+      --org:#8D9BEA; --health:#E8908A; --home:#D7A24F; --money:#5FBFA8;
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.97)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .talk{flex:1;overflow:hidden;padding-top:78px;display:flex;flex-direction:column;
+      justify-content:flex-end;padding-bottom:6px}
+
+    .ask{align-self:flex-end;max-width:295px;background:var(--card);
+      border-radius:18px 18px 6px 18px;padding:12px 14px;font-size:15px;line-height:21px;
+      letter-spacing:-.006em;text-wrap:pretty}
+
+    .said{margin-top:22px;font-size:15px;line-height:22px;color:var(--ink2);max-width:305px;text-wrap:pretty}
+    .said b{color:var(--ink);font-weight:600}
+
+    .done{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+    .res{display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:14px;
+      background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+    .res .tick{width:22px;height:22px;border-radius:999px;background:var(--signal);
+      color:#14150F;display:flex;align-items:center;justify-content:center;flex:none}
+    .rtxt{min-width:0}
+    .rt1{display:block;font-size:14px;font-weight:600;letter-spacing:-.006em}
+    .rt2{display:block;font-size:12.5px;color:var(--ink3);margin-top:2px}
+    .rwhere{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;
+      font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3)}
+    .rwhere i{width:7px;height:7px;border-radius:2px;display:block}
+
+    .note{margin-top:16px;font-size:13px;line-height:19px;color:var(--ink3);max-width:300px}
+
+    .chips{display:flex;gap:7px;padding:10px 20px 0;overflow:hidden}
+    .chip{white-space:nowrap;padding:9px 13px;min-height:36px;border-radius:999px;
+      background:var(--card);box-shadow:inset 0 0 0 1px var(--line);
+      font-size:13px;font-weight:500;color:var(--ink2);display:flex;align-items:center}
+
+    .compose{display:flex;align-items:center;gap:9px;margin:12px 20px 0;
+      background:var(--card);border-radius:22px;box-shadow:inset 0 0 0 1px var(--line2);
+      padding:6px 6px 6px 16px;min-height:56px}
+    .ph{flex:1;font-size:15px;color:var(--ink3)}
+    .mic{width:44px;height:44px;border-radius:999px;display:flex;align-items:center;
+      justify-content:center;color:var(--ink2)}
+    .send{width:44px;height:44px;border-radius:999px;background:var(--signal);color:#14150F;
+      display:flex;align-items:center;justify-content:center}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:12px 12px 26px;margin-top:12px}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .fab{width:46px;height:46px;border-radius:999px;background:var(--signal);color:#14150F;
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 0 0 5px rgba(201,242,63,.14)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="talk pad">
+
+    <div class="ask">Trag 2 Bananen auf die Einkaufsliste und verschieb das Training auf morgen 18 Uhr.</div>
+
+    <div class="said">Beides erledigt. <b>Lena sieht die Bananen sofort</b> — ihr teilt die Liste.</div>
+
+    <div class="done">
+      <div class="res">
+        <span class="tick">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"></path></svg>
+        </span>
+        <span class="rtxt">
+          <span class="rt1">2 Bananen ergänzt</span>
+          <span class="rt2">Einkaufsliste · jetzt 8 Posten</span>
+        </span>
+        <span class="rwhere"><i style="background:#D7A24F"></i> Haushalt</span>
+      </div>
+      <div class="res">
+        <span class="tick">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"></path></svg>
+        </span>
+        <span class="rtxt">
+          <span class="rt1">Beine · Mittwoch 18:00</span>
+          <span class="rt2">Training verschoben, Kalender angepasst</span>
+        </span>
+        <span class="rwhere"><i style="background:#E8908A"></i> Gesundheit</span>
+      </div>
+    </div>
+
+    <div class="note">Ein Satz, zwei Bereiche. Das kann nur eine App, die beide kennt.</div>
+
+  </div>
+
+  <div class="chips">
+    <span class="chip">Was kostet mich der Monat?</span>
+    <span class="chip">Wer hat Ämtli?</span>
+  </div>
+
+  <div class="compose">
+    <span class="ph">Frag mich etwas</span>
+    <button class="mic">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2.5" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path></svg>
+    </button>
+    <button class="send">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
+    </button>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fab">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

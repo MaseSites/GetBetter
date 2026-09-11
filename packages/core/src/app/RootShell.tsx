@@ -10,6 +10,11 @@ import { useTheme } from '@/theme';
 import { EmptyState, Loading, PhoneFrame, Screen } from '@/ui';
 
 import { ErrorBoundary } from './ErrorBoundary';
+import { applyWebChrome, setWebBackground } from './webChrome';
+
+// Schriften und Browser-Regeln einmal beim Laden des Moduls; auf dem Geraet
+// tut der Aufruf nichts.
+applyWebChrome();
 
 export type RootShellProps = {
   /** Wohin es nach der Anmeldung geht. */
@@ -50,6 +55,12 @@ function RouteGuard({ home, hasOnboarding }: Required<RootShellProps>) {
 
 function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   const theme = useTheme();
+  const ground = theme.colors.surfaceMuted;
+
+  // Im Browser steht die App in einem Telefonrahmen. Der Grund dahinter folgt
+  // dem Thema der App, nicht dem des Betriebssystems.
+  useEffect(() => setWebBackground(ground), [ground]);
+
   const t = useTranslate();
   const { hydrated, offline, retry } = useApp();
 
@@ -85,6 +96,7 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
           headerShown: false,
           contentStyle: { backgroundColor: theme.colors.background },
           animation: 'slide_from_right',
+          animationDuration: theme.motion.duration.sheet,
         }}
       />
     </>

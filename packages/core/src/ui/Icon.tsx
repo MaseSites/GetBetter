@@ -74,6 +74,9 @@ export const ICONS = {
   card: 'card-outline',
   checkbox: 'checkbox-outline',
   square: 'square-outline',
+  lines: 'reorder-three-outline',
+  mic: 'mic-outline',
+  link: 'link-outline',
 } as const satisfies Record<string, IonName>;
 
 export type IconName = keyof typeof ICONS;

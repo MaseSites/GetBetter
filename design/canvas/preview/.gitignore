@@ -1,0 +1,5 @@
+# Aus den .dc.html-Artboards erzeugt: node preview/build-preview.mjs
+*.html
+!Zoom.html
+!ZoomWide.html
+!Mess.html

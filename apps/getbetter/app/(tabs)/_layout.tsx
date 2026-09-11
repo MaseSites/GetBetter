@@ -1,81 +1,52 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, View, type ColorValue } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { accentTabIcon, accentTabOptions, tabIcon, useTabScreenOptions } from '@/app/tabs';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
-import { useTheme } from '@/theme';
-import { Icon } from '@/ui';
-import type { IconName } from '@/ui/Icon';
+import { createTheme, useTheme } from '@/theme';
 
-/**
- * Der gewaehlte Tab bekommt eine gefuellte Pille hinter dem Icon —
- * Farbe allein war zu leise, um zu zeigen, wo man steht.
- */
-function tabIcon(name: IconName) {
-  function TabBarIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
-    const theme = useTheme();
-    return (
-      <View
-        style={[
-          styles.iconPill,
-          {
-            borderRadius: theme.radii.pill,
-            backgroundColor: focused ? theme.colors.accentSoft : 'transparent',
-          },
-        ]}
-      >
-        <Icon name={name} size={22} color={String(color)} />
-      </View>
-    );
-  }
-  return TabBarIcon;
-}
-
+/** Heute, Bereiche, Assistent, Suche, Profil — in dieser Reihenfolge wie im Entwurf. */
 export default function TabsLayout() {
   const theme = useTheme();
   const t = useTranslate();
-  const insets = useSafeAreaInsets();
-  const { account } = useApp();
-
-  // Ohne feste Hoehe schneidet die Leiste die Beschriftungen ab.
-  const barHeight = 72 + insets.bottom;
+  const screenOptions = useTabScreenOptions(theme);
+  const { account, appearance } = useApp();
 
   // Beim Abmelden bleiben die Tabs kurz stehen; ohne Konto wuerden sie werfen.
   if (!account) return null;
 
+  // Im Assistenten wird auch die Leiste dunkel — sonst stuende ein heller
+  // Balken unter der dunklen Flaeche.
+  const dark = createTheme('dark', appearance.accent, appearance.preset);
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: theme.colors.textFaint,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          height: barHeight,
-          paddingTop: theme.spacing.xs,
-          paddingBottom: insets.bottom + theme.spacing.xs,
-        },
-        tabBarLabelStyle: {
-          fontSize: theme.fontSize.xs,
-          lineHeight: 14,
-          fontFamily: theme.fontFamily,
-          marginTop: 2,
-          marginBottom: 0,
-        },
-        tabBarIconStyle: { marginTop: 0 },
-        sceneStyle: { backgroundColor: theme.colors.background },
-      }}
-    >
-      <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('sun') }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen
+        name="today"
+        options={{ title: t('tabs.today'), tabBarIcon: tabIcon('lines') }}
+      />
       <Tabs.Screen
         name="modules"
-        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('search') }}
+        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('grid') }}
       />
       <Tabs.Screen
         name="assistant"
-        options={{ title: t('tabs.assistant'), tabBarIcon: tabIcon('sparkles') }}
+        options={{
+          ...accentTabOptions,
+          title: t('tabs.assistant'),
+          tabBarIcon: accentTabIcon('sparkles'),
+          tabBarActiveTintColor: dark.colors.text,
+          tabBarInactiveTintColor: dark.colors.textFaint,
+          tabBarStyle: {
+            ...screenOptions.tabBarStyle,
+            backgroundColor: dark.colors.background,
+            borderTopColor: dark.colors.background,
+          },
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{ title: t('tabs.search'), tabBarIcon: tabIcon('search') }}
       />
       <Tabs.Screen
         name="profile"
@@ -84,12 +55,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconPill: {
-    width: 52,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

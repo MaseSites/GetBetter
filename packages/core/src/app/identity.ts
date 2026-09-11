@@ -22,7 +22,7 @@ export type AppIdentity = {
   scheme: string;
   /** Kurz gesagt, wofuer sie da ist. */
   taglineKey: string;
-  /** Farbe des Logos, Schluessel aus den Modulfarben. */
+  /** Farbe des Logos — der Bereich, den die App fuehrt, oder `brand`. */
   hue: string;
   icon: string;
 };
@@ -33,7 +33,7 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
     name: 'GetBetter',
     scheme: 'getbetter',
     taglineKey: 'apps.getbetter.tagline',
-    hue: 'green',
+    hue: 'brand',
     icon: 'grid',
   },
   betterfamily: {
@@ -41,7 +41,7 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
     name: 'BetterFamily',
     scheme: 'betterfamily',
     taglineKey: 'apps.betterfamily.tagline',
-    hue: 'amber',
+    hue: 'household',
     icon: 'home',
   },
   bettergym: {
@@ -49,7 +49,7 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
     name: 'BetterGym',
     scheme: 'bettergym',
     taglineKey: 'apps.bettergym.tagline',
-    hue: 'red',
+    hue: 'health',
     icon: 'fitness',
   },
   betterai: {
@@ -57,7 +57,7 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
     name: 'BetterAi',
     scheme: 'betterai',
     taglineKey: 'apps.betterai.tagline',
-    hue: 'violet',
+    hue: 'ai',
     icon: 'sparkles',
   },
   bettermoney: {
@@ -65,7 +65,7 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
     name: 'BetterMoney',
     scheme: 'bettermoney',
     taglineKey: 'apps.bettermoney.tagline',
-    hue: 'teal',
+    hue: 'money',
     icon: 'wallet',
   },
 };

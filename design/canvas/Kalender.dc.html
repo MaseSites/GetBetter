@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    /* Raster: eine Stunde = 56 px. Jeder Termin ist exakt so hoch wie er dauert. */
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --health:#D0524A; --home:#B0701F; --money:#2E8C7A;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --e2:0 10px 28px -12px rgba(20,21,15,.20), 0 0 0 1px rgba(20,21,15,.05);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.97)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden;position:relative}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .nav{display:flex;align-items:center;gap:10px;padding-top:56px}
+    .crumb{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+      letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .crumb i{width:8px;height:8px;border-radius:2px;background:var(--org);display:block}
+    .gear{margin-left:auto;width:40px;height:40px;border-radius:999px;background:var(--card);
+      box-shadow:var(--e1);display:flex;align-items:center;justify-content:center;color:var(--ink2)}
+    /* Ansicht und Kalenderauswahl sitzen im Kopfmenü, wie in der App schon angelegt. */
+    .title{font-family:var(--dis);font-weight:700;font-size:30px;line-height:32px;
+      letter-spacing:-.022em;margin:6px 0 0;display:flex;align-items:center;gap:8px}
+    .title small{font-family:var(--ui);font-size:13px;font-weight:600;color:var(--ink3);
+      letter-spacing:0;margin-left:2px}
+    .title svg{color:var(--ink3)}
+
+    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:16px}
+    .dcell{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 0 8px;
+      border-radius:10px;min-height:54px}
+    .dw{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+    .dn{font-family:var(--dis);font-weight:700;font-size:15px;letter-spacing:-.01em}
+    .dcell.today{background:var(--ink);color:var(--paper)}
+    .dcell.today .dw{color:var(--signal)}
+    .dots{display:flex;gap:2.5px;height:4px}
+    .dots i{width:4px;height:4px;border-radius:999px;display:block}
+
+    .grid{flex:1;position:relative;margin-top:14px;overflow:hidden;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%)}
+    .hr{position:absolute;left:64px;right:20px;height:0;border-top:1px solid var(--line)}
+    .hlab{position:absolute;left:-46px;top:-8px;width:38px;text-align:right;
+      font-size:11px;font-weight:600;color:var(--ink3)}
+    .lane{position:absolute;left:70px;right:20px;top:0;bottom:0}
+
+    .ev{position:absolute;border-radius:10px;padding:7px 9px 0 9px;overflow:hidden;
+      box-shadow:var(--e1);background:var(--card)}
+    .ev::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+    .et{font-size:13px;font-weight:600;letter-spacing:-.007em;padding-left:6px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .es{font-size:11.5px;color:var(--ink2);margin-top:1px;padding-left:6px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* Termine unter 45 Minuten sind zu flach für zwei Zeilen — sie bekommen eine. */
+    .ev.short{padding:0 9px;display:flex;align-items:center;gap:8px}
+    .ev.short .et{font-size:12.5px}
+    .ev.short .es{margin-top:0;margin-left:auto;padding-left:0;flex:none}
+    .ev.o::before{background:var(--org)}
+    .ev.h::before{background:var(--health)}
+    .ev.f::before{background:var(--home)}
+    .ev.m::before{background:var(--money)}
+
+    .nowl{position:absolute;left:58px;right:20px;height:1.5px;background:var(--signal);z-index:3}
+    .nowl::before{content:"";position:absolute;left:-4px;top:-4px;width:9px;height:9px;
+      border-radius:999px;background:var(--signal);box-shadow:0 0 0 2px var(--paper)}
+    .nowt{position:absolute;left:14px;width:40px;text-align:right;top:-8px;
+      font-size:11px;font-weight:700;color:var(--signal-deep);z-index:3}
+
+    .fab{position:absolute;right:20px;bottom:104px;width:56px;height:56px;border-radius:999px;
+      background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;
+      box-shadow:var(--e2), 0 0 0 7px var(--paper);z-index:5}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fabt{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad">
+    <div class="nav">
+      <span class="crumb"><i></i> Organisation</span>
+      <button class="gear">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"></circle><path d="M12 2.6v2.2M12 19.2v2.2M21.4 12h-2.2M4.8 12H2.6M18.6 5.4 17 7M7 17l-1.6 1.6M18.6 18.6 17 17M7 7 5.4 5.4"></path></svg>
+      </button>
+    </div>
+    <h1 class="title">Dienstag
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
+      <small>4 Kalender</small>
+    </h1>
+
+    <div class="strip">
+      <div class="dcell"><span class="dw">Mo</span><span class="dn">8</span><span class="dots"><i style="background:#4A5FD0"></i><i style="background:#B0701F"></i></span></div>
+      <div class="dcell today"><span class="dw">Di</span><span class="dn">9</span><span class="dots"><i style="background:#C9F23F"></i><i style="background:#C9F23F"></i><i style="background:#C9F23F"></i></span></div>
+      <div class="dcell"><span class="dw">Mi</span><span class="dn">10</span><span class="dots"><i style="background:#D0524A"></i></span></div>
+      <div class="dcell"><span class="dw">Do</span><span class="dn">11</span><span class="dots"><i style="background:#4A5FD0"></i><i style="background:#2E8C7A"></i></span></div>
+      <div class="dcell"><span class="dw">Fr</span><span class="dn">12</span><span class="dots"></span></div>
+      <div class="dcell"><span class="dw">Sa</span><span class="dn">13</span><span class="dots"><i style="background:#B0701F"></i></span></div>
+      <div class="dcell"><span class="dw">So</span><span class="dn">14</span><span class="dots"></span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="hr" style="top:0"></div>
+    <div class="hr" style="top:56px"><span class="hlab">10:00</span></div>
+    <div class="hr" style="top:112px"><span class="hlab">11:00</span></div>
+    <div class="hr" style="top:168px"><span class="hlab">12:00</span></div>
+    <div class="hr" style="top:224px"><span class="hlab">13:00</span></div>
+    <div class="hr" style="top:280px"><span class="hlab">14:00</span></div>
+    <div class="hr" style="top:336px"><span class="hlab">15:00</span></div>
+    <div class="hr" style="top:392px"><span class="hlab">16:00</span></div>
+    <div class="hr" style="top:448px"><span class="hlab">17:00</span></div>
+    <div class="hr" style="top:504px"><span class="hlab">18:00</span></div>
+
+    <div class="lane">
+      <div class="ev h" style="top:112px;height:42px;left:0;right:50%;margin-right:3px">
+        <div class="et">Zahnarzt</div>
+        <div class="es">11:00 – 11:45</div>
+      </div>
+      <div class="ev f short" style="top:126px;height:28px;left:50%;right:0;margin-left:3px">
+        <div class="et">Lieferung</div>
+        <div class="es">11:15</div>
+      </div>
+
+      <div class="ev h" style="top:168px;height:42px;left:0;right:0">
+        <div class="et">Mittag · Pouletsalat</div>
+        <div class="es">12:00 – 12:45 · 520 kcal</div>
+      </div>
+
+      <div class="ev m short" style="top:280px;height:28px;left:0;right:0">
+        <div class="et">Krankenkasse zahlen</div>
+        <div class="es">CHF 328.40</div>
+      </div>
+
+      <div class="ev h" style="top:476px;height:56px;left:0;right:0">
+        <div class="et">Training · Beine</div>
+        <div class="es">17:30 – 18:30 · Fitnesspark</div>
+      </div>
+    </div>
+
+    <div class="nowt" style="top:13px">09:14</div>
+    <div class="nowl" style="top:21px"></div>
+  </div>
+
+  <button class="fab">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+  </button>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fabt">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

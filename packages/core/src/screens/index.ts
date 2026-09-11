@@ -2,12 +2,16 @@
 export { AppearanceScreen } from './AppearanceScreen';
 export { FunctionsScreen } from './FunctionsScreen';
 export { WorkspaceScreen } from './WorkspaceScreen';
+export { HealthHomeScreen } from './HealthHomeScreen';
+export { HouseholdHomeScreen } from './HouseholdHomeScreen';
+export { MoneyHomeScreen } from './MoneyHomeScreen';
 export { ModuleDetailScreen } from './ModuleDetailScreen';
 export { ProfileScreen } from './ProfileScreen';
 export { RunModuleScreen } from './RunModuleScreen';
 export { SignInScreen } from './SignInScreen';
 export { SignUpScreen } from './SignUpScreen';
 export { StartScreen } from './StartScreen';
+export { SearchScreen } from './SearchScreen';
 export { HouseholdsScreen } from './HouseholdsScreen';
 export { JoinHouseholdScreen } from './JoinHouseholdScreen';
 export { ManageHouseholdScreen } from './ManageHouseholdScreen';

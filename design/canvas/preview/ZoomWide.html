@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>ZoomWide</title>
+<style>
+  body{margin:0;background:#E8E6DF}
+  iframe{border:0;transform-origin:0 0;display:block;background:#fff}
+</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<script>
+  const p = new URLSearchParams(location.search);
+  const f = document.getElementById('f');
+  f.style.width = (p.get('w') || 1300) + 'px';
+  f.style.height = (p.get('h') || 1340) + 'px';
+  f.style.transform = 'scale(' + (p.get('s') || 1.6) + ')';
+  f.src = (p.get('a') || 'Zustaende') + '.html';
+</script>
+</body>
+</html>

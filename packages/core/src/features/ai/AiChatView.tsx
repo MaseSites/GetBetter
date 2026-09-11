@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
+import { DarkSurface, Message } from '@/features/assistant/AssistantView';
 import { useTranslate } from '@/i18n';
 import { AI_CHAT_CANNED_REPLY, AI_CHAT_REPLY_DELAY_MS, AI_CHAT_STARTERS } from '@/mocks/aiChat';
 import type { AssistantMessage, ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Chip, EmptyState, Header, Icon, Input, Loading, Screen, Text } from '@/ui';
+import { ComposeBar, EmptyState, Header, Loading, Screen, SuggestionChip } from '@/ui';
 
 export type AiChatViewProps = {
   module: ModuleDefinition;
@@ -21,9 +22,18 @@ export type AiChatViewProps = {
 
 /**
  * Das Modul "KI-Chat": ein offenes Gespraech, ohne Zugriff auf die Module.
- * Bewusst schlichter als der Assistent — keine Modul-Marken, keine Bestaetigung.
+ * Bewusst schlichter als der Assistent — keine Modul-Marken, keine Bestaetigung —,
+ * aber auf derselben dunklen Flaeche und mit demselben Feld.
  */
-export function AiChatView({ module, chatId }: AiChatViewProps) {
+export function AiChatView(props: AiChatViewProps) {
+  return (
+    <DarkSurface>
+      <ChatView {...props} />
+    </DarkSurface>
+  );
+}
+
+function ChatView({ module, chatId }: AiChatViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
@@ -86,8 +96,8 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     else router.replace('/');
   }
 
-  const sendDisabled = draft.trim().length === 0 || thinking;
   const title = chatId ? chat.data?.title || t('chats.untitled') : module.name;
+  const empty = messages.length === 0 && !thinking;
 
   return (
     <Screen
@@ -115,16 +125,16 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
         />
       }
       footer={
-        <>
-          {messages.length === 0 ? (
+        <View style={{ gap: theme.spacing.sm }}>
+          {messages.length === 0 && draft.length === 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.lg }}
+              contentContainerStyle={{ gap: theme.spacing.sm }}
             >
               {AI_CHAT_STARTERS.map((starter) => (
-                <Chip
+                <SuggestionChip
                   key={starter}
                   label={starter}
                   disabled={thinking}
@@ -133,75 +143,36 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
               ))}
             </ScrollView>
           ) : null}
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Input
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={t('aiChat.placeholder')}
-                onSubmitEditing={() => ask(draft.trim())}
-                returnKeyType="send"
-                editable={!thinking}
-                accessibilityLabel={t('aiChat.placeholder')}
-              />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('assistant.send')}
-              accessibilityState={{ disabled: sendDisabled }}
-              disabled={sendDisabled}
-              onPress={() => ask(draft.trim())}
-              style={({ pressed }) => [
-                styles.send,
-                {
-                  borderRadius: theme.radii.md,
-                  backgroundColor: sendDisabled
-                    ? theme.colors.disabledBackground
-                    : pressed
-                      ? theme.colors.accentStrong
-                      : theme.colors.accent,
-                },
-              ]}
-            >
-              <Icon
-                name="send"
-                size={20}
-                color={sendDisabled ? theme.colors.disabledText : theme.colors.textOnAccent}
-              />
-            </Pressable>
-          </View>
-        </>
+          <ComposeBar
+            value={draft}
+            onChangeText={setDraft}
+            onSubmit={() => ask(draft.trim())}
+            placeholder={t('aiChat.placeholder')}
+            sendLabel={t('assistant.send')}
+            busy={thinking}
+          />
+        </View>
       }
     >
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: theme.spacing.edge,
+          paddingBottom: theme.spacing.lg,
+          gap: theme.spacing.lg,
+          justifyContent: empty ? 'center' : 'flex-end',
+        }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         onContentSizeChange={scrollDown}
       >
-        {messages.length === 0 && !thinking ? (
+        {empty ? (
           <EmptyState icon="bulb" title={t('aiChat.empty.title')} body={t('aiChat.empty.body')} />
         ) : null}
 
         {messages.map((message) => (
-          <View
-            key={message.id}
-            style={[
-              styles.bubble,
-              {
-                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                borderRadius: theme.radii.lg,
-                padding: theme.spacing.md,
-                backgroundColor:
-                  message.role === 'user' ? theme.colors.accent : theme.colors.surface,
-                borderColor: message.role === 'user' ? theme.colors.accent : theme.colors.border,
-              },
-            ]}
-          >
-            <Text variant="body" tone={message.role === 'user' ? 'onAccent' : 'default'}>
-              {message.text}
-            </Text>
-          </View>
+          <Message key={message.id} message={message} />
         ))}
 
         {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
@@ -209,8 +180,3 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  bubble: { maxWidth: '85%', borderWidth: 1 },
-  send: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-});

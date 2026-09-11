@@ -20,7 +20,9 @@ export function ProgressBar({ share, warn = false }: ProgressBarProps) {
         width: '100%',
         height: theme.spacing.sm,
         borderRadius: theme.radii.pill,
-        backgroundColor: theme.colors.surfaceMuted,
+        // Die Spur liegt meist auf einer weissen Karte — gedaempftes Papier
+        // waere dort kaum zu sehen, also die kraeftige Linie.
+        backgroundColor: theme.colors.borderStrong,
         overflow: 'hidden',
       }}
     >

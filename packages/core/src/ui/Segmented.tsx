@@ -16,7 +16,11 @@ export type SegmentedProps<T extends string> = {
   accessibilityLabel?: string;
 };
 
-/** Zwei bis drei Zustaende nebeneinander, einer davon aktiv. */
+/**
+ * Zwei bis drei Zustaende nebeneinander, einer davon aktiv — wie Tag, Woche,
+ * Monat im Kalender: eine vertiefte Spur ueber die ganze Breite, das aktive
+ * Feld liegt als weisse Karte darauf.
+ */
 export function Segmented<T extends string>({
   options,
   value,
@@ -33,9 +37,9 @@ export function Segmented<T extends string>({
         styles.track,
         {
           backgroundColor: theme.colors.surfaceMuted,
-          borderRadius: theme.radii.pill,
-          borderColor: theme.colors.border,
-          padding: 2,
+          borderRadius: theme.radii.sm,
+          padding: 3,
+          gap: 2,
         },
       ]}
     >
@@ -50,17 +54,21 @@ export function Segmented<T extends string>({
             onPress={() => onChange(option.value)}
             style={[
               styles.segment,
+              selected ? theme.elevation.card : null,
               {
-                borderRadius: theme.radii.pill,
-                paddingHorizontal: theme.spacing.md,
+                borderRadius: theme.radii.sm,
+                paddingHorizontal: theme.spacing.sm,
                 backgroundColor: selected ? theme.colors.surface : 'transparent',
               },
             ]}
           >
             <Text
-              variant="caption"
-              tone={selected ? 'default' : 'muted'}
-              style={{ fontWeight: selected ? theme.fontWeight.semibold : theme.fontWeight.medium }}
+              variant="label"
+              numberOfLines={1}
+              style={{
+                color: selected ? theme.colors.text : theme.colors.textMuted,
+                fontWeight: theme.fontWeight.semibold,
+              }}
             >
               {option.label}
             </Text>
@@ -72,6 +80,6 @@ export function Segmented<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  track: { flexDirection: 'row', borderWidth: 1, alignSelf: 'flex-start' },
-  segment: { height: 28, alignItems: 'center', justifyContent: 'center' },
+  track: { flexDirection: 'row', alignSelf: 'stretch' },
+  segment: { flex: 1, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
 });

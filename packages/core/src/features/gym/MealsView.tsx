@@ -22,10 +22,10 @@ import {
   Text,
 } from '@/ui';
 
-const SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+export const SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 
 /** Ein grober Tagesbedarf. Kein medizinischer Wert, nur ein Anhaltspunkt. */
-const DAILY_TARGET = 2000;
+export const DAILY_TARGET = 2000;
 
 /** Was heute gegessen wurde, mit Kalorien. */
 export function MealsView({ module }: { module: ModuleDefinition }) {

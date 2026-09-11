@@ -16,7 +16,10 @@ export type EmptyStateProps = {
 };
 
 /**
- * P-019: Kein Bildschirm bleibt weiss. Wo nichts ist, steht hier, warum.
+ * Kein Bildschirm bleibt weiss. Wo nichts ist, steht hier, warum.
+ *
+ * Kein trauriges Maskottchen und kein «Ups»: ein Zeichen, ein Satz, der sagt
+ * was jetzt geht, und genau ein Knopf. Leer ist kein Fehler.
  */
 export function EmptyState({
   icon = 'info',
@@ -42,20 +45,20 @@ export function EmptyState({
       <View
         style={[
           styles.iconBox,
-          { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radii.pill },
+          { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radii.lg },
         ]}
       >
-        <Icon name={icon} size={22} color={theme.colors.textFaint} />
+        <Icon name={icon} size={28} color={theme.colors.textFaint} />
       </View>
-      <Text variant="title" align="center">
+      <Text variant="title" align="center" style={{ marginTop: theme.spacing.sm }}>
         {title}
       </Text>
-      <Text variant="label" tone="muted" align="center">
+      <Text variant="body" tone="muted" align="center" style={styles.body}>
         {body}
       </Text>
       {actionLabel && onAction ? (
-        <View style={{ marginTop: theme.spacing.sm }}>
-          <Button label={actionLabel} onPress={onAction} variant="secondary" fullWidth={false} />
+        <View style={{ marginTop: theme.spacing.md }}>
+          <Button label={actionLabel} onPress={onAction} fullWidth={false} />
         </View>
       ) : null}
     </View>
@@ -64,5 +67,7 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  iconBox: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  iconBox: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  // Ein Satz liest sich schlecht ueber die ganze Breite.
+  body: { maxWidth: 280 },
 });

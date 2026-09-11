@@ -1,8 +1,10 @@
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, TextInput, View } from 'react-native';
 
 import {
+  appAccess,
   bills as billRepo,
   contacts as contactRepo,
   dayKey,
@@ -38,7 +40,8 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { currentApp, hasHouseholds } from '@/app/identity';
+import { appUrl } from '@/app/bridge';
+import { APPS, currentApp, hasHouseholds, storeUrl, type AppId } from '@/app/identity';
 import { AppFamily } from '@/features/apps/AppFamily';
 import {
   formatLongDate,
@@ -48,11 +51,27 @@ import {
   useI18n,
   type TranslationKey,
 } from '@/i18n';
-import { modulesOfApp } from '@/mocks/modules';
+import { TARGET_DL } from '@/features/gym/WaterView';
+import { DailyQuote } from '@/features/today/DailyQuote';
+import { DayStats, type DayStat } from '@/features/today/DayStats';
+import { DayThread, THREAD_INDENT, type DayEntry } from '@/features/today/DayThread';
+import { MODULES, modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Card, Divider, Header, Icon, Input, ListItem, ModuleIcon, Screen, Text } from '@/ui';
+import {
+  Avatar,
+  Card,
+  Divider,
+  Header,
+  Icon,
+  Input,
+  ListItem,
+  ModuleIcon,
+  Screen,
+  Text,
+  type IconName,
+} from '@/ui';
 
 /**
  * Kein Kachelbrett, sondern eine Arbeitsflaeche: jede Funktion steht mit dem
@@ -133,6 +152,7 @@ export function WorkspaceScreen() {
   const medTakes = useLiveQuery(() => medRepo.takes(account.id, dayKey()), [account.id]);
   const weightList = useLiveQuery(() => vitalRepo.list(account.id, 'weight', 1), [account.id]);
   const moodList = useLiveQuery(() => moodRepo.list(account.id, 1), [account.id]);
+  const unlockedList = useLiveQuery(() => appAccess.appsOf(account.id), [account.id]);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -700,64 +720,416 @@ export function WorkspaceScreen() {
   const built = mine.filter((module) => content(module.id) !== null);
   const pending = mine.filter((module) => content(module.id) === null);
 
+  /** Name und Symbol einer Funktion — auch einer, die eine andere App fuehrt. */
+  const moduleOf = (id: string) => MODULES.find((module) => module.id === id);
+  const nameOf = (id: string) => moduleOf(id)?.name ?? id;
+  const iconOf = (id: string): IconName => moduleOf(id)?.icon ?? 'circle';
+  const owns = (id: string) => mine.some((module) => module.id === id);
+  const unlocked = unlockedList.data ?? [];
+
+  /** "06:40" auf heute bezogen, damit der Wecker im Band an seiner Zeit steht. */
+  function todayAt(time: string): string {
+    const [hours, minutes] = time.split(':');
+    const when = new Date();
+    when.setHours(Number(hours), Number(minutes), 0, 0);
+    return when.toISOString();
+  }
+
+  /** Oeffnet eine andere Better-App — im Store, sobald es sie dort gibt. */
+  function openApp(id: AppId) {
+    void Linking.openURL(storeUrl(APPS[id], Platform.OS) ?? appUrl(id));
+  }
+
+  /**
+   * Das Tagesband. Es fragt nichts Neues ab — es ordnet, was dieser Bildschirm
+   * ohnehin laedt, nach der Zeit statt nach Funktion. Was man vorher auf den
+   * Karten direkt tun konnte (abhaken, bezahlen, Gewohnheit setzen), geht hier
+   * ueber den Kreis links.
+   */
+  const thread: DayEntry[] = [];
+
+  if (nextAlarm.data && owns('alarm')) {
+    thread.push({
+      key: 'alarm',
+      moduleId: 'alarm',
+      icon: iconOf('alarm'),
+      at: todayAt(nextAlarm.data.time),
+      title: nextAlarm.data.label || nameOf('alarm'),
+      tag: nameOf('alarm'),
+      onPress: () => router.push('/run/alarm'),
+    });
+  }
+
+  const eventsToday = events.filter((row) => row.startsAt.slice(0, 10) === today);
+
+  for (const event of eventsToday) {
+    thread.push({
+      key: `event-${event.id}`,
+      moduleId: 'calendar',
+      icon: iconOf('calendar'),
+      at: event.allDay ? null : event.startsAt,
+      title: event.title,
+      meta: event.allDay ? t('today.allDay') : undefined,
+      tag: nameOf('calendar'),
+      onPress: () => router.push('/run/calendar'),
+    });
+  }
+
+  for (const task of tasks.slice(0, 5)) {
+    thread.push({
+      key: `task-${task.id}`,
+      moduleId: 'tasks',
+      icon: iconOf('tasks'),
+      title: task.title,
+      tag: nameOf('tasks'),
+      // Der Kreis hakt direkt ab — dafuer muss man nirgends hin.
+      onToggle: () => void taskRepo.setDone(task.id, true),
+    });
+  }
+
+  if (owns('habits')) {
+    for (const habit of habitRows.filter((row) => !tickedToday.has(row.id)).slice(0, 3)) {
+      thread.push({
+        key: `habit-${habit.id}`,
+        moduleId: 'habits',
+        icon: iconOf('habits'),
+        title: habit.name,
+        tag: nameOf('habits'),
+        onToggle: () => void habitRepo.toggle(habit.id, account.id, today),
+      });
+    }
+  }
+
+  for (const bill of bills.filter((row) => row.dueDay <= today).slice(0, 2)) {
+    thread.push({
+      key: `bill-${bill.id}`,
+      moduleId: 'bills',
+      icon: iconOf('bills'),
+      title: bill.title,
+      meta: money(bill.amountChf),
+      tag: nameOf('bills'),
+      // Antippen heisst bezahlt — wie beim Abhaken einer Aufgabe.
+      onToggle: () => void billRepo.setPaid(bill.id, true),
+    });
+  }
+
+  if (owns('documents')) {
+    for (const row of expiring.slice(0, 2)) {
+      thread.push({
+        key: `doc-${row.id}`,
+        moduleId: 'documents',
+        icon: iconOf('documents'),
+        title: row.title,
+        meta: row.expiresOn ? relativeDay(t, language, row.expiresOn) : undefined,
+        tag: nameOf('documents'),
+        onPress: () => router.push('/run/documents'),
+      });
+    }
+  }
+
+  if (owns('contacts')) {
+    for (const { row, next } of birthdays.slice(0, 2)) {
+      thread.push({
+        key: `birthday-${row.id}`,
+        moduleId: 'contacts',
+        icon: 'gift',
+        title: row.name,
+        meta: `${t('contacts.turns', { age: next.age })} · ${relativeDay(t, language, next.day)}`,
+        tag: nameOf('contacts'),
+        onPress: () => router.push('/run/contacts'),
+      });
+    }
+  }
+
+  if (owns('travel') && nextTrip) {
+    thread.push({
+      key: `trip-${nextTrip.id}`,
+      moduleId: 'travel',
+      icon: iconOf('travel'),
+      title: nextTrip.name,
+      meta:
+        nextTrip.startDay <= today
+          ? t('trips.ongoing')
+          : relativeDay(t, language, nextTrip.startDay),
+      tag: nameOf('travel'),
+      onPress: () => router.push('/run/travel'),
+    });
+  }
+
+  if (shopping.length > 0) {
+    thread.push({
+      key: 'shopping',
+      moduleId: 'shopping',
+      icon: iconOf('shopping'),
+      title: nameOf('shopping'),
+      meta: t('today.openCount', { count: String(shopping.length) }),
+      tag: nameOf('shopping'),
+      onPress: owns('shopping') ? () => router.push('/run/shopping') : () => openApp('betterfamily'),
+    });
+  }
+
+  // Was eine Uhrzeit hat, passiert ohnehin. Zaehlen tut, was ohne Zeit
+  // dasteht — das sind die Dinge, die auf dich warten.
+  const waiting = thread.filter((entry) => !entry.at).length;
+  const lede =
+    waiting === 0
+      ? t('today.needsYou.none')
+      : waiting === 1
+        ? t('today.needsYou.one')
+        : t('today.needsYou', { count: waiting });
+
+  /**
+   * Die Zahlen des Tages. In GetBetter wie im Entwurf: Wasser, Kalorien und
+   * der Monat — gelesen aus der gemeinsamen Datenbank. Fehlt die App dahinter,
+   * sagt die Kachel das und fuehrt zum Installieren.
+   */
+  const minutesToday = workoutsToday.reduce((sum, row) => sum + row.minutes, 0);
+  const wholeNumber = new Intl.NumberFormat(`${language}-CH`, { maximumFractionDigits: 0 });
+  const gymOpen = unlocked.includes('bettergym');
+  const moneyOpen = unlocked.includes('bettermoney');
+  const install = t('today.stat.install');
+
+  const mainStats: DayStat[] = [
+    gymOpen
+      ? {
+          key: 'water',
+          label: t('today.stat.water'),
+          value: (drinkToday / 10).toFixed(1),
+          unit: t('today.unit.ofLitre', { target: (TARGET_DL / 10).toFixed(1) }),
+          // 2.5 Liter am Tag, in Dezilitern gerechnet.
+          share: drinkToday / TARGET_DL,
+        }
+      : {
+          key: 'water',
+          label: t('today.stat.water'),
+          value: '—',
+          unit: install,
+          onPress: () => openApp('bettergym'),
+        },
+    gymOpen
+      ? {
+          key: 'kcal',
+          label: t('today.stat.kcal'),
+          value: wholeNumber.format(kcalToday),
+          unit: t('today.unit.kcal'),
+          share: kcalToday / 2000,
+          strong: true,
+        }
+      : {
+          key: 'kcal',
+          label: t('today.stat.kcal'),
+          value: '—',
+          unit: install,
+          onPress: () => openApp('bettergym'),
+        },
+    moneyOpen
+      ? {
+          key: 'month',
+          label: t('today.stat.month'),
+          value: wholeNumber.format(spent),
+          unit: t('today.unit.chf'),
+        }
+      : {
+          key: 'month',
+          label: t('today.stat.month'),
+          value: '—',
+          unit: install,
+          onPress: () => openApp('bettermoney'),
+        },
+  ];
+
+  const ownStats: DayStat[] = [];
+  if (owns('water')) {
+    ownStats.push({
+      key: 'water',
+      label: nameOf('water'),
+      value: (drinkToday / 10).toFixed(1),
+      unit: t('today.unit.litre'),
+      share: drinkToday / TARGET_DL,
+    });
+  }
+  if (owns('meals')) {
+    ownStats.push({
+      key: 'meals',
+      label: nameOf('meals'),
+      value: wholeNumber.format(kcalToday),
+      unit: t('today.unit.kcal'),
+      share: kcalToday / 2000,
+      strong: true,
+    });
+  }
+  if (owns('fitness')) {
+    ownStats.push({
+      key: 'fitness',
+      label: nameOf('fitness'),
+      value: String(minutesToday),
+      unit: t('today.unit.min'),
+    });
+  }
+  if (owns('budget')) {
+    ownStats.push({
+      key: 'month',
+      label: t('today.stat.month'),
+      value: wholeNumber.format(spent),
+      unit: t('today.unit.chf'),
+    });
+  }
+
+  const dayStats = main ? mainStats : ownStats.slice(0, 3);
+
   return (
     <Screen
       header={
         <Header
           large
+          overline={formatLongDate(language, new Date().toISOString())}
           title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
-          subtitle={formatLongDate(language, new Date().toISOString())}
-        />
-      }
-    >
-      {hasHouseholds() ? (
-        <Section
-          module={{
-            id: 'household',
-            area: 'household',
-            name: t('tabs.household'),
-            short: '',
-            description: '',
-            icon: 'people',
-            priority: 1,
-            permissions: { read: [], write: [] },
-          }}
-          onOpen={() => router.push('/household')}
+          right={<Avatar name={account.firstName || '?'} size={36} />}
         >
-          <Text variant="label" tone={household ? 'default' : 'faint'}>
-            {household ? household.name : t('household.none.title')}
+          <Text
+            variant="body"
+            tone="muted"
+            style={{
+              maxWidth: 272,
+              fontSize: theme.fontSize.lede,
+              lineHeight: theme.lineHeight.lede,
+            }}
+          >
+            {lede}
           </Text>
-        </Section>
+          {main ? <DailyQuote /> : null}
+        </Header>
+      }
+      // Die Zahlen des Tages stehen fest ueber der Leiste, wie im Entwurf —
+      // das Tagesband scrollt darueber, die Zahlen bleiben im Blick.
+      footer={dayStats.length > 0 ? <DayStats stats={dayStats} /> : undefined}
+    >
+      <DayThread entries={thread} />
+
+      {main && owns('tasks') ? (
+        <QuickAdd
+          value={draft}
+          onChangeText={setDraft}
+          onSubmit={() => void addTask()}
+          placeholder={t('workspace.addTask')}
+        />
       ) : null}
 
-      {built.map((module) => (
-        <Section key={module.id} module={module} onOpen={() => router.push(`/run/${module.id}`)}>
-          {content(module.id)}
-        </Section>
-      ))}
+      {main ? (
+        <AppFamily />
+      ) : (
+        <>
+          {hasHouseholds() ? (
+            <Section
+              module={{
+                id: 'household',
+                area: 'household',
+                name: t('tabs.household'),
+                short: '',
+                description: '',
+                icon: 'people',
+                priority: 1,
+                permissions: { read: [], write: [] },
+              }}
+              onOpen={() => router.push('/household')}
+            >
+              <Text variant="label" tone={household ? 'default' : 'faint'}>
+                {household ? household.name : t('household.none.title')}
+              </Text>
+            </Section>
+          ) : null}
 
-      {main ? <AppFamily /> : null}
+          {built.map((module) => (
+            <Section key={module.id} module={module} onOpen={() => router.push(`/run/${module.id}`)}>
+              {content(module.id)}
+            </Section>
+          ))}
 
-      {pending.length > 0 ? (
-        <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="section" tone="muted">
-            {t('workspace.pending')}
-          </Text>
-          <Card>
-            {pending.map((module, index) => (
-              <View key={module.id} style={{ opacity: 0.55 }}>
-                {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={module.name}
-                  subtitle={module.short}
-                  onPress={() => router.push(`/module/${module.id}`)}
-                />
-              </View>
-            ))}
-          </Card>
-        </View>
-      ) : null}
+          {pending.length > 0 ? (
+            <View style={{ gap: theme.spacing.sm }}>
+              <Text variant="section" tone="muted">
+                {t('workspace.pending')}
+              </Text>
+              <Card>
+                {pending.map((module, index) => (
+                  <View key={module.id} style={{ opacity: 0.55 }}>
+                    {index > 0 ? <Divider /> : null}
+                    <ListItem
+                      title={module.name}
+                      subtitle={module.short}
+                      onPress={() => router.push(`/module/${module.id}`)}
+                    />
+                  </View>
+                ))}
+              </Card>
+            </View>
+          ) : null}
+        </>
+      )}
     </Screen>
+  );
+}
+
+/** Eine Aufgabe eintragen, direkt unter dem Band — eingerueckt wie seine Karten. */
+function QuickAdd({
+  value,
+  onChangeText,
+  onSubmit,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+  onSubmit: () => void;
+  placeholder: string;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      style={[
+        theme.elevation.card,
+        {
+          marginLeft: THREAD_INDENT,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: theme.spacing.md,
+          paddingHorizontal: theme.spacing.md,
+          minHeight: 50,
+          borderRadius: theme.radii.item,
+          backgroundColor: theme.colors.surface,
+        },
+      ]}
+    >
+      <View
+        style={{
+          width: 21,
+          height: 21,
+          borderRadius: theme.radii.xs,
+          backgroundColor: theme.colors.surfaceMuted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name="plus" size={14} color={theme.colors.textMuted} />
+      </View>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={theme.colors.textFaint}
+        onSubmitEditing={onSubmit}
+        returnKeyType="done"
+        accessibilityLabel={placeholder}
+        style={{
+          flex: 1,
+          height: 50,
+          fontFamily: theme.fontFamily,
+          fontSize: theme.fontSize.md,
+          color: theme.colors.text,
+          outlineStyle: 'none' as never,
+        }}
+      />
+    </View>
   );
 }
 

@@ -27,12 +27,12 @@ import { HabitsView } from '@/features/organizer/HabitsView';
 import { TripsView } from '@/features/organizer/TripsView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { getModule } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
-import { useTheme } from '@/theme';
-import { Button, Card, EmptyState, Header, Icon, Screen, Text } from '@/ui';
+import { hueTint, useTheme } from '@/theme';
+import { Button, Card, EmptyState, Header, HeaderCrumbProvider, Icon, Screen, Text } from '@/ui';
 
 /** Module, die schon wirklich etwas tun. Der Rest bekommt den Platzhalter. */
 const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = {
@@ -112,6 +112,7 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
 
 export function RunModuleScreen() {
   const { t } = useI18n();
+  const theme = useTheme();
   const router = useRouter();
   const { account } = useApp();
 
@@ -136,5 +137,15 @@ export function RunModuleScreen() {
   }
 
   const build = BUILT[module.id];
-  return build ? build(module) : <PlaceholderModule module={module} />;
+  return (
+    // Jede Vollansicht bekommt oben ihre Bereichsmarke, ohne sie selbst zu kennen.
+    <HeaderCrumbProvider
+      value={{
+        label: t(`area.${module.area}` as TranslationKey),
+        color: hueTint(theme, module.area).base,
+      }}
+    >
+      {build ? build(module) : <PlaceholderModule module={module} />}
+    </HeaderCrumbProvider>
+  );
 }

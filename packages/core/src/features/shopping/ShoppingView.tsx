@@ -9,6 +9,7 @@ import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
+  AddBar,
   Button,
   Card,
   Chip,
@@ -16,7 +17,6 @@ import {
   EmptyState,
   Header,
   Icon,
-  Input,
   Loading,
   Screen,
   Text,
@@ -153,45 +153,13 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
               />
             ))}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Input
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={t('shopping.placeholder')}
-                onSubmitEditing={add}
-                returnKeyType="done"
-                accessibilityLabel={t('shopping.placeholder')}
-              />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('shopping.add')}
-              accessibilityState={{ disabled: draft.trim().length === 0 }}
-              disabled={draft.trim().length === 0}
-              onPress={add}
-              style={({ pressed }) => [
-                styles.addButton,
-                {
-                  borderRadius: theme.radii.md,
-                  backgroundColor:
-                    draft.trim().length === 0
-                      ? theme.colors.disabledBackground
-                      : pressed
-                        ? theme.colors.accentStrong
-                        : theme.colors.accent,
-                },
-              ]}
-            >
-              <Icon
-                name="plus"
-                size={22}
-                color={
-                  draft.trim().length === 0 ? theme.colors.disabledText : theme.colors.textOnAccent
-                }
-              />
-            </Pressable>
-          </View>
+          <AddBar
+            value={draft}
+            onChangeText={setDraft}
+            onSubmit={() => void add()}
+            placeholder={t('shopping.placeholder')}
+            addLabel={t('shopping.add')}
+          />
         </View>
       }
     >
@@ -245,5 +213,4 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap' },
-  addButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useTheme } from '@/theme';
+import { useTheme, type ElevationLevel } from '@/theme';
 
 import { Icon } from './Icon';
 import { Text } from './Text';
+import { usePressScale } from './usePressScale';
 
 export type CardProps = {
   children?: ReactNode;
@@ -14,8 +15,12 @@ export type CardProps = {
   onPress?: () => void;
   accessibilityLabel?: string;
   padded?: boolean;
+  /** `raised` nur fuer das, was gerade dran ist — nicht fuer jede Karte. */
+  elevation?: ElevationLevel;
   style?: StyleProp<ViewStyle>;
 };
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Card({
   children,
@@ -25,16 +30,20 @@ export function Card({
   onPress,
   accessibilityLabel,
   padded = true,
+  elevation = 'card',
   style,
 }: CardProps) {
   const theme = useTheme();
+  const press = usePressScale(theme.motion.pressScale.row);
 
-  // Kein Rahmen: Weiss auf dem gedaempften Hintergrund trennt genug.
+  // Kein Rahmen: Weiss auf dem gedaempften Hintergrund trennt genug, der
+  // flache Schatten setzt die Karte nur eine Haaresbreite ab.
   const base: ViewStyle = {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.lg,
+    borderRadius: theme.radii.md,
     padding: padded ? theme.spacing.lg : 0,
     gap: theme.spacing.md,
+    ...theme.elevation[elevation],
   };
 
   const body = (
@@ -62,18 +71,16 @@ export function Card({
   }
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
-      style={({ pressed }) => [
-        base,
-        pressed ? { backgroundColor: theme.colors.surfaceMuted } : null,
-        style,
-      ]}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[base, { transform: [{ scale: press.scale }] }, style]}
     >
       {body}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

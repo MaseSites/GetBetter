@@ -1,0 +1,50 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Screens" },
+    { "id": "page-2", "name": "System" },
+    { "id": "page-3", "name": "Verworfen" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Heute", "page": "page-1" },
+    { "file": "Dunkel.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Heute — dunkel", "page": "page-1" },
+    { "file": "Bereiche.dc.html", "x": 940, "y": 0, "w": 390, "h": 844, "title": "Bereiche", "page": "page-1" },
+    { "file": "Kalender.dc.html", "x": 1410, "y": 0, "w": 390, "h": 844, "title": "Kalender", "page": "page-1" },
+    { "file": "Gesundheit.dc.html", "x": 1880, "y": 0, "w": 390, "h": 844, "title": "Gesundheit", "page": "page-1" },
+    { "file": "Haushalt.dc.html", "x": 0, "y": 964, "w": 390, "h": 844, "title": "Haushalt", "page": "page-1" },
+    { "file": "Geld.dc.html", "x": 470, "y": 964, "w": 390, "h": 844, "title": "Geld", "page": "page-1" },
+    { "file": "Assistent.dc.html", "x": 940, "y": 964, "w": 390, "h": 844, "title": "Assistent", "page": "page-1" },
+    { "file": "Onboarding.dc.html", "x": 1410, "y": 964, "w": 390, "h": 844, "title": "Einstieg", "page": "page-1" },
+    { "file": "Profil.dc.html", "x": 1880, "y": 964, "w": 390, "h": 844, "title": "Profil", "page": "page-1" },
+    { "file": "Fundament.dc.html", "x": 0, "y": 0, "w": 960, "h": 3060, "title": "Fundament", "page": "page-2" },
+    { "file": "Zustaende.dc.html", "x": 1060, "y": 0, "w": 1300, "h": 1340, "title": "Zustände", "page": "page-2" },
+    { "file": "RichtungB.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Richtung B — Kartei", "page": "page-3" },
+    { "file": "RichtungC.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Richtung C — Ruhe", "page": "page-3" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -250,
+      "w": 900,
+      "page": "page-1",
+      "text": "GetBetter — Richtung A «Tagesform», eine App mit fünf Bereichen.\n\nDie These: Die Startseite ist kein Kachelbrett und keine Widget-Wand, sondern EIN Tagesband. Wecker, Termin, Mahlzeit, Rechnung, Training und Einkauf hängen an derselben Zeitachse. Kein Konkurrent kann das, weil keiner alle Daten hat.\n\nRegeln, die überall gelten: Signalfarbe (Lime) nur für jetzt / erledigt / Fortschritt. Bereichsfarben nur als Punkt und Symbol, nie als Fläche. Jede Zahl in Bricolage Grotesque, tabellarisch. Symbolknöpfe dürfen kleiner aussehen, ihre Tippfläche bleibt 44 px.\n\nZahlen und Namen sind erfunden, aber in sich stimmig (die Abo-Summe stimmt, das Budget geht auf)."
+    },
+    {
+      "id": "system-note",
+      "x": 0,
+      "y": -230,
+      "w": 900,
+      "page": "page-2",
+      "text": "Die Übergabe an deinen Kollegen.\n\nFundament: Farben, Schriftskala, Abstände, Radien, Tiefe und Bewegung als feste Werte — daraus wird packages/core/src/theme.\n\nZustände: leer, ladend, fehlerhaft. Diese drei Bildschirme gibt es im Code bisher gar nicht, und sie entscheiden mehr über den Eindruck als die schöne Startseite. Unten die fünf Zustände jedes bedienbaren Elements, Tastaturfokus eingeschlossen."
+    },
+    {
+      "id": "richtungen-note",
+      "x": 0,
+      "y": -230,
+      "w": 900,
+      "page": "page-3",
+      "text": "Nicht gewählt — hier nur zum Nachschlagen aufbewahrt.\n\nB — Kartei: Schweizer Redaktions-Look, Archivo Narrow, Haarlinien, keine Rundungen, Rot als einziges Signal. Sehr eigenständig, aber für eine App mit Pflanzen und Haustieren zu streng.\n\nC — Ruhe: eine Sache auf einmal, Instrument Serif, Sand und Ton. Das Schönste der drei — versteckt aber genau das, was GetBetter besonders macht: die Breite."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

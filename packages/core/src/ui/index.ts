@@ -1,19 +1,37 @@
+export { AddBar } from './AddBar';
 export { AppIcon } from './AppIcon';
 export { Avatar } from './Avatar';
 export { Badge } from './Badge';
 export { Button } from './Button';
 export { Card } from './Card';
+export { Checkbox } from './Checkbox';
+export { ComposeBar, SuggestionChip } from './ComposeBar';
+export type { ComposeBarProps } from './ComposeBar';
 export { Chip } from './Chip';
 export { Divider } from './Divider';
 export { EmptyState } from './EmptyState';
 export { FloatingButton } from './FloatingButton';
 export { Header } from './Header';
+export { HeaderCrumbProvider, useHeaderCrumb } from './HeaderCrumb';
 export { Icon, ICONS, isIconName } from './Icon';
 export { IconButton } from './IconButton';
 export { Input } from './Input';
 export { ProgressBar } from './ProgressBar';
 export { ListItem } from './ListItem';
 export { ModuleIcon } from './ModuleIcon';
+export {
+  BigFigure,
+  DueTag,
+  EmptyRow,
+  Legend,
+  Panel,
+  SectionHead,
+  SegmentBar,
+  Track,
+  Trend,
+} from './Panel';
+export { LineRow, ListCard, TickRow } from './Rows';
+export type { LegendItem, PanelProps, Segment, SegmentKind } from './Panel';
 export { Loading, Skeleton } from './Loading';
 export { PhoneFrame, PHONE_HEIGHT, PHONE_WIDTH, usePhoneFrame } from './PhoneFrame';
 export type { PhoneFrameMetrics } from './PhoneFrame';
@@ -21,17 +39,21 @@ export { Screen } from './Screen';
 export { Segmented } from './Segmented';
 export { Sheet } from './Sheet';
 export { Text } from './Text';
+export { usePressScale } from './usePressScale';
 
+export type { AddBarProps } from './AddBar';
 export type { AppIconProps } from './AppIcon';
 export type { AvatarProps } from './Avatar';
 export type { BadgeProps, BadgeTone } from './Badge';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export type { CardProps } from './Card';
+export type { CheckboxProps } from './Checkbox';
 export type { ChipProps } from './Chip';
 export type { DividerProps } from './Divider';
 export type { EmptyStateProps } from './EmptyState';
 export type { FloatingButtonProps } from './FloatingButton';
 export type { HeaderAction, HeaderProps } from './Header';
+export type { HeaderCrumbValue } from './HeaderCrumb';
 export type { IconName, IconProps } from './Icon';
 export type { IconButtonProps } from './IconButton';
 export type { InputProps } from './Input';

@@ -1,11 +1,18 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
+import { usePressScale } from './usePressScale';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/**
+ * `primary` ist umgekehrtes Papier, nicht die Signalfarbe. Waere jede
+ * Haupthandlung gruen, hiesse Gruen nur noch «hier ist ein Knopf» — und
+ * genau dann traegt es nichts mehr, wenn es *erledigt* heissen soll.
+ * Dafuer gibt es `signal`, sparsam eingesetzt.
+ */
+export type ButtonVariant = 'primary' | 'signal' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'md' | 'sm';
 
 export type ButtonProps = {
@@ -20,6 +27,8 @@ export type ButtonProps = {
   accessibilityLabel?: string;
 };
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function Button({
   label,
   onPress,
@@ -32,59 +41,49 @@ export function Button({
   accessibilityLabel,
 }: ButtonProps) {
   const theme = useTheme();
+  const press = usePressScale();
   const inactive = disabled || loading;
 
   const background: Record<ButtonVariant, string> = {
-    primary: theme.colors.accent,
+    primary: theme.colors.inverse,
+    signal: theme.colors.accent,
     secondary: theme.colors.surfaceMuted,
     ghost: 'transparent',
-    danger: theme.colors.dangerSoft,
-  };
-  const pressedBackground: Record<ButtonVariant, string> = {
-    primary: theme.colors.accentStrong,
-    secondary: theme.colors.border,
-    ghost: theme.colors.surfaceMuted,
     danger: theme.colors.dangerSoft,
   };
   const foreground: Record<ButtonVariant, string> = {
-    primary: theme.colors.textOnAccent,
+    primary: theme.colors.onInverse,
+    signal: theme.colors.textOnAccent,
     secondary: theme.colors.text,
-    ghost: theme.colors.accent,
+    ghost: theme.colors.textMuted,
     danger: theme.colors.danger,
   };
-  const border: Record<ButtonVariant, string> = {
-    primary: theme.colors.accent,
-    secondary: theme.colors.surfaceMuted,
-    ghost: 'transparent',
-    danger: theme.colors.dangerSoft,
-  };
 
-  const height = size === 'md' ? 48 : 36;
-  const paddingHorizontal = size === 'md' ? theme.spacing.lg : theme.spacing.md;
+  const height = size === 'md' ? 48 : 40;
+  const paddingHorizontal = size === 'md' ? theme.spacing.edge : theme.spacing.md;
   const color = inactive ? theme.colors.disabledText : foreground[variant];
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[
         styles.base,
         {
           height,
           paddingHorizontal,
-          borderRadius: theme.radii.md,
-          borderWidth: 1,
+          borderRadius: theme.radii.sm,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
-          borderColor: inactive ? theme.colors.disabledBackground : border[variant],
-          backgroundColor: inactive
-            ? theme.colors.disabledBackground
-            : pressed
-              ? pressedBackground[variant]
-              : background[variant],
-          opacity: pressed && !inactive && variant === 'ghost' ? 0.9 : 1,
+          // Nur der Umrissknopf traegt eine Linie; gefuellte brauchen keine.
+          borderWidth: variant === 'ghost' ? 1.5 : 0,
+          borderColor: inactive ? theme.colors.disabledBackground : theme.colors.borderStrong,
+          backgroundColor: inactive ? theme.colors.disabledBackground : background[variant],
+          transform: [{ scale: inactive ? 1 : press.scale }],
         },
       ]}
     >
@@ -94,14 +93,19 @@ export function Button({
         <View style={[styles.content, { gap: theme.spacing.sm }]}>
           {icon ? <Icon name={icon} size={size === 'md' ? 18 : 16} color={color} /> : null}
           <Text
-            variant={size === 'md' ? 'body' : 'label'}
-            style={{ color, fontWeight: theme.fontWeight.semibold }}
+            variant="label"
+            numberOfLines={1}
+            style={{
+              color,
+              fontSize: size === 'md' ? theme.fontSize.md : theme.fontSize.sm,
+              fontWeight: theme.fontWeight.semibold,
+            }}
           >
             {label}
           </Text>
         </View>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

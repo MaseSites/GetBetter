@@ -40,11 +40,20 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
   }
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.weekHeader}>
+    <View style={[styles.fill, { paddingHorizontal: theme.spacing.sm }]}>
+      <View style={[styles.weekHeader, { paddingBottom: theme.spacing.sm }]}>
         {headerDays.map((day) => (
           <View key={day.toISOString()} style={styles.headerCell}>
-            <Text variant="caption" tone="faint" align="center">
+            <Text
+              variant="overline"
+              tone="faint"
+              align="center"
+              style={{
+                fontSize: theme.fontSize.micro,
+                lineHeight: theme.lineHeight.micro,
+                letterSpacing: theme.tracking.label,
+              }}
+            >
               {weekdayFormat.format(day).slice(0, 2)}
             </Text>
           </View>
@@ -72,6 +81,7 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
                 <View
                   style={[
                     styles.cellInner,
+                    inMonth ? theme.elevation.card : null,
                     {
                       backgroundColor: inMonth ? theme.colors.surface : 'transparent',
                       borderRadius: theme.radii.sm,
@@ -81,13 +91,20 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
                   <View
                     style={[
                       styles.dayCircle,
-                      today ? { backgroundColor: theme.colors.accent } : null,
+                      today ? { backgroundColor: theme.colors.inverse } : null,
                     ]}
                   >
                     <Text
                       variant="caption"
-                      tone={today ? 'onAccent' : inMonth ? 'default' : 'faint'}
-                      style={{ fontWeight: today ? theme.fontWeight.semibold : undefined }}
+                      style={{
+                        fontFamily: theme.fontFamilyDisplay,
+                        fontWeight: theme.fontWeight.bold,
+                        color: today
+                          ? theme.colors.onInverse
+                          : inMonth
+                            ? theme.colors.text
+                            : theme.colors.textFaint,
+                      }}
                     >
                       {day.getDate()}
                     </Text>
@@ -103,7 +120,7 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
                           numberOfLines={1}
                           variant="caption"
                           tone="onAccent"
-                          style={styles.chipText}
+                          style={[styles.chipText, { color: '#FFFFFF' }]}
                         >
                           {event.title}
                         </Text>
@@ -127,22 +144,22 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  weekHeader: { flexDirection: 'row', paddingBottom: 6 },
+  weekHeader: { flexDirection: 'row' },
   headerCell: { flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   // Genau ein Siebtel, ohne Abstand aussen — sonst rutscht der Sonntag um.
-  cell: { width: '14.2857%', padding: 1.5 },
+  cell: { width: '14.2857%', padding: 2 },
   cellInner: {
     minHeight: 84,
-    paddingTop: 3,
+    paddingTop: 4,
     paddingHorizontal: 2,
     alignItems: 'center',
     gap: 3,
   },
   dayCircle: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',

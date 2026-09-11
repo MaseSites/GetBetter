@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
+import { usePressScale } from './usePressScale';
 
 export type ListItemProps = {
   title: string;
@@ -32,6 +33,7 @@ export function ListItem({
   accessibilityLabel,
 }: ListItemProps) {
   const theme = useTheme();
+  const press = usePressScale(theme.motion.pressScale.row);
   const interactive = Boolean(onPress || onLongPress) && !disabled;
   const titleTone = disabled ? 'faint' : tone === 'danger' ? 'danger' : 'default';
   const iconColor = disabled
@@ -72,31 +74,34 @@ export function ListItem({
   }
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled }}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={350}
-      style={({ pressed }) => [
-        pressed
-          ? {
-              backgroundColor: theme.colors.surfaceMuted,
-              borderRadius: theme.radii.sm,
-              marginHorizontal: -theme.spacing.sm,
-              paddingHorizontal: theme.spacing.sm,
-            }
-          : null,
+      style={[
+        {
+          borderRadius: theme.radii.sm,
+          marginHorizontal: -theme.spacing.sm,
+          paddingHorizontal: theme.spacing.sm,
+          transform: [{ scale: press.scale }],
+        },
       ]}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
     >
       {content}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  // Mindestens 44 hoch, damit die Zeile auch mit einem Daumen zu treffen ist.
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
   iconBox: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1, gap: 2 },
 });

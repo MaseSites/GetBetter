@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+  <style>
+    :root{
+      --sand:#EAE3D6; --card:#F6F2EA; --ink:#241D16; --ink2:#6B6055; --ink3:#9C9184;
+      --clay:#B35A38; --hair:#D5CBBA;
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, sans-serif;
+      --ser:"Instrument Serif", Georgia, "Times New Roman", serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--sand);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--clay);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.97)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--sand);overflow:hidden;padding:0 26px}
+
+    .top{padding-top:64px;display:flex;align-items:center;justify-content:space-between}
+    .dt{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+    .av{width:30px;height:30px;border-radius:999px;background:var(--clay);color:var(--card);
+      font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center}
+
+    .lead{margin-top:86px}
+    .eyebrow{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--clay)}
+    .head{font-family:var(--ser);font-weight:400;font-size:46px;line-height:48px;
+      letter-spacing:-.015em;margin:14px 0 0}
+    .head em{font-style:italic}
+    .why{font-size:14.5px;line-height:22px;color:var(--ink2);margin:16px 0 0;max-width:264px;text-wrap:pretty}
+
+    .card{margin-top:34px;background:var(--card);border-radius:20px;padding:18px 20px 20px;
+      box-shadow:0 1px 2px rgba(36,29,22,.05)}
+    .clab{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+    .cmain{font-family:var(--ser);font-size:30px;line-height:34px;margin-top:9px;letter-spacing:-.012em}
+    .cmeta{font-size:13.5px;color:var(--ink2);margin-top:7px}
+    .cact{display:flex;gap:9px;margin-top:17px}
+    .b{min-height:44px;padding:0 17px;border-radius:999px;font-size:14px;font-weight:600;
+      display:inline-flex;align-items:center}
+    .b.p{background:var(--ink);color:var(--card)}
+    .b.g{box-shadow:inset 0 0 0 1.5px var(--hair);color:var(--ink2)}
+
+    .later{margin-top:auto;padding-bottom:22px}
+    .lsep{height:1px;background:var(--hair);margin-bottom:16px}
+    .lrow{display:flex;align-items:baseline;gap:12px;padding:7px 0;font-size:14px;color:var(--ink2)}
+    .lrow b{font-weight:600;color:var(--ink);min-width:44px;font-variant-numeric:tabular-nums}
+    .lrow span{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.12em;
+      text-transform:uppercase;color:var(--ink3)}
+
+    .dots{display:flex;align-items:center;justify-content:center;gap:22px;padding:10px 0 30px}
+    .d{width:7px;height:7px;border-radius:999px;background:var(--hair)}
+    .d.sel{background:var(--ink);width:22px}
+    .d.ai{width:38px;height:38px;border-radius:999px;background:var(--clay);color:var(--card);
+      display:flex;align-items:center;justify-content:center}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="top">
+    <span class="dt">Di, 9. September</span>
+    <span class="av">SB</span>
+  </div>
+
+  <div class="lead">
+    <div class="eyebrow">Als Nächstes</div>
+    <h1 class="head">Mittag in<br><em>zwei Stunden</em></h1>
+    <p class="why">Bis dahin läuft alles ohne dich. Ich sage Bescheid, wenn sich das ändert.</p>
+  </div>
+
+  <div class="card">
+    <div class="clab">Menüplan · 12:00</div>
+    <div class="cmain">Pouletsalat</div>
+    <div class="cmeta">520 kcal · alles davon liegt schon zuhause</div>
+    <div class="cact">
+      <button class="b p">Gegessen</button>
+      <button class="b g">Ändern</button>
+    </div>
+  </div>
+
+  <div class="later">
+    <div class="lsep"></div>
+    <div class="lrow"><b>14:00</b> Krankenkasse, CHF 328.40 <span>Geld</span></div>
+    <div class="lrow"><b>17:30</b> Beine, 60 Minuten <span>Sport</span></div>
+    <div class="lrow"><b>18:30</b> Einkauf, 6 Posten <span>Haus</span></div>
+  </div>
+
+  <div class="dots">
+    <span class="d sel"></span>
+    <span class="d"></span>
+    <span class="d ai">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path></svg>
+    </span>
+    <span class="d"></span>
+    <span class="d"></span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

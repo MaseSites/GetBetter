@@ -24,7 +24,8 @@ export function IconButton({ icon, label, onPress, tone = 'faint', size = 18 }: 
     default: theme.colors.text,
     faint: theme.colors.textFaint,
     danger: theme.colors.danger,
-    accent: theme.colors.accent,
+    // Der helle Signalton ist als Symbol auf Papier nicht zu erkennen.
+    accent: theme.colors.accentStrong,
   }[tone];
 
   return (

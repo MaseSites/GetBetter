@@ -35,11 +35,16 @@ export function Avatar({ name, imageUri, size = 40 }: AvatarProps) {
   return (
     <View
       accessibilityLabel={name}
-      style={[styles.fallback, shape, { backgroundColor: theme.colors.accentSoft }]}
+      style={[styles.fallback, shape, { backgroundColor: theme.colors.inverse }]}
     >
       <Text
         variant={size >= 56 ? 'title' : 'label'}
-        style={{ color: theme.colors.accentStrong, fontWeight: theme.fontWeight.semibold }}
+        style={{
+          color: theme.colors.onInverse,
+          fontSize: size >= 56 ? theme.fontSize.lg : theme.fontSize.caption,
+          fontFamily: theme.fontFamilyDisplay,
+          fontWeight: theme.fontWeight.bold,
+        }}
       >
         {initials(name)}
       </Text>

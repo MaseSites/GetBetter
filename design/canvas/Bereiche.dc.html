@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --org:#4A5FD0; --health:#D0524A; --home:#B0701F; --money:#2E8C7A; --ai:#8A56C8;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.98)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .head{padding-top:56px;padding-bottom:14px}
+    .title{font-family:var(--dis);font-weight:700;font-size:30px;line-height:32px;
+      letter-spacing:-.022em;margin:0}
+    .lede{font-size:14px;line-height:20px;color:var(--ink2);margin:7px 0 0;max-width:280px;text-wrap:pretty}
+    .search{display:flex;align-items:center;gap:9px;margin-top:16px;height:44px;
+      padding:0 13px;border-radius:12px;background:var(--sunken);color:var(--ink3);
+      font-size:14px}
+
+    .list{flex:1;overflow:hidden;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 90%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 90%,transparent 100%)}
+
+    .sec{display:flex;align-items:center;gap:8px;padding:16px 2px 8px}
+    .swatch{width:8px;height:8px;border-radius:2px;flex:none}
+    .sname{font-family:var(--dis);font-weight:700;font-size:13px;letter-spacing:.06em;
+      text-transform:uppercase}
+    .scount{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+
+    .card{background:var(--card);border-radius:16px;box-shadow:var(--e1);overflow:hidden}
+    .row{display:flex;align-items:center;gap:11px;min-height:48px;padding:0 13px;
+      width:100%;text-align:left;transition:background 140ms var(--ease-out)}
+    .row + .row{box-shadow:inset 0 1px 0 var(--line)}
+    .row svg.ic{flex:none;color:var(--ink2)}
+    .rname{font-size:15px;font-weight:500;letter-spacing:-.006em}
+    .rval{margin-left:auto;font-size:13px;font-weight:600;color:var(--ink2);
+      display:flex;align-items:center;gap:7px}
+    .rval.quiet{color:var(--ink3);font-weight:400}
+    .pill{display:inline-flex;align-items:center;justify-content:center;min-width:22px;
+      height:20px;padding:0 6px;border-radius:999px;background:var(--signal);
+      color:var(--ink);font-size:11px;font-weight:700}
+    .chev{color:var(--line2)}
+    @media (hover:hover) and (pointer:fine){
+      .row:hover{background:var(--sunken)}
+    }
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fab{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="head pad">
+    <h1 class="title">Bereiche</h1>
+    <p class="lede">Sechsundzwanzig Funktionen. Du siehst gleich, welche gerade etwas von dir will.</p>
+    <div class="search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      Suchen — «Vignette», «Blutdruck», «Abo»
+    </div>
+  </div>
+
+  <div class="list pad">
+
+    <div class="sec">
+      <span class="swatch" style="background:#4A5FD0"></span>
+      <span class="sname">Organisation</span>
+      <span class="scount">9 Funktionen</span>
+    </div>
+    <div class="card">
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+        <span class="rname">Kalender</span>
+        <span class="rval">4 heute<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+        <span class="rname">Aufgaben</span>
+        <span class="rval"><span class="pill">7</span><svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4M9 12h6M9 16h4"></path></svg>
+        <span class="rname">Notizen</span>
+        <span class="rval quiet">3<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 1.5M5 3 2.5 5.5M19 3l2.5 2.5"></path></svg>
+        <span class="rname">Wecker</span>
+        <span class="rval">06:40<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 4h9l5 5v11H5z"></path><path d="M14 4v5h5"></path></svg>
+        <span class="rname">Dokumente</span>
+        <span class="rval">2 Fristen<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 17.5 8.5 13l3.5 3.5L20 8"></path><path d="M20 12V8h-4"></path></svg>
+        <span class="rname">Gewohnheiten</span>
+        <span class="rval">5 von 6<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 13.5 21 5l-3.5 8.5L21 22 3 13.5Z"></path></svg>
+        <span class="rname">Reisen</span>
+        <span class="rval quiet">Nichts geplant<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg>
+        <span class="rname">Kontakte</span>
+        <span class="rval">2 Geburtstage<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9 18h6M10 21h4"></path><path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.7.6 1.1h5.8c0-.4.2-.8.6-1.1A6 6 0 0 0 12 3Z"></path></svg>
+        <span class="rname">KI-Chat</span>
+        <span class="rval quiet">Frei<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+    </div>
+
+    <div class="sec">
+      <span class="swatch" style="background:#D0524A"></span>
+      <span class="sname">Gesundheit</span>
+      <span class="scount">7 Funktionen</span>
+    </div>
+    <div class="card">
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"></path></svg>
+        <span class="rname">Training</span>
+        <span class="rval">145 / 180 Min<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 3v8a3 3 0 0 0 6 0V3M8 11v10"></path><path d="M18 3c-1.5 2-2 4-2 6.5 0 1.5.7 2.5 2 2.5v9"></path></svg>
+        <span class="rname">Menüplan</span>
+        <span class="rval">1240 kcal<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3s6 6.4 6 10.4a6 6 0 0 1-12 0C6 9.4 12 3 12 3Z"></path></svg>
+        <span class="rname">Trinken</span>
+        <span class="rval">1.2 l<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+      <button class="row">
+        <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 5.5A7 7 0 1 1 9 15a5.5 5.5 0 0 0 9-9.5Z"></path></svg>
+        <span class="rname">Schlaf</span>
+        <span class="rval">6 h 40<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 5 7 7-7 7"></path></svg></span>
+      </button>
+    </div>
+
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fab">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

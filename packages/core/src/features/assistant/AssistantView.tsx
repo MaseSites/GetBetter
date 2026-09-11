@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
@@ -7,16 +7,45 @@ import { sendCommand } from '@/app/bridge';
 import { APPS } from '@/app/identity';
 import { ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
 import type { AssistantMessage } from '@/mocks/types';
+import { useApp } from '@/state/AppContext';
+import { ThemeProvider, createTheme, useTheme } from '@/theme';
+import { ComposeBar, EmptyState, Loading, Screen, SuggestionChip, Text } from '@/ui';
 
 import { route } from './route';
-import { useTheme } from '@/theme';
-import { EmptyState, Icon, Input, Loading, Screen, Text } from '@/ui';
+
+/** Beispiele, die wirklich ankommen — beide erkennt `route()` als Auftrag. */
+const SUGGESTIONS = ['assistant.chip.shopping', 'assistant.chip.chore'] as const;
 
 /**
- * Der Assistent. Er startet leer — kein Kopfbereich, kein Beispieldialog,
- * keine Vorschlaege. Nur die Frage, womit er helfen soll, und ein Feld.
+ * Die dunkle Flaeche fuer alles, womit man redet: der Assistent in GetBetter
+ * und die Gespraeche in BetterAi. Farbe und Voreinstellung bleiben die des Kontos.
+ */
+export function DarkSurface({ children }: { children: ReactNode }) {
+  const { appearance } = useApp();
+  const dark = useMemo(
+    () => createTheme('dark', appearance.accent, appearance.preset),
+    [appearance.accent, appearance.preset],
+  );
+
+  return <ThemeProvider value={dark}>{children}</ThemeProvider>;
+}
+
+/**
+ * Der Assistent — die eine dunkle Flaeche in einer hellen App.
+ *
+ * Er steht quer ueber allen Bereichen, und der Wechsel ins Dunkle sagt ohne
+ * Worte: hier redest du mit etwas. Er startet leer mit der Frage, womit er
+ * helfen soll; unten liegt das Feld als Pille, der Senden-Knopf in Signalgruen.
  */
 export function AssistantView() {
+  return (
+    <DarkSurface>
+      <Conversation />
+    </DarkSurface>
+  );
+}
+
+function Conversation() {
   const t = useTranslate();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -75,56 +104,32 @@ export function AssistantView() {
     });
   }
 
-  function send() {
-    ask(draft.trim());
-  }
-
   return (
     <Screen
       scroll={false}
       padded={false}
       footer={
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm }}>
-          <View style={{ flex: 1 }}>
-            <Input
-              value={draft}
-              onChangeText={setDraft}
-              placeholder={t('assistant.placeholder')}
-              onSubmitEditing={send}
-              returnKeyType="send"
-              editable={!thinking}
-              accessibilityLabel={t('assistant.placeholder')}
-            />
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('assistant.send')}
-            accessibilityState={{ disabled: draft.trim().length === 0 || thinking }}
-            disabled={draft.trim().length === 0 || thinking}
-            onPress={send}
-            style={({ pressed }) => [
-              styles.send,
-              {
-                borderRadius: theme.radii.md,
-                backgroundColor:
-                  draft.trim().length === 0 || thinking
-                    ? theme.colors.disabledBackground
-                    : pressed
-                      ? theme.colors.accentStrong
-                      : theme.colors.accent,
-              },
-            ]}
-          >
-            <Icon
-              name="send"
-              size={20}
-              color={
-                draft.trim().length === 0 || thinking
-                  ? theme.colors.disabledText
-                  : theme.colors.textOnAccent
-              }
-            />
-          </Pressable>
+        <View style={{ gap: theme.spacing.sm }}>
+          {draft.length === 0 && !thinking ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: theme.spacing.sm }}
+            >
+              {SUGGESTIONS.map((key) => (
+                <SuggestionChip key={key} label={t(key)} onPress={() => ask(t(key))} />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          <ComposeBar
+            value={draft}
+            onChangeText={setDraft}
+            onSubmit={() => ask(draft.trim())}
+            placeholder={t('assistant.placeholder')}
+            sendLabel={t('assistant.send')}
+            busy={thinking}
+          />
         </View>
       }
     >
@@ -132,13 +137,16 @@ export function AssistantView() {
         ref={scrollRef}
         contentContainerStyle={{
           flexGrow: 1,
-          padding: theme.spacing.lg,
-          paddingTop: theme.spacing.lg + insets.top,
-          gap: theme.spacing.md,
-          // Solange nichts dasteht, sitzt die Frage in der Mitte.
-          justifyContent: messages.length === 0 ? 'center' : 'flex-start',
+          paddingHorizontal: theme.spacing.edge,
+          paddingTop: theme.spacing.xxl + insets.top,
+          paddingBottom: theme.spacing.lg,
+          gap: theme.spacing.lg,
+          // Solange nichts dasteht, sitzt die Frage in der Mitte; danach
+          // waechst das Gespraech von unten nach oben, wie im Entwurf.
+          justifyContent: messages.length === 0 && !thinking ? 'center' : 'flex-end',
         }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {messages.length === 0 && !thinking ? (
           <EmptyState
@@ -149,24 +157,7 @@ export function AssistantView() {
         ) : null}
 
         {messages.map((message) => (
-          <View
-            key={message.id}
-            style={[
-              styles.bubble,
-              {
-                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                borderRadius: theme.radii.lg,
-                padding: theme.spacing.md,
-                backgroundColor:
-                  message.role === 'user' ? theme.colors.accent : theme.colors.surface,
-                borderColor: message.role === 'user' ? theme.colors.accent : theme.colors.border,
-              },
-            ]}
-          >
-            <Text variant="body" tone={message.role === 'user' ? 'onAccent' : 'default'}>
-              {message.text}
-            </Text>
-          </View>
+          <Message key={message.id} message={message} />
         ))}
 
         {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
@@ -175,7 +166,40 @@ export function AssistantView() {
   );
 }
 
+/**
+ * Eine Nachricht wie im Entwurf: die eigene als Blase rechts, die Antwort als
+ * ruhiger Text ohne Kasten.
+ */
+export function Message({ message }: { message: AssistantMessage }) {
+  const theme = useTheme();
+
+  if (message.role !== 'user') {
+    return (
+      <Text variant="body" tone="muted" style={styles.said}>
+        {message.text}
+      </Text>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.ask,
+        {
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radii.lg,
+          borderBottomRightRadius: theme.radii.xs,
+          paddingVertical: theme.spacing.md,
+          paddingHorizontal: theme.spacing.lg,
+        },
+      ]}
+    >
+      <Text variant="body">{message.text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  bubble: { maxWidth: '85%', borderWidth: 1 },
-  send: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  ask: { alignSelf: 'flex-end', maxWidth: '85%' },
+  said: { maxWidth: 305 },
 });

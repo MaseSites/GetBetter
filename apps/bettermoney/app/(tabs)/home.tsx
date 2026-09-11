@@ -1,1 +1,1 @@
-export { WorkspaceScreen as default } from '@/screens';
+export { MoneyHomeScreen as default } from '@/screens';

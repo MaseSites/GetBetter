@@ -20,6 +20,7 @@ const sharp = require('sharp');
 const ROOT = path.resolve(__dirname, '..');
 const CORE = path.join(ROOT, 'packages', 'core', 'src');
 const IONICONS = path.join(ROOT, 'node_modules', 'ionicons', 'dist', 'svg');
+const PHOTO_APP_IDS = new Set(['betterfamily', 'bettergym', 'betterai', 'bettermoney']);
 
 const read = (relative) => fs.readFileSync(path.join(CORE, relative), 'utf8');
 
@@ -44,7 +45,7 @@ function moduleIcons() {
   return map;
 }
 
-/** Farben aus theme/modules.ts: HUES und MODULE_HUE. */
+/** Farben aus theme/modules.ts: AREA_HUES und MODULE_AREA. */
 function colours() {
   const source = read('theme/modules.ts');
   const hues = {};
@@ -55,8 +56,8 @@ function colours() {
   }
   const moduleHue = {};
   const block = source.slice(
-    source.indexOf('const MODULE_HUE'),
-    source.indexOf('};', source.indexOf('const MODULE_HUE')),
+    source.indexOf('const MODULE_AREA'),
+    source.indexOf('};', source.indexOf('const MODULE_AREA')),
   );
   for (const match of block.matchAll(/^\s+(\w+): '(\w+)',$/gm)) {
     moduleHue[match[1]] = match[2];
@@ -78,13 +79,16 @@ function apps() {
 
 // ------------------------------------------------------------ Zeichnen
 
-/** Das Symbol aus Ionicons, weiss eingefaerbt, als SVG-Fragment. */
-function glyph(ioniconName) {
+/**
+ * Das Symbol aus Ionicons, eingefaerbt, als SVG-Fragment. Weiss passt auf alle
+ * Bereichsfarben — auf dem hellen Signalgruen der Marke braucht es Tinte.
+ */
+function glyph(ioniconName, ink = '#FFFFFF') {
   const file = path.join(IONICONS, `${ioniconName}.svg`);
   const raw = fs.readFileSync(file, 'utf8');
   const inner = raw.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
   // `fill` erbt an alles ohne eigenes fill, `color` bedient currentColor der Striche.
-  return `<g fill="#FFFFFF" color="#FFFFFF">${inner}</g>`;
+  return `<g fill="${ink}" color="${ink}">${inner}</g>`;
 }
 
 /**
@@ -92,7 +96,7 @@ function glyph(ioniconName) {
  * `scale` sagt, wie gross das Symbol im Quadrat ist; Store-Icons brauchen
  * etwas mehr Rand als die kleinen Logos.
  */
-function logoSvg({ size, from, to, ioniconName, radius, scale, transparent = false }) {
+function logoSvg({ size, from, to, ioniconName, radius, scale, transparent = false, ink }) {
   const inset = (size * (1 - scale)) / 2;
   const box = size * scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
@@ -107,9 +111,9 @@ function logoSvg({ size, from, to, ioniconName, radius, scale, transparent = fal
   ${
     transparent
       ? ''
-      : `<ellipse clip-path="url(#c)" cx="${size * 0.3}" cy="${-size * 0.12}" rx="${size * 0.72}" ry="${size * 0.6}" fill="#FFFFFF" fill-opacity="0.16"/>`
+      : `<ellipse clip-path="url(#c)" cx="${size * 0.3}" cy="${-size * 0.12}" rx="${size * 0.72}" ry="${size * 0.6}" fill="${ink === '#FFFFFF' || !ink ? '#FFFFFF' : '#FFFFFF'}" fill-opacity="${ink && ink !== '#FFFFFF' ? 0.22 : 0.16}"/>`
   }
-  <svg x="${inset}" y="${inset}" width="${box}" height="${box}" viewBox="0 0 512 512">${glyph(ioniconName)}</svg>
+  <svg x="${inset}" y="${inset}" width="${box}" height="${box}" viewBox="0 0 512 512">${glyph(ioniconName, ink)}</svg>
 </svg>`;
 }
 
@@ -138,13 +142,13 @@ async function main() {
 
   // Der Haushalt ist keine Funktion im Register, braucht aber ein Logo.
   modules.household = 'people';
-  moduleHue.household = 'amber';
+  moduleHue.household = 'household';
 
   // Die Logos der Funktionen
   for (const [id, iconName] of Object.entries(modules)) {
     const ioniconName = names[iconName];
     if (!ioniconName) throw new Error(`Kein Ionicon fuer "${iconName}" (${id})`);
-    const [from, to] = hues[moduleHue[id]] ?? hues.slate;
+    const [from, to] = hues[moduleHue[id]] ?? hues.neutral;
     const out = path.join(CORE, 'assets', 'modules');
     await png(
       logoSvg({ size: 256, from, to, ioniconName, radius: 58, scale: 0.5 }),
@@ -159,21 +163,53 @@ async function main() {
 
   // Die Apps: Store-Icon, Android-Ebenen, Splash, Favicon
   for (const app of apps()) {
-    const [from, to] = hues[app.hue] ?? hues.slate;
+    const [from, to] = hues[app.hue] ?? hues.neutral;
+    // Auf dem hellen Signalgruen der Marke waere ein weisses Symbol unsichtbar.
+    const ink = app.hue === 'brand' ? '#14150F' : '#FFFFFF';
     const ioniconName = names[app.icon];
     if (!ioniconName) throw new Error(`Kein Ionicon fuer App ${app.id}`);
     const out = path.join(ROOT, 'apps', app.id, 'assets');
 
-    await png(
-      logoSvg({ size: 1024, from, to, ioniconName, radius: 224, scale: 0.5 }),
-      path.join(out, 'icon.png'),
-    );
-    // Android legt die Ebenen selbst uebereinander und rundet selbst.
-    await png(
-      logoSvg({ size: 1024, from, to, ioniconName, radius: 0, scale: 0.38, transparent: true }),
-      path.join(out, 'android-icon-foreground.png'),
-    );
-    await png(backgroundSvg(1024, from, to), path.join(out, 'android-icon-background.png'));
+    // Die vier Bereichs-Apps besitzen echte Fotomotive. Das geometrische
+    // Skript darf diese Assets nicht versehentlich wieder ueberschreiben.
+    if (!PHOTO_APP_IDS.has(app.id)) {
+      await png(
+        logoSvg({ size: 1024, from, to, ioniconName, radius: 224, scale: 0.5, ink }),
+        path.join(out, 'icon.png'),
+      );
+      // Android legt die Ebenen selbst uebereinander und rundet selbst.
+      await png(
+        logoSvg({
+          size: 1024,
+          from,
+          to,
+          ioniconName,
+          radius: 0,
+          scale: 0.38,
+          transparent: true,
+          ink,
+        }),
+        path.join(out, 'android-icon-foreground.png'),
+      );
+      await png(backgroundSvg(1024, from, to), path.join(out, 'android-icon-background.png'));
+      await png(
+        logoSvg({
+          size: 1024,
+          from,
+          to,
+          ioniconName,
+          radius: 0,
+          scale: 0.34,
+          transparent: true,
+          ink,
+        }),
+        path.join(out, 'splash-icon.png'),
+      );
+      await png(
+        logoSvg({ size: 64, from, to, ioniconName, radius: 14, scale: 0.5, ink }),
+        path.join(out, 'favicon.png'),
+      );
+    }
     await png(
       logoSvg({
         size: 1024,
@@ -186,22 +222,15 @@ async function main() {
       }),
       path.join(out, 'android-icon-monochrome.png'),
     );
-    await png(
-      logoSvg({ size: 1024, from, to, ioniconName, radius: 0, scale: 0.34, transparent: true }),
-      path.join(out, 'splash-icon.png'),
-    );
-    await png(
-      logoSvg({ size: 64, from, to, ioniconName, radius: 14, scale: 0.5 }),
-      path.join(out, 'favicon.png'),
-    );
-
     // Dasselbe Logo noch einmal klein im Kern: fuer die Startseite und die
     // Karten der anderen Apps in GetBetter.
     const shared = path.join(CORE, 'assets', 'apps');
-    await png(
-      logoSvg({ size: 256, from, to, ioniconName, radius: 58, scale: 0.5 }),
-      path.join(shared, `${app.id}.png`),
-    );
+    if (!PHOTO_APP_IDS.has(app.id)) {
+      await png(
+        logoSvg({ size: 256, from, to, ioniconName, radius: 58, scale: 0.5, ink }),
+        path.join(shared, `${app.id}.png`),
+      );
+    }
     await png(
       logoSvg({ size: 256, from: grey[0], to: grey[1], ioniconName, radius: 58, scale: 0.5 }),
       path.join(shared, `${app.id}-mono.png`),

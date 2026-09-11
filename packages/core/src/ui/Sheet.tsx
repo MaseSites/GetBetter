@@ -89,7 +89,7 @@ export function Sheet({
                 style={[
                   styles.header,
                   {
-                    paddingHorizontal: theme.spacing.lg,
+                    paddingHorizontal: theme.spacing.edge,
                     paddingBottom: theme.spacing.md,
                     gap: theme.spacing.md,
                   },
@@ -117,7 +117,7 @@ export function Sheet({
             <ScrollView
               style={styles.body}
               contentContainerStyle={{
-                paddingHorizontal: theme.spacing.lg,
+                paddingHorizontal: theme.spacing.edge,
                 paddingBottom: theme.spacing.lg,
               }}
               showsVerticalScrollIndicator={false}

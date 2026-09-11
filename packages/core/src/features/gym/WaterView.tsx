@@ -9,8 +9,8 @@ import { useTheme } from '@/theme';
 import { Button, Card, Header, Screen, Text } from '@/ui';
 
 /** Ein Glas sind 2.5 dl, eine Flasche 5 dl. */
-const PORTIONS = [2.5, 5] as const;
-const TARGET_DL = 20;
+export const PORTIONS = [2.5, 5] as const;
+export const TARGET_DL = 20;
 
 /** Wie viel heute getrunken wurde. Zwei Knoepfe, mehr braucht es nicht. */
 export function WaterView({ module }: { module: ModuleDefinition }) {

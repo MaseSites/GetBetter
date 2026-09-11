@@ -42,3 +42,8 @@ yarn-error.*
 
 # Kontodienst: die Konten liegen lokal, nicht im Repo
 services/api/data/
+
+# Lokale Werkzeug-Ablagen (Agenten, Vektorspeicher) — gehoeren nicht ins Repo
+.claude-flow/
+.swarm/
+ruvector.db

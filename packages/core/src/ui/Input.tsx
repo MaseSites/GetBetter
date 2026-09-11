@@ -44,10 +44,12 @@ export function Input({
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
 
+  // Der Fokus zeigt sich in Tinte: das helle Signalgruen waere als duenne Linie
+  // auf Weiss kaum zu sehen.
   const borderColor = error
     ? theme.colors.danger
     : focused
-      ? theme.colors.accent
+      ? theme.colors.text
       : theme.colors.border;
 
   return (
@@ -62,7 +64,7 @@ export function Input({
           styles.field,
           {
             borderColor,
-            borderRadius: theme.radii.md,
+            borderRadius: theme.radii.sm,
             paddingHorizontal: theme.spacing.md,
             gap: theme.spacing.sm,
             minHeight: multiline ? 88 : 48,

@@ -8,8 +8,9 @@ import { Text } from '@/ui';
 import { eventColor } from './colors';
 import { isToday, minutesOfDay, startOfDay } from './dates';
 
-export const HOUR_HEIGHT = 52;
-const GUTTER_WIDTH = 44;
+/** Eine Stunde im Raster. Jeder Termin ist so hoch, wie er dauert. */
+export const HOUR_HEIGHT = 56;
+export const GUTTER_WIDTH = 44;
 
 type Placed = {
   event: EventRow;
@@ -86,9 +87,19 @@ export type TimeGridProps = {
   compact?: boolean;
 };
 
+const clock = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(Math.floor(minutes % 60)).padStart(2, '0')}`;
+
+/**
+ * Das Zeitraster: Stunden links, Termine als weisse Karten mit farbiger
+ * Kante, und eine Linie in Signalgruen fuer jetzt — die einzige Farbe, die
+ * im Raster nicht von einem Termin kommt.
+ */
 export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: TimeGridProps) {
   const theme = useTheme();
   const scrollRef = useRef<ScrollView>(null);
+  const single = days.length === 1;
+  const right = single ? theme.spacing.edge : 0;
 
   // Beim Oeffnen nicht bei Mitternacht stehen, sondern beim Arbeitstag.
   useEffect(() => {
@@ -104,21 +115,29 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
     <ScrollView ref={scrollRef} style={styles.fill} showsVerticalScrollIndicator={false}>
       <View style={[styles.body, { height: 24 * HOUR_HEIGHT }]}>
         {/* Stundenlinien und Beschriftung */}
-        {Array.from({ length: 24 }, (_, hour) => (
-          <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT }]}>
-            <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
-              {hour === 0 ? null : (
-                <Text variant="caption" tone="faint">
-                  {String(hour).padStart(2, '0')}:00
-                </Text>
-              )}
+        {Array.from({ length: 24 }, (_, hour) => {
+          // Liegt die Jetzt-Zeit zu nah an der Stunde, nimmt sie deren Platz.
+          const hideLabel = hour === 0 || (showNow && Math.abs(hour * 60 - nowMinutes) < 25);
+          return (
+            <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT, right }]}>
+              <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
+                {hideLabel ? null : (
+                  <Text
+                    variant="caption"
+                    tone="faint"
+                    style={{ fontWeight: theme.fontWeight.semibold }}
+                  >
+                    {clock(hour * 60)}
+                  </Text>
+                )}
+              </View>
+              <View style={[styles.line, { backgroundColor: theme.colors.border }]} />
             </View>
-            <View style={[styles.line, { backgroundColor: theme.colors.border }]} />
-          </View>
-        ))}
+          );
+        })}
 
         {/* Spalten */}
-        <View style={[styles.columns, { left: GUTTER_WIDTH }]}>
+        <View style={[styles.columns, { left: GUTTER_WIDTH + theme.spacing.xs, right }]}>
           {days.map((day) => {
             const placed = place(
               events.filter((event) => {
@@ -135,14 +154,20 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
             return (
               <View
                 key={day.toISOString()}
-                style={[styles.column, { borderLeftColor: theme.colors.border }]}
+                style={[
+                  styles.column,
+                  {
+                    borderLeftWidth: single ? 0 : StyleSheet.hairlineWidth,
+                    borderLeftColor: theme.colors.border,
+                  },
+                ]}
               >
                 {/* Leere Flaeche: Antippen legt einen Termin zur Stunde an */}
                 {Array.from({ length: 24 }, (_, hour) => (
                   <Pressable
                     key={hour}
                     accessibilityRole="button"
-                    accessibilityLabel={`${String(hour).padStart(2, '0')}:00`}
+                    accessibilityLabel={clock(hour * 60)}
                     onPress={() => onPressSlot(day, hour)}
                     style={[styles.slot, { top: hour * HOUR_HEIGHT, height: HOUR_HEIGHT }]}
                   />
@@ -151,6 +176,7 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
                 {placed.map(({ event, top, height, column, columns }) => {
                   const width = `${100 / columns}%` as const;
                   const left = `${(100 / columns) * column}%` as const;
+                  const short = height < 44;
                   return (
                     <Pressable
                       key={event.id}
@@ -159,26 +185,35 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
                       onPress={() => onPressEvent(event)}
                       style={[
                         styles.event,
+                        theme.elevation.card,
                         {
                           top,
-                          height: Math.max(height - 2, 18),
+                          height: Math.max(height - 3, 18),
                           width,
                           left,
-                          backgroundColor: eventColor(event.color),
+                          backgroundColor: theme.colors.surface,
                           borderRadius: theme.radii.sm,
-                          padding: compact ? 3 : theme.spacing.sm,
+                          paddingLeft: compact ? theme.spacing.sm : theme.spacing.md,
+                          paddingRight: compact ? theme.spacing.xs : theme.spacing.sm,
+                          paddingVertical: compact || short ? 2 : theme.spacing.xs,
+                          justifyContent: short ? 'center' : 'flex-start',
                         },
                       ]}
                     >
-                      <Text variant="caption" tone="onAccent" numberOfLines={compact ? 2 : 3}>
+                      <View style={[styles.rail, { backgroundColor: eventColor(event.color) }]} />
+                      <Text
+                        variant="label"
+                        numberOfLines={compact ? 2 : short ? 1 : 2}
+                        style={{
+                          fontWeight: theme.fontWeight.semibold,
+                          fontSize: compact ? theme.fontSize.xs : theme.fontSize.sm,
+                        }}
+                      >
                         {event.title}
                       </Text>
-                      {!compact && height > 44 ? (
-                        <Text variant="caption" tone="onAccent" numberOfLines={1}>
-                          {new Date(event.startsAt).toLocaleTimeString(undefined, {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                      {!compact && !short ? (
+                        <Text variant="caption" tone="muted" numberOfLines={1}>
+                          {clock(minutesOfDay(new Date(event.startsAt)))}
                         </Text>
                       ) : null}
                     </Pressable>
@@ -190,19 +225,40 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
         </View>
 
         {showNow ? (
-          <View
-            style={[
-              styles.nowLine,
-              {
-                pointerEvents: 'none',
-                top: (nowMinutes / 60) * HOUR_HEIGHT,
-                left: GUTTER_WIDTH - 4,
-              },
-            ]}
-          >
-            <View style={[styles.nowDot, { backgroundColor: theme.colors.danger }]} />
-            <View style={[styles.nowBar, { backgroundColor: theme.colors.danger }]} />
-          </View>
+          <>
+            <View
+              style={[
+                styles.nowLabel,
+                { pointerEvents: 'none', top: (nowMinutes / 60) * HOUR_HEIGHT - 8, width: GUTTER_WIDTH },
+              ]}
+            >
+              <Text
+                variant="caption"
+                style={{ color: theme.colors.accentStrong, fontWeight: theme.fontWeight.bold }}
+              >
+                {clock(nowMinutes)}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.nowLine,
+                {
+                  pointerEvents: 'none',
+                  top: (nowMinutes / 60) * HOUR_HEIGHT,
+                  left: GUTTER_WIDTH,
+                  right,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.nowDot,
+                  { backgroundColor: theme.colors.accent, borderColor: theme.colors.background },
+                ]}
+              />
+              <View style={[styles.nowBar, { backgroundColor: theme.colors.accent }]} />
+            </View>
+          </>
         ) : null}
       </View>
     </ScrollView>
@@ -212,14 +268,16 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { position: 'relative' },
-  hourRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
-  gutter: { alignItems: 'flex-end', paddingRight: 6, marginTop: -8 },
+  hourRow: { position: 'absolute', left: 0, flexDirection: 'row', alignItems: 'center' },
+  gutter: { alignItems: 'flex-end', paddingRight: 8, marginTop: -8 },
   line: { flex: 1, height: StyleSheet.hairlineWidth },
-  columns: { position: 'absolute', top: 0, right: 0, bottom: 0, flexDirection: 'row' },
-  column: { flex: 1, borderLeftWidth: StyleSheet.hairlineWidth, position: 'relative' },
+  columns: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
+  column: { flex: 1, position: 'relative' },
   slot: { position: 'absolute', left: 0, right: 0 },
   event: { position: 'absolute', overflow: 'hidden' },
-  nowLine: { position: 'absolute', right: 0, flexDirection: 'row', alignItems: 'center' },
-  nowDot: { width: 8, height: 8, borderRadius: 4 },
+  rail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
+  nowLabel: { position: 'absolute', left: 0, alignItems: 'flex-end', paddingRight: 8 },
+  nowLine: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
+  nowDot: { width: 9, height: 9, borderRadius: 999, borderWidth: 2, marginLeft: -4 },
   nowBar: { flex: 1, height: 1.5 },
 });

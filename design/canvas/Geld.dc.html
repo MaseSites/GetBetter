@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      --paper:#FBFAF7; --sunken:#F2F0E9; --card:#FFFFFF;
+      --ink:#14150F; --ink2:#55574C; --ink3:#6E7064;
+      --line:#E5E2D9; --line2:#D2CEC2;
+      --signal:#C9F23F; --signal-deep:#5E7610;
+      --money:#2E8C7A;
+      --e1:0 1px 2px rgba(20,21,15,.05), 0 0 0 1px rgba(20,21,15,.055);
+      --ease-out:cubic-bezier(.23,1,.32,1);
+      --ui:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --dis:"Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);font-family:var(--ui);color:var(--ink);
+      -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+    a{color:var(--signal-deep);text-decoration:none}
+    a:hover{color:var(--ink)}
+    button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;
+      transition:transform 160ms var(--ease-out)}
+    button:active{transform:scale(.98)}
+    .screen{width:390px;height:844px;display:flex;flex-direction:column;
+      background:var(--paper);overflow:hidden}
+    .pad{padding-left:20px;padding-right:20px}
+
+    .nav{display:flex;align-items:center;gap:10px;padding-top:56px}
+    .crumb{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+      letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .crumb i{width:8px;height:8px;border-radius:2px;background:var(--money);display:block}
+    .title{font-family:var(--dis);font-weight:700;font-size:30px;line-height:32px;
+      letter-spacing:-.022em;margin:6px 0 0}
+
+    .body{flex:1;overflow:hidden;padding-top:16px;
+      -webkit-mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%);
+      mask-image:linear-gradient(180deg,#000 0,#000 99%,transparent 100%)}
+
+    .block{background:var(--card);border-radius:18px;box-shadow:var(--e1);padding:15px 16px 16px}
+    .bh{display:flex;align-items:baseline;gap:8px}
+    .blab{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+    .bmore{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+
+    .big{font-family:var(--dis);font-weight:800;font-size:52px;line-height:50px;
+      letter-spacing:-.045em;margin-top:9px;display:flex;align-items:baseline;gap:8px}
+    .big small{font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink3);letter-spacing:0}
+    .seg{display:flex;gap:3px;margin-top:14px;height:9px}
+    .seg i{display:block;border-radius:999px;background:var(--ink)}
+    .seg i.rest{background:var(--signal);flex:1}
+    .legend{display:flex;gap:10px;margin-top:11px;flex-wrap:wrap}
+    .lg{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink2)}
+    .lg i{width:7px;height:7px;border-radius:2px;background:var(--ink);display:block}
+    .lg.s i{background:var(--signal)}
+
+    .sec{display:flex;align-items:baseline;gap:8px;padding:14px 2px 8px}
+    .sname{font-family:var(--dis);font-weight:700;font-size:13px;letter-spacing:.06em;
+      text-transform:uppercase}
+    .scount{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+
+    .card{background:var(--card);border-radius:16px;box-shadow:var(--e1);overflow:hidden}
+    .r{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;width:100%;text-align:left;
+      transition:background 140ms var(--ease-out)}
+    .r + .r{box-shadow:inset 0 1px 0 var(--line)}
+    .rt{min-width:0}
+    .r1{display:block;font-size:15px;font-weight:500;letter-spacing:-.006em}
+    .r2{display:block;font-size:12.5px;color:var(--ink3);margin-top:2px}
+    .amt{margin-left:auto;text-align:right;white-space:nowrap}
+    .a1{display:block;font-family:var(--dis);font-weight:700;font-size:16px;letter-spacing:-.02em}
+    .a2{display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+      color:var(--ink3);margin-top:2px}
+    .a2.now{color:var(--ink);background:var(--signal);border-radius:999px;padding:3px 8px;
+      display:inline-block;letter-spacing:.04em}
+    @media (hover:hover) and (pointer:fine){ .r:hover{background:var(--sunken)} }
+
+    .goal{background:var(--card);border-radius:16px;box-shadow:var(--e1);padding:15px 16px 17px}
+    .grow{display:flex;align-items:baseline;gap:8px;margin-top:8px}
+    .gnum{font-family:var(--dis);font-weight:700;font-size:24px;letter-spacing:-.028em}
+    .gof{font-size:13px;color:var(--ink3)}
+    .gwhen{margin-left:auto;font-size:12px;font-weight:600;color:var(--ink3)}
+    .bar{height:8px;border-radius:999px;background:var(--sunken);margin-top:12px;overflow:hidden}
+    .bar i{display:block;height:100%;border-radius:999px;background:var(--ink)}
+
+    .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;
+      padding:10px 12px 26px;background:var(--card);border-top:1px solid var(--line)}
+    .tab{display:flex;flex-direction:column;align-items:center;gap:4px;
+      min-height:44px;justify-content:center;color:var(--ink3)}
+    .tab span{font-size:10px;font-weight:600}
+    .tab.sel{color:var(--ink)}
+    .fabt{width:46px;height:46px;border-radius:999px;background:var(--signal);color:var(--ink);
+      display:flex;align-items:center;justify-content:center;margin:0 auto;
+      box-shadow:0 6px 16px -6px rgba(94,118,16,.85)}
+  </style>
+</helmet>
+
+<div class="screen">
+
+  <div class="pad">
+    <div class="nav">
+      <span class="crumb"><i></i> Geld</span>
+    </div>
+    <h1 class="title">September</h1>
+  </div>
+
+  <div class="body pad">
+
+    <div class="block">
+      <div class="bh">
+        <span class="blab">Bleibt bis Monatsende</span>
+        <span class="bmore">21 Tage</span>
+      </div>
+      <div class="big">1'842 <small>von 4'250 CHF</small></div>
+      <div class="seg">
+        <i style="flex:1640"></i>
+        <i style="flex:468"></i>
+        <i style="flex:300"></i>
+        <i class="rest" style="flex:1842"></i>
+      </div>
+      <div class="legend">
+        <span class="lg"><i></i> Fix 1'640</span>
+        <span class="lg"><i></i> Essen 468</span>
+        <span class="lg"><i></i> Rest 300</span>
+        <span class="lg s"><i></i> Frei 1'842</span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="sname">Rechnungen</span>
+      <span class="scount">3 offen</span>
+    </div>
+    <div class="card">
+      <button class="r">
+        <span class="rt">
+          <span class="r1">Krankenkasse</span>
+          <span class="r2">Helsana · Prämie September</span>
+        </span>
+        <span class="amt">
+          <span class="a1">328.40</span>
+          <span class="a2 now">Heute</span>
+        </span>
+      </button>
+      <button class="r">
+        <span class="rt">
+          <span class="r1">Mobilfunk</span>
+          <span class="r2">Salt · Rechnung 08/26</span>
+        </span>
+        <span class="amt">
+          <span class="a1">39.00</span>
+          <span class="a2">18. September</span>
+        </span>
+      </button>
+      <button class="r">
+        <span class="rt">
+          <span class="r1">Steuern, Rate 3</span>
+          <span class="r2">Kanton Zürich</span>
+        </span>
+        <span class="amt">
+          <span class="a1">640.00</span>
+          <span class="a2">30. September</span>
+        </span>
+      </button>
+    </div>
+
+    <div class="sec">
+      <span class="sname">Abos</span>
+      <span class="scount">76.90 pro Monat</span>
+    </div>
+    <div class="card">
+      <button class="r">
+        <span class="rt">
+          <span class="r1">Fitnesspark</span>
+          <span class="r2">Jahresabo · kündbar bis 30. November</span>
+        </span>
+        <span class="amt"><span class="a1">59.00</span></span>
+      </button>
+      <button class="r">
+        <span class="rt">
+          <span class="r1">Spotify Duo</span>
+          <span class="r2">Seit März 2024</span>
+        </span>
+        <span class="amt"><span class="a1">17.90</span></span>
+      </button>
+    </div>
+
+    <div class="sec">
+      <span class="sname">Sparziel</span>
+      <span class="scount">40 Prozent</span>
+    </div>
+    <div class="goal">
+      <div class="blab">Occasion-Auto</div>
+      <div class="grow">
+        <span class="gnum">3'200</span>
+        <span class="gof">von 8'000 CHF</span>
+        <span class="gwhen">bis Juli 2027</span>
+      </div>
+      <div class="bar"><i style="width:40%"></i></div>
+    </div>
+
+  </div>
+
+  <nav class="tabs">
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h11M4 18h7"></path></svg>
+      <span>Heute</span>
+    </button>
+    <button class="tab sel">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2"></rect></svg>
+      <span>Bereiche</span>
+    </button>
+    <button class="tab">
+      <span class="fabt">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 9l5.7 1.8L13.8 12.6 12 18.2l-1.8-5.6L4.5 10.8 10.2 9Z"></path><path d="M18.5 16.4l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7Z"></path></svg>
+      </span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+      <span>Suche</span>
+    </button>
+    <button class="tab">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>
