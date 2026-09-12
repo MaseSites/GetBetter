@@ -11,11 +11,7 @@ export function CalendarScreen() {
   if (!module) {
     return (
       <Screen scroll={false}>
-        <EmptyState
-          icon="warning"
-          title={t('detail.notFound.title')}
-          body={t('detail.notFound.body')}
-        />
+        <EmptyState title={t('detail.notFound.title')} body={t('detail.notFound.body')} />
       </Screen>
     );
   }

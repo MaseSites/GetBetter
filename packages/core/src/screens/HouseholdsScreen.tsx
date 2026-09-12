@@ -71,11 +71,7 @@ export function HouseholdsScreen() {
       {list.loading && households.length === 0 ? <Loading /> : null}
 
       {!list.loading && households.length === 0 && invites.length === 0 ? (
-        <EmptyState
-          icon="people"
-          title={t('household.none.title')}
-          body={t('household.none.body')}
-        />
+        <EmptyState title={t('household.none.title')} body={t('household.none.body')} />
       ) : null}
 
       {households.map((entry) => {

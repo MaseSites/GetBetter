@@ -22,6 +22,7 @@ import {
   Screen,
   Segmented,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -90,7 +91,7 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
       />
 
       {rows.length === 0 ? (
-        <EmptyState icon="chart" title={t('vitals.empty.title')} body={t('vitals.empty.body')} />
+        <EmptyState title={t('vitals.empty.title')} body={t('vitals.empty.body')} />
       ) : (
         <Card>
           <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
@@ -135,11 +136,13 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
             {rows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={`${show(row)} ${unit}`}
-                  subtitle={relativeDay(t, language, row.day)}
-                  right={<RemoveButton onPress={() => void vitalRepo.remove(row.id)} />}
-                />
+                <SwipeRow onDelete={() => void vitalRepo.remove(row.id)}>
+                  <ListItem
+                    title={`${show(row)} ${unit}`}
+                    subtitle={relativeDay(t, language, row.day)}
+                    right={<RemoveButton onPress={() => void vitalRepo.remove(row.id)} />}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </Card>

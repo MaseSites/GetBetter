@@ -15,7 +15,7 @@ import { parseDay } from '@/features/shared/days';
 import { formatDayMonth, formatMonthName, useI18n, type TranslationKey } from '@/i18n';
 import { MODULES } from '@/mocks/modules';
 import { useAccount } from '@/state/AppContext';
-import { hueTint, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import {
   BigFigure,
   Divider,
@@ -130,7 +130,7 @@ export function MoneyHomeScreen() {
       contentStyle={{ paddingTop: theme.spacing.xs }}
       header={
         <Header
-          crumb={{ label: t('area.money'), color: hueTint(theme, 'money').base }}
+          crumb={{ label: t('area.money') }}
           title={formatMonthName(language, now)}
         />
       }

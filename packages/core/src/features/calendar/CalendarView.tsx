@@ -3,13 +3,37 @@ import { useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { APPS, hasHouseholds } from '@/app/identity';
-import { calendars as calendarRepo, shares as shareRepo, useLiveQuery, type EventRow } from '@/db';
+import {
+  calendars as calendarRepo,
+  contacts as contactRepo,
+  shares as shareRepo,
+  useLiveQuery,
+  type EventRow,
+} from '@/db';
+import { BirthdayEditor, type BirthdayDraft } from '@/features/birthdays/BirthdayEditor';
+import {
+  birthdayEventId,
+  birthdaysBetween,
+  personOfBirthdayEvent,
+  withBirthday,
+} from '@/features/birthdays/birthdays';
+import { parseDay } from '@/features/shared/days';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, FloatingButton, Header, Icon, Screen, Text, usePressScale } from '@/ui';
+import {
+  Button,
+  Card,
+  FloatingButton,
+  Header,
+  Icon,
+  Screen,
+  Text,
+  usePressScale,
+  useSwipeSteps,
+} from '@/ui';
 
 import { eventColor, EVENT_COLORS, type EventColorKey } from './colors';
 import {
@@ -33,6 +57,9 @@ import { EventEditor, type EventDraft } from './EventEditor';
 import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
 import { GUTTER_WIDTH, TimeGrid } from './TimeGrid';
+
+/** Geburtstage stehen immer in derselben Farbe im Kalender. */
+const BIRTHDAY_COLOR: EventColorKey = 'rose';
 
 export type CalendarViewProps = {
   module: ModuleDefinition;
@@ -69,6 +96,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const [askMessage, setAskMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(null);
+  const [birthday, setBirthday] = useState<BirthdayDraft | null>(null);
 
   // Sichtbarer Zeitraum je Ansicht — grosszuegig, damit Raender mitkommen.
   const { from, to, days } = useMemo(() => {
@@ -195,7 +223,53 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
     () => eventRepo.listBetween(access, fromIso, toIso, selected),
     [access.accountId, access.householdIds, access.calendarIds, fromIso, toIso, selected],
   );
-  const events = list.data ?? [];
+  const saved = list.data;
+
+  // Geburtstage liegen bei den Kontakten und stehen hier jedes Jahr als
+  // ganztaegiger Eintrag — gedacht, nicht gespeichert. Nur im privaten Kalender.
+  const contactList = useLiveQuery(
+    () => (family ? Promise.resolve([]) : contactRepo.list(account.id)),
+    [account.id, family],
+  );
+  const contactRows = contactList.data;
+  const showBirthdays = !family && selected.includes('personal');
+  const events = useMemo((): EventRow[] => {
+    const stored = saved ?? [];
+    if (!showBirthdays) return stored;
+    const birthdays = birthdaysBetween(withBirthday(contactRows ?? []), from, to).map(
+      (entry): EventRow => {
+        const startsAt = parseDay(entry.day).toISOString();
+        return {
+          id: birthdayEventId(entry.person.id, entry.day),
+          accountId: account.id,
+          householdId: null,
+          calendar: 'personal',
+          calendarId: null,
+          isPrivate: true,
+          title: t('birthdays.event', { name: entry.person.name, age: entry.age }),
+          location: null,
+          notes: null,
+          startsAt,
+          endsAt: null,
+          allDay: true,
+          color: BIRTHDAY_COLOR,
+          createdAt: startsAt,
+        };
+      },
+    );
+    return [...stored, ...birthdays];
+  }, [saved, showBirthdays, contactRows, from, to, account.id, t]);
+
+  /** Ein Tipp auf einen Eintrag: Geburtstage oeffnen ihr eigenes Blatt. */
+  function openEvent(event: EventRow) {
+    const personId = personOfBirthdayEvent(event.id);
+    if (personId) {
+      const contact = (contactRows ?? []).find((row) => row.id === personId);
+      if (contact) setBirthday({ contact });
+      return;
+    }
+    setDraft({ event, day: new Date(event.startsAt) });
+  }
 
   const inviteList = useLiveQuery(() => calendarRepo.invitesFor(account.id), [account.id]);
   const invites = inviteList.data ?? [];
@@ -205,6 +279,9 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
     else if (mode === 'week') setAnchor((current) => addDays(current, direction * 7));
     else setAnchor((current) => addDays(current, direction));
   }
+
+  // Wischen blaettert wie die Pfeile: nach links weiter, nach rechts zurueck.
+  const swipe = useSwipeSteps(step);
 
   const periodLabel = useMemo(() => {
     if (mode === 'month') {
@@ -354,43 +431,44 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         </View>
       ) : null}
 
-      {mode === 'month' ? (
-        <MonthView
-          month={anchor}
-          selected={anchor}
-          events={events}
-          onOpenDay={(day) => {
-            // Ein Tag antippen fuehrt in seine Tagesansicht.
-            setAnchor(day);
-            setMode('day');
-          }}
-        />
-      ) : (
-        <View style={styles.fill}>
-          <WeekStrip
-            days={mode === 'day' ? weekDays(anchor) : days}
-            anchor={anchor}
-            onSelect={setAnchor}
-            alignToGrid={mode === 'week'}
-          />
-          <AllDayRow
-            days={days}
+      {/* Nimmt den Platz ein, den Monat und Zeitraster vorher selbst hatten. */}
+      <Animated.View style={[styles.fill, swipe.style]} {...swipe.panHandlers}>
+        {mode === 'month' ? (
+          <MonthView
+            month={anchor}
+            selected={anchor}
             events={events}
-            onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
+            onOpenDay={(day) => {
+              // Ein Tag antippen fuehrt in seine Tagesansicht.
+              setAnchor(day);
+              setMode('day');
+            }}
           />
-          <TimeGrid
-            days={days}
-            events={events}
-            compact={mode === 'week'}
-            onPressSlot={(day, hour) => setDraft({ day, hour })}
-            onPressEvent={(event) => setDraft({ event, day: new Date(event.startsAt) })}
-          />
-        </View>
-      )}
+        ) : (
+          <View style={styles.fill}>
+            <WeekStrip
+              days={mode === 'day' ? weekDays(anchor) : days}
+              anchor={anchor}
+              onSelect={setAnchor}
+              alignToGrid={mode === 'week'}
+            />
+            <AllDayRow days={days} events={events} onPressEvent={openEvent} />
+            <TimeGrid
+              days={days}
+              events={events}
+              compact={mode === 'week'}
+              onPressSlot={(day, hour) => setDraft({ day, hour })}
+              onPressEvent={openEvent}
+            />
+          </View>
+        )}
+      </Animated.View>
 
       <FloatingButton label={t('calendar.add')} onPress={() => setDraft({ day: anchor })} />
 
       <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
+
+      <BirthdayEditor draft={birthday} accountId={account.id} onClose={() => setBirthday(null)} />
 
       <CalendarPicker
         visible={picking}

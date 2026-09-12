@@ -31,6 +31,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -130,29 +131,36 @@ export function FitnessView({ module }: { module: ModuleDefinition }) {
       </View>
 
       {rows.length === 0 ? (
-        <EmptyState icon="fitness" title={t('gym.empty.title')} body={t('gym.empty.body')} />
+        <EmptyState title={t('gym.empty.title')} body={t('gym.empty.body')} />
       ) : (
         rows.map((row) => {
           const count = sets.filter((set) => set.workoutId === row.id).length;
           return (
-            <Card key={row.id} onPress={() => setOpenId(row.id)} accessibilityLabel={row.kind}>
-              <View style={[styles.row, { gap: theme.spacing.md }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="title">{row.kind}</Text>
-                  <Text variant="caption" tone="muted">
-                    {[
-                      relativeDay(t, language, row.day),
-                      row.minutes > 0 ? t('gym.minutes', { minutes: row.minutes }) : null,
-                      count > 0 ? t(count === 1 ? 'gym.sets.one' : 'gym.sets', { count }) : null,
-                      row.notes,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
+            // Nach links wischen loescht das Training samt Saetzen, ein Tipp oeffnet es.
+            <SwipeRow
+              key={row.id}
+              radius={theme.radii.md}
+              onDelete={() => void workoutRepo.remove(row.id)}
+            >
+              <Card onPress={() => setOpenId(row.id)} accessibilityLabel={row.kind}>
+                <View style={[styles.row, { gap: theme.spacing.md }]}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text variant="title">{row.kind}</Text>
+                    <Text variant="caption" tone="muted">
+                      {[
+                        relativeDay(t, language, row.day),
+                        row.minutes > 0 ? t('gym.minutes', { minutes: row.minutes }) : null,
+                        count > 0 ? t(count === 1 ? 'gym.sets.one' : 'gym.sets', { count }) : null,
+                        row.notes,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                  <Icon name="forward" size={18} color={theme.colors.textFaint} />
                 </View>
-                <Icon name="forward" size={18} color={theme.colors.textFaint} />
-              </View>
-            </Card>
+              </Card>
+            </SwipeRow>
           );
         })
       )}
@@ -490,31 +498,37 @@ function WorkoutDetail({
                 {own.map((set, index) => (
                   <View key={set.id}>
                     {index > 0 ? <Divider /> : null}
-                    <View
-                      style={[
-                        styles.row,
-                        { gap: theme.spacing.sm, paddingVertical: theme.spacing.xs },
-                      ]}
-                    >
-                      <Text variant="label" tone="muted">
-                        {t('gym.set', { index: index + 1 })}
-                      </Text>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="body">
-                          {set.weightKg !== null && set.weightKg > 0
-                            ? t('gym.setLine', {
-                                weight: formatNumber(language, set.weightKg),
-                                reps: set.reps,
-                              })
-                            : t('gym.setLineBody', { reps: set.reps })}
+                    <SwipeRow onDelete={() => void setRepo.remove(set.id)}>
+                      <View
+                        style={[
+                          styles.row,
+                          {
+                            gap: theme.spacing.sm,
+                            paddingVertical: theme.spacing.xs,
+                            backgroundColor: theme.colors.surface,
+                          },
+                        ]}
+                      >
+                        <Text variant="label" tone="muted">
+                          {t('gym.set', { index: index + 1 })}
                         </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text variant="body">
+                            {set.weightKg !== null && set.weightKg > 0
+                              ? t('gym.setLine', {
+                                  weight: formatNumber(language, set.weightKg),
+                                  reps: set.reps,
+                                })
+                              : t('gym.setLineBody', { reps: set.reps })}
+                          </Text>
+                        </View>
+                        <IconButton
+                          icon="trash"
+                          label={t('common.remove')}
+                          onPress={() => void setRepo.remove(set.id)}
+                        />
                       </View>
-                      <IconButton
-                        icon="trash"
-                        label={t('common.remove')}
-                        onPress={() => void setRepo.remove(set.id)}
-                      />
-                    </View>
+                    </SwipeRow>
                   </View>
                 ))}
 

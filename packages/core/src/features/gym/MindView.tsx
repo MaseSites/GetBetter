@@ -18,6 +18,7 @@ import {
   Input,
   ListItem,
   Screen,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -111,7 +112,7 @@ export function MindView({ module }: { module: ModuleDefinition }) {
       <Breathing />
 
       {rows.length === 0 ? (
-        <EmptyState icon="bulb" title={t('mind.empty.title')} body={t('mind.empty.body')} />
+        <EmptyState title={t('mind.empty.title')} body={t('mind.empty.body')} />
       ) : (
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="section" tone="muted">
@@ -121,18 +122,20 @@ export function MindView({ module }: { module: ModuleDefinition }) {
             {rows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={moodLabel(row.mood)}
-                  subtitle={row.note ?? undefined}
-                  right={
-                    <View style={[styles.row, { gap: theme.spacing.sm }]}>
-                      <Text variant="label" tone="muted">
-                        {relativeDay(t, language, row.day)}
-                      </Text>
-                      <RemoveButton onPress={() => void moodRepo.remove(row.id)} />
-                    </View>
-                  }
-                />
+                <SwipeRow onDelete={() => void moodRepo.remove(row.id)}>
+                  <ListItem
+                    title={moodLabel(row.mood)}
+                    subtitle={row.note ?? undefined}
+                    right={
+                      <View style={[styles.row, { gap: theme.spacing.sm }]}>
+                        <Text variant="label" tone="muted">
+                          {relativeDay(t, language, row.day)}
+                        </Text>
+                        <RemoveButton onPress={() => void moodRepo.remove(row.id)} />
+                      </View>
+                    }
+                  />
+                </SwipeRow>
               </View>
             ))}
           </Card>

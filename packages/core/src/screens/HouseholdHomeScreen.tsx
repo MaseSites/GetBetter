@@ -108,7 +108,7 @@ export function HouseholdHomeScreen() {
       contentStyle={{ paddingTop: theme.spacing.sm }}
       header={
         <Header
-          crumb={{ label: t('area.household'), color: hueTint(theme, 'household').base }}
+          crumb={{ label: t('area.household') }}
           title={household ? household.name : t('household.title')}
           {...(household
             ? {

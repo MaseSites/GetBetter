@@ -12,6 +12,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'ai',
     area: 'organisation',
+    topic: 'assistant',
     name: 'KI-Chat',
     short: 'Eine ganz normale KI zum Fragen, Schreiben und Nachdenken',
     description:
@@ -24,6 +25,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'calendar',
     area: 'organisation',
+    topic: 'planning',
     name: 'Kalender',
     short: 'Alle Termine an einem Ort, auch die vom Haushalt',
     description:
@@ -33,19 +35,21 @@ export const MODULES: readonly ModuleDefinition[] = [
     permissions: { read: ['events', 'household'], write: ['events'] },
   },
   {
-    id: 'alarm',
+    id: 'mail',
     area: 'organisation',
-    name: 'Wecker',
-    short: 'Weckt dich passend zum ersten Termin',
+    topic: 'communication',
+    name: 'E-Mail',
+    short: 'Alle Postfächer in einem Posteingang',
     description:
-      'Wecker und Kurzzeitwecker. Er sieht, wann dein erster Termin ist, und schlägt die Zeit von selbst vor, statt sie dich jeden Abend neu stellen zu lassen.',
-    icon: 'alarm',
+      'Verbindet beliebig viele E-Mail-Konten und zeigt sie in einem gemeinsamen Posteingang — lesen, antworten, löschen.',
+    icon: 'mail',
     priority: 1,
-    permissions: { read: ['events'], write: [] },
+    permissions: { read: ['mail'], write: ['mail'] },
   },
   {
     id: 'tasks',
     area: 'organisation',
+    topic: 'planning',
     name: 'Aufgaben',
     short: 'Was ansteht, mit Frist und Zuständigkeit',
     description:
@@ -55,8 +59,33 @@ export const MODULES: readonly ModuleDefinition[] = [
     permissions: { read: ['tasks', 'events', 'household'], write: ['tasks'] },
   },
   {
+    id: 'alarm',
+    area: 'organisation',
+    topic: 'planning',
+    name: 'Wecker',
+    short: 'Weckt dich passend zum ersten Termin',
+    description:
+      'Wecker und Kurzzeitwecker. Er sieht, wann dein erster Termin ist, und schlägt die Zeit von selbst vor, statt sie dich jeden Abend neu stellen zu lassen.',
+    icon: 'alarm',
+    priority: 1,
+    permissions: { read: ['events'], write: [] },
+  },
+  {
+    id: 'weather',
+    area: 'organisation',
+    topic: 'everyday',
+    name: 'Wetter',
+    short: 'Jetzt, stündlich und die Woche voraus',
+    description:
+      'Das Wetter für deinen Ort — die Temperatur steht schon auf der Startseite neben dem Datum.',
+    icon: 'sun',
+    priority: 1,
+    permissions: { read: ['location'], write: [] },
+  },
+  {
     id: 'notes',
     area: 'organisation',
+    topic: 'knowledge',
     name: 'Notizen',
     short: 'Gedanken, Listen und Links, durchsuchbar',
     description: 'Kurze Notizen mit Stichworten. Notizen lassen sich in Aufgaben verwandeln.',
@@ -67,6 +96,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'documents',
     area: 'organisation',
+    topic: 'knowledge',
     name: 'Dokumente',
     short: 'Verträge, Policen und Garantien mit Ablaufdatum',
     description:
@@ -78,6 +108,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'habits',
     area: 'organisation',
+    topic: 'everyday',
     name: 'Gewohnheiten',
     short: 'Kleine Dinge, jeden Tag',
     description: 'Verfolgt wiederkehrende Vorhaben und zeigt dir, wie es über Wochen läuft.',
@@ -88,6 +119,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'travel',
     area: 'organisation',
+    topic: 'mobility',
     name: 'Reisen',
     short: 'Flüge, Hotels und Packlisten an einem Ort',
     description:
@@ -102,6 +134,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'contacts',
     area: 'organisation',
+    topic: 'people',
     name: 'Kontakte',
     short: 'Menschen, Geburtstage und wann ihr euch zuletzt gesehen habt',
     description:
@@ -110,11 +143,24 @@ export const MODULES: readonly ModuleDefinition[] = [
     priority: 3,
     permissions: { read: ['contacts', 'events'], write: ['contacts', 'events', 'tasks'] },
   },
+  {
+    id: 'birthdays',
+    area: 'organisation',
+    topic: 'people',
+    name: 'Geburtstage',
+    short: 'Wer wann Geburtstag hat — steht auch im Kalender',
+    description:
+      'Erinnert an Geburtstage, zeigt, wer wie alt wird, und trägt jeden Geburtstag als ganztägigen Eintrag in den Kalender ein.',
+    icon: 'gift',
+    priority: 3,
+    permissions: { read: ['contacts', 'events'], write: ['contacts'] },
+  },
 
   // ---------- Gesundheit ----------
   {
     id: 'meals',
     area: 'health',
+    topic: 'nutrition',
     name: 'Menüplan',
     short: 'Was diese Woche auf den Tisch kommt',
     description:
@@ -126,6 +172,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'fitness',
     area: 'health',
+    topic: 'training',
     name: 'Training',
     short: 'Trainings planen und festhalten',
     description:
@@ -137,6 +184,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'sleep',
     area: 'health',
+    topic: 'rest',
     name: 'Schlaf',
     short: 'Wann du ins Bett solltest, damit der Morgen geht',
     description:
@@ -148,6 +196,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'water',
     area: 'health',
+    topic: 'nutrition',
     name: 'Trinken',
     short: 'Ein stiller Anstupser über den Tag',
     description: 'Zählt, was du getrunken hast, und erinnert dich, wenn lange nichts kam.',
@@ -158,6 +207,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'meds',
     area: 'health',
+    topic: 'body',
     name: 'Medikamente',
     short: 'Einnahme, Vorrat und Rezept-Erneuerung',
     description:
@@ -169,6 +219,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'vitals',
     area: 'health',
+    topic: 'body',
     name: 'Werte',
     short: 'Gewicht, Blutdruck und Puls im Verlauf',
     description: 'Hält Messwerte fest und zeigt sie als Verlauf, nicht als Urteil.',
@@ -179,6 +230,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'mind',
     area: 'health',
+    topic: 'rest',
     name: 'Kopf frei',
     short: 'Kurze Pausen und ein Satz am Abend',
     description: 'Schlägt kurze Pausen vor und fragt abends nach einem Satz zum Tag.',
@@ -191,6 +243,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'shopping',
     area: 'household',
+    topic: 'supplies',
     name: 'Einkaufsliste',
     short: 'Geteilte Listen, automatisch aus deinen Rezepten',
     description:
@@ -205,6 +258,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'chores',
     area: 'household',
+    topic: 'supplies',
     name: 'Ämtli',
     short: 'Wer macht was, und wann war es zuletzt dran',
     description:
@@ -216,6 +270,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'recipes',
     area: 'household',
+    topic: 'cooking',
     name: 'Rezepte',
     short: 'Was ihr wirklich kocht, nicht was das Internet kocht',
     description:
@@ -227,6 +282,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'plants',
     area: 'household',
+    topic: 'living',
     name: 'Pflanzen',
     short: 'Giessen, ohne daran zu denken',
     description: 'Merkt sich, welche Pflanze wie oft Wasser braucht, und meldet sich rechtzeitig.',
@@ -237,6 +293,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'pets',
     area: 'household',
+    topic: 'living',
     name: 'Haustiere',
     short: 'Futter, Impfungen und Tierarzttermine',
     description: 'Hält fest, was das Tier braucht, und teilt die Aufgaben im Haushalt auf.',
@@ -247,6 +304,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'vehicles',
     area: 'household',
+    topic: 'mobility',
     name: 'Fahrzeuge',
     short: 'Service, Vignette und Reifenwechsel',
     description: 'Erinnert an Service und Fristen und rechnet die Kosten pro Fahrzeug zusammen.',
@@ -262,6 +320,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'budget',
     area: 'money',
+    topic: 'spending',
     name: 'Budget',
     short: 'Was reinkommt, was rausgeht, was bleibt',
     description: 'Ordnet Ausgaben in Kategorien und zeigt, wo der Monat hingeht.',
@@ -272,6 +331,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'bills',
     area: 'money',
+    topic: 'spending',
     name: 'Rechnungen',
     short: 'Fällig, bezahlt, offen',
     description:
@@ -286,6 +346,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'subscriptions',
     area: 'money',
+    topic: 'spending',
     name: 'Abos',
     short: 'Was monatlich abgeht, und was weg könnte',
     description:
@@ -297,6 +358,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     id: 'savings',
     area: 'money',
+    topic: 'saving',
     name: 'Sparziele',
     short: 'Ein Ziel, ein Betrag, ein Datum',
     description: 'Rechnet aus, was pro Monat nötig ist, und zeigt, wie weit ihr seid.',
@@ -341,6 +403,9 @@ export const BUILT_MODULE_IDS: readonly string[] = [
   'habits',
   'travel',
   'contacts',
+  'birthdays',
+  'mail',
+  'weather',
   'recipes',
   'plants',
   'pets',

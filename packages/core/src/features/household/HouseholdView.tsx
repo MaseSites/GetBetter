@@ -89,11 +89,8 @@ export function HouseholdView() {
           />
         }
       >
-        <EmptyState
-          icon="people"
-          title={t('household.none.title')}
-          body={t('household.none.body')}
-        />
+        {/* Die Karten zum Anlegen und Beitreten gehoeren direkt darunter, nicht an den Rand. */}
+        <EmptyState compact title={t('household.none.title')} body={t('household.none.body')} />
 
         <Card title={t('household.create.title')} subtitle={t('household.create.body')}>
           <Input

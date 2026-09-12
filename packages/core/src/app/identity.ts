@@ -75,7 +75,19 @@ export const APPS: Readonly<Record<AppId, AppIdentity>> = {
  * jedes Modul gehoert genau einer App.
  */
 export const APP_MODULES: Readonly<Record<AppId, readonly string[]>> = {
-  getbetter: ['calendar', 'tasks', 'notes', 'alarm', 'documents', 'habits', 'travel', 'contacts'],
+  getbetter: [
+    'calendar',
+    'tasks',
+    'notes',
+    'alarm',
+    'weather',
+    'documents',
+    'habits',
+    'travel',
+    'contacts',
+    'birthdays',
+    'mail',
+  ],
   // Der Familienkalender gehoert hierher; den privaten fuehrt GetBetter.
   betterfamily: ['calendar', 'shopping', 'chores', 'recipes', 'plants', 'pets', 'vehicles'],
   bettergym: ['fitness', 'meals', 'sleep', 'water', 'meds', 'vitals', 'mind'],

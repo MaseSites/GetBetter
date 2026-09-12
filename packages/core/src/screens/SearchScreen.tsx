@@ -40,7 +40,7 @@ type Found = { key: string; title: string; meta?: string; match: boolean };
  *
  * Ein Feld, darunter die Treffer — erst die Funktionen, dann was in ihnen
  * steht. Jede App sucht nur in ihren eigenen Funktionen. Solange nichts
- * eingetippt ist, steht dort, wonach man suchen kann, statt einer leeren Flaeche.
+ * eingetippt ist, stehen alle Funktionen da, statt einer leeren Flaeche.
  */
 export function SearchScreen() {
   const { t, language } = useI18n();
@@ -111,20 +111,23 @@ export function SearchScreen() {
       }));
   }
 
+  const moduleHits: Hit[] = modules
+    .filter((module) => needle.length === 0 || has(module.name) || has(module.short))
+    .map((module) => ({
+      key: `m-${module.id}`,
+      moduleId: module.id,
+      icon: module.icon,
+      title: module.name,
+      meta: module.short,
+      onPress: () => router.push(`/run/${module.id}`),
+    }));
+
+  // Ohne Eingabe stehen alle Funktionen da; Eintraege kommen erst mit einem Wort.
   const hits: Hit[] =
     needle.length === 0
-      ? []
+      ? moduleHits
       : [
-          ...modules
-            .filter((module) => has(module.name) || has(module.short))
-            .map((module) => ({
-              key: `m-${module.id}`,
-              moduleId: module.id,
-              icon: module.icon,
-              title: module.name,
-              meta: module.short,
-              onPress: () => router.push(`/run/${module.id}`),
-            })),
+          ...moduleHits,
           ...from('tasks', 'checkCircle', taskList.data, (row) => ({
             key: `t-${row.id}`,
             title: row.title,
@@ -215,11 +218,7 @@ export function SearchScreen() {
         />
       </View>
 
-      {needle.length === 0 ? (
-        <Text variant="body" tone="muted" style={{ fontSize: theme.fontSize.lede }}>
-          {t('search.hintScoped', { count: modules.length })}
-        </Text>
-      ) : hits.length === 0 ? (
+      {hits.length === 0 ? (
         <Text variant="body" tone="muted" style={{ fontSize: theme.fontSize.lede }}>
           {t('search.none', { query: query.trim() })}
         </Text>

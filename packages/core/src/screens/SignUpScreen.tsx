@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 
-import { CredentialsForm } from '@/features/auth/CredentialsForm';
+import { SignUpForm } from '@/features/auth/SignUpForm';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 
@@ -10,11 +10,12 @@ export function SignUpScreen() {
   const { signUp } = useApp();
 
   return (
-    <CredentialsForm
+    <SignUpForm
       title={t('auth.signUp.title')}
-      subtitle={t('auth.signUp.subtitle')}
+      subtitle={t('auth.signUp.subtitleFull')}
       submitLabel={t('auth.start.createAccount')}
       switchLabel={t('auth.hasAccount')}
+      bubble={t('intro.signUp.bubble')}
       onSubmit={signUp}
       onSwitch={() => router.replace('/sign-in')}
     />

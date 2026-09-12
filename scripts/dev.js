@@ -38,6 +38,8 @@ const SERVICES = [
   },
 ];
 
+let stopping = false;
+
 const children = SERVICES.map(({ name, command, args }) => {
   const child = spawn(command, args, {
     cwd: ROOT,
@@ -57,10 +59,17 @@ const children = SERVICES.map(({ name, command, args }) => {
   forward(child.stdout, process.stdout);
   forward(child.stderr, process.stderr);
 
+  // Stirbt einer gleich wieder, geht das zwischen den anderen unter. Dann
+  // laeuft die App weiter gegen einen Dienst, den es gar nicht mehr gibt.
+  child.on('exit', (code) => {
+    if (!stopping && code !== 0) process.stderr.write(`[${name}] hat aufgegeben (Code ${code})\n`);
+  });
+
   return child;
 });
 
 function stopAll() {
+  stopping = true;
   for (const child of children) child.kill();
 }
 

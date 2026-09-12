@@ -23,7 +23,7 @@ import {
 } from '@/i18n';
 import { MODULES } from '@/mocks/modules';
 import { useAccount } from '@/state/AppContext';
-import { hueTint, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import {
   BigFigure,
   Header,
@@ -136,7 +136,7 @@ export function HealthHomeScreen() {
       contentStyle={{ paddingTop: theme.spacing.xs }}
       header={
         <Header
-          crumb={{ label: t('area.health'), color: hueTint(theme, 'health').base }}
+          crumb={{ label: t('area.health') }}
           title={formatWeekdayLong(language, new Date())}
         />
       }

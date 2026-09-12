@@ -27,6 +27,7 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -83,19 +84,22 @@ export function DocumentsView({ module }: { module: ModuleDefinition }) {
   });
   const subtitle = soon.length > 0 ? `${countText} · ${soonText}` : countText;
 
+  /** Eine Zeile — nach links wischen loescht, der Tipp oeffnet das Blatt. */
   function row(item: DocumentRow) {
     const expiry = expiryLabel(item);
     return (
-      <ListItem
-        title={item.title}
-        subtitle={item.note ?? categoryLabel(item.category)}
-        right={
-          <Text variant="label" tone={expiry.tone}>
-            {expiry.text}
-          </Text>
-        }
-        onPress={() => setEditor({ mode: 'edit', row: item })}
-      />
+      <SwipeRow onDelete={() => void documentRepo.remove(item.id)}>
+        <ListItem
+          title={item.title}
+          subtitle={item.note ?? categoryLabel(item.category)}
+          right={
+            <Text variant="label" tone={expiry.tone}>
+              {expiry.text}
+            </Text>
+          }
+          onPress={() => setEditor({ mode: 'edit', row: item })}
+        />
+      </SwipeRow>
     );
   }
 
@@ -111,11 +115,7 @@ export function DocumentsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState
-          icon="doc"
-          title={t('documents.empty.title')}
-          body={t('documents.empty.body')}
-        />
+        <EmptyState title={t('documents.empty.title')} body={t('documents.empty.body')} />
       ) : null}
 
       {soon.length > 0 ? (

@@ -1,6 +1,7 @@
 import { findByUsername } from '@/auth/accounts';
 
 import { notifyDataChanged } from './live';
+import { notifications } from './notifications';
 import { db, newId } from './store';
 import type {
   Account,
@@ -204,8 +205,9 @@ export const households = {
     if (existing) return { ok: false, error: 'already_member' };
     if (!(await households.canJoinMore(account.id))) return { ok: false, error: 'limit' };
 
+    const membershipId = newId('hm');
     await db.householdMembers.insert({
-      id: newId('hm'),
+      id: membershipId,
       householdId,
       accountId: account.id,
       role: 'member',
@@ -214,6 +216,17 @@ export const households = {
       joinedAt: now(),
     });
     notifyDataChanged();
+
+    await notifications.announce(async () => {
+      const inviter = await db.accounts.find(invitedBy);
+      return {
+        accountId: account.id,
+        kind: 'householdInvite',
+        title: inviter?.firstName?.trim() || inviter?.username || '—',
+        body: (await db.households.find(householdId))?.name ?? '',
+        ref: { membershipId, householdId },
+      };
+    });
     return { ok: true };
   },
 
@@ -240,13 +253,18 @@ export const households = {
 
   async respond(membershipId: string, accept: boolean): Promise<boolean> {
     const membership = await db.householdMembers.find(membershipId);
-    if (!membership) return false;
+    if (!membership) {
+      // Schon zurueckgenommen — die Mitteilung dazu soll nicht stehen bleiben.
+      await forgetInvite(membershipId);
+      return false;
+    }
     if (!accept) {
       await db.householdMembers.remove(membershipId);
       notifyDataChanged();
+      await forgetInvite(membershipId);
       return true;
     }
-    // Das Limit gilt auch beim Annehmen.
+    // Das Limit gilt auch beim Annehmen — dann bleibt die Einladung offen.
     if (!(await households.canJoinMore(membership.accountId))) return false;
     await db.householdMembers.update(membershipId, {
       status: 'accepted',
@@ -261,6 +279,7 @@ export const households = {
       await adoptExistingData(membership.accountId, membership.householdId);
     }
     notifyDataChanged();
+    await forgetInvite(membershipId);
     return true;
   },
 
@@ -274,6 +293,13 @@ export const households = {
       await db.accounts.update(accountId, { householdId: others[0]?.household.id ?? null });
     }
     notifyDataChanged();
+    // Auch eine offene Einladung laesst sich so zuruecknehmen.
+    await notifications.removeByRef({
+      accountId,
+      kind: 'householdInvite',
+      key: 'householdId',
+      value: householdId,
+    });
   },
 
   async rename(householdId: string, name: string) {
@@ -350,6 +376,15 @@ export const households = {
     notifyDataChanged();
   },
 };
+
+/** Beantwortet oder zurueckgenommen: die Mitteilung zur Einladung hat sich erledigt. */
+async function forgetInvite(membershipId: string): Promise<void> {
+  await notifications.removeByRef({
+    kind: 'householdInvite',
+    key: 'membershipId',
+    value: membershipId,
+  });
+}
 
 /**
  * Beim Eintritt wandert mit, was ohnehin geteilt gedacht war: die

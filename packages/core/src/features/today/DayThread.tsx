@@ -27,6 +27,20 @@ export type DayEntry = {
   onToggle?: () => void;
 };
 
+/**
+ * Was den ganzen Tag gilt: ein ganztaegiger Termin, ein Geburtstag. Es hat
+ * keine Uhrzeit und steht darum nicht im Band, sondern als Zeile darueber.
+ */
+export type AllDayEntry = {
+  key: string;
+  title: string;
+  /** Die Farbe des Punkts — die des Termins oder des Bereichs. */
+  color: string;
+  /** Statt des Punkts ein Symbol, etwa das Geschenk beim Geburtstag. */
+  icon?: IconName;
+  onPress?: () => void;
+};
+
 /** Zeitspalte, Schiene und Abstand — so weit ruecken die Karten ein. */
 const TIME = 44;
 const RAIL = 18;
@@ -41,9 +55,33 @@ export const THREAD_INDENT = TIME + RAIL + GUTTER * 2;
  * mit einer Marke fuer *jetzt*. Was eine Uhrzeit hat, steht an ihr; der Rest
  * folgt darunter, ehrlich ohne erfundene Zeit.
  */
-export function DayThread({ entries, now = new Date() }: { entries: readonly DayEntry[]; now?: Date }) {
+export function DayThread({
+  entries,
+  allDay = [],
+  now = new Date(),
+  showNow = true,
+}: {
+  entries: readonly DayEntry[];
+  /** Ganztaegiges steht als eigene Zeile ueber dem Band. */
+  allDay?: readonly AllDayEntry[];
+  now?: Date;
+  /** Die Jetzt-Marke gehoert zu heute. An anderen Tagen gibt es kein Jetzt. */
+  showNow?: boolean;
+}) {
   const { language } = useI18n();
-  if (entries.length === 0) return null;
+  const lane = allDay.length > 0 ? <AllDayLane entries={allDay} /> : null;
+
+  // Auch ohne Eintraege bleibt der Faden stehen — blass, mit der Uhrzeit und
+  // einem Satz. So springt die Startseite nicht, wenn der erste Termin kommt.
+  if (entries.length === 0) {
+    return (
+      <View>
+        {lane}
+        {showNow ? <NowMark now={now} muted={!lane} /> : null}
+        {lane ? null : <EmptyRow today={showNow} />}
+      </View>
+    );
+  }
 
   const timed = entries
     .filter((entry): entry is DayEntry & { at: string } => Boolean(entry.at))
@@ -53,10 +91,12 @@ export function DayThread({ entries, now = new Date() }: { entries: readonly Day
 
   const nowIso = now.toISOString();
   const nextIndex = timed.findIndex((entry) => entry.at >= nowIso);
-  const passed = nextIndex === -1 ? timed.length : nextIndex;
+  // -1 trifft keinen Platz: an einem anderen Tag faellt die Marke ganz weg.
+  const passed = showNow ? (nextIndex === -1 ? timed.length : nextIndex) : -1;
 
   return (
     <View>
+      {lane}
       {timed.map((entry, index) => (
         <Fragment key={entry.key}>
           {index === passed ? <NowMark now={now} /> : null}
@@ -71,13 +111,23 @@ export function DayThread({ entries, now = new Date() }: { entries: readonly Day
   );
 }
 
-/** Die Marke fuer die aktuelle Uhrzeit — die einzige Signalfarbe im Band. */
-function NowMark({ now }: { now: Date }) {
+/**
+ * Die Marke fuer die aktuelle Uhrzeit — die einzige Signalfarbe im Band.
+ * `muted` nimmt die Farbe zurueck, wenn heute nichts ansteht.
+ */
+function NowMark({ now, muted = false }: { now: Date; muted?: boolean }) {
   const theme = useTheme();
   const { language } = useI18n();
+  const signal = muted ? theme.colors.borderStrong : theme.colors.accent;
 
   return (
-    <View style={[styles.row, styles.nowRow, { paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm }]}>
+    <View
+      style={[
+        styles.row,
+        styles.nowRow,
+        { paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.sm },
+      ]}
+    >
       <Text
         variant="caption"
         style={[
@@ -86,31 +136,147 @@ function NowMark({ now }: { now: Date }) {
             fontSize: theme.fontSize.caption,
             lineHeight: theme.lineHeight.caption,
             fontWeight: theme.fontWeight.bold,
-            color: theme.colors.text,
+            color: muted ? theme.colors.textFaint : theme.colors.text,
           },
         ]}
       >
         {formatTime(language, now.toISOString())}
       </Text>
       <View style={styles.railNow}>
-        <View style={[styles.line, { backgroundColor: theme.colors.accent }]} />
+        <View style={[styles.line, { backgroundColor: signal }]} />
         <View
           style={[
             styles.pin,
             {
-              backgroundColor: theme.colors.accent,
+              backgroundColor: signal,
               borderColor: theme.colors.background,
-              boxShadow: `0 0 0 1.5px ${theme.colors.accent}`,
+              boxShadow: `0 0 0 1.5px ${signal}`,
             },
           ]}
         />
       </View>
       <LinearGradient
-        colors={[theme.colors.accent, `${theme.colors.accent}00`]}
+        colors={[signal, `${signal}00`]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.nowLine}
       />
+    </View>
+  );
+}
+
+/**
+ * Die Zeile fuer den ganzen Tag, ganz oben am Band — wie die Ganztags-Leiste
+ * im Kalender. Links statt einer Uhrzeit ein Kalenderblatt, rechts je Eintrag
+ * eine Pille; sie brechen um, statt seitlich zu rollen.
+ */
+function AllDayLane({ entries }: { entries: readonly AllDayEntry[] }) {
+  const theme = useTheme();
+  const { t } = useI18n();
+
+  return (
+    <View style={[styles.row, { paddingBottom: theme.spacing.sm }]}>
+      <View
+        accessible
+        accessibilityLabel={t('today.allDayLane')}
+        style={[styles.time, styles.laneIcon, { paddingTop: theme.spacing.md }]}
+      >
+        <Icon name="calendar" size={14} color={theme.colors.textFaint} />
+      </View>
+      <View style={styles.rail}>
+        <View style={[styles.line, { backgroundColor: theme.colors.border }]} />
+        <View
+          style={[
+            styles.dot,
+            {
+              marginTop: theme.spacing.lg,
+              borderColor: theme.colors.borderStrong,
+              backgroundColor: theme.colors.surface,
+            },
+          ]}
+        />
+      </View>
+      <View style={[styles.grow, styles.pills, { gap: theme.spacing.sm }]}>
+        {entries.map((entry) => (
+          <Pressable
+            key={entry.key}
+            accessibilityRole={entry.onPress ? 'button' : undefined}
+            accessibilityLabel={`${entry.title} — ${t('today.allDay')}`}
+            disabled={!entry.onPress}
+            onPress={entry.onPress}
+            style={({ pressed }) => [
+              styles.pill,
+              theme.elevation.card,
+              {
+                gap: theme.spacing.xs,
+                borderRadius: theme.radii.pill,
+                paddingHorizontal: theme.spacing.md,
+                backgroundColor: theme.colors.surface,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            {entry.icon ? (
+              <Icon name={entry.icon} size={14} color={entry.color} />
+            ) : (
+              <View style={[styles.pillDot, { backgroundColor: entry.color }]} />
+            )}
+            <Text
+              variant="label"
+              numberOfLines={1}
+              style={[styles.title, { fontWeight: theme.fontWeight.semibold }]}
+            >
+              {entry.title}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Der leere Tag: dieselbe Schiene, eine blasse Karte ohne Schatten. */
+function EmptyRow({ today }: { today: boolean }) {
+  const theme = useTheme();
+  const { t } = useI18n();
+  // An einem anderen Tag waere „heute“ gelogen — dort steht die kurze Fassung.
+  const label = t(today ? 'today.thread.empty' : 'today.thread.emptyDay');
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={label}
+      style={[styles.row, { paddingBottom: theme.spacing.sm }]}
+    >
+      <View style={styles.time} />
+      <View style={styles.rail}>
+        <View style={[styles.line, { backgroundColor: theme.colors.border }]} />
+        <View
+          style={[
+            styles.dot,
+            {
+              marginTop: theme.spacing.lg,
+              borderColor: theme.colors.borderStrong,
+              backgroundColor: theme.colors.surface,
+            },
+          ]}
+        />
+      </View>
+      <View
+        style={[
+          styles.grow,
+          styles.card,
+          {
+            borderRadius: theme.radii.item,
+            padding: theme.spacing.md,
+            backgroundColor: theme.colors.surfaceMuted,
+          },
+        ]}
+      >
+        <Text variant="label" tone="faint" style={{ fontWeight: theme.fontWeight.medium }}>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -219,7 +385,11 @@ function Row({ entry, time, live }: { entry: DayEntry; time: string; live: boole
         <View
           style={[
             styles.dot,
-            { marginTop: theme.spacing.lg, borderColor: area, backgroundColor: theme.colors.surface },
+            {
+              marginTop: theme.spacing.lg,
+              borderColor: area,
+              backgroundColor: theme.colors.surface,
+            },
           ]}
         />
       </View>
@@ -257,4 +427,8 @@ const styles = StyleSheet.create({
   tick: { width: 18, height: 18, borderRadius: 999, borderWidth: 1.7 },
   title: { flexShrink: 1 },
   tag: { marginLeft: 'auto', flexShrink: 0 },
+  laneIcon: { alignItems: 'flex-end' },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+  pill: { flexDirection: 'row', alignItems: 'center', minHeight: 34, maxWidth: '100%' },
+  pillDot: { width: 8, height: 8, borderRadius: 999 },
 });

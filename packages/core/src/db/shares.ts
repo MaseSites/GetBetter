@@ -1,6 +1,7 @@
 import { findByUsername } from '@/auth/accounts';
 
 import { notifyDataChanged } from './live';
+import { notifications } from './notifications';
 import { db, newId } from './store';
 import type { Account, CalendarShareRow } from './types';
 
@@ -78,8 +79,9 @@ export const shares = {
     );
     if (existing) return { ok: false, error: 'already_asked' };
 
+    const shareId = newId('cs');
     await db.calendarShares.insert({
-      id: newId('cs'),
+      id: shareId,
       ownerId: account.id,
       viewerId,
       status: 'pending',
@@ -87,6 +89,15 @@ export const shares = {
       respondedAt: null,
     });
     notifyDataChanged();
+
+    // Die gefragte Person bekommt eine Mitteilung — zu beantworten ueber die Freigabe.
+    await notifications.announce(async () => ({
+      accountId: account.id,
+      kind: 'calendarShare',
+      title: nameOf(await db.accounts.find(viewerId)),
+      body: '',
+      ref: { shareId },
+    }));
     return { ok: true };
   },
 
@@ -97,11 +108,18 @@ export const shares = {
       await db.calendarShares.remove(shareId);
     }
     notifyDataChanged();
+    await forgetRequest(shareId);
   },
 
   /** Zuruecknehmen — von beiden Seiten aus dieselbe Zeile. */
   async remove(shareId: string) {
     await db.calendarShares.remove(shareId);
     notifyDataChanged();
+    await forgetRequest(shareId);
   },
 };
+
+/** Beantwortet oder zurueckgenommen: die Mitteilung dazu hat sich erledigt. */
+async function forgetRequest(shareId: string): Promise<void> {
+  await notifications.removeByRef({ kind: 'calendarShare', key: 'shareId', value: shareId });
+}

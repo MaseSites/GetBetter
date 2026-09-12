@@ -23,6 +23,7 @@ import {
   ProgressBar,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -91,30 +92,37 @@ export function TripsView({ module }: { module: ModuleDefinition }) {
   function card(trip: TripRow, dim = false) {
     const own = items.filter((item) => item.tripId === trip.id);
     const packed = own.filter((item) => item.packed).length;
+    // Loeschen: nach links wischen, oder unten im Blatt der Reise.
     return (
-      <Card key={trip.id} onPress={() => setOpenId(trip.id)} accessibilityLabel={trip.name}>
-        <View style={{ gap: theme.spacing.sm, opacity: dim ? 0.6 : 1 }}>
-          <View style={[styles.row, { gap: theme.spacing.sm }]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="title">{trip.name}</Text>
-              <Text variant="caption" tone="muted">
-                {trip.destination ? `${trip.destination} · ${range(trip)}` : range(trip)}
+      <SwipeRow
+        key={trip.id}
+        radius={theme.radii.md}
+        onDelete={() => void tripRepo.remove(trip.id)}
+      >
+        <Card onPress={() => setOpenId(trip.id)} accessibilityLabel={trip.name}>
+          <View style={{ gap: theme.spacing.sm, opacity: dim ? 0.6 : 1 }}>
+            <View style={[styles.row, { gap: theme.spacing.sm }]}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="title">{trip.name}</Text>
+                <Text variant="caption" tone="muted">
+                  {trip.destination ? `${trip.destination} · ${range(trip)}` : range(trip)}
+                </Text>
+              </View>
+              <Text variant="label" tone={dim ? 'faint' : 'accent'}>
+                {statusLabel(trip)}
               </Text>
             </View>
-            <Text variant="label" tone={dim ? 'faint' : 'accent'}>
-              {statusLabel(trip)}
-            </Text>
+            {own.length > 0 ? (
+              <>
+                <ProgressBar share={packed / own.length} />
+                <Text variant="caption" tone="faint">
+                  {t('trips.packed', { packed, total: own.length })}
+                </Text>
+              </>
+            ) : null}
           </View>
-          {own.length > 0 ? (
-            <>
-              <ProgressBar share={packed / own.length} />
-              <Text variant="caption" tone="faint">
-                {t('trips.packed', { packed, total: own.length })}
-              </Text>
-            </>
-          ) : null}
-        </View>
-      </Card>
+        </Card>
+      </SwipeRow>
     );
   }
 
@@ -130,7 +138,7 @@ export function TripsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="travel" title={t('trips.empty.title')} body={t('trips.empty.body')} />
+        <EmptyState title={t('trips.empty.title')} body={t('trips.empty.body')} />
       ) : null}
 
       {current.map((trip) => card(trip))}
@@ -299,37 +307,42 @@ function TripDetail({
             {items.map((item, index) => (
               <View key={item.id}>
                 {index > 0 ? <Divider /> : null}
-                <View
-                  style={[styles.row, { paddingVertical: theme.spacing.md, gap: theme.spacing.md }]}
-                >
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: item.packed }}
-                    accessibilityLabel={item.name}
-                    onPress={() => void tripRepo.setPacked(item.id, !item.packed)}
-                    hitSlop={8}
+                <SwipeRow onDelete={() => void tripRepo.removeItem(item.id)}>
+                  <View
+                    style={[
+                      styles.row,
+                      { paddingVertical: theme.spacing.md, gap: theme.spacing.md },
+                    ]}
                   >
-                    <Icon
-                      name={item.packed ? 'checkCircle' : 'circle'}
-                      size={24}
-                      color={item.packed ? theme.colors.accent : theme.colors.borderStrong}
-                    />
-                  </Pressable>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      variant="body"
-                      tone={item.packed ? 'faint' : 'default'}
-                      style={item.packed ? { textDecorationLine: 'line-through' } : undefined}
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: item.packed }}
+                      accessibilityLabel={item.name}
+                      onPress={() => void tripRepo.setPacked(item.id, !item.packed)}
+                      hitSlop={8}
                     >
-                      {item.name}
-                    </Text>
+                      <Icon
+                        name={item.packed ? 'checkCircle' : 'circle'}
+                        size={24}
+                        color={item.packed ? theme.colors.accent : theme.colors.borderStrong}
+                      />
+                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        variant="body"
+                        tone={item.packed ? 'faint' : 'default'}
+                        style={item.packed ? { textDecorationLine: 'line-through' } : undefined}
+                      >
+                        {item.name}
+                      </Text>
+                    </View>
+                    <IconButton
+                      icon="trash"
+                      label={t('common.remove')}
+                      onPress={() => void tripRepo.removeItem(item.id)}
+                    />
                   </View>
-                  <IconButton
-                    icon="trash"
-                    label={t('common.remove')}
-                    onPress={() => void tripRepo.removeItem(item.id)}
-                  />
-                </View>
+                </SwipeRow>
               </View>
             ))}
           </Card>

@@ -4,17 +4,21 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { IntroLayer } from '@/features/intro/IntroLayer';
 import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { EmptyState, Loading, PhoneFrame, Screen } from '@/ui';
 
+import { EdgeSwipeBack } from './EdgeSwipeBack';
 import { ErrorBoundary } from './ErrorBoundary';
 import { applyWebChrome, setWebBackground } from './webChrome';
+import { enableDragScroll } from './webDragScroll';
 
-// Schriften und Browser-Regeln einmal beim Laden des Moduls; auf dem Geraet
-// tut der Aufruf nichts.
+// Schriften, Browser-Regeln und Ziehen mit der Maus einmal beim Laden des
+// Moduls; auf dem Geraet tun die Aufrufe nichts.
 applyWebChrome();
+enableDragScroll();
 
 export type RootShellProps = {
   /** Wohin es nach der Anmeldung geht. */
@@ -70,7 +74,6 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
     return (
       <Screen scroll={false} contentStyle={{ flex: 1, justifyContent: 'center' }}>
         <EmptyState
-          icon="warning"
           title={t('db.offline.title')}
           body={t('db.offline.body')}
           actionLabel={t('db.offline.action')}
@@ -91,14 +94,21 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   return (
     <>
       <RouteGuard home={home} hasOnboarding={hasOnboarding} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.background },
-          animation: 'slide_from_right',
-          animationDuration: theme.motion.duration.sheet,
-        }}
-      />
+      {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
+      <IntroLayer hasOnboarding={hasOnboarding}>
+        <EdgeSwipeBack>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: theme.colors.background },
+              animation: 'slide_from_right',
+              animationDuration: theme.motion.duration.sheet,
+              // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
+              gestureEnabled: true,
+            }}
+          />
+        </EdgeSwipeBack>
+      </IntroLayer>
     </>
   );
 }

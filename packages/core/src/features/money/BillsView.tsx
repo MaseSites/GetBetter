@@ -19,6 +19,7 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -89,25 +90,28 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {openRows.length === 0 ? (
-        <EmptyState icon="mail" title={t('bills.empty.title')} body={t('bills.empty.body')} />
+        <EmptyState title={t('bills.empty.title')} body={t('bills.empty.body')} />
       ) : (
         <Card>
           <View>
+            {/* Antippen heisst bezahlt, nach links wischen loescht. */}
             {openRows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={row.title}
-                  icon="circle"
-                  subtitle={
-                    row.dueDay < today
-                      ? t('bills.overdue', { date: formatShortDate(language, row.dueDay) })
-                      : t('bills.dueOn', { date: formatShortDate(language, row.dueDay) })
-                  }
-                  tone={row.dueDay < today ? 'danger' : 'default'}
-                  right={<AmountCell amount={money(row.amountChf)} />}
-                  onPress={() => void billRepo.setPaid(row.id, true)}
-                />
+                <SwipeRow onDelete={() => void billRepo.remove(row.id)}>
+                  <ListItem
+                    title={row.title}
+                    icon="circle"
+                    subtitle={
+                      row.dueDay < today
+                        ? t('bills.overdue', { date: formatShortDate(language, row.dueDay) })
+                        : t('bills.dueOn', { date: formatShortDate(language, row.dueDay) })
+                    }
+                    tone={row.dueDay < today ? 'danger' : 'default'}
+                    right={<AmountCell amount={money(row.amountChf)} />}
+                    onPress={() => void billRepo.setPaid(row.id, true)}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </View>
@@ -124,17 +128,19 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
               {paidRows.map((row, index) => (
                 <View key={row.id}>
                   {index > 0 ? <Divider /> : null}
-                  <ListItem
-                    title={row.title}
-                    icon="checkCircle"
-                    subtitle={formatShortDate(language, row.paidAt ?? row.dueDay)}
-                    right={
-                      <AmountCell
-                        amount={money(row.amountChf)}
-                        onRemove={() => void billRepo.remove(row.id)}
-                      />
-                    }
-                  />
+                  <SwipeRow onDelete={() => void billRepo.remove(row.id)}>
+                    <ListItem
+                      title={row.title}
+                      icon="checkCircle"
+                      subtitle={formatShortDate(language, row.paidAt ?? row.dueDay)}
+                      right={
+                        <AmountCell
+                          amount={money(row.amountChf)}
+                          onRemove={() => void billRepo.remove(row.id)}
+                        />
+                      }
+                    />
+                  </SwipeRow>
                 </View>
               ))}
             </View>

@@ -21,6 +21,7 @@ import {
   Loading,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -72,7 +73,6 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
     return (
       <Screen header={header}>
         <EmptyState
-          icon="people"
           title={t('chores.noHousehold.title')}
           body={t('chores.noHousehold.body')}
           actionLabel={t('chores.noHousehold.action')}
@@ -104,71 +104,77 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
 
       {!list.loading && items.length === 0 ? (
         <EmptyState
-          icon="broom"
           title={onlyMine ? t('chores.empty.mineTitle') : t('chores.empty.title')}
           body={t('chores.empty.body')}
-          {...(onlyMine
-            ? {}
-            : { actionLabel: t('chores.add'), onAction: () => setComposing(true) })}
         />
       ) : null}
 
+      {/* Ein Aemtli loescht man, indem man es nach links wischt. */}
       {items.map((chore) => (
-        <Card key={chore.id}>
-          <View style={[styles.row, { gap: theme.spacing.md }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${t('chores.done')}: ${chore.title}`}
-              onPress={() => choreRepo.complete(chore.id, account.id)}
-              hitSlop={8}
-            >
-              <Icon name="checkCircle" size={26} color={theme.colors.borderStrong} />
-            </Pressable>
+        <SwipeRow
+          key={chore.id}
+          radius={theme.radii.md}
+          onDelete={() => void choreRepo.remove(chore.id)}
+        >
+          <Card>
+            <View style={[styles.row, { gap: theme.spacing.md }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t('chores.done')}: ${chore.title}`}
+                onPress={() => choreRepo.complete(chore.id, account.id)}
+                hitSlop={8}
+              >
+                <Icon name="checkCircle" size={26} color={theme.colors.borderStrong} />
+              </Pressable>
 
-            <View style={{ flex: 1, gap: theme.spacing.xs }}>
-              <Text variant="body">{chore.title}</Text>
-              <View style={[styles.meta, { gap: theme.spacing.sm }]}>
-                <Badge label={t(`chores.repeat.${chore.repeat}` as TranslationKey)} icon="repeat" />
-                {chore.dueAt ? (
-                  <Text variant="caption" tone="muted">
-                    {t('chores.due', { date: formatShortDate(language, chore.dueAt) })}
+              <View style={{ flex: 1, gap: theme.spacing.xs }}>
+                <Text variant="body">{chore.title}</Text>
+                <View style={[styles.meta, { gap: theme.spacing.sm }]}>
+                  <Badge
+                    label={t(`chores.repeat.${chore.repeat}` as TranslationKey)}
+                    icon="repeat"
+                  />
+                  {chore.dueAt ? (
+                    <Text variant="caption" tone="muted">
+                      {t('chores.due', { date: formatShortDate(language, chore.dueAt) })}
+                    </Text>
+                  ) : null}
+                </View>
+                {chore.lastDoneAt ? (
+                  <Text variant="caption" tone="faint">
+                    {t('chores.lastDone', {
+                      name: nameOf(chore.lastDoneBy),
+                      date: formatShortDate(language, chore.lastDoneAt),
+                    })}
                   </Text>
                 ) : null}
               </View>
-              {chore.lastDoneAt ? (
-                <Text variant="caption" tone="faint">
-                  {t('chores.lastDone', {
-                    name: nameOf(chore.lastDoneBy),
-                    date: formatShortDate(language, chore.lastDoneAt),
-                  })}
-                </Text>
-              ) : null}
-            </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${t('chores.assign')}: ${chore.title}`}
-              onPress={() => setAssigning(chore)}
-              style={({ pressed }) => [styles.assignee, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              {chore.assignedTo ? (
-                <Avatar name={nameOf(chore.assignedTo)} size={32} />
-              ) : (
-                <View
-                  style={[
-                    styles.openSlot,
-                    { borderColor: theme.colors.borderStrong, borderRadius: 16 },
-                  ]}
-                >
-                  <Icon name="plus" size={16} color={theme.colors.textFaint} />
-                </View>
-              )}
-              <Text variant="caption" tone="faint" numberOfLines={1}>
-                {nameOf(chore.assignedTo)}
-              </Text>
-            </Pressable>
-          </View>
-        </Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t('chores.assign')}: ${chore.title}`}
+                onPress={() => setAssigning(chore)}
+                style={({ pressed }) => [styles.assignee, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                {chore.assignedTo ? (
+                  <Avatar name={nameOf(chore.assignedTo)} size={32} />
+                ) : (
+                  <View
+                    style={[
+                      styles.openSlot,
+                      { borderColor: theme.colors.borderStrong, borderRadius: 16 },
+                    ]}
+                  >
+                    <Icon name="plus" size={16} color={theme.colors.textFaint} />
+                  </View>
+                )}
+                <Text variant="caption" tone="faint" numberOfLines={1}>
+                  {nameOf(chore.assignedTo)}
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+        </SwipeRow>
       ))}
 
       <ChoreComposer

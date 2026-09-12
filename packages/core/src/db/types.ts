@@ -23,6 +23,22 @@ export type Account = Row & {
   selectedAreas: readonly string[];
   /** Der Haushalt, in dem dieses Konto gerade ist. */
   householdId: string | null;
+  /** Der Ort fuers Wetter; ohne ihn nimmt die App Zuerich. */
+  weatherPlace?: WeatherPlace;
+  /** Wie der Assistent heisst — beim Einrichten vergeben. */
+  assistantName?: string;
+  /**
+   * Der Hintergrund: fehlt er oder steht er auf `app`, zeigt jede App ihr eigenes
+   * Bild; sonst ein Schluessel aus `BACKDROPS` oder `upload:<id>` fuer ein eigenes.
+   */
+  backdrop?: string;
+  /** Schnellzugriff und Favoriten als `appId:moduleId`, in der gewaehlten Reihenfolge. */
+  favorites?: readonly string[];
+  /**
+   * Der Schnellzugriff auf der Startseite — eine **eigene** Liste, nicht die
+   * Favoriten: was man oft braucht, ist nicht dasselbe wie was man mag.
+   */
+  quickAccess?: readonly string[];
   createdAt: string;
 };
 
@@ -476,7 +492,80 @@ export type AlarmRow = Row & {
   /** Wochentage als 'mo' | 'di' | ... */
   days: readonly string[];
   enabled: boolean;
+  /** Klingelton, Schluessel aus ALARM_SOUNDS. Aeltere Zeilen kennen ihn nicht. */
+  sound?: string;
+  snooze?: boolean;
+  snoozeMinutes?: number;
   createdAt: string;
+};
+
+/** Der Ort, fuer den das Wetter gilt. */
+export type WeatherPlace = { name: string; lat: number; lon: number };
+
+/** Woher eine Mitteilung kommt — danach richten sich ihre Knoepfe. */
+export type NotificationKind =
+  'calendarShare' | 'calendarInvite' | 'householdInvite' | 'mail' | 'system';
+
+/**
+ * Eine Mitteilung fuer die Glocke und fuer „Was gibt's Neues“. Die Sammlung
+ * gehoert dem Dienst: Apps lesen sie, schreiben aber nur ueber
+ * `/v1/notifications` — sonst ueberschriebe eine App, was der Dienst gerade
+ * fuer eine neue E-Mail angelegt hat.
+ */
+export type NotificationRow = Row & {
+  accountId: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** Worauf sie zeigt, je Art eigene Felder: shareId, membershipId, mailMessageId … */
+  ref: Readonly<Record<string, string>>;
+  /** Aus welcher App sie stammt. */
+  app: string;
+  createdAt: string;
+  /** Gesetzt, sobald sie in „Was gibt's Neues“ als gelesen markiert wurde. */
+  readAt: string | null;
+};
+
+/** Ein verbundenes E-Mail-Konto — ohne Passwort; das bleibt verschluesselt beim Dienst. */
+export type MailAccountRow = Row & {
+  accountId: string;
+  email: string;
+  displayName: string;
+  /** Erkannter Anbieter (`gmx`, `gmail` …) oder `custom`. */
+  provider: string;
+  username: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  connectedAt: string;
+  lastSyncAt: string | null;
+  lastError: string | null;
+};
+
+export type MailAddress = { name: string; address: string };
+
+/** Eine E-Mail aus dem Posteingang, wie der Dienst sie abgeholt hat. Gehoert dem Dienst. */
+export type MailMessageRow = Row & {
+  accountId: string;
+  mailAccountId: string;
+  folder: string;
+  uid: number;
+  messageId: string | null;
+  from: MailAddress;
+  to: readonly MailAddress[];
+  cc: readonly MailAddress[];
+  subject: string;
+  /** ISO-Zeitpunkt. */
+  date: string;
+  snippet: string;
+  /** Der Text der Nachricht, ohne HTML, gekuerzt. */
+  text: string;
+  seen: boolean;
+  /** Kam nach dem Verbinden an — nur solche werden zu Neuigkeiten. */
+  arrivedAfterConnect: boolean;
 };
 
 /** Name -> Zeilentyp. Eine Stelle, an der alle Sammlungen stehen. */
@@ -522,6 +611,9 @@ export type Schema = {
   moods: MoodRow;
   chats: ChatRow;
   chatMessages: ChatMessageRow;
+  notifications: NotificationRow;
+  mailAccounts: MailAccountRow;
+  mailMessages: MailMessageRow;
 };
 
 export const COLLECTION_NAMES = [
@@ -566,6 +658,9 @@ export const COLLECTION_NAMES = [
   'moods',
   'chats',
   'chatMessages',
+  'notifications',
+  'mailAccounts',
+  'mailMessages',
 ] as const satisfies readonly (keyof Schema)[];
 
 export type CollectionName = keyof Schema;

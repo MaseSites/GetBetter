@@ -99,6 +99,15 @@ function isVisible(
   return sources.some((source) => matchesSource(row, access, source));
 }
 
+/** Die eigenen Kalender: der private, die Haushalte, die selbst angelegten. */
+function ownSources(access: CalendarAccess): CalendarSource[] {
+  return [
+    'personal',
+    ...access.householdIds.map((id) => `house:${id}` as const),
+    ...access.calendarIds.map((id) => `cal:${id}` as const),
+  ];
+}
+
 /** Liegt ein Termin in mehreren angezeigten Kalendern, steht er trotzdem einmal da. */
 function dedupe(rows: readonly EventRow[]): EventRow[] {
   const seen = new Set<string>();
@@ -131,15 +140,17 @@ export const events = {
   },
 
   /** Fuer die Startseite: alles Eigene, quer ueber die eigenen Kalender. */
-  listUpcoming(access: CalendarAccess, fromIso: string, limit?: number) {
-    const own: CalendarSource[] = [
-      'personal',
-      ...access.householdIds.map((id) => `house:${id}` as const),
-      ...access.calendarIds.map((id) => `cal:${id}` as const),
-    ];
+  listUpcoming(
+    access: CalendarAccess,
+    fromIso: string,
+    limit?: number,
+    options: { timedOnly?: boolean } = {},
+  ) {
+    const own = ownSources(access);
     return db.events
       .list({
         where: (row) =>
+          (!options.timedOnly || !row.allDay) &&
           (row.endsAt ?? row.startsAt) >= fromIso &&
           row.accountId === access.accountId &&
           isVisible(row, access, own),
@@ -149,6 +160,49 @@ export const events = {
         const unique = dedupe(rows);
         return limit === undefined ? unique : unique.slice(0, limit);
       });
+  },
+
+  /**
+   * Ein ganzer Tag fuer das Tagesband: dasselbe Eigene wie `listUpcoming`, nur
+   * auf einen Tag begrenzt — so zeigt das Band auch morgen und uebermorgen.
+   */
+  listDay(
+    access: CalendarAccess,
+    fromIso: string,
+    toIso: string,
+    options: { timedOnly?: boolean } = {},
+  ) {
+    const own = ownSources(access);
+    return db.events
+      .list({
+        where: (row) =>
+          (!options.timedOnly || !row.allDay) &&
+          row.startsAt >= fromIso &&
+          row.startsAt < toIso &&
+          row.accountId === access.accountId &&
+          isVisible(row, access, own),
+        sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
+      })
+      .then(dedupe);
+  },
+
+  /**
+   * Das Ganztaegige eines Tages — fuer die Zeile oben am Tagesband. Ohne
+   * Uhrzeit gehoert es nicht zwischen die Termine, sondern ueber sie.
+   */
+  listAllDay(access: CalendarAccess, fromIso: string, toIso: string) {
+    const own = ownSources(access);
+    return db.events
+      .list({
+        where: (row) =>
+          row.allDay &&
+          row.startsAt >= fromIso &&
+          row.startsAt < toIso &&
+          row.accountId === access.accountId &&
+          isVisible(row, access, own),
+        sort: (a, b) => a.title.localeCompare(b.title),
+      })
+      .then(dedupe);
   },
 
   /** Alle Kopien eines Termins, damit der Editor die Kalender vorwaehlen kann. */
@@ -560,6 +614,9 @@ export const alarms = {
     time: string;
     label?: string;
     days?: readonly string[];
+    sound?: string;
+    snooze?: boolean;
+    snoozeMinutes?: number;
   }): Promise<AlarmRow> {
     const row: AlarmRow = {
       id: newId('al'),
@@ -568,6 +625,9 @@ export const alarms = {
       label: input.label?.trim() ?? '',
       days: input.days ?? [],
       enabled: true,
+      ...(input.sound ? { sound: input.sound } : {}),
+      ...(input.snooze !== undefined ? { snooze: input.snooze } : {}),
+      ...(input.snoozeMinutes !== undefined ? { snoozeMinutes: input.snoozeMinutes } : {}),
       createdAt: now(),
     };
     return changed(await db.alarms.insert(row));

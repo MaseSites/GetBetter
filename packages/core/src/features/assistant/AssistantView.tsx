@@ -49,6 +49,9 @@ function Conversation() {
   const t = useTranslate();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { account } = useApp();
+  // Wer ihm unter Aussehen einen Namen gibt, wird von ihm mit diesem Namen begruesst.
+  const name = account?.assistantName?.trim() ?? '';
 
   const [messages, setMessages] = useState<readonly AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -126,7 +129,11 @@ function Conversation() {
             value={draft}
             onChangeText={setDraft}
             onSubmit={() => ask(draft.trim())}
-            placeholder={t('assistant.placeholder')}
+            placeholder={
+              name
+                ? t('personalize.assistant.placeholderNamed', { name })
+                : t('assistant.placeholder')
+            }
             sendLabel={t('assistant.send')}
             busy={thinking}
           />
@@ -150,8 +157,9 @@ function Conversation() {
       >
         {messages.length === 0 && !thinking ? (
           <EmptyState
-            icon="sparkles"
-            title={t('assistant.empty.title')}
+            title={
+              name ? t('personalize.assistant.greeting', { name }) : t('assistant.empty.title')
+            }
             body={t('assistant.empty.body')}
           />
         ) : null}
@@ -160,7 +168,12 @@ function Conversation() {
           <Message key={message.id} message={message} />
         ))}
 
-        {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
+        {thinking ? (
+          <Loading
+            label={name ? t('personalize.assistant.thinking', { name }) : t('assistant.thinking')}
+            compact
+          />
+        ) : null}
       </ScrollView>
     </Screen>
   );

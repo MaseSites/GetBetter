@@ -8,8 +8,8 @@ import { relativeDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
 import { AI_CHAT_CANNED_REPLY, AI_CHAT_STARTERS } from '@/mocks/aiChat';
 import { useAccount } from '@/state/AppContext';
-import { hueTint, useTheme } from '@/theme';
-import { ComposeBar, EmptyState, Header, Screen, SuggestionChip, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { ComposeBar, EmptyState, Header, Screen, SuggestionChip, SwipeRow, Text } from '@/ui';
 
 /**
  * Die Startseite von BetterAi: die Gespraeche, das Neueste zuerst — auf der
@@ -71,12 +71,14 @@ function Chats() {
       header={
         <Header
           large
-          crumb={{ label: t('tabs.assistant'), color: hueTint(theme, 'ai').base }}
+          crumb={{ label: t('tabs.assistant') }}
           title={t('chats.title')}
           subtitle={t(rows.length === 1 ? 'chats.count.one' : 'chats.count', {
             count: rows.length,
           })}
-          actions={[{ icon: 'plus' as const, label: t('chats.new'), onPress: () => void startChat() }]}
+          actions={[
+            { icon: 'plus' as const, label: t('chats.new'), onPress: () => void startChat() },
+          ]}
         />
       }
       footer={
@@ -119,52 +121,58 @@ function Chats() {
         showsVerticalScrollIndicator={false}
       >
         {rows.length === 0 ? (
-          <EmptyState icon="sparkles" title={t('chats.empty.title')} body={t('chats.empty.body')} />
+          <EmptyState title={t('chats.empty.title')} body={t('chats.empty.body')} />
         ) : null}
 
         {rows.map((chat) => {
           const preview = previews.get(chat.id);
           const title = chat.title || t('chats.untitled');
+          // Loeschen: nach links wischen, oder im Gespraech selbst.
           return (
-            <Pressable
+            <SwipeRow
               key={chat.id}
-              accessibilityRole="button"
-              accessibilityLabel={title}
-              onPress={() => router.push(`/chat/${chat.id}`)}
-              style={({ pressed }) => ({
-                gap: theme.spacing.xs,
-                padding: theme.spacing.lg,
-                borderRadius: theme.radii.item,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-                backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
-              })}
+              radius={theme.radii.item}
+              onDelete={() => void chatRepo.remove(chat.id)}
             >
-              <View
-                style={{ flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing.sm }}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={title}
+                onPress={() => router.push(`/chat/${chat.id}`)}
+                style={({ pressed }) => ({
+                  gap: theme.spacing.xs,
+                  padding: theme.spacing.lg,
+                  borderRadius: theme.radii.item,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
+                })}
               >
-                <Text
-                  variant="label"
-                  numberOfLines={1}
-                  style={{
-                    flex: 1,
-                    fontSize: theme.fontSize.lede,
-                    lineHeight: theme.lineHeight.lede,
-                    fontWeight: theme.fontWeight.semibold,
-                  }}
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing.sm }}
                 >
-                  {title}
-                </Text>
-                <Text variant="caption" tone="faint">
-                  {relativeDay(t, language, dayKey(new Date(chat.updatedAt)))}
-                </Text>
-              </View>
-              {preview ? (
-                <Text variant="label" tone="muted" numberOfLines={2}>
-                  {preview.text}
-                </Text>
-              ) : null}
-            </Pressable>
+                  <Text
+                    variant="label"
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      fontSize: theme.fontSize.lede,
+                      lineHeight: theme.lineHeight.lede,
+                      fontWeight: theme.fontWeight.semibold,
+                    }}
+                  >
+                    {title}
+                  </Text>
+                  <Text variant="caption" tone="faint">
+                    {relativeDay(t, language, dayKey(new Date(chat.updatedAt)))}
+                  </Text>
+                </View>
+                {preview ? (
+                  <Text variant="label" tone="muted" numberOfLines={2}>
+                    {preview.text}
+                  </Text>
+                ) : null}
+              </Pressable>
+            </SwipeRow>
           );
         })}
       </ScrollView>

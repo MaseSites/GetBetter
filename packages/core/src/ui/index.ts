@@ -38,8 +38,11 @@ export type { PhoneFrameMetrics } from './PhoneFrame';
 export { Screen } from './Screen';
 export { Segmented } from './Segmented';
 export { Sheet } from './Sheet';
+export { SwipeRow } from './SwipeRow';
 export { Text } from './Text';
 export { usePressScale } from './usePressScale';
+export { useSwipeSteps } from './useSwipeSteps';
+export { Wheel, WheelFrame } from './Wheel';
 
 export type { AddBarProps } from './AddBar';
 export type { AppIconProps } from './AppIcon';
@@ -64,4 +67,6 @@ export type { LoadingProps } from './Loading';
 export type { ScreenProps } from './Screen';
 export type { SegmentedOption, SegmentedProps } from './Segmented';
 export type { SheetProps } from './Sheet';
+export type { SwipeRowProps } from './SwipeRow';
+export type { WheelProps } from './Wheel';
 export type { TextProps, TextTone, TextVariant } from './Text';

@@ -25,6 +25,7 @@ import {
   ProgressBar,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -108,7 +109,7 @@ export function SleepView({ module }: { module: ModuleDefinition }) {
           </View>
         </Card>
       ) : (
-        <EmptyState icon="sleep" title={t('sleep.empty.title')} body={t('sleep.empty.body')} />
+        <EmptyState title={t('sleep.empty.title')} body={t('sleep.empty.body')} />
       )}
 
       {/* Der Tipp: vom ersten Termin morgen zurueckgerechnet. */}
@@ -128,11 +129,13 @@ export function SleepView({ module }: { module: ModuleDefinition }) {
           {rows.slice(1).map((row, index) => (
             <View key={row.id}>
               {index > 0 ? <Divider /> : null}
-              <ListItem
-                title={durationText(t, sleepMinutes(row))}
-                subtitle={`${relativeDay(t, language, row.day)} · ${row.bedtime} – ${row.wakeTime} · ${qualityLabel(row.quality)}`}
-                right={<RemoveButton onPress={() => void sleepRepo.remove(row.id)} />}
-              />
+              <SwipeRow onDelete={() => void sleepRepo.remove(row.id)}>
+                <ListItem
+                  title={durationText(t, sleepMinutes(row))}
+                  subtitle={`${relativeDay(t, language, row.day)} · ${row.bedtime} – ${row.wakeTime} · ${qualityLabel(row.quality)}`}
+                  right={<RemoveButton onPress={() => void sleepRepo.remove(row.id)} />}
+                />
+              </SwipeRow>
             </View>
           ))}
         </Card>

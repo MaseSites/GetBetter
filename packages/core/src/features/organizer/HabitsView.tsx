@@ -21,6 +21,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -104,19 +105,25 @@ export function HabitsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="repeat" title={t('habits.empty.title')} body={t('habits.empty.body')} />
+        <EmptyState title={t('habits.empty.title')} body={t('habits.empty.body')} />
       ) : null}
 
+      {/* Loeschen: nach links wischen, oder ueber den Papierkorb auf der Karte. */}
       {rows.map((habit) => (
-        <HabitCard
+        <SwipeRow
           key={habit.id}
-          habit={habit}
-          days={ticks.get(habit.id) ?? new Set<string>()}
-          week={week}
-          today={today}
-          onToggle={(day) => void habitRepo.toggle(habit.id, account.id, day)}
-          onRemove={() => void habitRepo.remove(habit.id)}
-        />
+          radius={theme.radii.md}
+          onDelete={() => void habitRepo.remove(habit.id)}
+        >
+          <HabitCard
+            habit={habit}
+            days={ticks.get(habit.id) ?? new Set<string>()}
+            week={week}
+            today={today}
+            onToggle={(day) => void habitRepo.toggle(habit.id, account.id, day)}
+            onRemove={() => void habitRepo.remove(habit.id)}
+          />
+        </SwipeRow>
       ))}
 
       <FloatingButton label={t('habits.add')} onPress={() => setAdding(true)} />
@@ -191,7 +198,9 @@ function HabitCard({
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="title">{habit.name}</Text>
             <View style={[styles.head, { gap: theme.spacing.xs }]}>
-              {streak > 0 ? <Icon name="flame" size={14} color={theme.colors.accentStrong} /> : null}
+              {streak > 0 ? (
+                <Icon name="flame" size={14} color={theme.colors.accentStrong} />
+              ) : null}
               <Text variant="caption" tone={streak > 0 ? 'accent' : 'faint'}>
                 {streak > 0
                   ? t(streak === 1 ? 'habits.streak.one' : 'habits.streak', { days: streak })

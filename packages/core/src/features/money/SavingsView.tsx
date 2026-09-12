@@ -17,6 +17,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -78,43 +79,52 @@ export function SavingsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="star" title={t('savings.empty.title')} body={t('savings.empty.body')} />
+        <EmptyState title={t('savings.empty.title')} body={t('savings.empty.body')} />
       ) : (
         rows.map((row) => {
           const reached = row.savedChf >= row.targetChf;
+          // Loeschen: nach links wischen, oder ueber den Papierkorb.
           return (
-            <Card key={row.id}>
-              <View style={{ gap: theme.spacing.md }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="title">{row.name}</Text>
+            <SwipeRow
+              key={row.id}
+              radius={theme.radii.md}
+              onDelete={() => void savingsRepo.remove(row.id)}
+            >
+              <Card>
+                <View style={{ gap: theme.spacing.md }}>
+                  <View
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text variant="title">{row.name}</Text>
+                    </View>
+                    <RemoveButton onPress={() => void savingsRepo.remove(row.id)} />
                   </View>
-                  <RemoveButton onPress={() => void savingsRepo.remove(row.id)} />
+
+                  <ProgressBar share={row.targetChf > 0 ? row.savedChf / row.targetChf : 0} />
+                  <Text variant="caption" tone="muted">
+                    {reached
+                      ? t('savings.reached')
+                      : t('savings.progress', {
+                          saved: money(row.savedChf),
+                          target: money(row.targetChf),
+                        })}
+                  </Text>
+
+                  {reached ? null : (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
+                      {DEPOSITS.map((amount) => (
+                        <Chip
+                          key={amount}
+                          label={t('savings.deposit', { amount: formatNumber(language, amount) })}
+                          onPress={() => void savingsRepo.deposit(row.id, amount)}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </View>
-
-                <ProgressBar share={row.targetChf > 0 ? row.savedChf / row.targetChf : 0} />
-                <Text variant="caption" tone="muted">
-                  {reached
-                    ? t('savings.reached')
-                    : t('savings.progress', {
-                        saved: money(row.savedChf),
-                        target: money(row.targetChf),
-                      })}
-                </Text>
-
-                {reached ? null : (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
-                    {DEPOSITS.map((amount) => (
-                      <Chip
-                        key={amount}
-                        label={t('savings.deposit', { amount: formatNumber(language, amount) })}
-                        onPress={() => void savingsRepo.deposit(row.id, amount)}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-            </Card>
+              </Card>
+            </SwipeRow>
           );
         })
       )}

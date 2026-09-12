@@ -49,12 +49,15 @@ const MODULE_AREA: Readonly<Record<string, Area>> = {
   // Organisation
   calendar: 'organisation',
   alarm: 'organisation',
+  weather: 'organisation',
   tasks: 'organisation',
   notes: 'organisation',
   documents: 'organisation',
   habits: 'organisation',
   travel: 'organisation',
   contacts: 'organisation',
+  birthdays: 'organisation',
+  mail: 'organisation',
   // Der Assistent steht quer ueber allem und traegt deshalb seine eigene Farbe.
   ai: 'ai',
   // Gesundheit

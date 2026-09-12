@@ -18,19 +18,27 @@ import {
   tasks as taskRepo,
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { StarButton } from '@/features/quick/StarButton';
+import { appNameOf, useFavorites, type Favorites } from '@/features/quick/useFavorites';
 import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { BUILT_MODULE_IDS, modulesOfApp } from '@/mocks/modules';
-import type { Area, ModuleDefinition } from '@/mocks/types';
+import { TOPICS, type ModuleDefinition, type Topic } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
-import { hueTint, useTheme } from '@/theme';
-import { Header, Icon, Screen, Text, usePressScale } from '@/ui';
+import { useTheme } from '@/theme';
+import { EmptyState, Header, Icon, Screen, Segmented, Text, usePressScale } from '@/ui';
 
-/** Was rechts in einer Zeile steht: ein Wert, eine hervorgehobene Zahl oder still. */
-type RowValue = { text: string; pill?: boolean; quiet?: boolean };
+/** Was rechts in einer Zeile steht: ein Wert, laut oder still. */
+type RowValue = { text: string; quiet?: boolean };
 
-/** In dieser Reihenfolge stehen die Bereiche, vom Kalender zum Konto. */
-const ORDER: readonly Area[] = ['organisation', 'health', 'household', 'money'];
+/** Alle Funktionen dieser App oder die Favoriten des Kontos, auch aus anderen Apps. */
+type Listing = 'all' | 'favorites';
+
+/** Der Stern rechts in einer Zeile: gesetzt oder nicht, und was ein Tipp tut. */
+type RowFavorite = { active: boolean; onToggle: () => void };
+
+/** In dieser Reihenfolge stehen die Themen — `TOPICS` ist schon so sortiert. */
+const ORDER: readonly Topic[] = TOPICS;
 
 /**
  * Die Funktionen dieser App, nach Bereich sortiert.
@@ -51,6 +59,8 @@ export function FunctionsScreen() {
   const householdId = household?.id ?? null;
   const today = dayKey();
   const [query, setQuery] = useState('');
+  const [listing, setListing] = useState<Listing>('all');
+  const favorites = useFavorites();
 
   const upcoming = useLiveQuery(
     () => eventRepo.listUpcoming(access, new Date().toISOString(), 20),
@@ -79,7 +89,7 @@ export function FunctionsScreen() {
     }
     if (id === 'tasks') {
       const count = openTasks.data ?? 0;
-      return { text: String(count), pill: count > 0, quiet: count === 0 };
+      return { text: String(count), quiet: count === 0 };
     }
     if (id === 'notes') {
       return { text: String(noteCount.data ?? 0), quiet: true };
@@ -127,6 +137,7 @@ export function FunctionsScreen() {
         {
           id: 'household',
           area: 'household',
+          topic: 'supplies',
           name: t('tabs.household'),
           short: '',
           description: '',
@@ -144,212 +155,283 @@ export function FunctionsScreen() {
       module.name.toLocaleLowerCase('de-CH').includes(needle) ||
       module.short.toLocaleLowerCase('de-CH').includes(needle),
   );
-  const groups = ORDER.map((area) => ({
-    area,
-    modules: all.filter((module) => module.area === area),
+  const groups = ORDER.map((topic) => ({
+    topic,
+    modules: all.filter((module) => module.topic === topic),
   })).filter((group) => group.modules.length > 0);
+
+  /** Nur Gebautes laesst sich favorisieren — der Haushalt ist kein Modul der Registry. */
+  function favoriteOf(module: ModuleDefinition, built: boolean): RowFavorite | null {
+    if (module.id === 'household' || !built) return null;
+    return {
+      active: favorites.isFavorite(app.id, module.id),
+      onToggle: () => favorites.toggle(app.id, module.id),
+    };
+  }
 
   return (
     <Screen
-      header={
-        <Header large title={main ? t('areas.title') : t('functions.title')}>
-          {main ? (
-            <Text
-              variant="body"
-              tone="muted"
-              style={{
-                maxWidth: 280,
-                fontSize: theme.fontSize.lede,
-                lineHeight: theme.lineHeight.lede,
-              }}
-            >
-              {t('areas.lede', { count: mine.length })}
-            </Text>
-          ) : null}
-        </Header>
-      }
+      header={<Header large title={main ? t('areas.title') : t('functions.title')} />}
       gap={theme.spacing.sm}
     >
-      <View
-        style={[
-          styles.field,
-          {
-            backgroundColor: theme.colors.surfaceMuted,
-            borderRadius: theme.radii.sm,
-            paddingHorizontal: theme.spacing.md,
-            gap: theme.spacing.sm,
-            marginBottom: theme.spacing.xs,
-          },
+      <Segmented
+        options={[
+          { value: 'all', label: t('quick.view.all') },
+          { value: 'favorites', label: t('quick.view.favorites') },
         ]}
-      >
-        <Icon name="search" size={17} color={theme.colors.textFaint} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('areas.search')}
-          placeholderTextColor={theme.colors.textFaint}
-          autoCorrect={false}
-          accessibilityLabel={t('areas.search')}
-          style={[
-            styles.input,
-            {
-              fontFamily: theme.fontFamily,
-              fontSize: theme.fontSize.lede,
-              color: theme.colors.text,
-            },
-          ]}
-        />
-      </View>
+        value={listing}
+        onChange={setListing}
+        accessibilityLabel={t('quick.view')}
+      />
 
-      {groups.map((group) => (
-        <View key={group.area} style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
-          <AreaHead area={group.area} count={group.modules.length} />
+      {listing === 'favorites' ? (
+        <FavoriteRows favorites={favorites} valueOf={valueOf} />
+      ) : (
+        <>
           <View
             style={[
-              styles.card,
-              theme.elevation.card,
-              { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md },
+              styles.field,
+              {
+                backgroundColor: theme.colors.surfaceMuted,
+                borderRadius: theme.radii.sm,
+                paddingHorizontal: theme.spacing.md,
+                gap: theme.spacing.sm,
+                marginBottom: theme.spacing.xs,
+              },
             ]}
           >
-            {group.modules.map((module, index) => {
-              const built = module.id === 'household' || BUILT_MODULE_IDS.includes(module.id);
-              return (
-                <Row
-                  key={module.id}
-                  module={module}
-                  first={index === 0}
-                  built={built}
-                  value={valueOf(module.id)}
-                  onPress={() =>
-                    router.push(
-                      module.id === 'household'
-                        ? '/household'
-                        : built
-                          ? `/run/${module.id}`
-                          : `/module/${module.id}`,
-                    )
-                  }
-                />
-              );
-            })}
+            <Icon name="search" size={17} color={theme.colors.textFaint} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder={t('areas.search')}
+              placeholderTextColor={theme.colors.textFaint}
+              autoCorrect={false}
+              accessibilityLabel={t('areas.search')}
+              style={[
+                styles.input,
+                {
+                  fontFamily: theme.fontFamily,
+                  fontSize: theme.fontSize.lede,
+                  color: theme.colors.text,
+                },
+              ]}
+            />
           </View>
-        </View>
-      ))}
+
+          {groups.map((group) => (
+            <View key={group.topic} style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+              <TopicHead topic={group.topic} />
+              <View
+                style={[
+                  styles.card,
+                  theme.elevation.card,
+                  { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md },
+                ]}
+              >
+                {group.modules.map((module, index) => {
+                  const built = module.id === 'household' || BUILT_MODULE_IDS.includes(module.id);
+                  return (
+                    <Row
+                      key={module.id}
+                      module={module}
+                      first={index === 0}
+                      built={built}
+                      value={valueOf(module.id)}
+                      favorite={favoriteOf(module, built)}
+                      onPress={() =>
+                        router.push(
+                          module.id === 'household'
+                            ? '/household'
+                            : built
+                              ? `/run/${module.id}`
+                              : `/module/${module.id}`,
+                        )
+                      }
+                    />
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </>
+      )}
     </Screen>
   );
 }
 
-/** Farbquadrat, Bereichsname, Anzahl — die Farbe traegt die Ueberschrift. */
-function AreaHead({ area, count }: { area: Area; count: number }) {
+/**
+ * Die Favoriten des Kontos, auch aus anderen Apps, in derselben Zeilenoptik.
+ * Ein Tipp oeffnet wie im Schnellzugriff; der Stern nimmt den Favoriten weg.
+ */
+function FavoriteRows({
+  favorites,
+  valueOf,
+}: {
+  favorites: Favorites;
+  valueOf: (id: string) => RowValue | null;
+}) {
+  const { t } = useI18n();
+  const theme = useTheme();
+
+  if (favorites.entries.length === 0) {
+    return (
+      <EmptyState title={t('quick.favorites.emptyTitle')} body={t('quick.favorites.emptyBody')} />
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.card,
+        theme.elevation.card,
+        {
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radii.md,
+          marginTop: theme.spacing.sm,
+        },
+      ]}
+    >
+      {favorites.entries.map((entry, index) => {
+        const own = entry.appId === favorites.currentAppId;
+        return (
+          <Row
+            key={entry.key}
+            module={entry.module}
+            first={index === 0}
+            built
+            value={own ? valueOf(entry.module.id) : null}
+            caption={own ? undefined : appNameOf(entry.appId)}
+            favorite={{
+              active: true,
+              onToggle: () => favorites.toggle(entry.appId, entry.module.id),
+            }}
+            onPress={() => favorites.open(entry.appId, entry.module.id)}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+/** Nur der Bereichsname. */
+function TopicHead({ topic }: { topic: Topic }) {
   const theme = useTheme();
   const { t } = useI18n();
-  const tint = hueTint(theme, area);
 
   return (
     <View style={[styles.head, { gap: theme.spacing.sm }]}>
-      <View style={[styles.swatch, { backgroundColor: tint.base }]} />
-      <Text variant="section" style={{ letterSpacing: theme.tracking.tag, textTransform: 'uppercase' }}>
-        {t(`area.${area}` as TranslationKey)}
-      </Text>
       <Text
-        variant="caption"
-        tone="faint"
-        style={[
-          styles.count,
-          { fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
-        ]}
+        variant="section"
+        style={{ letterSpacing: theme.tracking.tag, textTransform: 'uppercase' }}
       >
-        {t('areas.count', { count })}
+        {t(`topic.${topic}` as TranslationKey)}
       </Text>
     </View>
   );
 }
 
+/**
+ * Eine Funktion als Zeile. Mit `favorite` steht rechts der Stern — neben dem
+ * drueckbaren Teil, nicht darin: kein Knopf im Knopf. Der Stern ersetzt dann
+ * den Pfeil, sonst stuenden zwei Zeichen hintereinander.
+ */
 function Row({
   module,
   first,
   built,
   value,
+  caption,
+  favorite = null,
   onPress,
 }: {
   module: ModuleDefinition;
   first: boolean;
   built: boolean;
   value: RowValue | null;
+  /** Die einzige zweite Zeile: der Name der App, aus der ein Favorit kommt. */
+  caption?: string | undefined;
+  favorite?: RowFavorite | null;
   onPress: () => void;
 }) {
   const theme = useTheme();
   const press = usePressScale(theme.motion.pressScale.row);
+  // Kein Kurztext unter dem Namen: die Liste soll ruhig sein, nicht erklaeren.
+  const subtitle = caption ?? null;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={module.name}
-      onPress={onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
+    <View
+      style={[
+        styles.row,
+        {
+          minHeight: value ? 48 : 54,
+          borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
+          borderTopColor: theme.colors.border,
+          // Was noch nicht gebaut ist, steht blass da statt so zu tun.
+          opacity: built ? 1 : 0.5,
+        },
+      ]}
     >
-      <Animated.View
-        style={[
-          styles.row,
-          {
-            paddingHorizontal: theme.spacing.md,
-            gap: theme.spacing.md,
-            minHeight: value ? 48 : 54,
-            borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-            borderTopColor: theme.colors.border,
-            transform: [{ scale: press.scale }],
-            // Was noch nicht gebaut ist, steht blass da statt so zu tun.
-            opacity: built ? 1 : 0.5,
-          },
-        ]}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={module.name}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={styles.rowPress}
       >
-        <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
-        <View style={styles.text}>
-          <Text
-            variant="label"
-            numberOfLines={1}
-            style={{ fontSize: theme.fontSize.md, letterSpacing: theme.tracking.body }}
-          >
-            {module.name}
-          </Text>
-          {value || !module.short ? null : (
-            <Text variant="caption" tone="faint" numberOfLines={1}>
-              {module.short}
-            </Text>
-          )}
-        </View>
-        {value ? (
-          value.pill ? (
-            <View
-              style={[
-                styles.pill,
-                { backgroundColor: theme.colors.accent, borderRadius: theme.radii.pill },
-              ]}
-            >
-              <Text
-                variant="caption"
-                style={{ color: theme.colors.textOnAccent, fontWeight: theme.fontWeight.bold }}
-              >
-                {value.text}
-              </Text>
-            </View>
-          ) : (
+        <Animated.View
+          style={[
+            styles.rowBody,
+            {
+              paddingLeft: theme.spacing.md,
+              paddingRight: favorite ? 0 : theme.spacing.md,
+              gap: theme.spacing.md,
+              transform: [{ scale: press.scale }],
+            },
+          ]}
+        >
+          <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
+          <View style={styles.text}>
             <Text
               variant="label"
               numberOfLines={1}
-              style={{
-                color: value.quiet ? theme.colors.textFaint : theme.colors.textMuted,
-                fontWeight: value.quiet ? theme.fontWeight.regular : theme.fontWeight.semibold,
-              }}
+              style={{ fontSize: theme.fontSize.md, letterSpacing: theme.tracking.body }}
             >
-              {value.text}
+              {module.name}
             </Text>
-          )
-        ) : null}
-        <Icon name="forward" size={15} color={theme.colors.borderStrong} />
-      </Animated.View>
-    </Pressable>
+            {value || !subtitle ? null : (
+              <Text variant="caption" tone="faint" numberOfLines={1}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+          {value ? <RowValueText value={value} /> : null}
+          {favorite ? null : <Icon name="forward" size={15} color={theme.colors.borderStrong} />}
+        </Animated.View>
+      </Pressable>
+      {favorite ? (
+        <StarButton active={favorite.active} name={module.name} onPress={favorite.onToggle} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Der Wert rechts: immer schlichter Text, egal wie viel dahintersteckt. */
+function RowValueText({ value }: { value: RowValue }) {
+  const theme = useTheme();
+
+  return (
+    <Text
+      variant="label"
+      numberOfLines={1}
+      style={{
+        color: value.quiet ? theme.colors.textFaint : theme.colors.textMuted,
+        fontWeight: value.quiet ? theme.fontWeight.regular : theme.fontWeight.semibold,
+      }}
+    >
+      {value.text}
+    </Text>
   );
 }
 
@@ -358,15 +440,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: '100%', outlineStyle: 'none' as never },
   card: { overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
-  swatch: { width: 8, height: 8, borderRadius: 2 },
-  count: { marginLeft: 'auto' },
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  // flexGrow statt flex: 1 — sonst wird im Browser flex-basis 0% daraus.
+  rowPress: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  rowBody: { flexGrow: 1, flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1, minWidth: 0, gap: 1 },
-  pill: {
-    minWidth: 22,
-    height: 20,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

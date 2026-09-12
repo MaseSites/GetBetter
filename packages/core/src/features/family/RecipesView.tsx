@@ -20,6 +20,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -62,7 +63,7 @@ export function RecipesView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="meal" title={t('recipes.empty.title')} body={t('recipes.empty.body')} />
+        <EmptyState title={t('recipes.empty.title')} body={t('recipes.empty.body')} />
       ) : null}
 
       {rows.length > 0 ? (
@@ -83,27 +84,33 @@ export function RecipesView({ module }: { module: ModuleDefinition }) {
         </View>
       ) : null}
 
+      {/* Antippen oeffnet das Rezept, nach links wischen loescht es. */}
       {visible.map((recipe) => (
-        <Card
+        <SwipeRow
           key={recipe.id}
-          onPress={() => setEditor({ mode: 'edit', row: recipe })}
-          accessibilityLabel={recipe.title}
+          radius={theme.radii.md}
+          onDelete={() => void recipeRepo.remove(recipe.id)}
         >
-          <View style={{ gap: theme.spacing.xs }}>
-            <Text variant="title">{recipe.title}</Text>
-            <Text variant="caption" tone="muted">
-              {t('recipes.summary', {
-                servings: recipe.servings,
-                ingredients: recipe.ingredients.length,
-              })}
-            </Text>
-            {recipe.tags.length > 0 ? (
-              <Text variant="caption" tone="faint">
-                {recipe.tags.map(tagLabel).join(' · ')}
+          <Card
+            onPress={() => setEditor({ mode: 'edit', row: recipe })}
+            accessibilityLabel={recipe.title}
+          >
+            <View style={{ gap: theme.spacing.xs }}>
+              <Text variant="title">{recipe.title}</Text>
+              <Text variant="caption" tone="muted">
+                {t('recipes.summary', {
+                  servings: recipe.servings,
+                  ingredients: recipe.ingredients.length,
+                })}
               </Text>
-            ) : null}
-          </View>
-        </Card>
+              {recipe.tags.length > 0 ? (
+                <Text variant="caption" tone="faint">
+                  {recipe.tags.map(tagLabel).join(' · ')}
+                </Text>
+              ) : null}
+            </View>
+          </Card>
+        </SwipeRow>
       ))}
 
       <FloatingButton label={t('recipes.add')} onPress={() => setEditor({ mode: 'new' })} />

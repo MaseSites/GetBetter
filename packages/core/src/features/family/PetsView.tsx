@@ -31,6 +31,7 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -116,7 +117,7 @@ export function PetsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="pet" title={t('pets.empty.title')} body={t('pets.empty.body')} />
+        <EmptyState title={t('pets.empty.title')} body={t('pets.empty.body')} />
       ) : null}
 
       {upcoming.length > 0 ? (
@@ -125,10 +126,14 @@ export function PetsView({ module }: { module: ModuleDefinition }) {
             {t('pets.upcoming')}
           </Text>
           <Card>
+            {/* Nach links wischen loescht den Termin; die Zeile traegt den Kartengrund,
+                damit die rote Flaeche erst beim Wischen erscheint. */}
             {upcoming.slice(0, 5).map((event, index) => (
               <View key={event.id}>
                 {index > 0 ? <Divider /> : null}
-                {eventRow(event, true)}
+                <SwipeRow onDelete={() => void petRepo.removeEvent(event.id)}>
+                  {eventRow(event, true)}
+                </SwipeRow>
               </View>
             ))}
           </Card>
@@ -137,44 +142,52 @@ export function PetsView({ module }: { module: ModuleDefinition }) {
 
       {rows.map((pet) => {
         const own = events.filter((event) => event.petId === pet.id && event.day < today).slice(-3);
+        // Das Tier wischt man als Ganzes weg. Die vergangenen Termine darin bleiben
+        // beim Papierkorb: eine Wischzeile in der Wischkarte gaebe die Geste der Karte.
         return (
-          <Card key={pet.id}>
-            <View style={{ gap: theme.spacing.md }}>
-              <View style={[styles.row, { gap: theme.spacing.sm }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="title">{pet.name}</Text>
-                  <Text variant="caption" tone="muted">
-                    {pet.birthday
-                      ? `${kindLabel(pet.kind)} · ${ageLabel(t, pet.birthday)}`
-                      : kindLabel(pet.kind)}
-                  </Text>
+          <SwipeRow
+            key={pet.id}
+            radius={theme.radii.md}
+            onDelete={() => void petRepo.remove(pet.id)}
+          >
+            <Card>
+              <View style={{ gap: theme.spacing.md }}>
+                <View style={[styles.row, { gap: theme.spacing.sm }]}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text variant="title">{pet.name}</Text>
+                    <Text variant="caption" tone="muted">
+                      {pet.birthday
+                        ? `${kindLabel(pet.kind)} · ${ageLabel(t, pet.birthday)}`
+                        : kindLabel(pet.kind)}
+                    </Text>
+                  </View>
+                  <Button
+                    label={t('pets.addEvent')}
+                    icon="calendar"
+                    size="sm"
+                    fullWidth={false}
+                    variant="secondary"
+                    onPress={() => setEventFor(pet)}
+                  />
+                  <IconButton
+                    icon="trash"
+                    label={t('common.remove')}
+                    onPress={() => void petRepo.remove(pet.id)}
+                  />
                 </View>
-                <Button
-                  label={t('pets.addEvent')}
-                  icon="calendar"
-                  size="sm"
-                  fullWidth={false}
-                  variant="secondary"
-                  onPress={() => setEventFor(pet)}
-                />
-                <IconButton
-                  icon="trash"
-                  label={t('common.remove')}
-                  onPress={() => void petRepo.remove(pet.id)}
-                />
+                {own.length > 0 ? (
+                  <View style={{ opacity: 0.7 }}>
+                    <Text variant="caption" tone="faint">
+                      {t('pets.history')}
+                    </Text>
+                    {own.map((event) => (
+                      <View key={event.id}>{eventRow(event, false)}</View>
+                    ))}
+                  </View>
+                ) : null}
               </View>
-              {own.length > 0 ? (
-                <View style={{ opacity: 0.7 }}>
-                  <Text variant="caption" tone="faint">
-                    {t('pets.history')}
-                  </Text>
-                  {own.map((event) => (
-                    <View key={event.id}>{eventRow(event, false)}</View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          </Card>
+            </Card>
+          </SwipeRow>
         );
       })}
 

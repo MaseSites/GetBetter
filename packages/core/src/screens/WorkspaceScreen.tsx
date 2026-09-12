@@ -1,10 +1,9 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import { Animated, Platform, Pressable, TextInput, View } from 'react-native';
 
 import {
-  appAccess,
   bills as billRepo,
   contacts as contactRepo,
   dayKey,
@@ -30,7 +29,7 @@ import {
   vitals as vitalRepo,
   workouts as workoutRepo,
 } from '@/db';
-import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
+import { daysUntil, nextBirthday, parseDay, relativeDay, shiftDay } from '@/features/shared/days';
 import {
   alarms as alarmRepo,
   chores as choreRepo,
@@ -39,10 +38,15 @@ import {
   shopping as shoppingRepo,
   tasks as taskRepo,
 } from '@/db/repositories';
+import { eventColor } from '@/features/calendar/colors';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { appUrl } from '@/app/bridge';
 import { APPS, currentApp, hasHouseholds, storeUrl, type AppId } from '@/app/identity';
+import { WEEKDAYS } from '@/features/alarm/AlarmView';
 import { AppFamily } from '@/features/apps/AppFamily';
+import { NewsSection } from '@/features/notifications/NewsSection';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
+import { QuickAccess } from '@/features/quick/QuickAccess';
 import {
   formatLongDate,
   formatMoney,
@@ -51,16 +55,21 @@ import {
   useI18n,
   type TranslationKey,
 } from '@/i18n';
-import { TARGET_DL } from '@/features/gym/WaterView';
-import { DailyQuote } from '@/features/today/DailyQuote';
-import { DayStats, type DayStat } from '@/features/today/DayStats';
-import { DayThread, THREAD_INDENT, type DayEntry } from '@/features/today/DayThread';
+import {
+  DayThread,
+  THREAD_INDENT,
+  type AllDayEntry,
+  type DayEntry,
+} from '@/features/today/DayThread';
+import { weatherIcon } from '@/features/weather/api';
+import { useWeather } from '@/features/weather/useWeather';
 import { MODULES, modulesOfApp } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
-import { useTheme } from '@/theme';
+import { moduleBase, useTheme } from '@/theme';
 import {
   Avatar,
+  Button,
   Card,
   Divider,
   Header,
@@ -70,6 +79,7 @@ import {
   ModuleIcon,
   Screen,
   Text,
+  useSwipeSteps,
   type IconName,
 } from '@/ui';
 
@@ -91,12 +101,16 @@ export function WorkspaceScreen() {
   const app = currentApp();
   const main = app.id === 'getbetter';
   const householdId = household?.id ?? null;
+  // Das Wetter steht neben dem Datum — nur in GetBetter, wo es ein Modul dafuer gibt.
+  const weather = useWeather(main);
 
   const [draft, setDraft] = useState('');
 
   const upcoming = useLiveQuery(
-    () => eventRepo.listUpcoming(access, new Date().toISOString(), 3),
-    [access.accountId, access.householdIds, access.calendarIds],
+    // In GetBetter steht Ganztaegiges in der eigenen Zeile — die drei Plaetze
+    // gehoeren dann den Terminen mit Uhrzeit.
+    () => eventRepo.listUpcoming(access, new Date().toISOString(), 3, { timedOnly: main }),
+    [access.accountId, access.householdIds, access.calendarIds, main],
   );
   const openTasks = useLiveQuery(
     () => taskRepo.listOpen(account.id, householdId),
@@ -152,7 +166,32 @@ export function WorkspaceScreen() {
   const medTakes = useLiveQuery(() => medRepo.takes(account.id, dayKey()), [account.id]);
   const weightList = useLiveQuery(() => vitalRepo.list(account.id, 'weight', 1), [account.id]);
   const moodList = useLiveQuery(() => moodRepo.list(account.id, 1), [account.id]);
-  const unlockedList = useLiveQuery(() => appAccess.appsOf(account.id), [account.id]);
+  const todayKey = dayKey();
+  // Welchen Tag das Band zeigt. 0 ist heute, wischen verschiebt ihn.
+  const [dayShift, setDayShift] = useState(0);
+  const isToday = dayShift === 0;
+  const shownDay = isToday ? todayKey : shiftDay(dayShift);
+  const dayFrom = parseDay(shownDay).toISOString();
+  const dayTo = parseDay(shiftDay(1, parseDay(shownDay))).toISOString();
+
+  // Das Ganztaegige des gezeigten Tages: im Band steht nur, was eine Uhrzeit hat.
+  const allDayList = useLiveQuery(
+    () => eventRepo.listAllDay(access, dayFrom, dayTo),
+    [access.accountId, access.householdIds, access.calendarIds, dayFrom, dayTo],
+  );
+  // Heute reicht `upcoming`; fuer jeden anderen Tag holt das Band seinen eigenen.
+  const dayEventList = useLiveQuery(
+    () => eventRepo.listDay(access, dayFrom, dayTo, { timedOnly: true }),
+    [access.accountId, access.householdIds, access.calendarIds, dayFrom, dayTo],
+  );
+  const alarmList = useLiveQuery(() => alarmRepo.list(account.id), [account.id]);
+
+  /** Nach links wischen heisst morgen, nach rechts gestern — wie im Kalender. */
+  function stepDay(direction: number) {
+    setDayShift((current) => current + direction);
+  }
+
+  const swipe = useSwipeSteps(stepDay);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -167,7 +206,7 @@ export function WorkspaceScreen() {
   const subscriptionsMonthly = subscriptionMonthly.data ?? 0;
   const goals = goalList.data ?? [];
   const money = (value: number) => formatMoney(language, value);
-  const today = dayKey();
+  const today = todayKey;
   const expiring = (documentList.data ?? []).filter(
     (row) => row.expiresOn !== null && daysUntil(row.expiresOn) <= 60,
   );
@@ -725,14 +764,25 @@ export function WorkspaceScreen() {
   const nameOf = (id: string) => moduleOf(id)?.name ?? id;
   const iconOf = (id: string): IconName => moduleOf(id)?.icon ?? 'circle';
   const owns = (id: string) => mine.some((module) => module.id === id);
-  const unlocked = unlockedList.data ?? [];
 
-  /** "06:40" auf heute bezogen, damit der Wecker im Band an seiner Zeit steht. */
-  function todayAt(time: string): string {
+  /** "06:40" auf den gezeigten Tag bezogen, damit der Wecker an seiner Zeit steht. */
+  function dayAt(time: string): string {
     const [hours, minutes] = time.split(':');
-    const when = new Date();
+    const when = parseDay(shownDay);
     when.setHours(Number(hours), Number(minutes), 0, 0);
     return when.toISOString();
+  }
+
+  /**
+   * Der Wecker, der an diesem Tag klingelt. Ohne Wochentage klingelt er jeden
+   * Tag; sonst nur an den angehakten.
+   */
+  function alarmOfDay() {
+    if (isToday) return nextAlarm.data;
+    const weekday = WEEKDAYS[(parseDay(shownDay).getDay() + 6) % 7];
+    return (alarmList.data ?? []).find(
+      (row) => row.enabled && (row.days.length === 0 || row.days.includes(weekday ?? '')),
+    );
   }
 
   /** Oeffnet eine andere Better-App — im Store, sobald es sie dort gibt. */
@@ -748,34 +798,43 @@ export function WorkspaceScreen() {
    */
   const thread: DayEntry[] = [];
 
-  if (nextAlarm.data && owns('alarm')) {
+  const dayAlarm = alarmOfDay();
+
+  if (dayAlarm && owns('alarm')) {
     thread.push({
       key: 'alarm',
       moduleId: 'alarm',
       icon: iconOf('alarm'),
-      at: todayAt(nextAlarm.data.time),
-      title: nextAlarm.data.label || nameOf('alarm'),
+      at: dayAt(dayAlarm.time),
+      title: dayAlarm.label || nameOf('alarm'),
       tag: nameOf('alarm'),
       onPress: () => router.push('/run/alarm'),
     });
   }
 
-  const eventsToday = events.filter((row) => row.startsAt.slice(0, 10) === today);
+  // Ganztaegiges steht in der eigenen Zeile ueber dem Band, nicht dazwischen.
+  const dayEvents = isToday
+    ? events.filter((row) => row.startsAt.slice(0, 10) === today && !row.allDay)
+    : (dayEventList.data ?? []);
 
-  for (const event of eventsToday) {
+  for (const event of dayEvents) {
     thread.push({
       key: `event-${event.id}`,
       moduleId: 'calendar',
       icon: iconOf('calendar'),
-      at: event.allDay ? null : event.startsAt,
+      at: event.startsAt,
       title: event.title,
-      meta: event.allDay ? t('today.allDay') : undefined,
       tag: nameOf('calendar'),
       onPress: () => router.push('/run/calendar'),
     });
   }
 
-  for (const task of tasks.slice(0, 5)) {
+  // Heute steht an, was offen ist; an einem anderen Tag nur, was dann faellig ist.
+  const dayTasks = isToday
+    ? tasks.slice(0, 5)
+    : tasks.filter((row) => (row.dueAt ?? '').slice(0, 10) === shownDay).slice(0, 5);
+
+  for (const task of dayTasks) {
     thread.push({
       key: `task-${task.id}`,
       moduleId: 'tasks',
@@ -787,7 +846,8 @@ export function WorkspaceScreen() {
     });
   }
 
-  if (owns('habits')) {
+  // Gewohnheiten hakt man heute ab, nicht im Voraus.
+  if (isToday && owns('habits')) {
     for (const habit of habitRows.filter((row) => !tickedToday.has(row.id)).slice(0, 3)) {
       thread.push({
         key: `habit-${habit.id}`,
@@ -800,7 +860,9 @@ export function WorkspaceScreen() {
     }
   }
 
-  for (const bill of bills.filter((row) => row.dueDay <= today).slice(0, 2)) {
+  for (const bill of bills
+    .filter((row) => (isToday ? row.dueDay <= today : row.dueDay === shownDay))
+    .slice(0, 2)) {
     thread.push({
       key: `bill-${bill.id}`,
       moduleId: 'bills',
@@ -813,7 +875,7 @@ export function WorkspaceScreen() {
     });
   }
 
-  if (owns('documents')) {
+  if (isToday && owns('documents')) {
     for (const row of expiring.slice(0, 2)) {
       thread.push({
         key: `doc-${row.id}`,
@@ -827,21 +889,46 @@ export function WorkspaceScreen() {
     }
   }
 
-  if (owns('contacts')) {
-    for (const { row, next } of birthdays.slice(0, 2)) {
+  // Geburtstage gehoeren der Funktion Geburtstage, wo es sie gibt, sonst den Kontakten.
+  const birthdayModule = owns('birthdays') ? 'birthdays' : owns('contacts') ? 'contacts' : null;
+
+  if (isToday && birthdayModule) {
+    // Wer heute feiert, steht oben in der Ganztags-Zeile.
+    for (const { row, next } of birthdays.filter((entry) => entry.next.days > 0).slice(0, 2)) {
       thread.push({
         key: `birthday-${row.id}`,
-        moduleId: 'contacts',
+        moduleId: birthdayModule,
         icon: 'gift',
         title: row.name,
         meta: `${t('contacts.turns', { age: next.age })} · ${relativeDay(t, language, next.day)}`,
-        tag: nameOf('contacts'),
-        onPress: () => router.push('/run/contacts'),
+        tag: nameOf(birthdayModule),
+        onPress: () => router.push(`/run/${birthdayModule}`),
       });
     }
   }
 
-  if (owns('travel') && nextTrip) {
+  /** Die Zeile ueber dem Band: wer an diesem Tag feiert, dann ganztaegige Termine. */
+  const allDay: AllDayEntry[] = [
+    ...(birthdayModule
+      ? birthdays
+          .filter((entry) => entry.next.day === shownDay)
+          .map(({ row, next }): AllDayEntry => ({
+            key: `birthday-today-${row.id}`,
+            title: t('birthdays.event', { name: row.name, age: next.age }),
+            icon: 'gift',
+            color: moduleBase(theme, birthdayModule),
+            onPress: () => router.push(`/run/${birthdayModule}`),
+          }))
+      : []),
+    ...(allDayList.data ?? []).map((event): AllDayEntry => ({
+      key: `allday-${event.id}`,
+      title: event.title,
+      color: eventColor(event.color),
+      onPress: owns('calendar') ? () => router.push('/run/calendar') : undefined,
+    })),
+  ];
+
+  if (isToday && owns('travel') && nextTrip) {
     thread.push({
       key: `trip-${nextTrip.id}`,
       moduleId: 'travel',
@@ -856,7 +943,7 @@ export function WorkspaceScreen() {
     });
   }
 
-  if (shopping.length > 0) {
+  if (isToday && shopping.length > 0) {
     thread.push({
       key: 'shopping',
       moduleId: 'shopping',
@@ -864,147 +951,67 @@ export function WorkspaceScreen() {
       title: nameOf('shopping'),
       meta: t('today.openCount', { count: String(shopping.length) }),
       tag: nameOf('shopping'),
-      onPress: owns('shopping') ? () => router.push('/run/shopping') : () => openApp('betterfamily'),
+      onPress: owns('shopping')
+        ? () => router.push('/run/shopping')
+        : () => openApp('betterfamily'),
     });
   }
-
-  // Was eine Uhrzeit hat, passiert ohnehin. Zaehlen tut, was ohne Zeit
-  // dasteht — das sind die Dinge, die auf dich warten.
-  const waiting = thread.filter((entry) => !entry.at).length;
-  const lede =
-    waiting === 0
-      ? t('today.needsYou.none')
-      : waiting === 1
-        ? t('today.needsYou.one')
-        : t('today.needsYou', { count: waiting });
-
-  /**
-   * Die Zahlen des Tages. In GetBetter wie im Entwurf: Wasser, Kalorien und
-   * der Monat — gelesen aus der gemeinsamen Datenbank. Fehlt die App dahinter,
-   * sagt die Kachel das und fuehrt zum Installieren.
-   */
-  const minutesToday = workoutsToday.reduce((sum, row) => sum + row.minutes, 0);
-  const wholeNumber = new Intl.NumberFormat(`${language}-CH`, { maximumFractionDigits: 0 });
-  const gymOpen = unlocked.includes('bettergym');
-  const moneyOpen = unlocked.includes('bettermoney');
-  const install = t('today.stat.install');
-
-  const mainStats: DayStat[] = [
-    gymOpen
-      ? {
-          key: 'water',
-          label: t('today.stat.water'),
-          value: (drinkToday / 10).toFixed(1),
-          unit: t('today.unit.ofLitre', { target: (TARGET_DL / 10).toFixed(1) }),
-          // 2.5 Liter am Tag, in Dezilitern gerechnet.
-          share: drinkToday / TARGET_DL,
-        }
-      : {
-          key: 'water',
-          label: t('today.stat.water'),
-          value: '—',
-          unit: install,
-          onPress: () => openApp('bettergym'),
-        },
-    gymOpen
-      ? {
-          key: 'kcal',
-          label: t('today.stat.kcal'),
-          value: wholeNumber.format(kcalToday),
-          unit: t('today.unit.kcal'),
-          share: kcalToday / 2000,
-          strong: true,
-        }
-      : {
-          key: 'kcal',
-          label: t('today.stat.kcal'),
-          value: '—',
-          unit: install,
-          onPress: () => openApp('bettergym'),
-        },
-    moneyOpen
-      ? {
-          key: 'month',
-          label: t('today.stat.month'),
-          value: wholeNumber.format(spent),
-          unit: t('today.unit.chf'),
-        }
-      : {
-          key: 'month',
-          label: t('today.stat.month'),
-          value: '—',
-          unit: install,
-          onPress: () => openApp('bettermoney'),
-        },
-  ];
-
-  const ownStats: DayStat[] = [];
-  if (owns('water')) {
-    ownStats.push({
-      key: 'water',
-      label: nameOf('water'),
-      value: (drinkToday / 10).toFixed(1),
-      unit: t('today.unit.litre'),
-      share: drinkToday / TARGET_DL,
-    });
-  }
-  if (owns('meals')) {
-    ownStats.push({
-      key: 'meals',
-      label: nameOf('meals'),
-      value: wholeNumber.format(kcalToday),
-      unit: t('today.unit.kcal'),
-      share: kcalToday / 2000,
-      strong: true,
-    });
-  }
-  if (owns('fitness')) {
-    ownStats.push({
-      key: 'fitness',
-      label: nameOf('fitness'),
-      value: String(minutesToday),
-      unit: t('today.unit.min'),
-    });
-  }
-  if (owns('budget')) {
-    ownStats.push({
-      key: 'month',
-      label: t('today.stat.month'),
-      value: wholeNumber.format(spent),
-      unit: t('today.unit.chf'),
-    });
-  }
-
-  const dayStats = main ? mainStats : ownStats.slice(0, 3);
 
   return (
     <Screen
+      // Nur Datum und Gruss — die Uebersicht darunter sagt selbst, was ansteht.
       header={
         <Header
           large
           overline={formatLongDate(language, new Date().toISOString())}
+          {...(main && weather.forecast
+            ? {
+                overlineAction: {
+                  icon: weatherIcon(weather.forecast.current.code),
+                  text: t('weather.degrees', { temp: Math.round(weather.forecast.current.temp) }),
+                  label: t('weather.open'),
+                  onPress: () => router.push('/run/weather'),
+                },
+              }
+            : {})}
           title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
-          right={<Avatar name={account.firstName || '?'} size={36} />}
-        >
-          <Text
-            variant="body"
-            tone="muted"
+          right={
+            // Die Glocke gibt es nur in GetBetter — dort liegen die Mitteilungen.
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              {main ? <NotificationBell /> : null}
+              <Avatar name={account.firstName || '?'} size={36} />
+            </View>
+          }
+        />
+      }
+    >
+      {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}
+      {main ? <NewsSection /> : null}
+
+      {/* Wischen blaettert den Tag; die Flaeche folgt dem Finger ein Stueck. */}
+      <Animated.View style={swipe.style} {...swipe.panHandlers}>
+        {isToday ? null : (
+          <View
             style={{
-              maxWidth: 272,
-              fontSize: theme.fontSize.lede,
-              lineHeight: theme.lineHeight.lede,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: theme.spacing.sm,
+              marginBottom: theme.spacing.xs,
             }}
           >
-            {lede}
-          </Text>
-          {main ? <DailyQuote /> : null}
-        </Header>
-      }
-      // Die Zahlen des Tages stehen fest ueber der Leiste, wie im Entwurf —
-      // das Tagesband scrollt darueber, die Zahlen bleiben im Blick.
-      footer={dayStats.length > 0 ? <DayStats stats={dayStats} /> : undefined}
-    >
-      <DayThread entries={thread} />
+            <Text variant="label">{relativeDay(t, language, shownDay)}</Text>
+            <Button
+              label={t('day.today')}
+              size="sm"
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => setDayShift(0)}
+            />
+          </View>
+        )}
+        <DayThread entries={thread} allDay={allDay} showNow={isToday} />
+      </Animated.View>
 
       {main && owns('tasks') ? (
         <QuickAdd
@@ -1015,6 +1022,8 @@ export function WorkspaceScreen() {
         />
       ) : null}
 
+      {main ? <QuickAccess /> : null}
+
       {main ? (
         <AppFamily />
       ) : (
@@ -1024,6 +1033,7 @@ export function WorkspaceScreen() {
               module={{
                 id: 'household',
                 area: 'household',
+                topic: 'supplies',
                 name: t('tabs.household'),
                 short: '',
                 description: '',
@@ -1040,7 +1050,11 @@ export function WorkspaceScreen() {
           ) : null}
 
           {built.map((module) => (
-            <Section key={module.id} module={module} onOpen={() => router.push(`/run/${module.id}`)}>
+            <Section
+              key={module.id}
+              module={module}
+              onOpen={() => router.push(`/run/${module.id}`)}
+            >
               {content(module.id)}
             </Section>
           ))}

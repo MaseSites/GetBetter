@@ -33,6 +33,22 @@ export function normaliseUsername(input: string): string {
   return input.trim().toLowerCase().replace(/^@/, '');
 }
 
+/**
+ * Wie eine Adresse und ein Benutzername aussehen duerfen. Dieselben Regeln
+ * stehen im Dienst (`services/api/server.js`) — hier nur, damit die Maske
+ * schon etwas sagen kann, bevor sie fragt. Das letzte Wort hat der Dienst.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,23}$/;
+
+export function isEmailShaped(email: string): boolean {
+  return EMAIL_PATTERN.test(normaliseEmail(email));
+}
+
+export function isUsernameShaped(username: string): boolean {
+  return USERNAME_PATTERN.test(normaliseUsername(username));
+}
+
 export type AuthError = ServiceError;
 export type AuthResult = { ok: true; account: Account } | { ok: false; error: AuthError };
 
@@ -78,8 +94,12 @@ async function mirror(remote: RemoteAccount): Promise<Account> {
   return account;
 }
 
-export async function signUp(email: string, password: string): Promise<AuthResult> {
-  const result = await register(email, password);
+export async function signUp(
+  email: string,
+  password: string,
+  username?: string,
+): Promise<AuthResult> {
+  const result = await register(email, password, username);
   if (!result.ok) return result;
   return { ok: true, account: await mirror(result.account) };
 }
@@ -151,6 +171,28 @@ export async function findByUsername(username: string): Promise<Account | undefi
   return db.accounts.findBy((row) => row.username === wanted);
 }
 
+/** Wie das Umbenennen ausgegangen ist — genug, um es der Person zu sagen. */
+export type UsernameSave = 'ok' | 'taken' | 'invalid' | 'offline';
+
+/**
+ * Den Benutzernamen aendern. Erst der Dienst, dann die Abschrift: er kennt
+ * alle Konten und hat das letzte Wort. Sagt er nein, bleibt alles, wie es war
+ * — sonst stuende in der App ein Name, den es dort nirgends gibt.
+ */
+export async function changeUsername(id: string, wanted: string): Promise<UsernameSave> {
+  const username = normaliseUsername(wanted);
+  if (!isUsernameShaped(username)) return 'invalid';
+
+  const pushed = await pushProfile(id, { username });
+  if (pushed.ok) {
+    await mirror(pushed.account);
+    return 'ok';
+  }
+  if (pushed.error === 'username_taken') return 'taken';
+  if (pushed.error === 'username_invalid') return 'invalid';
+  return 'offline';
+}
+
 export async function updateAccount(
   id: string,
   patch: Partial<Omit<Account, 'id' | 'email'>>,
@@ -166,6 +208,8 @@ export async function updateAccount(
     ...(patch.themeMode !== undefined ? { themeMode: patch.themeMode } : {}),
     ...(patch.accentKey !== undefined ? { accentKey: patch.accentKey } : {}),
     ...(patch.themePreset !== undefined ? { themePreset: patch.themePreset } : {}),
+    ...(patch.assistantName !== undefined ? { assistantName: patch.assistantName } : {}),
+    ...(patch.backdrop !== undefined ? { backdrop: patch.backdrop } : {}),
   };
   if (Object.keys(shared).length > 0) void pushProfile(id, shared);
 

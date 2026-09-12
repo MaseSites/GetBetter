@@ -24,6 +24,7 @@ import {
   Loading,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -130,11 +131,7 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
       {open.loading && openTasks.length === 0 ? <Loading /> : null}
 
       {!open.loading && openTasks.length === 0 ? (
-        <EmptyState
-          icon="checkCircle"
-          title={t('tasks.empty.title')}
-          body={t('tasks.empty.body')}
-        />
+        <EmptyState title={t('tasks.empty.title')} body={t('tasks.empty.body')} />
       ) : null}
 
       {sections.map((section) => (
@@ -143,16 +140,19 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
             {t(`tasks.section.${section.id}` as TranslationKey)}
           </Text>
           <Card padded={false} style={{ paddingHorizontal: theme.spacing.lg }}>
+            {/* Loeschen: nach links wischen, oder im Blatt unten. */}
             {section.rows.map((task, index) => (
               <View key={task.id}>
                 {index > 0 ? <Divider /> : null}
-                <TaskRowView
-                  task={task}
-                  due={dueLabel(task)}
-                  onToggle={() => void taskRepo.setDone(task.id, true)}
-                  onOpen={() => setEditing(task)}
-                  sharedLabel={t('today.household')}
-                />
+                <SwipeRow onDelete={() => void taskRepo.remove(task.id)}>
+                  <TaskRowView
+                    task={task}
+                    due={dueLabel(task)}
+                    onToggle={() => void taskRepo.setDone(task.id, true)}
+                    onOpen={() => setEditing(task)}
+                    sharedLabel={t('today.household')}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </Card>
@@ -178,13 +178,15 @@ export function TasksView({ module }: { module: ModuleDefinition }) {
               {doneTasks.map((task, index) => (
                 <View key={task.id}>
                   {index > 0 ? <Divider /> : null}
-                  <TaskRowView
-                    task={task}
-                    due={null}
-                    onToggle={() => void taskRepo.setDone(task.id, false)}
-                    onOpen={() => setEditing(task)}
-                    sharedLabel={t('today.household')}
-                  />
+                  <SwipeRow onDelete={() => void taskRepo.remove(task.id)}>
+                    <TaskRowView
+                      task={task}
+                      due={null}
+                      onToggle={() => void taskRepo.setDone(task.id, false)}
+                      onOpen={() => setEditing(task)}
+                      sharedLabel={t('today.household')}
+                    />
+                  </SwipeRow>
                 </View>
               ))}
             </Card>

@@ -26,6 +26,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -57,45 +58,52 @@ export function PlantsView({ module }: { module: ModuleDefinition }) {
   function card(plant: PlantRow) {
     const dueDay = dueDayOf(plant);
     const diff = daysUntil(dueDay);
+    // Nach links wischen loescht — wie der Papierkorb unten in der Karte.
     return (
-      <Card key={plant.id}>
-        <View style={{ gap: theme.spacing.md }}>
-          <View style={[styles.row, { gap: theme.spacing.sm }]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="title">{plant.name}</Text>
-              <Text variant="caption" tone="muted">
-                {plant.location
-                  ? `${plant.location} · ${t('plants.every', { days: plant.intervalDays })}`
-                  : t('plants.every', { days: plant.intervalDays })}
+      <SwipeRow
+        key={plant.id}
+        radius={theme.radii.md}
+        onDelete={() => void plantRepo.remove(plant.id)}
+      >
+        <Card>
+          <View style={{ gap: theme.spacing.md }}>
+            <View style={[styles.row, { gap: theme.spacing.sm }]}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="title">{plant.name}</Text>
+                <Text variant="caption" tone="muted">
+                  {plant.location
+                    ? `${plant.location} · ${t('plants.every', { days: plant.intervalDays })}`
+                    : t('plants.every', { days: plant.intervalDays })}
+                </Text>
+              </View>
+              <Text variant="label" tone={diff < 0 ? 'danger' : diff === 0 ? 'accent' : 'muted'}>
+                {diff < 0 ? t('plants.overdue', { days: -diff }) : relativeDay(t, language, dueDay)}
               </Text>
             </View>
-            <Text variant="label" tone={diff < 0 ? 'danger' : diff === 0 ? 'accent' : 'muted'}>
-              {diff < 0 ? t('plants.overdue', { days: -diff }) : relativeDay(t, language, dueDay)}
-            </Text>
+            <View style={[styles.row, { gap: theme.spacing.sm }]}>
+              <Button
+                label={t('plants.watered')}
+                icon="water"
+                size="sm"
+                fullWidth={false}
+                variant={diff <= 0 ? 'primary' : 'secondary'}
+                onPress={() => void plantRepo.water(plant.id, today)}
+              />
+              <View style={{ flex: 1 }} />
+              <IconButton
+                icon="note"
+                label={t('plants.edit')}
+                onPress={() => setEditor({ mode: 'edit', row: plant })}
+              />
+              <IconButton
+                icon="trash"
+                label={t('common.remove')}
+                onPress={() => void plantRepo.remove(plant.id)}
+              />
+            </View>
           </View>
-          <View style={[styles.row, { gap: theme.spacing.sm }]}>
-            <Button
-              label={t('plants.watered')}
-              icon="water"
-              size="sm"
-              fullWidth={false}
-              variant={diff <= 0 ? 'primary' : 'secondary'}
-              onPress={() => void plantRepo.water(plant.id, today)}
-            />
-            <View style={{ flex: 1 }} />
-            <IconButton
-              icon="note"
-              label={t('plants.edit')}
-              onPress={() => setEditor({ mode: 'edit', row: plant })}
-            />
-            <IconButton
-              icon="trash"
-              label={t('common.remove')}
-              onPress={() => void plantRepo.remove(plant.id)}
-            />
-          </View>
-        </View>
-      </Card>
+        </Card>
+      </SwipeRow>
     );
   }
 
@@ -117,7 +125,7 @@ export function PlantsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="plant" title={t('plants.empty.title')} body={t('plants.empty.body')} />
+        <EmptyState title={t('plants.empty.title')} body={t('plants.empty.body')} />
       ) : null}
 
       {due.length > 0 ? (

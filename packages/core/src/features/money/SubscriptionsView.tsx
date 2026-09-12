@@ -19,6 +19,7 @@ import {
   Screen,
   Segmented,
   Sheet,
+  SwipeRow,
 } from '@/ui';
 
 import { parseAmount } from './amount';
@@ -85,27 +86,25 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState
-          icon="repeat"
-          title={t('subscriptions.empty.title')}
-          body={t('subscriptions.empty.body')}
-        />
+        <EmptyState title={t('subscriptions.empty.title')} body={t('subscriptions.empty.body')} />
       ) : (
         <Card>
           <View>
             {rows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={row.name}
-                  subtitle={t(`subscriptions.interval.${row.interval}` as TranslationKey)}
-                  right={
-                    <AmountCell
-                      amount={money(row.amountChf)}
-                      onRemove={() => void subscriptionRepo.remove(row.id)}
-                    />
-                  }
-                />
+                <SwipeRow onDelete={() => void subscriptionRepo.remove(row.id)}>
+                  <ListItem
+                    title={row.name}
+                    subtitle={t(`subscriptions.interval.${row.interval}` as TranslationKey)}
+                    right={
+                      <AmountCell
+                        amount={money(row.amountChf)}
+                        onRemove={() => void subscriptionRepo.remove(row.id)}
+                      />
+                    }
+                  />
+                </SwipeRow>
               </View>
             ))}
           </View>

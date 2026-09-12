@@ -61,17 +61,13 @@ export function CommandScreen() {
       footer={<Button label={t('common.done')} icon="check" onPress={() => router.replace('/')} />}
     >
       {result === 'done' ? (
-        <EmptyState icon="check" title={t('command.done')} body={text} />
+        <EmptyState title={t('command.done')} body={text} />
       ) : result === 'needsHousehold' ? (
-        <EmptyState icon="people" title={t('command.needsHousehold')} body={t('command.body')} />
+        <EmptyState title={t('command.needsHousehold')} body={t('command.body')} />
       ) : result === 'unknown' ? (
-        <EmptyState
-          icon="warning"
-          title={t('command.unknown', { command })}
-          body={t('command.body')}
-        />
+        <EmptyState title={t('command.unknown', { command })} body={t('command.body')} />
       ) : (
-        <EmptyState icon="clock" title={t('command.running')} body={text} />
+        <EmptyState title={t('command.running')} body={text} />
       )}
     </Screen>
   );

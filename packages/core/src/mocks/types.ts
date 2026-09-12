@@ -5,6 +5,32 @@ export const AREAS = ['health', 'organisation', 'money', 'household'] as const;
 export type Area = (typeof AREAS)[number];
 
 /**
+ * Die feinere Gliederung innerhalb eines Bereichs — die Ueberschriften in der
+ * Liste „Bereiche“. Ein Bereich allein waere ein langer Block; erst das Thema
+ * sagt, warum zwei Funktionen nebeneinander stehen (E-Mail ist Kommunikation,
+ * Kalender ist Planung). Die Reihenfolge hier ist die Reihenfolge im Bildschirm.
+ */
+export const TOPICS = [
+  'planning',
+  'communication',
+  'knowledge',
+  'people',
+  'everyday',
+  'assistant',
+  'training',
+  'nutrition',
+  'rest',
+  'body',
+  'supplies',
+  'cooking',
+  'living',
+  'mobility',
+  'spending',
+  'saving',
+] as const;
+export type Topic = (typeof TOPICS)[number];
+
+/**
  * Kernobjekte, auf die ein Modul zugreifen kann.
  * Diese Form ist bereits die echte — spaeter wird nur die Quelle getauscht.
  */
@@ -27,6 +53,7 @@ export const DATA_SCOPES = [
   'pets',
   'plants',
   'travel',
+  'mail',
 ] as const;
 export type DataScope = (typeof DATA_SCOPES)[number];
 
@@ -40,6 +67,8 @@ export type ModulePriority = 1 | 2 | 3;
 export type ModuleDefinition = {
   id: string;
   area: Area;
+  /** Die Ueberschrift, unter der die Funktion in „Bereiche“ steht. */
+  topic: Topic;
   name: string;
   short: string;
   description: string;

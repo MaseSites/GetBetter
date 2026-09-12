@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Animated, View } from 'react-native';
 
 import {
   budgets as budgetRepo,
@@ -27,7 +27,9 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
+  useSwipeSteps,
 } from '@/ui';
 
 import { parseAmount } from './amount';
@@ -46,6 +48,8 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const monthDate = addMonths(new Date(), monthOffset);
   const month = monthKey(monthDate);
+  // Wischen blaettert wie die Knoepfe: nach links der naechste Monat, nach rechts der letzte.
+  const swipe = useSwipeSteps((direction) => setMonthOffset((value) => value + direction));
 
   const [adding, setAdding] = useState(false);
   const [settingLimit, setSettingLimit] = useState(false);
@@ -150,75 +154,83 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
         />
       </View>
 
-      <Card>
-        <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
-          <Text variant="display">{money(spent)}</Text>
-          {limitChf ? (
-            <>
-              <ProgressBar share={share} warn={share > 1} />
-              <Text variant="caption" tone="muted">
-                {share > 1
-                  ? t('budget.over', { amount: money(spent - limitChf) })
-                  : t('budget.left', { amount: money(limitChf - spent) })}
-              </Text>
-            </>
-          ) : null}
-          <Button
-            label={t('budget.setLimit')}
-            variant="ghost"
-            icon="wallet"
-            fullWidth={false}
-            onPress={() => {
-              setLimitDraft(limitChf ? String(limitChf) : '');
-              setSettingLimit(true);
-            }}
-          />
-        </View>
-      </Card>
-
-      {byCategory.length > 1 ? (
-        <Card title={t('budget.byCategory')}>
-          <View style={{ gap: theme.spacing.md }}>
-            {byCategory.map((entry) => (
-              <View key={entry.id} style={{ gap: theme.spacing.xs }}>
-                <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="label">{categoryLabel(entry.id)}</Text>
-                  </View>
-                  <Text variant="label" tone="muted">
-                    {money(entry.total)}
-                  </Text>
-                </View>
-                <ProgressBar share={spent > 0 ? entry.total / spent : 0} />
-              </View>
-            ))}
-          </View>
-        </Card>
-      ) : null}
-
-      {rows.length === 0 ? (
-        <EmptyState icon="wallet" title={t('budget.empty.title')} body={t('budget.empty.body')} />
-      ) : (
+      {/* Waechst wie vorher der Inhalt, damit der leere Zustand mittig bleibt. */}
+      <Animated.View
+        style={[{ flexGrow: 1, gap: theme.spacing.lg }, swipe.style]}
+        {...swipe.panHandlers}
+      >
         <Card>
-          <View>
-            {rows.map((row, index) => (
-              <View key={row.id}>
-                {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={categoryLabel(row.category)}
-                  subtitle={row.note ?? formatShortDate(language, row.day)}
-                  right={
-                    <AmountCell
-                      amount={money(row.amountChf)}
-                      onRemove={() => void expenseRepo.remove(row.id)}
-                    />
-                  }
-                />
-              </View>
-            ))}
+          <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+            <Text variant="display">{money(spent)}</Text>
+            {limitChf ? (
+              <>
+                <ProgressBar share={share} warn={share > 1} />
+                <Text variant="caption" tone="muted">
+                  {share > 1
+                    ? t('budget.over', { amount: money(spent - limitChf) })
+                    : t('budget.left', { amount: money(limitChf - spent) })}
+                </Text>
+              </>
+            ) : null}
+            <Button
+              label={t('budget.setLimit')}
+              variant="ghost"
+              icon="wallet"
+              fullWidth={false}
+              onPress={() => {
+                setLimitDraft(limitChf ? String(limitChf) : '');
+                setSettingLimit(true);
+              }}
+            />
           </View>
         </Card>
-      )}
+
+        {byCategory.length > 1 ? (
+          <Card title={t('budget.byCategory')}>
+            <View style={{ gap: theme.spacing.md }}>
+              {byCategory.map((entry) => (
+                <View key={entry.id} style={{ gap: theme.spacing.xs }}>
+                  <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label">{categoryLabel(entry.id)}</Text>
+                    </View>
+                    <Text variant="label" tone="muted">
+                      {money(entry.total)}
+                    </Text>
+                  </View>
+                  <ProgressBar share={spent > 0 ? entry.total / spent : 0} />
+                </View>
+              ))}
+            </View>
+          </Card>
+        ) : null}
+
+        {rows.length === 0 ? (
+          <EmptyState title={t('budget.empty.title')} body={t('budget.empty.body')} />
+        ) : (
+          <Card>
+            <View>
+              {rows.map((row, index) => (
+                <View key={row.id}>
+                  {index > 0 ? <Divider /> : null}
+                  <SwipeRow onDelete={() => void expenseRepo.remove(row.id)}>
+                    <ListItem
+                      title={categoryLabel(row.category)}
+                      subtitle={row.note ?? formatShortDate(language, row.day)}
+                      right={
+                        <AmountCell
+                          amount={money(row.amountChf)}
+                          onRemove={() => void expenseRepo.remove(row.id)}
+                        />
+                      }
+                    />
+                  </SwipeRow>
+                </View>
+              ))}
+            </View>
+          </Card>
+        )}
+      </Animated.View>
 
       <FloatingButton label={t('budget.add')} onPress={() => setAdding(true)} />
 

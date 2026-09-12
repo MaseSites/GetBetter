@@ -5,6 +5,7 @@ export const MODULE_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
   ai: require('./modules/ai.png'),
   alarm: require('./modules/alarm.png'),
   bills: require('./modules/bills.png'),
+  birthdays: require('./modules/birthdays.png'),
   budget: require('./modules/budget.png'),
   calendar: require('./modules/calendar.png'),
   chores: require('./modules/chores.png'),
@@ -13,6 +14,7 @@ export const MODULE_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
   fitness: require('./modules/fitness.png'),
   habits: require('./modules/habits.png'),
   household: require('./modules/household.png'),
+  mail: require('./modules/mail.png'),
   meals: require('./modules/meals.png'),
   meds: require('./modules/meds.png'),
   mind: require('./modules/mind.png'),
@@ -29,12 +31,14 @@ export const MODULE_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {
   vehicles: require('./modules/vehicles.png'),
   vitals: require('./modules/vitals.png'),
   water: require('./modules/water.png'),
+  weather: require('./modules/weather.png'),
 };
 
 export const MODULE_IMAGES_MONO: Readonly<Record<string, ImageSourcePropType>> = {
   ai: require('./modules/ai-mono.png'),
   alarm: require('./modules/alarm-mono.png'),
   bills: require('./modules/bills-mono.png'),
+  birthdays: require('./modules/birthdays-mono.png'),
   budget: require('./modules/budget-mono.png'),
   calendar: require('./modules/calendar-mono.png'),
   chores: require('./modules/chores-mono.png'),
@@ -43,6 +47,7 @@ export const MODULE_IMAGES_MONO: Readonly<Record<string, ImageSourcePropType>> =
   fitness: require('./modules/fitness-mono.png'),
   habits: require('./modules/habits-mono.png'),
   household: require('./modules/household-mono.png'),
+  mail: require('./modules/mail-mono.png'),
   meals: require('./modules/meals-mono.png'),
   meds: require('./modules/meds-mono.png'),
   mind: require('./modules/mind-mono.png'),
@@ -59,6 +64,7 @@ export const MODULE_IMAGES_MONO: Readonly<Record<string, ImageSourcePropType>> =
   vehicles: require('./modules/vehicles-mono.png'),
   vitals: require('./modules/vitals-mono.png'),
   water: require('./modules/water-mono.png'),
+  weather: require('./modules/weather-mono.png'),
 };
 
 export const APP_IMAGES: Readonly<Record<string, ImageSourcePropType>> = {

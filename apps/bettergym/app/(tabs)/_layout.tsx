@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 
-import { accentTabIcon, accentTabOptions, tabIcon, useTabScreenOptions } from '@/app/tabs';
+import { tabIcon, useTabScreenOptions } from '@/app/tabs';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { createTheme, useTheme } from '@/theme';
@@ -28,9 +28,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="assistant"
         options={{
-          ...accentTabOptions,
           title: t('tabs.assistant'),
-          tabBarIcon: accentTabIcon('sparkles'),
+          tabBarIcon: tabIcon('sparkles'),
           tabBarActiveTintColor: dark.colors.text,
           tabBarInactiveTintColor: dark.colors.textFaint,
           tabBarStyle: {

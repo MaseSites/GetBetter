@@ -21,6 +21,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -100,44 +101,50 @@ export function VehiclesView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="car" title={t('vehicles.empty.title')} body={t('vehicles.empty.body')} />
+        <EmptyState title={t('vehicles.empty.title')} body={t('vehicles.empty.body')} />
       ) : null}
 
+      {/* Antippen oeffnet das Fahrzeug, nach links wischen loescht es. */}
       {rows.map((vehicle) => (
-        <Card
+        <SwipeRow
           key={vehicle.id}
-          onPress={() => setEditor({ mode: 'edit', row: vehicle })}
-          accessibilityLabel={vehicle.name}
+          radius={theme.radii.md}
+          onDelete={() => void vehicleRepo.remove(vehicle.id)}
         >
-          <View style={{ gap: theme.spacing.sm }}>
-            <View style={[styles.row, { gap: theme.spacing.sm }]}>
-              <Icon name="car" size={20} color={theme.colors.textMuted} />
-              <View style={{ flex: 1 }}>
-                <Text variant="title">{vehicle.name}</Text>
+          <Card
+            onPress={() => setEditor({ mode: 'edit', row: vehicle })}
+            accessibilityLabel={vehicle.name}
+          >
+            <View style={{ gap: theme.spacing.sm }}>
+              <View style={[styles.row, { gap: theme.spacing.sm }]}>
+                <Icon name="car" size={20} color={theme.colors.textMuted} />
+                <View style={{ flex: 1 }}>
+                  <Text variant="title">{vehicle.name}</Text>
+                </View>
+                {vehicle.plate ? (
+                  <Text variant="label" tone="muted">
+                    {vehicle.plate}
+                  </Text>
+                ) : null}
               </View>
-              {vehicle.plate ? (
-                <Text variant="label" tone="muted">
-                  {vehicle.plate}
-                </Text>
-              ) : null}
-            </View>
-            {dueLines(vehicle).map((line, index) => (
-              <View key={line.label}>
-                {index > 0 ? <Divider /> : null}
-                <View style={[styles.row, { paddingVertical: theme.spacing.xs }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="label" tone="muted">
-                      {line.label}
+              {dueLines(vehicle).map((line, index) => (
+                <View key={line.label}>
+                  {index > 0 ? <Divider /> : null}
+                  <View style={[styles.row, { paddingVertical: theme.spacing.xs }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label" tone="muted">
+                        {line.label}
+                      </Text>
+                    </View>
+                    <Text variant="label" tone={line.warn ? 'danger' : 'default'}>
+                      {line.value}
                     </Text>
                   </View>
-                  <Text variant="label" tone={line.warn ? 'danger' : 'default'}>
-                    {line.value}
-                  </Text>
                 </View>
-              </View>
-            ))}
-          </View>
-        </Card>
+              ))}
+            </View>
+          </Card>
+        </SwipeRow>
       ))}
 
       <FloatingButton label={t('vehicles.add')} onPress={() => setEditor({ mode: 'new' })} />

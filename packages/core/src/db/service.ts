@@ -40,6 +40,8 @@ export type RemoteAccount = {
 export type ServiceError =
   | 'email_invalid'
   | 'email_taken'
+  | 'username_invalid'
+  | 'username_taken'
   | 'password_too_short'
   | 'not_found'
   | 'wrong_password'
@@ -72,8 +74,17 @@ async function call(
   }
 }
 
-export function register(email: string, password: string): Promise<ServiceResult> {
-  return call('/v1/accounts', { method: 'POST', body: { email, password } });
+export function register(
+  email: string,
+  password: string,
+  username?: string,
+): Promise<ServiceResult> {
+  // Ohne Wunschnamen vergibt der Dienst selbst einen aus der Adresse.
+  const wanted = (username ?? '').trim();
+  return call('/v1/accounts', {
+    method: 'POST',
+    body: { email, password, ...(wanted.length > 0 ? { username: wanted } : {}) },
+  });
 }
 
 export function authenticate(email: string, password: string): Promise<ServiceResult> {
@@ -95,9 +106,40 @@ export function pushProfile(
     themeMode?: string;
     accentKey?: string;
     themePreset?: string;
+    assistantName?: string;
+    backdrop?: string;
   },
 ): Promise<ServiceResult> {
   return call(`/v1/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes });
+}
+
+export type ServiceCall<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/**
+ * Fuer alle Schnittstellen jenseits der Konten: Mitteilungen, E-Mail, Bilder.
+ * Die Antwort kommt als Ganzes zurueck; ein Fehler traegt den Schluessel des
+ * Dienstes (`auth_failed`, `not_found` …) oder `offline`, wenn er nicht antwortet.
+ * Wer danach neue Daten braucht, ruft `refresh()` aus dem Speicher.
+ */
+export async function callService<T>(
+  path: string,
+  init?: { method: 'GET' | 'POST' | 'DELETE' | 'PATCH'; body?: unknown },
+): Promise<ServiceCall<T>> {
+  try {
+    const response = await fetch(`${serviceUrl()}${path}`, {
+      method: init?.method ?? 'GET',
+      ...(init?.body === undefined
+        ? {}
+        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }),
+    });
+    const data = (await response.json()) as T & { error?: string };
+    if (!response.ok || typeof data.error === 'string') {
+      return { ok: false, error: data.error ?? `http_${response.status}` };
+    }
+    return { ok: true, data };
+  } catch {
+    return { ok: false, error: 'offline' };
+  }
 }
 
 export async function isReachable(): Promise<boolean> {

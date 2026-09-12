@@ -21,6 +21,7 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -67,11 +68,7 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState
-          icon="people"
-          title={t('contacts.empty.title')}
-          body={t('contacts.empty.body')}
-        />
+        <EmptyState title={t('contacts.empty.title')} body={t('contacts.empty.body')} />
       ) : null}
 
       {birthdays.length > 0 ? (
@@ -83,17 +80,19 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
             {birthdays.map(({ row, next }, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={row.name}
-                  icon="gift"
-                  subtitle={t('contacts.turns', { age: next.age })}
-                  right={
-                    <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
-                      {relativeDay(t, language, next.day)}
-                    </Text>
-                  }
-                  onPress={() => setEditor({ mode: 'edit', row })}
-                />
+                <SwipeRow onDelete={() => void contactRepo.remove(row.id)}>
+                  <ListItem
+                    title={row.name}
+                    icon="gift"
+                    subtitle={t('contacts.turns', { age: next.age })}
+                    right={
+                      <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
+                        {relativeDay(t, language, next.day)}
+                      </Text>
+                    }
+                    onPress={() => setEditor({ mode: 'edit', row })}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </Card>
@@ -111,12 +110,14 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
             {rows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={row.name}
-                  subtitle={subtitleOf(row)}
-                  showChevron
-                  onPress={() => setEditor({ mode: 'edit', row })}
-                />
+                <SwipeRow onDelete={() => void contactRepo.remove(row.id)}>
+                  <ListItem
+                    title={row.name}
+                    subtitle={subtitleOf(row)}
+                    showChevron
+                    onPress={() => setEditor({ mode: 'edit', row })}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </Card>

@@ -19,6 +19,7 @@ import {
   Input,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -68,49 +69,56 @@ export function MedsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="pill" title={t('meds.empty.title')} body={t('meds.empty.body')} />
+        <EmptyState title={t('meds.empty.title')} body={t('meds.empty.body')} />
       ) : null}
 
       {rows.map((med) => {
         const low = med.stock !== null && med.stock <= LOW_STOCK;
         return (
-          <Card key={med.id}>
-            <View style={{ gap: theme.spacing.md }}>
-              <View style={[styles.row, { gap: theme.spacing.sm }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="title">{med.name}</Text>
-                  {med.dose ? (
-                    <Text variant="caption" tone="muted">
-                      {med.dose}
-                    </Text>
-                  ) : null}
-                </View>
-                {med.stock !== null ? (
-                  <View style={[styles.row, { gap: theme.spacing.xs }]}>
-                    {low ? <Icon name="warning" size={14} color={theme.colors.danger} /> : null}
-                    <Text variant="label" tone={low ? 'danger' : 'muted'}>
-                      {low ? t('meds.stockLow') : t('meds.stockCount', { count: med.stock })}
-                    </Text>
+          // Nach links wischen loescht das Medikament; die Chips bleiben zum Antippen.
+          <SwipeRow
+            key={med.id}
+            radius={theme.radii.md}
+            onDelete={() => void medRepo.remove(med.id)}
+          >
+            <Card>
+              <View style={{ gap: theme.spacing.md }}>
+                <View style={[styles.row, { gap: theme.spacing.sm }]}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text variant="title">{med.name}</Text>
+                    {med.dose ? (
+                      <Text variant="caption" tone="muted">
+                        {med.dose}
+                      </Text>
+                    ) : null}
                   </View>
-                ) : null}
-                <IconButton
-                  icon="trash"
-                  label={t('common.remove')}
-                  onPress={() => void medRepo.remove(med.id)}
-                />
-              </View>
-              <View style={[styles.chips, { gap: theme.spacing.sm }]}>
-                {med.slots.map((slot) => (
-                  <Chip
-                    key={slot}
-                    label={`${taken(med, slot) ? '✓ ' : ''}${slotLabel(slot)}`}
-                    selected={taken(med, slot)}
-                    onPress={() => void medRepo.toggle(med.id, account.id, today, slot)}
+                  {med.stock !== null ? (
+                    <View style={[styles.row, { gap: theme.spacing.xs }]}>
+                      {low ? <Icon name="warning" size={14} color={theme.colors.danger} /> : null}
+                      <Text variant="label" tone={low ? 'danger' : 'muted'}>
+                        {low ? t('meds.stockLow') : t('meds.stockCount', { count: med.stock })}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <IconButton
+                    icon="trash"
+                    label={t('common.remove')}
+                    onPress={() => void medRepo.remove(med.id)}
                   />
-                ))}
+                </View>
+                <View style={[styles.chips, { gap: theme.spacing.sm }]}>
+                  {med.slots.map((slot) => (
+                    <Chip
+                      key={slot}
+                      label={`${taken(med, slot) ? '✓ ' : ''}${slotLabel(slot)}`}
+                      selected={taken(med, slot)}
+                      onPress={() => void medRepo.toggle(med.id, account.id, today, slot)}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
-          </Card>
+            </Card>
+          </SwipeRow>
         );
       })}
 

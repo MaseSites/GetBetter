@@ -168,7 +168,7 @@ function ChatView({ module, chatId }: AiChatViewProps) {
         onContentSizeChange={scrollDown}
       >
         {empty ? (
-          <EmptyState icon="bulb" title={t('aiChat.empty.title')} body={t('aiChat.empty.body')} />
+          <EmptyState title={t('aiChat.empty.title')} body={t('aiChat.empty.body')} />
         ) : null}
 
         {messages.map((message) => (

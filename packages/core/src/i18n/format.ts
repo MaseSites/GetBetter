@@ -56,6 +56,15 @@ export function formatMonthName(language: Language, date: Date): string {
   return new Intl.DateTimeFormat(localeFor(language), { month: 'long' }).format(date);
 }
 
+/** "9. September 1990" — ein Geburtsdatum. */
+export function formatBirthDate(language: Language, date: Date): string {
+  return new Intl.DateTimeFormat(localeFor(language), {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
 /** "18. September" */
 export function formatDayMonth(language: Language, date: Date): string {
   return new Intl.DateTimeFormat(localeFor(language), { day: 'numeric', month: 'long' }).format(

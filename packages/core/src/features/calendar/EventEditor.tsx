@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { useLiveQuery, type EventRow } from '@/db';
+import { BirthdayForm } from '@/features/birthdays/BirthdayEditor';
 import { hasHouseholds } from '@/app/identity';
 import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Chip, Icon, Input, Loading, Sheet, Text } from '@/ui';
+import { Button, Chip, Icon, Input, Loading, Segmented, Sheet, Text } from '@/ui';
 
 import {
   EVENT_COLORS,
@@ -88,11 +89,13 @@ export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
     <Sheet
       visible={draft !== null}
       onClose={onClose}
-      title={editing ? t('calendar.edit') : t('calendar.add')}
+      title={
+        editing ? t('calendar.edit') : hasHouseholds() ? t('calendar.add') : t('calendar.newEntry')
+      }
       fullScreen
     >
       {draft && ready ? (
-        <EventForm
+        <DraftBody
           key={draftKey}
           draft={draft}
           accountId={accountId}
@@ -102,6 +105,45 @@ export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
       ) : null}
       {draft && !ready ? <Loading /> : null}
     </Sheet>
+  );
+}
+
+type EntryKind = 'event' | 'birthday';
+
+/**
+ * Beim Anlegen im privaten Kalender waehlt man oben, was es wird: ein Termin
+ * oder ein Geburtstag. Der Geburtstag landet beim Kontakt und steht damit auch
+ * in der Funktion „Geburtstage“ — und jedes Jahr wieder im Kalender.
+ */
+function DraftBody(props: EventFormProps) {
+  const t = useTranslate();
+  const theme = useTheme();
+  const [kind, setKind] = useState<EntryKind>('event');
+  const canChoose = !props.draft.event && !hasHouseholds();
+
+  if (!canChoose) return <EventForm {...props} />;
+
+  return (
+    <View style={{ gap: theme.spacing.md, paddingTop: theme.spacing.sm }}>
+      <Segmented
+        options={[
+          { value: 'event', label: t('calendar.kind.event') },
+          { value: 'birthday', label: t('calendar.kind.birthday') },
+        ]}
+        value={kind}
+        onChange={setKind}
+        accessibilityLabel={t('calendar.kind.label')}
+      />
+      {kind === 'birthday' ? (
+        <BirthdayForm
+          draft={{ day: props.draft.day }}
+          accountId={props.accountId}
+          onDone={props.onClose}
+        />
+      ) : (
+        <EventForm {...props} />
+      )}
+    </View>
   );
 }
 

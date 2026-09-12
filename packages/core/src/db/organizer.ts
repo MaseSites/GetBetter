@@ -259,4 +259,19 @@ export const contacts = {
     await db.contacts.remove(id);
     changed(null);
   },
+
+  /**
+   * Einen Geburtstag loeschen. Wer nur wegen des Geburtstags eingetragen war,
+   * geht ganz; wer Telefon, Notiz oder ein Treffen hat, bleibt als Kontakt.
+   */
+  async removeBirthday(id: string) {
+    const row = await db.contacts.find(id);
+    if (!row) return;
+    if (row.phone === null && row.note === null && row.lastSeenOn === null) {
+      await db.contacts.remove(id);
+    } else {
+      await db.contacts.update(id, { birthday: null });
+    }
+    changed(null);
+  },
 };

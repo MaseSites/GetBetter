@@ -12,7 +12,6 @@ function Fallback({ onRetry }: { onRetry: () => void }) {
   return (
     <Screen scroll={false} contentStyle={{ flex: 1, justifyContent: 'center' }}>
       <EmptyState
-        icon="warning"
         title={t('error.title')}
         body={t('error.body')}
         actionLabel={t('error.retry')}

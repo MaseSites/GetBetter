@@ -5,10 +5,12 @@ export { notifyDataChanged, useLiveQuery } from './live';
 export { households, normaliseInviteCode, MAX_HOUSEHOLDS } from './households';
 export { calendars, MAX_CALENDARS } from './calendars';
 export { shares } from './shares';
+export { notifications } from './notifications';
 export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, routines, workoutSets, workouts } from './gym';
 export { meds, moods, sleepMinutes, sleeps, vitals } from './health';
 export { chatMessages, chatTitleOf, chats } from './chats';
+export { mail } from './mail';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';
 export { pets, plantDueDay, plants, recipes, vehicles } from './family';
@@ -32,6 +34,11 @@ export type { LiveQuery } from './live';
 export type {
   Account,
   AlarmRow,
+  MailAccountRow,
+  MailAddress,
+  MailMessageRow,
+  NotificationKind,
+  NotificationRow,
   CalendarMemberRow,
   CalendarRow,
   CalendarScope,
@@ -86,4 +93,5 @@ export type {
   Schema,
   ShoppingItemRow,
   TaskRow,
+  WeatherPlace,
 } from './types';

@@ -11,11 +11,13 @@ import {
 import { useColorScheme } from 'react-native';
 
 import {
+  changeUsername,
   findAccount,
   signIn as signInAccount,
   signUp as signUpAccount,
   updateAccount,
   type AuthResult,
+  type UsernameSave,
 } from '@/auth/accounts';
 import {
   flush,
@@ -26,6 +28,7 @@ import {
   type HouseholdRole,
   type HouseholdRow,
   type JoinResult,
+  type WeatherPlace,
 } from '@/db';
 import { currentApp } from '@/app/identity';
 import { appAccess } from '@/db/appAccess';
@@ -60,7 +63,8 @@ export type AppContextValue = {
   colorScheme: ColorScheme;
 
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, password: string) => Promise<AuthResult>;
+  /** `username` ist der Kontoname, den man schon beim Registrieren setzt. */
+  signUp: (email: string, password: string, username?: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   /** Ein Konto uebernehmen, das aus einer anderen Better-App kommt. */
   adoptAccount: (account: Account) => Promise<void>;
@@ -71,6 +75,23 @@ export type AppContextValue = {
   /** Aussehen: was nicht mitgegeben wird, bleibt wie es ist. */
   appearance: Appearance;
   setAppearance: (patch: Partial<Appearance>) => Promise<void>;
+  /** Der Ort fuers Wetter, am Konto gespeichert. */
+  setWeatherPlace: (place: WeatherPlace) => Promise<void>;
+  /** Schnellzugriff und Favoriten (`appId:moduleId`), in dieser Reihenfolge. */
+  setFavorites: (keys: readonly string[]) => Promise<void>;
+  /** Der Schnellzugriff — eine eigene Liste neben den Favoriten. */
+  setQuickAccess: (keys: readonly string[]) => Promise<void>;
+  /** Wie der Assistent heisst. */
+  setAssistantName: (name: string) => Promise<void>;
+  /** Der Spitzname, mit dem die App dich anspricht. */
+  setFirstName: (name: string) => Promise<void>;
+  /**
+   * Der Kontoname (`@name`), unter dem andere dich finden. Das letzte Wort hat
+   * der Dienst — darum sagt der Rueckgabewert, ob es geklappt hat.
+   */
+  setUsername: (name: string) => Promise<UsernameSave>;
+  /** Der Hintergrund: `app`, ein Schluessel aus `BACKDROPS` oder `upload:<id>`. */
+  setBackdrop: (key: string) => Promise<void>;
 
   createHousehold: (name: string) => Promise<boolean>;
   switchHousehold: (householdId: string) => Promise<void>;
@@ -182,8 +203,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const signUp = useCallback<AppContextValue['signUp']>(
-    async (email, password) => {
-      const result = await signUpAccount(email, password);
+    async (email, password, username) => {
+      const result = await signUpAccount(email, password, username);
       if (result.ok) await remember(result.account);
       return result;
     },
@@ -243,6 +264,72 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...(patch.preset ? { themePreset: patch.preset } : {}),
       });
       if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setWeatherPlace = useCallback<AppContextValue['setWeatherPlace']>(
+    async (place) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { weatherPlace: place });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setFavorites = useCallback<AppContextValue['setFavorites']>(
+    async (keys) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { favorites: [...keys] });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setQuickAccess = useCallback<AppContextValue['setQuickAccess']>(
+    async (keys) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { quickAccess: [...keys] });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setAssistantName = useCallback<AppContextValue['setAssistantName']>(
+    async (name) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { assistantName: name.trim() });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setBackdrop = useCallback<AppContextValue['setBackdrop']>(
+    async (key) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { backdrop: key });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setFirstName = useCallback<AppContextValue['setFirstName']>(
+    async (name) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { firstName: name.trim() });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setUsername = useCallback<AppContextValue['setUsername']>(
+    async (name) => {
+      if (!account) return 'offline';
+      const result = await changeUsername(account.id, name);
+      if (result !== 'ok') return result;
+      const fresh = await findAccount(account.id);
+      if (fresh) setAccount(fresh);
+      return 'ok';
     },
     [account],
   );
@@ -308,6 +395,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLanguage,
       appearance,
       setAppearance,
+      setWeatherPlace,
+      setFavorites,
+      setQuickAccess,
+      setAssistantName,
+      setFirstName,
+      setUsername,
+      setBackdrop,
       createHousehold,
       switchHousehold,
       joinHousehold,
@@ -328,6 +422,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       colorScheme,
       appearance,
       setAppearance,
+      setWeatherPlace,
+      setFavorites,
+      setQuickAccess,
+      setAssistantName,
+      setFirstName,
+      setUsername,
+      setBackdrop,
       household,
       role,
       createHousehold,

@@ -3,6 +3,8 @@ import { View } from 'react-native';
 
 import { AiChatView } from '@/features/ai/AiChatView';
 import { AlarmView } from '@/features/alarm/AlarmView';
+import { BirthdaysView } from '@/features/birthdays/BirthdaysView';
+import { MailView } from '@/features/mail/MailView';
 import { CalendarView } from '@/features/calendar/CalendarView';
 import { ChoresView } from '@/features/chores/ChoresView';
 import { FitnessView } from '@/features/gym/FitnessView';
@@ -27,12 +29,13 @@ import { HabitsView } from '@/features/organizer/HabitsView';
 import { TripsView } from '@/features/organizer/TripsView';
 import { ShoppingView } from '@/features/shopping/ShoppingView';
 import { TasksView } from '@/features/tasks/TasksView';
+import { WeatherView } from '@/features/weather/WeatherView';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { getModule } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
-import { hueTint, useTheme } from '@/theme';
-import { Button, Card, EmptyState, Header, HeaderCrumbProvider, Icon, Screen, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { Button, Card, EmptyState, Header, HeaderCrumbProvider, Screen, Text } from '@/ui';
 
 /** Module, die schon wirklich etwas tun. Der Rest bekommt den Platzhalter. */
 const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = {
@@ -41,6 +44,7 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   notes: (module) => <NotesView module={module} />,
   shopping: (module) => <ShoppingView module={module} />,
   alarm: (module) => <AlarmView module={module} />,
+  weather: (module) => <WeatherView module={module} />,
   chores: (module) => <ChoresView module={module} />,
   ai: (module) => <AiChatView module={module} />,
   fitness: (module) => <FitnessView module={module} />,
@@ -54,6 +58,8 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   habits: (module) => <HabitsView module={module} />,
   travel: (module) => <TripsView module={module} />,
   contacts: (module) => <ContactsView module={module} />,
+  birthdays: (module) => <BirthdaysView module={module} />,
+  mail: (module) => <MailView module={module} />,
   recipes: (module) => <RecipesView module={module} />,
   plants: (module) => <PlantsView module={module} />,
   pets: (module) => <PetsView module={module} />,
@@ -91,7 +97,6 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
     >
       <Card>
         <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
-          <Icon name={module.icon} size={28} color={theme.colors.textFaint} />
           <Text variant="title" align="center">
             {t('moduleScreen.placeholder.title')}
           </Text>
@@ -112,7 +117,6 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
 
 export function RunModuleScreen() {
   const { t } = useI18n();
-  const theme = useTheme();
   const router = useRouter();
   const { account } = useApp();
 
@@ -126,7 +130,6 @@ export function RunModuleScreen() {
     return (
       <Screen header={<Header showBack />} scroll={false}>
         <EmptyState
-          icon="warning"
           title={t('detail.notFound.title')}
           body={t('detail.notFound.body')}
           actionLabel={t('detail.notFound.action')}
@@ -139,12 +142,7 @@ export function RunModuleScreen() {
   const build = BUILT[module.id];
   return (
     // Jede Vollansicht bekommt oben ihre Bereichsmarke, ohne sie selbst zu kennen.
-    <HeaderCrumbProvider
-      value={{
-        label: t(`area.${module.area}` as TranslationKey),
-        color: hueTint(theme, module.area).base,
-      }}
-    >
+    <HeaderCrumbProvider value={{ label: t(`area.${module.area}` as TranslationKey) }}>
       {build ? build(module) : <PlaceholderModule module={module} />}
     </HeaderCrumbProvider>
   );

@@ -21,7 +21,6 @@ export function AiChatScreen() {
     return (
       <Screen header={<Header showBack />} scroll={false}>
         <EmptyState
-          icon="warning"
           title={t('detail.notFound.title')}
           body={t('detail.notFound.body')}
           actionLabel={t('detail.notFound.action')}

@@ -1,6 +1,7 @@
 import { findByUsername } from '@/auth/accounts';
 
 import { notifyDataChanged } from './live';
+import { notifications } from './notifications';
 import { db, newId } from './store';
 import type { Account, CalendarMemberRow, CalendarRow } from './types';
 
@@ -149,8 +150,9 @@ export const calendars = {
     );
     if (existing) return { ok: false, error: 'already_invited' };
 
+    const membershipId = newId('cm');
     await db.calendarMembers.insert({
-      id: newId('cm'),
+      id: membershipId,
       calendarId,
       accountId,
       role: 'member',
@@ -160,6 +162,17 @@ export const calendars = {
       respondedAt: autoAccept ? now() : null,
     });
     notifyDataChanged();
+
+    // Wer direkt dabei ist, hat nichts zu beantworten — nur Externe bekommen eine Mitteilung.
+    if (!autoAccept) {
+      await notifications.announce(async () => ({
+        accountId,
+        kind: 'calendarInvite',
+        title: nameOf(await db.accounts.find(invitedBy)),
+        body: (await db.calendars.find(calendarId))?.name ?? '',
+        ref: { membershipId, calendarId },
+      }));
+    }
     return { ok: true };
   },
 
@@ -187,13 +200,19 @@ export const calendars = {
       await db.calendarMembers.remove(membershipId);
     }
     notifyDataChanged();
+    await notifications.removeByRef({
+      kind: 'calendarInvite',
+      key: 'membershipId',
+      value: membershipId,
+    });
     return true;
   },
 
   /** Austreten. Wer den Kalender fuehrt, loest ihn auf. */
   async leave(calendarId: string, accountId: string) {
     const calendar = await db.calendars.find(calendarId);
-    if (calendar && calendar.ownerId === accountId) {
+    const dissolved = Boolean(calendar && calendar.ownerId === accountId);
+    if (dissolved) {
       await db.calendarMembers.removeWhere((row) => row.calendarId === calendarId);
       await db.events.removeWhere((row) => row.calendarId === calendarId);
       await db.calendars.remove(calendarId);
@@ -203,6 +222,13 @@ export const calendars = {
       );
     }
     notifyDataChanged();
+    // Ein aufgeloester Kalender nimmt alle offenen Einladungen mit.
+    await notifications.removeByRef({
+      ...(dissolved ? {} : { accountId }),
+      kind: 'calendarInvite',
+      key: 'calendarId',
+      value: calendarId,
+    });
   },
 
   async removeMember(calendarId: string, accountId: string) {
@@ -210,5 +236,12 @@ export const calendars = {
       (row) => row.calendarId === calendarId && row.accountId === accountId && row.role !== 'owner',
     );
     notifyDataChanged();
+    // Auch eine offene Einladung laesst sich so zuruecknehmen.
+    await notifications.removeByRef({
+      accountId,
+      kind: 'calendarInvite',
+      key: 'calendarId',
+      value: calendarId,
+    });
   },
 };

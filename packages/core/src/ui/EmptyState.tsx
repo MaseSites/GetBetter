@@ -3,11 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/theme';
 
 import { Button } from './Button';
-import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
 export type EmptyStateProps = {
-  icon?: IconName;
   title: string;
   body: string;
   actionLabel?: string;
@@ -18,11 +16,14 @@ export type EmptyStateProps = {
 /**
  * Kein Bildschirm bleibt weiss. Wo nichts ist, steht hier, warum.
  *
- * Kein trauriges Maskottchen und kein «Ups»: ein Zeichen, ein Satz, der sagt
+ * Kein Symbol, kein trauriges Maskottchen und kein «Ups»: ein Satz, der sagt,
  * was jetzt geht, und genau ein Knopf. Leer ist kein Fehler.
+ *
+ * Ohne `compact` nimmt der Zustand den freien Platz des Bildschirms ein und
+ * steht darin mittig — nicht oben unter dem Titel. Hat der Bildschirm unten
+ * schon einen Hauptknopf, bekommt der Zustand keinen zweiten.
  */
 export function EmptyState({
-  icon = 'info',
   title,
   body,
   actionLabel,
@@ -35,6 +36,7 @@ export function EmptyState({
     <View
       style={[
         styles.wrap,
+        compact ? null : styles.fill,
         {
           paddingVertical: compact ? theme.spacing.lg : theme.spacing.xxl,
           paddingHorizontal: theme.spacing.lg,
@@ -42,15 +44,7 @@ export function EmptyState({
         },
       ]}
     >
-      <View
-        style={[
-          styles.iconBox,
-          { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radii.lg },
-        ]}
-      >
-        <Icon name={icon} size={28} color={theme.colors.textFaint} />
-      </View>
-      <Text variant="title" align="center" style={{ marginTop: theme.spacing.sm }}>
+      <Text variant="title" align="center">
         {title}
       </Text>
       <Text variant="body" tone="muted" align="center" style={styles.body}>
@@ -67,7 +61,8 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  iconBox: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  // flexGrow statt flex: 1 — sonst wird im Browser flex-basis 0% daraus.
+  fill: { flexGrow: 1 },
   // Ein Satz liest sich schlecht ueber die ganze Breite.
   body: { maxWidth: 280 },
 });

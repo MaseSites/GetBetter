@@ -19,6 +19,7 @@ import {
   ListItem,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -74,23 +75,25 @@ export function MealsView({ module }: { module: ModuleDefinition }) {
       }
     >
       {rows.length === 0 ? (
-        <EmptyState icon="meal" title={t('meals.empty.title')} body={t('meals.empty.body')} />
+        <EmptyState title={t('meals.empty.title')} body={t('meals.empty.body')} />
       ) : (
         <Card>
           <View>
             {rows.map((row, index) => (
               <View key={row.id}>
                 {index > 0 ? <Divider /> : null}
-                <ListItem
-                  title={row.name}
-                  subtitle={t(`meals.slot.${row.slot}` as TranslationKey)}
-                  right={
-                    <Text variant="label" tone="muted">
-                      {t('meals.kcal', { kcal: row.kcal })}
-                    </Text>
-                  }
-                  onPress={() => void mealRepo.remove(row.id)}
-                />
+                <SwipeRow onDelete={() => void mealRepo.remove(row.id)}>
+                  <ListItem
+                    title={row.name}
+                    subtitle={t(`meals.slot.${row.slot}` as TranslationKey)}
+                    right={
+                      <Text variant="label" tone="muted">
+                        {t('meals.kcal', { kcal: row.kcal })}
+                      </Text>
+                    }
+                    onPress={() => void mealRepo.remove(row.id)}
+                  />
+                </SwipeRow>
               </View>
             ))}
           </View>

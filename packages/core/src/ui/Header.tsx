@@ -25,6 +25,11 @@ export type HeaderProps = {
    * Bildschirm ein, ohne dem Titel Gewicht wegzunehmen.
    */
   overline?: string;
+  /**
+   * Haengt sich an die Marke und macht die ganze Zeile drueckbar — auf der
+   * Startseite steht so das Wetter neben dem Datum und fuehrt ins Modul.
+   */
+  overlineAction?: { icon?: IconName; text: string; label: string; onPress: () => void };
   title?: string;
   subtitle?: string;
   showBack?: boolean;
@@ -37,7 +42,7 @@ export type HeaderProps = {
    * Bereichsmarke ohne Zurueck-Knopf — fuer die Startseiten von BetterGym,
    * BetterFamily und BetterMoney. In Vollansichten kommt sie aus dem Kontext.
    */
-  crumb?: { label: string; color: string } | null | undefined;
+  crumb?: { label: string } | null | undefined;
   children?: ReactNode;
 };
 
@@ -51,6 +56,7 @@ export type HeaderProps = {
  */
 export function Header({
   overline,
+  overlineAction,
   title,
   subtitle,
   showBack = false,
@@ -114,7 +120,6 @@ export function Header({
           ) : null}
           {crumb ? (
             <View style={[styles.row, styles.grow, { gap: theme.spacing.sm }]}>
-              <View style={[styles.swatch, { backgroundColor: crumb.color }]} />
               <Text
                 variant="overline"
                 tone="faint"
@@ -145,7 +150,38 @@ export function Header({
           ]}
         >
           <View style={styles.titles}>
-            {overline ? (
+            {overline && overlineAction ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={overlineAction.label}
+                onPress={overlineAction.onPress}
+                style={({ pressed }) => [
+                  styles.row,
+                  styles.overlineRow,
+                  { gap: theme.spacing.xs, opacity: pressed ? 0.5 : 1 },
+                ]}
+              >
+                <Text
+                  variant="overline"
+                  tone="faint"
+                  numberOfLines={1}
+                  style={{ fontSize: theme.fontSize.caption, lineHeight: theme.lineHeight.caption }}
+                >
+                  {overline} ·
+                </Text>
+                {overlineAction.icon ? (
+                  <Icon name={overlineAction.icon} size={14} color={theme.colors.textMuted} />
+                ) : null}
+                <Text
+                  variant="overline"
+                  tone="muted"
+                  numberOfLines={1}
+                  style={{ fontSize: theme.fontSize.caption, lineHeight: theme.lineHeight.caption }}
+                >
+                  {overlineAction.text}
+                </Text>
+              </Pressable>
+            ) : overline ? (
               <Text
                 variant="overline"
                 tone="faint"
@@ -230,8 +266,8 @@ function RoundButton({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
-  swatch: { width: 8, height: 8, borderRadius: 2 },
   titles: { flex: 1, gap: 3 },
+  overlineRow: { alignSelf: 'flex-start' },
   actions: { flexDirection: 'row', alignItems: 'center' },
   round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });

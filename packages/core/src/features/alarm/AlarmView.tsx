@@ -1,28 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
-import { useLiveQuery } from '@/db';
+import { useLiveQuery, type AlarmRow } from '@/db';
 import { alarms as alarmRepo } from '@/db/repositories';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, EmptyState, Header, Icon, Input, Loading, Screen, Sheet, Text } from '@/ui';
+import { Button, Card, EmptyState, Header, Loading, Screen, SwipeRow, Text } from '@/ui';
 
-export const WEEKDAYS = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'] as const;
-export type Weekday = (typeof WEEKDAYS)[number];
+import { AlarmEditor, WEEKDAYS, repeatLabel, type Weekday } from './AlarmEditor';
 
-const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;
+export { WEEKDAYS, type Weekday };
 
-function normaliseTime(input: string): string | null {
-  const match = TIME_PATTERN.exec(input.trim());
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return null;
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
+type Editing = { alarm: AlarmRow | null } | null;
 
 export function AlarmView({ module }: { module: ModuleDefinition }) {
   const t = useTranslate();
@@ -30,176 +22,113 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
   const router = useRouter();
   const account = useAccount();
 
-  const [composing, setComposing] = useState(false);
+  const [editing, setEditing] = useState<Editing>(null);
 
   const list = useLiveQuery(() => alarmRepo.list(account.id), [account.id]);
   const items = list.data ?? [];
   const next = items.find((alarm) => alarm.enabled);
+  const nextText = next
+    ? next.label
+      ? `${t('alarm.next', { time: next.time })} — ${next.label}`
+      : t('alarm.next', { time: next.time })
+    : t('alarm.noneActive');
 
   return (
     <Screen
       header={
         <Header
           title={module.name}
-          subtitle={
-            next ? t('alarm.next', { time: next.time, label: next.label }) : t('alarm.noneActive')
-          }
+          subtitle={nextText}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
         />
       }
-      footer={<Button label={t('alarm.add')} icon="plus" onPress={() => setComposing(true)} />}
+      footer={
+        <Button label={t('alarm.add')} icon="plus" onPress={() => setEditing({ alarm: null })} />
+      }
     >
       {list.loading && items.length === 0 ? <Loading /> : null}
 
       {!list.loading && items.length === 0 ? (
-        <EmptyState
-          icon="alarm"
-          title={t('alarm.empty.title')}
-          body={t('alarm.empty.body')}
-          actionLabel={t('alarm.add')}
-          onAction={() => setComposing(true)}
-        />
+        <EmptyState title={t('alarm.empty.title')} body={t('alarm.empty.body')} />
       ) : null}
 
+      {/* Loeschen wie in der iPhone-Uhr: nach links wischen, oder im Editor unten. */}
       {items.map((alarm) => (
-        <Card key={alarm.id}>
-          <View style={[styles.row, { gap: theme.spacing.lg }]}>
-            <View style={{ flex: 1, gap: theme.spacing.xs }}>
-              <Text
-                variant="display"
-                tone={alarm.enabled ? 'default' : 'faint'}
-                style={{ fontVariant: ['tabular-nums'] }}
+        <SwipeRow
+          key={alarm.id}
+          radius={theme.radii.md}
+          onDelete={() => void alarmRepo.remove(alarm.id)}
+        >
+          <Card>
+            <View style={[styles.row, { gap: theme.spacing.lg }]}>
+              {/* Uhrzeit und Text fuehren in den Editor; der Schalter bleibt aussen. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${alarm.time} ${alarm.label}`.trim()}
+                onPress={() => setEditing({ alarm })}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  gap: theme.spacing.xs,
+                  opacity: pressed ? 0.6 : 1,
+                })}
               >
-                {alarm.time}
-              </Text>
-              {alarm.label.length > 0 ? (
-                <Text variant="label" tone="muted">
-                  {alarm.label}
+                <Text
+                  variant="display"
+                  tone={alarm.enabled ? 'default' : 'faint'}
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
+                  {alarm.time}
                 </Text>
-              ) : null}
-              <View style={[styles.days, { gap: theme.spacing.xs }]}>
-                {alarm.days.length === 0 ? (
-                  <Text variant="caption" tone="faint">
-                    {t('alarm.once')}
+                {alarm.label.length > 0 ? (
+                  <Text variant="label" tone="muted">
+                    {alarm.label}
                   </Text>
-                ) : (
-                  WEEKDAYS.map((day) => {
-                    const on = alarm.days.includes(day);
-                    return (
-                      <Text
-                        key={day}
-                        variant="caption"
-                        tone={on && alarm.enabled ? 'accent' : 'faint'}
-                        style={{ fontWeight: on ? theme.fontWeight.semibold : undefined }}
-                      >
-                        {t(`alarm.day.${day}` as TranslationKey)}
-                      </Text>
-                    );
-                  })
-                )}
-              </View>
-            </View>
-            <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+                ) : null}
+                <View style={[styles.days, { gap: theme.spacing.xs }]}>
+                  {alarm.days.length === 0 ? (
+                    <Text variant="caption" tone="faint">
+                      {repeatLabel(t, alarm.days)}
+                    </Text>
+                  ) : (
+                    WEEKDAYS.map((day) => {
+                      const on = alarm.days.includes(day);
+                      return (
+                        <Text
+                          key={day}
+                          variant="caption"
+                          tone={on && alarm.enabled ? 'accent' : 'faint'}
+                          style={{ fontWeight: on ? theme.fontWeight.semibold : undefined }}
+                        >
+                          {t(`alarm.day.${day}` as TranslationKey)}
+                        </Text>
+                      );
+                    })
+                  )}
+                </View>
+              </Pressable>
               <Switch
                 value={alarm.enabled}
                 onValueChange={(value) => {
                   void alarmRepo.setEnabled(alarm.id, value);
                 }}
-                accessibilityLabel={`${alarm.time} ${alarm.label}`}
+                accessibilityLabel={t('alarm.enabledLabel', { time: alarm.time })}
                 trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
                 thumbColor={theme.colors.surface}
               />
-              <Icon name="trash" size={18} color={theme.colors.textFaint} />
             </View>
-          </View>
-        </Card>
+          </Card>
+        </SwipeRow>
       ))}
 
-      <AlarmComposer
-        visible={composing}
+      <AlarmEditor
+        key={editing?.alarm?.id ?? (editing ? 'new' : 'closed')}
+        visible={editing !== null}
         accountId={account.id}
-        onClose={() => setComposing(false)}
+        alarm={editing?.alarm ?? null}
+        onClose={() => setEditing(null)}
       />
     </Screen>
-  );
-}
-
-type ComposerProps = { visible: boolean; accountId: string; onClose: () => void };
-
-function AlarmComposer({ visible, accountId, onClose }: ComposerProps) {
-  const t = useTranslate();
-  const theme = useTheme();
-
-  const [time, setTime] = useState('07:00');
-  const [label, setLabel] = useState('');
-  const [days, setDays] = useState<readonly Weekday[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  function toggleDay(day: Weekday) {
-    setDays((current) =>
-      current.includes(day) ? current.filter((item) => item !== day) : [...current, day],
-    );
-  }
-
-  async function save() {
-    const normalised = normaliseTime(time);
-    if (!normalised) {
-      setError(t('alarm.error.time'));
-      return;
-    }
-    await alarmRepo.create({ accountId, time: normalised, label, days });
-    setTime('07:00');
-    setLabel('');
-    setDays([]);
-    setError(null);
-    onClose();
-  }
-
-  return (
-    <Sheet visible={visible} onClose={onClose} title={t('alarm.add')}>
-      <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.md }}>
-        <Input
-          label={t('alarm.field.time')}
-          placeholder="07:00"
-          value={time}
-          onChangeText={(value) => {
-            setTime(value);
-            setError(null);
-          }}
-          keyboardType="numbers-and-punctuation"
-          {...(error ? { error } : {})}
-        />
-        <Input
-          label={t('alarm.field.label')}
-          placeholder={t('alarm.field.labelPlaceholder')}
-          value={label}
-          onChangeText={setLabel}
-        />
-        <View style={{ gap: theme.spacing.xs }}>
-          <Text variant="label" tone="muted">
-            {t('alarm.field.days')}
-          </Text>
-          <View style={[styles.days, { gap: theme.spacing.sm }]}>
-            {WEEKDAYS.map((day) => {
-              const on = days.includes(day);
-              return (
-                <Text
-                  key={day}
-                  variant="label"
-                  tone={on ? 'accent' : 'faint'}
-                  onPress={() => toggleDay(day)}
-                  style={{ fontWeight: on ? theme.fontWeight.semibold : undefined }}
-                >
-                  {t(`alarm.day.${day}` as TranslationKey)}
-                </Text>
-              );
-            })}
-          </View>
-        </View>
-        <Button label={t('common.done')} icon="check" onPress={save} />
-      </View>
-    </Sheet>
   );
 }
 

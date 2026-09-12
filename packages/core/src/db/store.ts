@@ -78,6 +78,9 @@ function emptyTables(): Tables {
     moods: [],
     chats: [],
     chatMessages: [],
+    notifications: [],
+    mailAccounts: [],
+    mailMessages: [],
   };
 }
 
@@ -298,6 +301,10 @@ export const db = {
   moods: new Collection('moods'),
   chats: new Collection('chats'),
   chatMessages: new Collection('chatMessages'),
+  // Die drei gehoeren dem Dienst: lesen ja, schreiben nur ueber seine Schnittstellen.
+  notifications: new Collection('notifications'),
+  mailAccounts: new Collection('mailAccounts'),
+  mailMessages: new Collection('mailMessages'),
 } as const;
 
 /** Wartet, bis die Daten da sind. Wirft, wenn der Dienst nicht laeuft. */

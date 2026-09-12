@@ -157,7 +157,6 @@ export default function UiKitScreen() {
 
       <Card title="Leerer Zustand" padded={false}>
         <EmptyState
-          icon="search"
           title="Nichts gefunden"
           body="Hier steht, warum nichts da ist und was man tun kann."
           actionLabel="Nochmal"

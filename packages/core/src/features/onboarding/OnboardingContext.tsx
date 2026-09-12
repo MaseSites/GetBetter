@@ -1,26 +1,30 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
-/** Ein Schritt reicht: der Vorname. Bereiche und Favoriten gibt es nicht mehr. */
-export const ONBOARDING_STEPS = ['welcome'] as const;
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
-
-export function stepNumber(step: OnboardingStep): number {
-  return ONBOARDING_STEPS.indexOf(step) + 1;
-}
-
-export const ONBOARDING_STEP_COUNT = ONBOARDING_STEPS.length;
+import { useApp } from '@/state/AppContext';
 
 type OnboardingValue = {
   firstName: string;
   setFirstName: (value: string) => void;
+  /** Der Name fuer den Assistenten, solange er noch nicht gespeichert ist. */
+  assistantName: string;
+  setAssistantName: (value: string) => void;
 };
 
 const OnboardingContext = createContext<OnboardingValue | null>(null);
 
+/**
+ * Haelt die Entwuerfe des Einrichtens. Was das Konto schon weiss (etwa aus einer
+ * anderen Better-App), steht gleich drin.
+ */
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const [firstName, setFirstName] = useState('');
+  const { account } = useApp();
+  const [firstName, setFirstName] = useState(() => account?.firstName ?? '');
+  const [assistantName, setAssistantName] = useState(() => account?.assistantName ?? '');
 
-  const value = useMemo<OnboardingValue>(() => ({ firstName, setFirstName }), [firstName]);
+  const value = useMemo<OnboardingValue>(
+    () => ({ firstName, setFirstName, assistantName, setAssistantName }),
+    [firstName, assistantName],
+  );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }

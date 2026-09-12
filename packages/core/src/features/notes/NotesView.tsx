@@ -20,6 +20,7 @@ import {
   Loading,
   Screen,
   Sheet,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -49,26 +50,33 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
     setEditing(created);
   }
 
+  /** Loeschen: nach links wischen, oder im Blatt unten. */
   function card(note: NoteRow) {
     return (
-      <Card key={note.id} onPress={() => setEditing(note)} accessibilityLabel={note.title}>
-        <View style={{ gap: theme.spacing.xs }}>
-          <View style={[styles.titleRow, { gap: theme.spacing.xs }]}>
-            {note.pinned ? <Icon name="pinFilled" size={14} color={theme.colors.accent} /> : null}
-            <Text variant="title" numberOfLines={1}>
-              {note.title.trim().length > 0 ? note.title : t('notes.untitled')}
+      <SwipeRow
+        key={note.id}
+        radius={theme.radii.md}
+        onDelete={() => void noteRepo.remove(note.id)}
+      >
+        <Card onPress={() => setEditing(note)} accessibilityLabel={note.title}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <View style={[styles.titleRow, { gap: theme.spacing.xs }]}>
+              {note.pinned ? <Icon name="pinFilled" size={14} color={theme.colors.accent} /> : null}
+              <Text variant="title" numberOfLines={1}>
+                {note.title.trim().length > 0 ? note.title : t('notes.untitled')}
+              </Text>
+            </View>
+            {note.body.trim().length > 0 ? (
+              <Text variant="label" tone="muted" numberOfLines={2}>
+                {note.body}
+              </Text>
+            ) : null}
+            <Text variant="caption" tone="faint">
+              {formatShortDate(language, note.updatedAt)}
             </Text>
           </View>
-          {note.body.trim().length > 0 ? (
-            <Text variant="label" tone="muted" numberOfLines={2}>
-              {note.body}
-            </Text>
-          ) : null}
-          <Text variant="caption" tone="faint">
-            {formatShortDate(language, note.updatedAt)}
-          </Text>
-        </View>
-      </Card>
+        </Card>
+      </SwipeRow>
     );
   }
 
@@ -100,13 +108,7 @@ export function NotesView({ module }: { module: ModuleDefinition }) {
       {list.loading && items.length === 0 ? <Loading /> : null}
 
       {!list.loading && items.length === 0 ? (
-        <EmptyState
-          icon="note"
-          title={t('notes.empty.title')}
-          body={t('notes.empty.body')}
-          actionLabel={t('notes.new')}
-          onAction={createAndOpen}
-        />
+        <EmptyState title={t('notes.empty.title')} body={t('notes.empty.body')} />
       ) : null}
 
       {items.length > 0 && visible.length === 0 ? (

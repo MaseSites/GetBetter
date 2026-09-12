@@ -19,6 +19,7 @@ import {
   Icon,
   Loading,
   Screen,
+  SwipeRow,
   Text,
 } from '@/ui';
 
@@ -79,45 +80,60 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
     });
   }
 
+  /**
+   * Eine Zeile der Liste: nach links wischen loescht, der Papierkorb bleibt.
+   * Die Zeile hat den Kartengrund, damit die rote Flaeche erst beim Wischen erscheint.
+   */
   function row(item: ShoppingItemRow) {
     return (
-      <View style={[styles.row, { paddingVertical: theme.spacing.md, gap: theme.spacing.md }]}>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: item.done }}
-          accessibilityLabel={item.name}
-          onPress={() => void shoppingRepo.setDone(item.id, !item.done)}
-          hitSlop={8}
+      <SwipeRow onDelete={() => void shoppingRepo.remove(item.id)}>
+        <View
+          style={[
+            styles.row,
+            {
+              paddingVertical: theme.spacing.md,
+              gap: theme.spacing.md,
+              backgroundColor: theme.colors.surface,
+            },
+          ]}
         >
-          <Icon
-            name={item.done ? 'checkCircle' : 'circle'}
-            size={24}
-            color={item.done ? theme.colors.accent : theme.colors.borderStrong}
-          />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text
-            variant="body"
-            tone={item.done ? 'faint' : 'default'}
-            style={item.done ? { textDecorationLine: 'line-through' } : undefined}
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: item.done }}
+            accessibilityLabel={item.name}
+            onPress={() => void shoppingRepo.setDone(item.id, !item.done)}
+            hitSlop={8}
           >
-            {item.name}
-          </Text>
+            <Icon
+              name={item.done ? 'checkCircle' : 'circle'}
+              size={24}
+              color={item.done ? theme.colors.accent : theme.colors.borderStrong}
+            />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text
+              variant="body"
+              tone={item.done ? 'faint' : 'default'}
+              style={item.done ? { textDecorationLine: 'line-through' } : undefined}
+            >
+              {item.name}
+            </Text>
+          </View>
+          {item.quantity ? (
+            <Text variant="label" tone="muted">
+              {item.quantity}
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('shopping.remove')}: ${item.name}`}
+            onPress={() => void shoppingRepo.remove(item.id)}
+            hitSlop={8}
+          >
+            <Icon name="trash" size={18} color={theme.colors.textFaint} />
+          </Pressable>
         </View>
-        {item.quantity ? (
-          <Text variant="label" tone="muted">
-            {item.quantity}
-          </Text>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${t('shopping.remove')}: ${item.name}`}
-          onPress={() => void shoppingRepo.remove(item.id)}
-          hitSlop={8}
-        >
-          <Icon name="trash" size={18} color={theme.colors.textFaint} />
-        </Pressable>
-      </View>
+      </SwipeRow>
     );
   }
 
@@ -166,7 +182,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
       {list.loading && items.length === 0 ? <Loading /> : null}
 
       {!list.loading && items.length === 0 ? (
-        <EmptyState icon="cart" title={t('shopping.empty.title')} body={t('shopping.empty.body')} />
+        <EmptyState title={t('shopping.empty.title')} body={t('shopping.empty.body')} />
       ) : null}
 
       {sections.map((section) => (
