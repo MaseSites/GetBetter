@@ -20,7 +20,7 @@
     "format": "prettier --write .",
     "photos": "node scripts/photo-assets.js",
     "server": "node services/api/server.js",
-    "test": "node --import ./scripts/test-setup.mjs --test \"packages/core/src/**/*.test.ts\""
+    "test": "node --import ./scripts/test-setup.mjs --test \"packages/core/src/**/*.test.ts\" \"services/api/**/*.test.js\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
