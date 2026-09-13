@@ -9,6 +9,7 @@ import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { relativeDay } from '@/features/shared/days';
 import { formatTime, useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -87,7 +88,7 @@ export function SleepView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             average !== null
               ? t('sleep.average', { hours: Math.floor(average / 60), minutes: average % 60 })

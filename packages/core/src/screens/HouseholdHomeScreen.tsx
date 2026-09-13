@@ -8,7 +8,7 @@ import { FamilySections } from '@/features/family/FamilySections';
 import { relativeDay } from '@/features/shared/days';
 import { guessCategory, splitQuantity } from '@/features/shopping/categories';
 import { useI18n, type TranslationKey } from '@/i18n';
-import { MODULES } from '@/mocks/modules';
+import { moduleName } from '@/mocks/moduleText';
 import { useAccount, useApp } from '@/state/AppContext';
 import { hueTint, useTheme } from '@/theme';
 import {
@@ -87,7 +87,7 @@ export function HouseholdHomeScreen() {
   const chores = choreList.data ?? [];
   const mine = chores.filter((chore) => chore.assignedTo === account.id).length;
 
-  const nameOf = (id: string) => MODULES.find((module) => module.id === id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(t, id);
 
   async function add() {
     const { name, quantity } = splitQuantity(draft);
@@ -179,7 +179,10 @@ export function HouseholdHomeScreen() {
             <Text variant="body" tone="muted">
               {t('household.none.body')}
             </Text>
-            <Button label={t('household.create.title')} onPress={() => router.push('/new-household')} />
+            <Button
+              label={t('household.create.title')}
+              onPress={() => router.push('/new-household')}
+            />
             <Button
               label={t('household.join.title')}
               variant="secondary"
@@ -280,7 +283,9 @@ export function HouseholdHomeScreen() {
                             color={colorOf(chore.assignedTo)}
                           />
                         ) : (
-                          <View style={[styles.avatar, { borderColor: theme.colors.borderStrong }]} />
+                          <View
+                            style={[styles.avatar, { borderColor: theme.colors.borderStrong }]}
+                          />
                         )
                       }
                       trailing={

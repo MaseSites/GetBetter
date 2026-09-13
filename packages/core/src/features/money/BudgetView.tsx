@@ -11,6 +11,7 @@ import {
 } from '@/db';
 import { addMonths } from '@/features/calendar/dates';
 import { formatMoney, formatMonth, formatShortDate, useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -122,7 +123,7 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             limitChf
               ? t('budget.ofLimit', { spent: money(spent), limit: money(limitChf) })

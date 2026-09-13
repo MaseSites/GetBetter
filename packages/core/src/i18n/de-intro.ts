@@ -11,6 +11,11 @@ export const deIntro = {
   'intro.start.soon.google':
     'Die Anmeldung mit Google kommt, sobald die Apps im Store sind. Bis dahin genügt deine E-Mail-Adresse.',
 
+  // Er redet laut mit — ausser man schaltet ihn stumm
+  'intro.voice.mute': 'Stumm schalten',
+  'intro.voice.unmute': 'Ton einschalten',
+  'intro.voice.tapToHear': 'Antippen, dann rede ich mit dir',
+
   // Anmelden und Registrieren
   'intro.signIn.bubble': 'Willkommen zurück. Melde dich mit deiner E-Mail-Adresse an.',
   'intro.signUp.bubble': 'Wir legen dein Konto an. Das dauert einen Moment.',
@@ -23,6 +28,7 @@ export const deIntro = {
 
   // Einrichten nach dem Registrieren
   'intro.setup.name.bubble': 'Dein Konto steht. Wie darf ich dich ansprechen?',
+  'intro.setup.name.bubbleAfterVoice': 'Gut, so klinge ich. Und wie darf ich dich ansprechen?',
   'intro.setup.name.label': 'Spitzname',
   'intro.setup.name.hint':
     'So spricht dich die App an — unabhängig von deinem Benutzernamen. Du änderst ihn jederzeit in den Einstellungen.',
@@ -31,6 +37,8 @@ export const deIntro = {
     'Ich begleite dich durch die App, {name}. Mein Name ist {assistant}.',
   'intro.setup.assistant.label': 'Name des Assistenten',
   'intro.setup.assistant.hint': 'Unter diesem Namen findest du mich in allen Better-Apps.',
+  'intro.setup.voice.bubble':
+    'Dein Konto steht. Ab jetzt rede ich mit dir — such dir aus, wie ich klingen soll. Tipp eine Stimme an, dann hörst du mich.',
   'intro.setup.style.bubble':
     'Gut, ich heisse {assistant}. Nun zum Aussehen — jede Änderung wirkt sofort.',
   'intro.setup.style.mode': 'Hell oder dunkel',

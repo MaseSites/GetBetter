@@ -33,6 +33,7 @@ export function HouseholdView() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameText, setRenameText] = useState('');
@@ -47,7 +48,14 @@ export function HouseholdView() {
 
   async function handleCreate() {
     if (busy) return;
+    // Wie beim Anlegen auf eigener Seite: ohne Namen nichts — sonst stuende ein
+    // fester deutscher Name in der Datenbank.
+    if (name.trim().length === 0) {
+      setCreateError(t('household.error.name'));
+      return;
+    }
     setBusy(true);
+    setCreateError(null);
     try {
       await createHousehold(name);
       setName('');
@@ -99,6 +107,7 @@ export function HouseholdView() {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
+            {...(createError ? { error: createError } : {})}
           />
           <Button
             label={t('household.create.action')}

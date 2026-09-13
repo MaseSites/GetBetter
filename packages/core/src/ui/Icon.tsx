@@ -97,7 +97,15 @@ export const ICONS = {
   eyeOff: 'eye-off-outline',
   lines: 'reorder-three-outline',
   mic: 'mic-outline',
+  volume: 'volume-high-outline',
+  mute: 'volume-mute-outline',
   link: 'link-outline',
+  share: 'share-outline',
+  more: 'ellipsis-horizontal',
+  folder: 'folder-outline',
+  format: 'text-outline',
+  tag: 'pricetag-outline',
+  select: 'checkmark-done-outline',
 } as const satisfies Record<string, IonName>;
 
 export type IconName = keyof typeof ICONS;

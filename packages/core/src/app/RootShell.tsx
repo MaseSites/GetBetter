@@ -8,7 +8,7 @@ import { IntroLayer } from '@/features/intro/IntroLayer';
 import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { EmptyState, Loading, PhoneFrame, Screen } from '@/ui';
+import { EmptyState, Loading, PhoneFrame, Screen, UndoProvider } from '@/ui';
 
 import { EdgeSwipeBack } from './EdgeSwipeBack';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -94,21 +94,24 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   return (
     <>
       <RouteGuard home={home} hasOnboarding={hasOnboarding} />
-      {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
-      <IntroLayer hasOnboarding={hasOnboarding}>
-        <EdgeSwipeBack>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: theme.colors.background },
-              animation: 'slide_from_right',
-              animationDuration: theme.motion.duration.sheet,
-              // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
-              gestureEnabled: true,
-            }}
-          />
-        </EdgeSwipeBack>
-      </IntroLayer>
+      {/* „Gelöscht · Rückgängig“ steht über allen Bildschirmen, einmal für die ganze App. */}
+      <UndoProvider>
+        {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
+        <IntroLayer hasOnboarding={hasOnboarding}>
+          <EdgeSwipeBack>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: theme.colors.background },
+                animation: 'slide_from_right',
+                animationDuration: theme.motion.duration.sheet,
+                // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
+                gestureEnabled: true,
+              }}
+            />
+          </EdgeSwipeBack>
+        </IntroLayer>
+      </UndoProvider>
     </>
   );
 }

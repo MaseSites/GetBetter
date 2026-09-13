@@ -10,18 +10,30 @@ import { Button, Card, Divider, Sheet, SwipeRow, Text } from '@/ui';
 
 import { AddAccountForm } from './AddAccountForm';
 import { ageOf, formatAge, mailErrorKey } from './format';
+import type { MailProviderChoice } from './providers';
 
 export type AccountsSheetProps = {
   visible: boolean;
   mailboxes: readonly MailAccountRow[];
   onClose: () => void;
+  /** Gleich mit dem Formular beginnen — nach dem Antippen eines Anbieters oder „Neu verbinden“. */
+  startInForm?: boolean;
+  initialEmail?: string;
+  preset?: MailProviderChoice | null;
 };
 
 /**
  * Die verbundenen Postfaecher mit ihrem Stand; nach links wischen trennt eines.
  * Ohne Postfach steht gleich das Formular zum Verbinden da.
  */
-export function AccountsSheet({ visible, mailboxes, onClose }: AccountsSheetProps) {
+export function AccountsSheet({
+  visible,
+  mailboxes,
+  onClose,
+  startInForm = false,
+  initialEmail,
+  preset,
+}: AccountsSheetProps) {
   const { t } = useI18n();
   const theme = useTheme();
   const account = useAccount();
@@ -31,7 +43,7 @@ export function AccountsSheet({ visible, mailboxes, onClose }: AccountsSheetProp
   const [formKey, setFormKey] = useState(0);
   const [failure, setFailure] = useState<MailError | null>(null);
 
-  const showForm = adding || mailboxes.length === 0;
+  const showForm = adding || startInForm || mailboxes.length === 0;
 
   function close() {
     setAdding(false);
@@ -46,8 +58,8 @@ export function AccountsSheet({ visible, mailboxes, onClose }: AccountsSheetProp
   }
 
   function connected() {
-    // Das erste Postfach: gleich in den Posteingang. Sonst zurueck zur Liste.
-    if (mailboxes.length === 0) {
+    // Das erste Postfach oder ein direkt begonnenes: gleich in den Posteingang. Sonst zurueck zur Liste.
+    if (mailboxes.length === 0 || startInForm) {
       close();
       return;
     }
@@ -71,7 +83,9 @@ export function AccountsSheet({ visible, mailboxes, onClose }: AccountsSheetProp
           key={formKey}
           accountId={account.id}
           onConnected={connected}
-          {...(mailboxes.length > 0 ? { onCancel: backToList } : {})}
+          {...(mailboxes.length > 0 ? { onCancel: startInForm ? close : backToList } : {})}
+          {...(initialEmail ? { initialEmail } : {})}
+          preset={preset ?? null}
         />
       ) : (
         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.lg }}>

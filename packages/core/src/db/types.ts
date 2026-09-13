@@ -25,8 +25,18 @@ export type Account = Row & {
   householdId: string | null;
   /** Der Ort fuers Wetter; ohne ihn nimmt die App Zuerich. */
   weatherPlace?: WeatherPlace;
+  /**
+   * Die gemerkten Orte in der Reihenfolge der Liste. `weatherPlace` bleibt der
+   * Ort, der gerade gilt; aeltere Konten haben nur ihn.
+   */
+  weatherPlaces?: readonly WeatherPlace[];
   /** Wie der Assistent heisst — beim Einrichten vergeben. */
   assistantName?: string;
+  /**
+   * Mit welcher Stimme er spricht: der `voiceURI` aus `speechSynthesis`.
+   * Fehlt er, nimmt die App die erste Stimme der eingestellten Sprache.
+   */
+  assistantVoice?: string;
   /**
    * Der Hintergrund: fehlt er oder steht er auf `app`, zeigt jede App ihr eigenes
    * Bild; sonst ein Schluessel aus `BACKDROPS` oder `upload:<id>` fuer ein eigenes.
@@ -140,6 +150,21 @@ export type EventRow = Row & {
   createdAt: string;
 };
 
+/** Wie wichtig eine Aufgabe ist: 0 keine, 1 !, 2 !!, 3 !!!. */
+export type TaskPriority = 0 | 1 | 2 | 3;
+
+export type TaskRepeatUnit = 'day' | 'week' | 'month' | 'year';
+
+/** Wie eine Aufgabe wiederkehrt: alle `every` Einheiten. */
+export type TaskRepeat = {
+  every: number;
+  unit: TaskRepeatUnit;
+  /** Nur bei `week`: die Wochentage, 1 Montag bis 7 Sonntag. */
+  weekdays?: readonly number[];
+  /** Ab dem Erledigen zaehlen statt ab der letzten Frist. */
+  fromCompletion: boolean;
+};
+
 export type TaskRow = Row & {
   accountId: string;
   householdId: string | null;
@@ -148,21 +173,92 @@ export type TaskRow = Row & {
   dueAt: string | null;
   /** Geteilte Aufgaben sehen alle im Haushalt. */
   shared: boolean;
-  /** Mit Fahne: steht in seinem Abschnitt oben. */
-  priority?: boolean;
+  /**
+   * Wichtigkeit. Aeltere Zeilen tragen hier die Fahne als `true` — deshalb
+   * immer ueber `priorityOf` (`db/taskFields.ts`) lesen.
+   */
+  priority?: boolean | TaskPriority;
   notes?: string | null;
+  /** Uhrzeit zur Frist als `HH:MM`; ohne sie gilt die Frist den ganzen Tag. */
+  dueTime?: string | null;
+  /** Das Projekt (`projects`), in dem die Aufgabe steht. */
+  projectId?: string | null;
+  /** Abschnitt im Projekt — ein Name aus `ProjectRow.sections`. */
+  section?: string | null;
+  tags?: readonly string[];
+  /** Nur bei Unteraufgaben: die Aufgabe darueber. */
+  parentId?: string | null;
+  repeat?: TaskRepeat | null;
+  /** Erinnern so viele Minuten vor der Frist; null heisst nicht erinnern. */
+  reminderOffsetMinutes?: number | null;
+  /** Reihenfolge von Hand, kleiner steht oben. */
+  order?: number;
+  /** Angehaengte Dateien aus `/v1/uploads`. */
+  attachmentIds?: readonly string[];
   createdAt: string;
   completedAt: string | null;
 };
 
+/** Ein Projekt fuer Aufgaben, wahlweise mit Abschnitten. */
+export type ProjectRow = Row & {
+  accountId: string;
+  /** Gesetzt, wenn der Haushalt das Projekt teilt. */
+  householdId?: string | null;
+  name: string;
+  /** Reihenfolge in der Liste, kleiner steht oben. */
+  order: number;
+  /** Die Abschnitte in ihrer Reihenfolge; `TaskRow.section` nennt einen davon. */
+  sections?: readonly string[];
+  createdAt: string;
+};
+
+export type NoteBlockKind =
+  'title' | 'heading' | 'text' | 'bullet' | 'number' | 'check' | 'quote' | 'image';
+
+/** Ein Absatz einer Notiz. */
+export type NoteBlock = {
+  id: string;
+  kind: NoteBlockKind;
+  /** Bei `image` leer. */
+  text: string;
+  /** Nur bei `check`. */
+  checked?: boolean;
+  /** Einrueckung in Listen, 0 ganz links. */
+  indent?: number;
+  /** Nur bei `image`: das Bild aus `/v1/uploads`. */
+  uploadId?: string;
+};
+
 export type NoteRow = Row & {
   accountId: string;
+  /**
+   * Reiner Text fuer Suche und Vorschau. Hat die Notiz Bloecke, sind Titel und
+   * Text daraus abgeleitet (`noteTextOf` in `db/noteBlocks.ts`).
+   */
   title: string;
   body: string;
   /** Angeheftet: steht immer oben. */
   pinned?: boolean;
+  /** Der Inhalt. Aeltere Zeilen haben keine Bloecke — `blocksOf` macht welche daraus. */
+  blocks?: readonly NoteBlock[];
+  /** Der Ordner (`noteFolders`); ohne ihn liegt die Notiz ganz oben. */
+  folderId?: string | null;
+  /** Gesetzt, solange die Notiz im Papierkorb liegt. */
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Ein Ordner fuer Notizen, auch in einem anderen Ordner. */
+export type NoteFolderRow = Row & {
+  accountId: string;
+  name: string;
+  parentId?: string | null;
+  /** Reihenfolge in der Liste, kleiner steht oben. */
+  order: number;
+  /** Wie der Ordner seine Notizen zeigt; ohne Angabe als Liste. */
+  view?: 'list' | 'grid';
+  createdAt: string;
 };
 
 export type DocumentCategory = 'contract' | 'insurance' | 'warranty' | 'id' | 'other';
@@ -212,6 +308,20 @@ export type PackingItemRow = Row & {
   createdAt: string;
 };
 
+/** Eine Geschenkidee fuer einen Menschen — oder was man schon geschenkt hat. */
+export type ContactGift = {
+  id: string;
+  text: string;
+  url?: string;
+  /** Frei geschrieben, etwa „CHF 40“. */
+  price?: string;
+  /** Das Jahr, in dem es verschenkt wurde; null oder fehlend heisst noch offen. */
+  givenYear?: number | null;
+};
+
+/** Wann an einen Geburtstag erinnert wird. */
+export type BirthdayReminders = { weekBefore: boolean; dayOf: boolean };
+
 /** Ein Mensch, an den man denken will. */
 export type ContactRow = Row & {
   accountId: string;
@@ -222,6 +332,15 @@ export type ContactRow = Row & {
   note: string | null;
   /** Wann man sich zuletzt gesehen hat, als Tag. */
   lastSeenOn: string | null;
+  /** Profilbild aus `/v1/uploads`. */
+  photoUploadId?: string | null;
+  /** Ob das Jahr in `birthday` stimmt. Fehlt es, gilt es als bekannt. */
+  birthYearKnown?: boolean;
+  /** Ein Mensch, der einem nah ist. */
+  close?: boolean;
+  gifts?: readonly ContactGift[];
+  /** null heisst keine Erinnerung; fehlt es, gilt die Voreinstellung. */
+  birthdayReminders?: BirthdayReminders | null;
   createdAt: string;
 };
 
@@ -526,6 +645,35 @@ export type NotificationRow = Row & {
   readAt: string | null;
 };
 
+/**
+ * Wie ein Ordner heisst, unabhaengig vom Anbieter. `[Gmail]/Papierkorb` und
+ * `INBOX.Gel&APY-scht` sind beide `trash` — der Dienst rechnet das um.
+ */
+export type MailFolderRole = 'inbox' | 'sent' | 'drafts' | 'junk' | 'trash' | 'archive';
+
+/** Alle Rollen, in der Reihenfolge, in der die Ordner angezeigt werden. */
+export const MAIL_FOLDER_ROLES = [
+  'inbox',
+  'sent',
+  'drafts',
+  'junk',
+  'trash',
+  'archive',
+] as const satisfies readonly MailFolderRole[];
+
+/** Ein Ordner eines Postfachs: seine Rolle und sein Name auf dem Mailserver. */
+export type MailFolder = { role: MailFolderRole; name: string };
+
+/** Was an einer E-Mail haengt. Der Inhalt wird nicht geholt, nur die Kopfdaten. */
+export type MailAttachment = {
+  /** Leer, wenn der Mailserver keinen Namen mitschickt. */
+  filename: string;
+  /** `application/pdf`, `image/png` … */
+  mime: string;
+  /** Groesse in Bytes, wie der Mailserver sie meldet. */
+  size: number;
+};
+
 /** Ein verbundenes E-Mail-Konto — ohne Passwort; das bleibt verschluesselt beim Dienst. */
 export type MailAccountRow = Row & {
   accountId: string;
@@ -540,6 +688,8 @@ export type MailAccountRow = Row & {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
+  /** Die Ordner, die der Dienst beim Abgleich gefunden hat. */
+  folders: readonly MailFolder[];
   connectedAt: string;
   lastSyncAt: string | null;
   lastError: string | null;
@@ -547,11 +697,13 @@ export type MailAccountRow = Row & {
 
 export type MailAddress = { name: string; address: string };
 
-/** Eine E-Mail aus dem Posteingang, wie der Dienst sie abgeholt hat. Gehoert dem Dienst. */
+/** Eine E-Mail aus einem Ordner, wie der Dienst sie abgeholt hat. Gehoert dem Dienst. */
 export type MailMessageRow = Row & {
   accountId: string;
   mailAccountId: string;
+  /** Der Name auf dem Mailserver — damit spricht der Dienst den Ordner an. */
   folder: string;
+  folderRole: MailFolderRole;
   uid: number;
   messageId: string | null;
   from: MailAddress;
@@ -564,6 +716,11 @@ export type MailMessageRow = Row & {
   /** Der Text der Nachricht, ohne HTML, gekuerzt. */
   text: string;
   seen: boolean;
+  /** Mit Fahne versehen (`\Flagged`). */
+  flagged: boolean;
+  /** Schon beantwortet (`\Answered`). */
+  answered: boolean;
+  attachments: readonly MailAttachment[];
   /** Kam nach dem Verbinden an — nur solche werden zu Neuigkeiten. */
   arrivedAfterConnect: boolean;
 };
@@ -579,7 +736,9 @@ export type Schema = {
   appAccess: AppAccessRow;
   events: EventRow;
   tasks: TaskRow;
+  projects: ProjectRow;
   notes: NoteRow;
+  noteFolders: NoteFolderRow;
   shoppingItems: ShoppingItemRow;
   chores: ChoreRow;
   alarms: AlarmRow;
@@ -626,7 +785,9 @@ export const COLLECTION_NAMES = [
   'appAccess',
   'events',
   'tasks',
+  'projects',
   'notes',
+  'noteFolders',
   'shoppingItems',
   'chores',
   'alarms',

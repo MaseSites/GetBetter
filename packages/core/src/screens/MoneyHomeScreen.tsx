@@ -13,7 +13,7 @@ import {
 } from '@/db';
 import { parseDay } from '@/features/shared/days';
 import { formatDayMonth, formatMonthName, useI18n, type TranslationKey } from '@/i18n';
-import { MODULES } from '@/mocks/modules';
+import { moduleName } from '@/mocks/moduleText';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
@@ -68,7 +68,7 @@ export function MoneyHomeScreen() {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const nameOf = (id: string) => MODULES.find((module) => module.id === id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(t, id);
 
   // Der Monat: ausgegeben, Budget, und was davon noch frei ist.
   const expenses = expenseList.data ?? [];
@@ -108,7 +108,13 @@ export function MoneyHomeScreen() {
       kind: 'ink' as const,
     })),
     ...(budget !== null && free > 0
-      ? [{ key: 'free', label: t('money.free', { amount: whole.format(free) }), kind: 'signal' as const }]
+      ? [
+          {
+            key: 'free',
+            label: t('money.free', { amount: whole.format(free) }),
+            kind: 'signal' as const,
+          },
+        ]
       : []),
   ];
 
@@ -128,12 +134,7 @@ export function MoneyHomeScreen() {
   return (
     <Screen
       contentStyle={{ paddingTop: theme.spacing.xs }}
-      header={
-        <Header
-          crumb={{ label: t('area.money') }}
-          title={formatMonthName(language, now)}
-        />
-      }
+      header={<Header crumb={{ label: t('area.money') }} title={formatMonthName(language, now)} />}
     >
       <Panel
         label={
@@ -148,7 +149,9 @@ export function MoneyHomeScreen() {
       >
         <BigFigure
           value={whole.format(budget === null ? spent : Math.abs(left))}
-          unit={budget === null ? t('money.chf') : t('money.ofChf', { amount: whole.format(budget) })}
+          unit={
+            budget === null ? t('money.chf') : t('money.ofChf', { amount: whole.format(budget) })
+          }
           tone={over ? 'danger' : 'default'}
         />
         <SegmentBar segments={segments} />
@@ -250,7 +253,9 @@ export function MoneyHomeScreen() {
                 <Text variant="overline" tone="faint" numberOfLines={1}>
                   {goal.name}
                 </Text>
-                <View style={[styles.baseline, { gap: theme.spacing.sm, marginTop: theme.spacing.sm }]}>
+                <View
+                  style={[styles.baseline, { gap: theme.spacing.sm, marginTop: theme.spacing.sm }]}
+                >
                   <Text
                     style={{
                       fontFamily: theme.fontFamilyDisplay,

@@ -118,7 +118,14 @@ Stand nichts überschreibt.
 | `POST /v1/mail/sync`                                | Postfächer eines Kontos abgleichen                               |
 | `POST /v1/mail/messages/:id/seen`                   | gelesen / ungelesen                                              |
 | `POST /v1/mail/messages/:id/delete`                 | in den Papierkorb                                                |
-| `POST /v1/mail/send`                                | senden, auch als Antwort                                         |
+| `POST /v1/mail/messages/actions`                    | mehrere auf einmal: gelesen, Fahne, verschieben, löschen         |
+| `POST /v1/mail/send`                                | senden: sofort, verzögert (`delayMs`), Antwort, Weiterleitung    |
+| `POST /v1/mail/send/:sendId/cancel` · `GET …/:sendId` | verzögerte Mail aufhalten / wie es ihr ging                    |
+| `GET /v1/mail/messages/:id/body?images=0\|1`        | HTML gesäubert und Text, auf Nachfrage                           |
+| `GET /v1/mail/messages/:id/attachments/:index`      | ein Anhang als Bytes, höchstens 25 MB                            |
+| `POST /v1/mail/drafts` · `DELETE …/:id`             | Entwurf sichern oder ersetzen / löschen                          |
+| `GET /v1/speech/status` · `GET /v1/speech/voices`   | Stimmen von ElevenLabs: eingerichtet? welche?                    |
+| `POST /v1/speech` · `GET /v1/speech/<id>.mp3`       | einen Satz sprechen lassen, das Audio kommt als Strom            |
 
 `db/service.ts` ist der Draht dorthin (`serviceUrl()`, im Bau über
 `EXPO_PUBLIC_API_URL` übersteuerbar), `auth/accounts.ts` die Schicht darüber.
@@ -137,7 +144,7 @@ App, was der Dienst gerade für eine neue E-Mail angelegt hat. Im Kern geht das
 über `callService` (`db/service.ts`) und danach `refresh()` aus dem Speicher.
 
 Der Dienst ist in Teile zerlegt: `server.js` (Routen), `store.js`,
-`notifications.js`, `uploads.js` und `mail/` (IMAP, SMTP, MIME, Anbieter,
+`notifications.js`, `uploads.js` und `mail/` (IMAP, SMTP, MIME, Ordner, Struktur, Anbieter,
 Tresor, Abgleich) — alles nur mit Node-Kernmodulen. Der Datenordner lässt sich
 mit `BETTER_DATA_DIR` umlenken (die Tests tun das immer), der Abgleich-Takt mit
 `BETTER_MAIL_SYNC_MS`. Nach Änderungen am Dienst muss er neu starten.
@@ -169,9 +176,41 @@ im Browser gibt es keine Schemata, dort nimmt die Brücke `localhost:<port>`.
 | Wo    | `features/assistant/AssistantView.tsx`                            | `features/ai/ChatsView.tsx`, `/chat/[id]` |
 | Daten | Liest deine GetBetter-Daten, schickt Aufträge an die anderen Apps | Sieht deine Daten nicht                   |
 
-Der Assistent hat keinen Kopfbereich: in der Mitte steht „Wie kann ich dich
-unterstützen?“, unten das Feld. Hinter beiden steckt noch kein Modell — was
+Beide folgen dem Aussehen des Kontos wie jeder andere Bildschirm — eine eigene
+dunkle Fläche gibt es nicht mehr. Der Assistent hat keinen Kopfbereich: in der Mitte der Avatar und „Wie kann ich
+dich unterstützen?“, unten das Feld. Hinter beiden steckt noch kein Modell — was
 nicht als Auftrag erkannt wird, beantwortet er einmal ehrlich.
+
+**Mit ihm reden** (`features/assistant/speech.ts`, `useVoice.ts`,
+`VoiceControls.tsx`): **Sprechen** legt das Gesagte ins Feld — nicht direkt
+abschicken, die Erkennung irrt sich. **Gespräch** hört zu, antwortet, liest vor
+und hört wieder zu; nach zwei stummen Runden legt er auf, damit das Mikrofon
+nicht ewig läuft. Beides gibt es **nur im Browser**, über `SpeechRecognition`
+und `speechSynthesis` — ohne Paket geht es auf dem Gerät nicht, und dort sagt
+ein Tipp das ehrlich. Beim Verlassen des Bildschirms **und** beim Tabwechsel
+(`useIsFocused`, `AppState`) hört das Zuhören auf; Expo Router hängt einen Tab
+nicht aus, ein Effekt allein reicht also nicht.
+
+**Echt klingende Stimmen** kommen von **ElevenLabs** — über den eigenen Dienst
+(`services/api/speech/service.js`), nie direkt aus der App, damit der
+Schlüssel den Rechner nicht verlässt. Er steht in `ELEVENLABS_API_KEY` oder in
+`services/api/data/elevenlabs.key` (nie im Git) und wird bei jeder Anfrage neu
+gelesen. Die App fragt `/v1/speech/status` und `/v1/speech/voices`
+(`features/assistant/cloudVoice.ts`); ist ElevenLabs eingerichtet, stehen nur
+noch dessen Stimmen zur Wahl (`assistantVoice` = `eleven:<voice_id>`), und
+alle sprechen damit: Avatar, Gespräch, Probe. Ein Satz geht als
+`POST /v1/speech` an den Dienst, das Audio kommt als `GET …/<id>.mp3` im Strom
+und landet in `data/speech-cache/` — derselbe Satz kostet nur einmal Guthaben.
+Scheitert es (Schlüssel falsch, Guthaben leer, kein Netz), spricht der
+Browser, und die Auswahl sagt, warum. Modell: `eleven_multilingual_v2`,
+tauschbar mit `BETTER_SPEECH_MODEL`. Der Gratis-Plan reicht für etwa 40–80
+Sätze im Monat und erlaubt keine kommerzielle Nutzung.
+
+**Stimmen des Browsers** (`features/assistant/voices.ts`, getestet): natürliche zuerst
+(„Natural“, „Enhanced“, „Premium“ — Edge und Safari), dann Stimmen aus dem Netz
+wie „Google Deutsch“, zuletzt die blechernen Sprachpakete des Systems. Die
+fallen aus der Auswahl, sobald es zwei bessere gibt; ohne eigene Wahl spricht
+die oberste. Chrome unter Windows hat nur „Google Deutsch“ als bessere Stimme.
 
 BetterAi führt die Gespräche in der Datenbank (`chats`, `chatMessages`,
 `db/chats.ts`): die Startseite ist die Liste, das Neueste zuerst, mit der
@@ -286,12 +325,41 @@ ein Tipp fürs Wichtigste. Alles je Konto, Tage als `YYYY-MM-DD`
 (`features/shared/DayPicker.tsx`): Chips für heute, morgen, in einer Woche, in
 einem Monat, dahinter ein Feld für alles andere.
 
-- **Aufgaben** (`tasks`, `features/tasks/`) — Abschnitte Überfällig / Heute /
-  Demnächst / Irgendwann, rot nur, was wirklich überfällig ist. Schnell
-  eintragen unten; ein Tipp auf den Titel öffnet das Blatt mit Frist, Fahne
-  (`priority`) und Notiz. Der Kreis links hakt ab.
-- **Notizen** (`notes`) — Suche über Titel und Text, Anheften (`pinned`) hält
-  eine Notiz oben.
+- **Aufgaben** (`tasks`, `projects`, `features/tasks/`):
+  - **Ansichten** im Titelmenü „Heute ▾“: Eingang, Heute, Geplant, Projekte,
+    Alle Listen. Eine durchgehende Liste mit Abschnittsköpfen; „Überfällig“ ist
+    rot und ab drei Aufgaben eingeklappt.
+  - **Zeile**: Kreis, „!!“ vor dem Titel, Metazeile nur mit dem, was da ist
+    (Zeit · ↻ · Erinnerung · 2/5 · Projekt · Tags).
+  - **Abhaken**: Der Kreis hakt nach 1,2 s ab, mit Rückgängig. Nach rechts
+    wischen heisst erledigt, nach links Planen oder Löschen.
+  - **Langer Druck**: öffnet das Kontextmenü; Ziehen sortiert um (`order`).
+  - **Schnelleingabe**: „+“ öffnet sie über der Tastatur. Die Satz-Erkennung
+    (`parse.ts`, getestet) versteht „morgen 14 Uhr“, „jeden Montag“, „!!“,
+    „#tag“ und „@Projekt“.
+  - **Detail** als Blatt: Datum, Uhrzeit, Erinnerung, Wiederholen (auch ab
+    Erledigung), Priorität 0–3 (immer über `priorityOf` lesen), Projekt, Tags,
+    Teilaufgaben (`parentId`), Notiz, Bilder.
+  - **Speicherung**: Ein Fälligkeitstag liegt als 12:00 Ortszeit
+    (`dueAtOfDay`/`dueDayOf`), die Uhrzeit in `dueTime`.
+  - **Erinnerungen** werden gespeichert, aber noch nicht zugestellt; dafür
+    fehlt `expo-notifications`.
+  - **Links**: `/run/tasks?new=1`, `?task=<id>`.
+- **Notizen** (`notes`, `noteFolders`, `features/notes/`):
+  - **Liste**: nach Datum gruppiert (Angeheftet, Heute, Letzte 7 Tage,
+    Monate), Zeilen von 64 pt, Raster je Ordner (`view`). Das Titelmenü
+    führt zu Alle Notizen, Ordnern, Tags und „Zuletzt gelöscht“.
+  - **Editor**: ein eigener Bildschirm aus Blöcken (`blocks`, je Block ein
+    `TextInput`). Die erste Zeile ist der Titel. Kürzel `- `, `1. `, `[] `,
+    `# `, `> `; die Werkzeugleiste gibt es nur beim Schreiben.
+  - **Speichern** ohne Knopf: Die Notiz entsteht mit dem ersten Zeichen und
+    sichert 500 ms nach der letzten Eingabe (`NoteDraft`). Leer verlassen
+    verwirft sie. `title` und `body` leitet `noteTextOf` ab.
+  - **Tags** sind `#wort` im Text.
+  - **Löschen** setzt `deletedAt`; nach 30 Tagen ist die Notiz weg.
+  - **Grenzen**: Bilder nur im Browser. Fett und kursiv, Anhänge,
+    Sprachaufnahmen und Sperren fehlen, weil sie Pakete brauchen.
+  - **Links**: `/run/notes?new=1`, `?note=<id>`, `folder=`, `tag=`, `q=`.
 - **Dokumente** (`documents`, `db/organizer.ts`) — Art (Vertrag, Versicherung,
   Garantie, Ausweis, Anderes), Ablaufdatum, Notiz. Was in 60 Tagen abläuft,
   steht oben unter **Läuft bald ab**, Abgelaufenes rot.
@@ -300,17 +368,36 @@ einem Monat, dahinter ein Feld für alles andere.
   stumm. Serie (`streakOf`) und Wochenziel (`targetPerWeek`) stehen daneben.
 - **Reisen** (`trips`, `packingItems`) — Countdown, Zeitraum, Packliste mit
   Fortschritt und Vorschlägen (Pass, Ladegerät, …), Vergangene blass darunter.
-- **Kontakte** (`contacts`) — Geburtstage der nächsten 30 Tage oben („wird
-  36“), darunter alle; im Blatt „Heute gesehen“ (`lastSeenOn`).
-- **Geburtstage** (`birthdays`, `features/birthdays/`) — oben, wer heute
-  feiert, als farbige Karte mit dem Alter gross („Gratulieren“ teilt einen
-  Glückwunsch, „Anrufen“ nimmt die Nummer des Kontakts); darunter
-  **Demnächst**, gefiltert nach Heute / Woche / Monat / Jahr, mit Suche. Das
-  Datum stellt man mit drei Rädern ein (`ui/Wheel.tsx`: Tag und Monat ohne
-  Ende, das Jahr ab 1900).
-- **Wetter** (`weather`, `features/weather/`) — Open-Meteo ohne Schlüssel,
-  Ort am Konto (`weatherPlace`, sonst Zürich); die Temperatur steht auf der
-  Startseite neben dem Datum.
+- **Kontakte** (`contacts`) — alle Kontakte. Ein Geburtstag wird über dieselbe
+  Räder-Maske gesetzt wie in den Geburtstagen. Im Blatt steht „Heute gesehen“
+  (`lastSeenOn`).
+- **Geburtstage** (`features/birthdays/`):
+  - **Demnächst**, sortiert nach Tagen bis zum Geburtstag:
+    - eine grosse Karte nur für heute (Nachricht, Anrufen);
+    - „Diese Woche“ mit grossen Zeilen und der Geschenkidee;
+    - „Dieser Monat“ und „Später“.
+  - **Anlegen** im Blatt: Vorschläge aus den Kontakten, Räder für Tag und
+    Monat, das Jahr ist freiwillig.
+  - **Person** als eigener Bildschirm: Countdown, Geschenkideen (`gifts`;
+    abgehakt heisst verschenkt, mit Jahr), Erinnerungen
+    (`birthdayReminders`, `close`), Notiz.
+  - **Noch nicht**: Erinnerungen und der Import aus Kontakten brauchen
+    `expo-notifications` bzw. `expo-contacts`.
+  - **Links**: `/run/birthdays?new=1`, `?person=<id>`.
+- **Wetter** (`features/weather/`), über Open-Meteo ohne Schlüssel:
+  - **Orte**: bis 20 (`weatherPlaces`; `weatherPlace` ist immer der erste),
+    dazu „Mein Standort“ (ungefähr, nur im Browser).
+  - **Aufbau**: eine Seite pro Ort, seitlich blätterbar, unten eine eigene
+    Leiste mit Punkten und der Orte-Liste. Der Kopf (96 pt) schrumpft beim
+    Scrollen zu einer Zeile.
+  - **Flächen** darunter:
+    - 24 Stunden, mit einem Satz als Überschrift (`summary.ts`)
+    - Regen in den nächsten 2 h (`minutely_15`)
+    - 7 Tage mit Tagesblatt
+    - Kacheln: UV, Luftqualität (EAQI), Gefühlt, Wind, Feuchtigkeit, Sonne,
+      Sicht, Druck
+  - **Keine Unwetterwarnungen**: Open-Meteo liefert keine.
+  - **Links**: `/run/weather?place=<lat>,<lon>`, `?view=places`.
 
 ### Geburtstage liegen bei den Kontakten
 
@@ -326,9 +413,10 @@ Funktion Geburtstage, die Kontakte und der Kalender lesen dieselbe Zeile.
   `features/birthdays/birthdays.ts`, Ids `birthday:<kontakt>:<tag>`). Ein Tipp
   darauf öffnet das Geburtstags-Blatt, nicht den Termin-Editor. BetterFamily
   zeigt sie nicht.
-- **Löschen** (`contacts.removeBirthday`): wer nur wegen des Geburtstags
-  eingetragen war, geht ganz; wer Telefon, Notiz oder ein Treffen hat, bleibt
-  als Kontakt ohne Datum.
+- **Entfernen** (`contacts.removeBirthday`) nimmt nur den Geburtstag weg, nie
+  den Kontakt. Rückgängig geht über `restoreBirthday`.
+- **Ohne Jahr** (`birthYearKnown: false`) steht das Platzhalterjahr 2000 (ein
+  Schaltjahr) in `birthday`, und nirgends erscheint ein Alter.
 - Wer am 29. Februar geboren ist, feiert in anderen Jahren am 1. März.
 
 Die Startseite zeigt je Funktion das Nächste: was bald abläuft, die Haken von
@@ -394,12 +482,16 @@ als Route. Keine der beiden Übersichten ist ein Kachelbrett.
 
 ### Die Startseite (`screens/WorkspaceScreen.tsx`)
 
-In GetBetter: oben Datum (mit Wetter), Gruss und rechts die **Glocke**
+In GetBetter: oben Datum (mit Wetter), Gruss und rechts die **Glocke** — kein
+Profilknopf, dafür gibt es den Tab
 (`features/notifications/NotificationBell.tsx`, Zähler der ungelesenen, führt zu
 `/notifications`). Darunter **Was gibt's Neues**
 (`features/notifications/NewsSection.tsx`), dann der Tagesstrahl und zuunterst
 der **Schnellzugriff** — ein 3D-Karussell der Favoriten mit einer „+“-Karte am
-Ende (`features/quick/QuickAccess.tsx`).
+Ende (`features/quick/QuickAccess.tsx`). Unten rechts steht ein „+“
+(`FloatingButton` mit Menü): Aufgabe, Notiz, E-Mail, Geburtstag. Es öffnet die
+Funktion direkt beim Anlegen (`/run/tasks?new=1` …). Ein eigenes Eingabefeld
+für Aufgaben gibt es auf der Startseite nicht mehr.
 
 **Der Tagesstrahl lässt sich wischen**: nach links kommt morgen, nach rechts
 gestern; ein Knopf **Heute** führt zurück. Heute zeigt das Band alles, was die
@@ -455,6 +547,28 @@ hervorgehobene Zahl: jeder Wert ist schlichter Text. `BUILT_MODULE_IDS` in
 `mocks/modules.ts` ist die eine Stelle, die weiss, was gebaut ist. Nie die
 Funktionen anderer Apps.
 
+### Suche (`screens/SearchScreen.tsx`, `features/search/`)
+
+**Ohne Eingabe**
+- „Zuletzt gesucht“: die letzten drei, je Konto in AsyncStorage.
+- Die Funktionen dieser App.
+- Ganz unten **„Andere Better-Apps“**, zugeklappt. Nur hier stehen die
+  Funktionen der anderen Apps, grau und nicht tippbar.
+
+**Mit Eingabe** gibt es feste Gruppen, je drei Treffer und dazu „Alle N“:
+1. bester Treffer
+2. Aufgaben
+3. Notizen
+4. E-Mails
+5. Personen
+6. Orte
+7. Weitere Einträge (Termine, Einkauf … der anderen Apps)
+8. Funktionen
+
+**Ein Treffer öffnet den Eintrag selbst** (`/run/notes?note=<id>` …).
+
+Suche und Gruppen sind reine Funktionen mit Tests (`results.ts`, `recent.ts`).
+
 ### Favoriten und Schnellzugriff (`features/quick/`)
 
 **Das sind zwei Listen, nicht eine.** Was man oft braucht, ist nicht dasselbe
@@ -491,7 +605,9 @@ Zusatzpaket) und teilen sich die Masse in `ui/gestures.ts`.
 
 | Geste                                  | Wo                                   | Baustein                |
 | -------------------------------------- | ------------------------------------ | ----------------------- |
-| Zeile nach links wischen → „Löschen“   | jede löschbare Liste                 | `ui/SwipeRow.tsx`       |
+| Zeile nach rechts wischen → umschalten | erledigt, anheften, gelesen          | `ui/SwipeRow.tsx`       |
+| Zeile nach links: halb Aktionen, ganz wegräumen | Planen, Löschen, Archivieren – mit Rückgängig | `ui/SwipeRow.tsx` |
+| Langer Druck → Kontextmenü (Android: Auswahl) | Aufgaben, Notizen, Geburtstage, E-Mail | `ui/ContextMenu.tsx` |
 | Nach links/rechts → weiter/zurück      | Kalender, Budget, Tagesstrahl        | `ui/useSwipeSteps.ts`   |
 | Blatt am Griff/Kopf nach unten wischen | jedes `Sheet`, auch mit `header`     | `ui/Sheet.tsx`          |
 | Vom linken Rand nach rechts → zurück   | iOS vom Stapel, im Browser selbst    | `app/EdgeSwipeBack.tsx` |
@@ -501,6 +617,19 @@ Ein Blatt lässt sich nur am Griff und an der Kopfzeile herunterziehen, nicht im
 Inhalt — dort stecken Felder und das Wecker-Rad. Wer eine eigene Kopfzeile
 braucht (X, Titel, Haken), gibt sie als `header` mit. `SwipeRow` meldet das
 Löschen auch als Aktion der Bedienungshilfe; bestehende Papierkörbe bleiben.
+
+**Bausteine der Neugestaltung**, alle aus `@/ui`:
+- `PlainList`, `SectionHeader` (mit `tone="danger"` für „Überfällig“) und
+  `PlainRow`: eine durchgehende Liste statt Karten
+- `Sheet` mit `detent` mittel/gross
+- `Menu` und `ContextMenu`
+- `Header` mit `titleMenu` für den Ansichtswechsel im Titel
+- `FloatingButton` mit `text` und `menu`
+- `useUndo()` für die Leiste „Rückgängig“ (5 s; `UndoProvider` sitzt in
+  `RootShell`)
+
+Löschen, Archivieren und Abhaken fragen nicht nach, sie lassen sich
+zurücknehmen. Eine Rückfrage kommt nur, wo nichts mehr zurückgeht.
 
 Der Zustand einer Geste lebt in einer kleinen Klasse, die per
 `useState(() => new …)` einmal entsteht — die React-Compiler-Regeln verbieten
@@ -534,25 +663,108 @@ links wischen löscht, bei E-Mails die E-Mail selbst. Leer: „Keine Neuigkeiten
 
 ## E-Mail (`features/mail/`, `db/mail.ts`, `services/api/mail/`)
 
-Beliebig viele Postfächer, ein Posteingang. Verbunden wird mit Adresse und
-Passwort über IMAP/SMTP; der Dienst erkennt den Anbieter
+Beliebig viele Postfächer, wahlweise einzeln oder alle zusammen. Verbunden wird
+mit Adresse und Passwort über IMAP/SMTP; der Dienst erkennt den Anbieter
 (`mail/providers.js`), prüft die Anmeldung live und legt das Passwort
 **verschlüsselt** ab (AES-256-GCM, Schlüssel `<datenordner>/mail.key`, Tresor
-`mail-vault.json` — nie in `db.json`, nie in einer Antwort). Er gleicht alle
-2 Minuten ab: beim ersten Mal die letzten 50, danach Neues; höchstens 100 je
-Postfach, Text ohne HTML und ohne Anhänge. Neue ungelesene Nachrichten nach dem
-Verbinden werden zu Mitteilungen.
+`mail-vault.json` — nie in `db.json`, nie in einer Antwort).
 
-- **Posteingang:** Chips je Postfach (ab zwei), ungelesen fett mit Punkt, nach
-  links wischen löscht (in den Papierkorb des Postfachs).
-- **Nachricht:** öffnen markiert gelesen; Antworten (mit „Re:“ und Zitat),
-  Als ungelesen, Löschen.
-- **Schreiben:** Von (Postfach), An, Cc, Betreff, Text; nach dem Senden eine
-  Kopie in „Gesendet“ (ausser Gmail, das tut es selbst).
-- **Grenzen:** Outlook/Hotmail/Live/Microsoft 365 nur mit OAuth — geht nicht
-  (`oauth_required`). Gmail, Yahoo und iCloud brauchen ein App-Passwort, GMX und
-  web.de eingeschaltetes IMAP. Ohne Zugriffstoken liest jeder, der Port 8090
-  erreicht, die abgeholten Mails — nur für die Entwicklung.
+**Ordner** (`mail/folders.js`): sechs Rollen — Posteingang, Gesendet, Entwürfe,
+Spam, Papierkorb, Archiv. Welcher Ordner welche Rolle hat, sagt erst SPECIAL-USE
+(RFC 6154), dann der Name, auch in modifiziertem UTF-7 (`INBOX.Gel&APY-scht` ist
+der Papierkorb). Gmails „All Mail“ gilt bewusst **nicht** als Archiv.
+
+Der Abgleich (`mail/sync.js`) läuft alle 2 Minuten über **alle** Ordner und
+merkt sich je Ordner UIDVALIDITY und letzte UID in `mail-state.json`: der
+Posteingang holt 50 und behält 100, die übrigen 25 und 40. Gelesen, Fahne
+(`\Flagged`) und beantwortet (`\Answered`) kommen mit. Anhänge liest
+`mail/structure.js` aus der BODYSTRUCTURE — Name, Typ und Grösse, **kein Byte
+des Inhalts**, dazu die Teilnummer (`part`) und die Content-ID. Text ohne HTML.
+Mitteilungen gibt es nur für neue ungelesene im **Posteingang**; Spam meldet
+sich nicht. Zeilen einer älteren Fassung holt der Abgleich einmal nach (nur
+Kopfzeilen und BODYSTRUCTURE, die Ids bleiben).
+
+**Unterhaltungen** (`mail/threads.js`): jede Zeile trägt `inReplyTo`,
+`references`, `bcc` und `threadId` (`th_…`). Die Wurzel ist `references[0]`,
+sonst die Kette der `inReplyTo`, sonst die eigene Message-ID; ohne diese
+Kopfzeilen zählt der Betreff ohne `Re:`/`AW:`/`Fwd:`/`WG:`/`TR:` plus eine
+gemeinsame Adresse. Berechnet über alle Postfächer eines Kontos, darum steht die
+eigene Antwort aus „Gesendet“ in derselben Unterhaltung. Mail-Mitteilungen
+tragen `threadId` in `ref`.
+
+**Inhalt und Anhänge kommen auf Nachfrage**, nie in `db.json` (das geht an jede
+App): `GET …/messages/:id/body` holt Text und HTML per `BODY.PEEK`, legt sie
+unter `<datenordner>/mail-cache/` ab (400 Dateien, je Teil 300 KB) und säubert
+das HTML bei jeder Anfrage mit `mail/sanitize.js` — Liste erlaubter Tags und
+Attribute, eigener Tokenizer, entfernte Bilder als Platzhalter, bis `images=1`.
+`GET …/attachments/:index` fliesst entschlüsselt durch: Bilder und PDF inline,
+alles andere als Download, HTML/SVG/XML nie mit ihrem Typ. `db/mail.ts` hat
+`fetchBody` (macht Bild-Adressen absolut) und `attachmentUrl`.
+
+**Senden mit Rückgängig** (`mail/outbox.js`): mit `delayMs` (bis 20 s) wartet
+die Mail **im Dienst** — die App darf geschlossen werden, auch ein Neustart des
+Dienstes verliert sie nicht — und lässt sich bis dahin mit
+`POST …/send/:sendId/cancel` aufhalten (`409 already_sent`, wenn es zu spät ist).
+`bcc` steht nur in der eigenen Kopie. Weiterleiten (`forwardOf`) hängt Kopf und
+Text zitiert an, **ohne die Anhänge**. Scheitert eine verzögerte Mail, wird sie
+Entwurf und es gibt eine Mitteilung `system` mit `ref.reason: 'mailSendFailed'`.
+
+**Entwürfe** (`mail/drafts.js`): `POST /v1/mail/drafts` legt per APPEND mit
+`\Draft` in den Entwurfsordner und ersetzt mit `draftId` die vorige Fassung
+(erst die neue ablegen, dann die alte expungen). `draftId` ist ein Griff des
+Dienstes oder die Id einer Zeile im Entwurfsordner. Nach dem Abgleich sind
+Entwürfe gewöhnliche Zeilen mit `folderRole: 'drafts'`.
+
+Die Oberfläche (`features/mail/`, verdrahtet in `MailView.tsx`), Vorbild Gmail
+und Apple Mail:
+
+- **Posteingang:**
+  - Sammel-Posteingang, chronologisch, gebündelt nach `threadId`
+    (`threads.ts`).
+  - Oben: „‹ Postfächer“ und „…“ (Auswählen, Vorschauzeilen 0/1/2). Der Titel
+    ist der Ordner.
+  - Zeile: Ungelesen-Punkt, Absender, Anzahl in der Unterhaltung, Zeit,
+    Betreff mit Büroklammer, Vorschau. Kein Bild.
+  - Unten rechts „Schreiben“, unten links der Filter (Ungelesen · Markiert ·
+    Mit Anhang · An mich · Heute) mit einer Pille zum Aufheben.
+- **Gesten:**
+  - Nach rechts wischen schaltet gelesen/ungelesen.
+  - Nach links, halb: „Mehr“ und Löschen.
+  - Nach links, ganz: archivieren (ohne Archiv löschen, im Papierkorb nach
+    Rückfrage endgültig).
+  - Rückgängig gleicht erst ab, sucht die Mail über `messageId` im Zielordner
+    und verschiebt sie zurück.
+  - Langer Druck öffnet das Kontextmenü, auf Android die Auswahl.
+- **Postfächer:** Alle Posteingänge, je Postfach die Ordner mit Zahlen, darunter
+  „Postfächer verwalten“.
+- **Unterhaltung** (Vollbild):
+  - ˄ ˅ springen zur nächsten Unterhaltung; jede Nachricht hat Kopf und
+    „an mich ▾“, ab vier Nachrichten sind die mittleren gebündelt.
+  - Das HTML steht im Browser in einem iframe mit `sandbox` ohne Skripte und
+    einer strengen CSP, auf dem Gerät nur als Text. Die Höhe ist geschätzt,
+    weil das iframe nicht messbar ist.
+  - Blockierte Bilder lassen sich nachladen. Anhänge stehen als Kacheln mit
+    Vorschau.
+  - Leiste unten: Archivieren · Verschieben · Antworten · Markieren · Löschen.
+  - Gelesen gilt erst nach 1 s.
+- **Schreiben** (Blatt, gross):
+  - An als Tokens, eine Zeile „Cc/Bcc, Von“.
+  - Entwürfe sichern alle 2 s (`DraftSaver`).
+  - Nach unten wischen minimiert zu einer Leiste.
+  - Gesendet wird mit 5 s Verzögerung („Gesendet · Rückgängig“).
+  - Vorschläge für Adressen kommen aus bisherigen Mails, weil Kontakte keine
+    E-Mail-Adresse führen.
+- **Links:** `/run/mail?compose=1`, `?message=<id>`.
+- **Die Handgriffe** laufen über **eine** Route (`POST /v1/mail/messages/actions`
+  mit `{ids, action, role}`, bis 100 Nachrichten): je Postfach eine Verbindung,
+  je Ordner ein SELECT und ein UID-Set.
+- **Grenzen:**
+  - Suche auf dem Server (IMAP SEARCH), eigene Ordner, Anhänge beim Senden und
+    Weiterleiten, HTML beim Senden und eine Signatur gibt es nicht. Die
+    Oberfläche sagt es, wo es auffällt. Outlook/Hotmail/Live/Microsoft 365 nur mit
+  OAuth (`oauth_required`). Gmail, Yahoo und iCloud brauchen ein App-Passwort,
+  GMX und web.de eingeschaltetes IMAP. Ohne Zugriffstoken liest jeder, der Port
+  8090 erreicht, die abgeholten Mails — nur für die Entwicklung.
 
 ## Die Bilder (`scripts/icons.js`)
 
@@ -592,6 +804,25 @@ Ein Avatar führt durch alles (`ClubAvatar.tsx`): 44 Stücke fliegen aus
 berechneten Startpunkten zusammen, er dreht sich, schwebt und blinzelt; bei
 reduzierter Bewegung wird er nur eingeblendet. Farben aus dem Theme.
 
+`progress` ist dabei eine Bahn mit **drei** Punkten: 0 verstreut, 1 am Platz,
+2 im Ziel. Zusammensetzen läuft 0 → 1, Zerfallen 1 → 2 — dieselbe Zahl in zwei
+Richtungen. `gazeOnly` lässt nur den Blick wandern, ohne den Körper zu bewegen.
+
+Im **leeren Assistenten** steht er über dem Gespräch
+(`features/assistant/AssistantAvatar.tsx`) und schaut umher; sobald man etwas
+abschickt, zerfällt er wellenförmig und fliegt in die eigene Nachricht. Bei
+reduzierter Bewegung blendet er nur aus.
+
+**Er redet laut mit** (`features/intro/narration.ts`, `narrator.ts`,
+`NarrationButton.tsx`): auf dem Startbildschirm, beim Anmelden und
+Registrieren, beim Einrichten und bei „Kennst du dich schon aus?“ sagt er, was
+in seiner Blase steht — einmal je Satz, nie beim Tippen, eine Drittelsekunde
+nach dem Erscheinen. Vor dem ersten Tipp auf der Seite erlauben Browser keinen
+Ton (`navigator.userActivation`); solange bittet der Startbildschirm darum
+(„Antippen, dann rede ich mit dir“). Der Lautsprecher neben der Blase schaltet
+ihn stumm, und das bleibt so (`AsyncStorage`). Ohne Konto spricht die beste
+Stimme des Browsers, mit Konto `assistantVoice`.
+
 - **Erstes Öffnen (alle Apps, `StartScreen`):** „Bist du schon Mitglied im
   Better-Club?“ — darunter die Pille zum Einloggen, der zweite Weg zum
   Registrieren, eine „oder“-Linie und zwei runde Anbieter-Knöpfe (Apple und
@@ -608,12 +839,15 @@ reduzierter Bewegung wird er nur eingeblendet. Farben aus dem Theme.
   weg, die App fliegt an, dann „Kennst du dich mit der App schon aus?“ (Ja /
   Tutorial). Nur wenn nach dem Laden ein Konto dazukommt, nie beim Neustart.
 - **Nach dem Registrieren (GetBetter):** ein Gespräch in Schritten
-  (`SetupScreen.tsx`): der **Spitzname** (`firstName` — nur, wie die App dich
-  anspricht, nicht der Benutzername), „Hey {Name}, mein Name ist …“ (Name des
-  Assistenten, `assistantName`), Personalisieren (Modus, Akzent, Voreinstellung,
-  Hintergrund), „Kennst du dich schon aus?“ — dann `completeOnboarding`. Die
-  anderen Apps laufen beim Registrieren wie beim Einloggen. Beides ändert man
-  später in den Einstellungen.
+  (`SetupScreen.tsx`), das er auch laut spricht. Darum zuerst seine **Stimme** (`assistantVoice`, ein `voiceURI` aus
+  `speechSynthesis` — der Schritt fällt weg, wo es nichts zu wählen gibt), dann
+  der **Spitzname** (`firstName` — nur, wie die App dich anspricht, nicht der
+  Benutzername), der **Name des Assistenten** (`assistantName`),
+  Personalisieren (Modus, Akzent, Voreinstellung, Hintergrund), „Kennst du dich
+  schon aus?“ — dann `completeOnboarding`. Sobald man einmal weiter ist, stehen
+  die Schritte fest, auch wenn der Browser die Stimmen erst später nachreicht.
+  Die anderen Apps laufen beim Registrieren wie beim Einloggen. Alles davon
+  ändert man später in den Einstellungen.
 - **Tutorial (`Tutorial.tsx`):** wischbare Karten — in GetBetter Heute,
   Schnellzugriff, Bereiche & Favoriten, Mitteilungen, E-Mail, Wischen und der
   Assistent mit seinem Namen.
@@ -628,7 +862,7 @@ als Weiterleitung dorthin — zwei Oberflächen fürs selbe wären zwei Wahrheit
 | ------------ | -------------------------------------------------------------------------------- |
 | Konto        | Spitzname, Benutzername, E-Mail (fest), Sprache, Mitglied seit                   |
 | Darstellung  | Modus, Voreinstellung, Akzentfarbe, Hintergrund                                   |
-| Assistent    | sein Name (`assistantName`), in BetterAi ausgeblendet                            |
+| Assistent    | sein Name (`assistantName`) und seine Stimme, in BetterAi ausgeblendet          |
 | Haushalt     | nur in BetterFamily: der aktive Haushalt und Beitreten                            |
 | App          | Version und Abmelden                                                              |
 
@@ -688,11 +922,20 @@ EXPO_PUBLIC_API_URL=https://api.example.ch eas build --profile production
 
 - **Keine rohen Zahlen.** Abstand, Schriftgrösse, Farbe und Radius kommen aus
   `useTheme()`.
-- **Kein Text im Code.** Jeder sichtbare String geht durch `t('key')`.
-  Neue Schlüssel in `i18n/de.ts`, die anderen Sprachen fallen darauf zurück.
-  Grosse Funktionen führen ihre Texte in eigenen Dateien (`i18n/de-mail.ts`,
-  `de-news.ts`, `de-quick.ts`, `de-intro.ts`, `de-personalize.ts`), die `de.ts`
-  per Spread einsammelt.
+- **Kein Text im Code.** Jeder sichtbare String geht durch `t('key')` — auch
+  Name, Kurztext und Beschreibung einer Funktion (`module.<id>.name` in
+  `i18n/de-modules.ts`, gelesen über `moduleName(t, id)` aus
+  `mocks/moduleText.ts`). Grosse Funktionen führen ihre Texte in eigenen
+  Dateien (`i18n/de-mail.ts`, `de-news.ts`, `de-quick.ts`, `de-intro.ts`,
+  `de-personalize.ts`, `de-voice.ts` …), die `de.ts` per Spread einsammelt.
+- **Vier Sprachen, alle vollständig.** Deutsch, Englisch, Französisch und
+  Italienisch. `en.ts`, `fr.ts` und `it.ts` setzen sich aus Teilen zusammen
+  (`en-a.ts`, `en-b.ts`, `en-c.ts`, `en-voice.ts` …) und sind als
+  `Record<TranslationKey, string>` getippt: ein neuer deutscher Schlüssel
+  ohne Übersetzung ist ein Typfehler, und `i18n/catalogue.test.ts` prüft
+  zusätzlich, dass kein Schlüssel fehlt oder zu viel ist und Platzhalter wie
+  `{name}` überall gleich stehen. Wer die Sprache wechselt, sieht die ganze App
+  sofort in der neuen. Du-Form: `tu` auf Französisch und Italienisch.
   Umlaute ausschreiben — „Ämtli“, nicht „Aemtli“.
 - **Datum und Zahlen über `Intl`.** Helfer in `i18n/format.ts`, Schweizer Locale.
 - **Daten kommen aus `db/repositories.ts`** (und `db/gym.ts`, `db/households.ts`,

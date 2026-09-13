@@ -1,22 +1,30 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { MailMessageRow } from '../../db/types';
+import { MAIL_FOLDER_ROLES, type MailMessageRow } from '../../db/types';
 import { de } from '../../i18n/de';
 import {
+  FILTER_LABEL_KEYS,
+  FOLDER_LABEL_KEYS,
   MAIL_ERROR_KEYS,
+  SORT_LABEL_KEYS,
   ageOf,
+  countUnread,
   emptyDraft,
+  fileSize,
   formatAddress,
   formatAge,
   isEmailAddress,
   listDateKind,
   mailErrorKey,
+  matchesQuery,
   parseAddressList,
   parsePort,
   quoteText,
   replyDraft,
   replySubject,
+  rolesOf,
+  selectMessages,
   senderName,
 } from './format';
 
@@ -28,6 +36,7 @@ function message(overrides: Partial<MailMessageRow> = {}): MailMessageRow {
     accountId: 'acc_1',
     mailAccountId: 'ma_1',
     folder: 'INBOX',
+    folderRole: 'inbox',
     uid: 7,
     messageId: '<abc@beispiel.ch>',
     from: { name: 'Lea Meier', address: 'lea@beispiel.ch' },
@@ -38,9 +47,42 @@ function message(overrides: Partial<MailMessageRow> = {}): MailMessageRow {
     snippet: 'Kommst du auch?',
     text: 'Kommst du auch?\nBring Brot mit.',
     seen: false,
+    flagged: false,
+    answered: false,
+    attachments: [],
     arrivedAfterConnect: true,
     ...overrides,
   };
+}
+
+/** Ein kleiner Posteingang: drei im Posteingang, einer im Spam. */
+function inbox(): MailMessageRow[] {
+  const at = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString();
+  return [
+    message({
+      id: 'a',
+      subject: 'Anfrage',
+      from: { name: 'Zoe', address: 'zoe@x.ch' },
+      date: at(0),
+    }),
+    message({
+      id: 'b',
+      subject: 'Bericht',
+      from: { name: 'Ali', address: 'ali@x.ch' },
+      date: at(1),
+      seen: true,
+      flagged: true,
+      attachments: [{ filename: 'x.pdf', mime: 'application/pdf', size: 2048 }],
+    }),
+    message({
+      id: 'c',
+      subject: 'Cousine',
+      from: { name: 'Mia', address: 'mia@x.ch' },
+      date: at(2),
+      mailAccountId: 'ma_2',
+    }),
+    message({ id: 'd', subject: 'Gewinn', folder: 'Junk', folderRole: 'junk', date: at(3) }),
+  ];
 }
 
 test('jeder Fehlerschluessel hat einen Satz', () => {
@@ -48,6 +90,15 @@ test('jeder Fehlerschluessel hat einen Satz', () => {
     assert.equal(typeof de[key], 'string', key);
   }
   assert.equal(mailErrorKey('unknown_route'), 'mail.error.unknownRoute');
+});
+
+test('Ordner, Sortierung und Filter haben alle ihren Satz', () => {
+  const keys = [
+    ...Object.values(FOLDER_LABEL_KEYS),
+    ...Object.values(SORT_LABEL_KEYS),
+    ...Object.values(FILTER_LABEL_KEYS),
+  ];
+  for (const key of keys) assert.equal(typeof de[key], 'string', key);
 });
 
 test('nimmt den Namen, sonst die Adresse', () => {
@@ -150,4 +201,95 @@ test('ohne Text nur die Zeile ueber dem Zitat, neu leer', () => {
     subject: '',
     text: '',
   });
+});
+
+test('nennt eine Groesse in der Einheit mit den wenigsten Nullen', () => {
+  assert.deepEqual(fileSize(0), { value: 0, unit: 'bytes' });
+  assert.deepEqual(fileSize(900), { value: 900, unit: 'bytes' });
+  assert.deepEqual(fileSize(2048), { value: 2, unit: 'kb' });
+  assert.deepEqual(fileSize(1_500_000), { value: 1.4, unit: 'mb' });
+  assert.deepEqual(fileSize(-5), { value: 0, unit: 'bytes' });
+});
+
+test('sucht in Betreff, Absender und Text', () => {
+  const row = message();
+  assert.ok(matchesQuery(row, ''));
+  assert.ok(matchesQuery(row, 'znacht'));
+  assert.ok(matchesQuery(row, 'LEA'));
+  assert.ok(matchesQuery(row, 'lea@beispiel'));
+  assert.ok(matchesQuery(row, 'Brot'));
+  assert.ok(!matchesQuery(row, 'Velo'));
+});
+
+test('siebt nach Postfach und Ordner und sortiert, wie gewuenscht', () => {
+  const rows = inbox();
+  const base = { mailAccountId: null, search: '', filter: 'all', sort: 'newest' } as const;
+
+  const newest = selectMessages(rows, { ...base, role: 'inbox' });
+  assert.deepEqual(
+    newest.map((row) => row.id),
+    ['a', 'b', 'c'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, role: 'inbox', sort: 'oldest' }).map((row) => row.id),
+    ['c', 'b', 'a'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, role: 'inbox', sort: 'sender' }).map((row) => row.id),
+    ['b', 'c', 'a'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, role: 'inbox', sort: 'subject' }).map((row) => row.id),
+    ['a', 'b', 'c'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, role: 'junk' }).map((row) => row.id),
+    ['d'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, role: 'inbox', mailAccountId: 'ma_2' }).map((row) => row.id),
+    ['c'],
+  );
+});
+
+test('filtert nach ungelesen, Fahne und Anhang und findet mit der Suche', () => {
+  const rows = inbox();
+  const base = { mailAccountId: null, role: 'inbox', search: '', sort: 'newest' } as const;
+  assert.deepEqual(
+    selectMessages(rows, { ...base, filter: 'unread' }).map((row) => row.id),
+    ['a', 'c'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, filter: 'flagged' }).map((row) => row.id),
+    ['b'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, filter: 'attachments' }).map((row) => row.id),
+    ['b'],
+  );
+  assert.deepEqual(
+    selectMessages(rows, { ...base, filter: 'all', search: 'bericht' }).map((row) => row.id),
+    ['b'],
+  );
+});
+
+test('zaehlt die ungelesenen je Ordner und Postfach', () => {
+  const rows = inbox();
+  assert.equal(countUnread(rows), 2);
+  assert.equal(countUnread(rows, { mailAccountId: 'ma_2' }), 1);
+  assert.equal(countUnread(rows, { role: 'junk' }), 1);
+  assert.equal(countUnread(rows, { role: 'trash' }), 0);
+});
+
+test('bietet nur Ordner an, die es gibt — den Posteingang immer', () => {
+  assert.deepEqual(rolesOf([{ role: 'junk' }, { role: 'trash' }], MAIL_FOLDER_ROLES), [
+    'inbox',
+    'junk',
+    'trash',
+  ]);
+  assert.deepEqual(rolesOf([], MAIL_FOLDER_ROLES), ['inbox']);
+  assert.deepEqual(rolesOf([{ role: 'inbox' }, { role: 'sent' }], MAIL_FOLDER_ROLES), [
+    'inbox',
+    'sent',
+  ]);
 });

@@ -1,4 +1,4 @@
-/** Die Funktion E-Mail: Konten, Posteingang, Schreiben. Teil von `de` — die Schluessel landen dort per Spread. */
+/** Die Funktion E-Mail: Konten, Ordner, Posteingang, Schreiben. Teil von `de` — die Schluessel landen dort per Spread. */
 export const deMail = {
   // Das Modul fragt nach dem Recht auf E-Mails — ohne den Eintrag fehlt dort ein Wort.
   'permission.data.mail': 'deine E-Mails',
@@ -9,11 +9,14 @@ export const deMail = {
   'mail.syncing': 'Wird abgeglichen …',
   'mail.refresh': 'Aktualisieren',
   'mail.mailboxes': 'Postfächer',
-  'mail.filter.all': 'Alle',
   'mail.empty.title': 'Noch kein Postfach verbunden',
   'mail.empty.body': 'Verbinde deine E-Mail-Konten — alle landen in einem Posteingang.',
   'mail.inbox.empty.title': 'Posteingang leer',
   'mail.inbox.empty.body': 'Neue E-Mails erscheinen hier, sobald sie ankommen.',
+  'mail.folder.empty.title': 'Nichts in diesem Ordner',
+  'mail.folder.empty.body': 'Hier liegt gerade keine E-Mail.',
+  'mail.search.empty.title': 'Nichts gefunden',
+  'mail.search.empty.body': 'Gesucht wird in dem, was schon geladen ist — Betreff, Absender, Text.',
   'mail.connect': 'Postfach verbinden',
   'mail.new': 'Neue E-Mail',
   'mail.sent': 'E-Mail gesendet.',
@@ -21,8 +24,67 @@ export const deMail = {
   'mail.unknownSender': 'Unbekannt',
   'mail.row.label': '{sender}: {subject}',
   'mail.row.labelUnread': 'Ungelesen — {sender}: {subject}',
+  'mail.row.attachments': 'Mit Anhang',
+  'mail.row.flagged': 'Mit Fahne',
+  'mail.row.answered': 'Beantwortet',
   'mail.syncFailed.one': 'Ein Postfach konnte nicht abgeglichen werden.',
   'mail.syncFailed.many': '{count} Postfächer konnten nicht abgeglichen werden.',
+
+  // Postfach wählen
+  'mail.mailbox.title': 'Postfach',
+  'mail.mailbox.all': 'Alle Postfächer',
+  'mail.mailbox.allBody': 'Jede Adresse in einer Liste',
+  'mail.mailbox.manage': 'Postfächer verwalten',
+  'mail.mailbox.unread': '{count} ungelesen',
+  'mail.mailbox.read': 'Alles gelesen',
+  'mail.mailbox.problem': 'Abgleich fehlgeschlagen',
+
+  // Ordner
+  'mail.folders': 'Ordner',
+  'mail.folder.inbox': 'Posteingang',
+  'mail.folder.sent': 'Gesendet',
+  'mail.folder.drafts': 'Entwürfe',
+  'mail.folder.junk': 'Spam',
+  'mail.folder.trash': 'Papierkorb',
+  'mail.folder.archive': 'Archiv',
+
+  // Suchen, sortieren, filtern
+  'mail.search': 'Suchen',
+  'mail.search.placeholder': 'Betreff, Absender, Text',
+  'mail.sortAndFilter': 'Sortieren und filtern',
+  'mail.sort.title': 'Sortieren',
+  'mail.sort.newest': 'Neueste zuerst',
+  'mail.sort.oldest': 'Älteste zuerst',
+  'mail.sort.sender': 'Nach Absender',
+  'mail.sort.subject': 'Nach Betreff',
+  'mail.filter.title': 'Zeigen',
+  'mail.filter.all': 'Alle',
+  'mail.filter.unread': 'Nur ungelesene',
+  'mail.filter.flagged': 'Nur mit Fahne',
+  'mail.filter.attachments': 'Nur mit Anhang',
+  'mail.filter.active': 'Gefiltert',
+
+  // Mehrere auswählen
+  'mail.select': 'Auswählen',
+  'mail.select.done': 'Fertig',
+  'mail.select.none': 'Nichts ausgewählt',
+  'mail.select.count': '{count} ausgewählt',
+  'mail.select.all': 'Alle auswählen',
+  'mail.select.clear': 'Auswahl aufheben',
+  'mail.select.row': '{subject} auswählen',
+
+  // Handgriffe
+  'mail.action.markRead': 'Gelesen',
+  'mail.action.markUnread': 'Ungelesen',
+  'mail.action.flag': 'Fahne setzen',
+  'mail.action.unflag': 'Fahne weg',
+  'mail.action.spam': 'Ist Spam',
+  'mail.action.notSpam': 'Kein Spam',
+  'mail.action.archive': 'Archivieren',
+  'mail.action.move': 'Verschieben',
+  'mail.action.moveTitle': 'Verschieben nach',
+  'mail.action.delete': 'Löschen',
+  'mail.action.restore': 'In den Posteingang',
 
   // Eine Nachricht
   'mail.message.from': 'Von',
@@ -30,6 +92,7 @@ export const deMail = {
   'mail.message.cc': 'Cc',
   'mail.message.date': 'Datum',
   'mail.message.mailbox': 'Postfach',
+  'mail.message.folder': 'Ordner',
   'mail.message.dateAt': '{date}, {time}',
   'mail.message.empty': 'Diese E-Mail hat keinen Text.',
   'mail.message.reply': 'Antworten',
@@ -37,6 +100,16 @@ export const deMail = {
   'mail.message.delete': 'Löschen',
   'mail.quoteHeader': 'Am {date} schrieb {name}:',
   'mail.quoteHeaderNoDate': '{name} schrieb:',
+
+  // Anhänge
+  'mail.attachments.one': 'Ein Anhang',
+  'mail.attachments.many': '{count} Anhänge',
+  'mail.attachments.unnamed': 'Ohne Namen',
+  'mail.attachments.note':
+    'Herunterladen geht hier noch nicht — öffne die E-Mail dafür bei deinem Anbieter.',
+  'mail.size.bytes': '{value} B',
+  'mail.size.kb': '{value} KB',
+  'mail.size.mb': '{value} MB',
 
   // Schreiben
   'mail.compose.title': 'Neue E-Mail',
@@ -110,6 +183,7 @@ export const deMail = {
     'Dieses Postfach erlaubt nur die Anmeldung beim Anbieter — geht hier noch nicht.',
   'mail.error.sendFailed': 'Die E-Mail konnte nicht gesendet werden.',
   'mail.error.notFound': 'Diese E-Mail oder dieses Postfach gibt es nicht mehr.',
+  'mail.error.folderMissing': 'Dieses Postfach führt diesen Ordner nicht.',
   'mail.error.offline': 'Die Datenbank ist nicht erreichbar. Läuft der Dienst?',
   'mail.error.unknownRoute': 'Der Dienst kennt E-Mail noch nicht — starte die Datenbank neu.',
   'mail.error.unknown': 'Das hat nicht geklappt. Versuch es nochmal.',

@@ -5,6 +5,8 @@ import { View } from 'react-native';
 
 import { APPS_WITH_HOUSEHOLD, currentApp } from '@/app/identity';
 import type { UsernameSave } from '@/auth/accounts';
+import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
+import { VoicePicker } from '@/features/assistant/VoicePicker';
 import { StylePicker } from '@/features/onboarding/StylePicker';
 import { AccountFieldSheet } from '@/features/personalize/AccountFieldSheet';
 import { BackdropPicker } from '@/features/personalize/BackdropPicker';
@@ -41,7 +43,8 @@ const USERNAME_MESSAGE: Readonly<
 const NO_VERSION = '—';
 
 /** Welches Blatt gerade offen ist. */
-type Sheeted = 'nickname' | 'username' | 'assistant' | 'language' | 'style' | 'backdrop' | null;
+type Sheeted =
+  'nickname' | 'username' | 'assistant' | 'voice' | 'language' | 'style' | 'backdrop' | null;
 
 /**
  * Die Einstellungen: oben, wer du bist, darunter je Thema ein Bereich — Konto,
@@ -59,10 +62,12 @@ export function SettingsScreen() {
     setFirstName,
     setUsername,
     setAssistantName,
+    setAssistantVoice,
     setLanguage,
     signOut,
   } = useApp();
   const [sheet, setSheet] = useState<Sheeted>(null);
+  const voices = useSpeechVoices();
 
   const app = currentApp();
   const hasHousehold = APPS_WITH_HOUSEHOLD.includes(app.id);
@@ -71,6 +76,12 @@ export function SettingsScreen() {
   const version = Constants.expoConfig?.version ?? NO_VERSION;
 
   if (!account) return null;
+
+  // Der Name der gewaehlten Stimme — solange der Browser die Liste noch nicht
+  // nachgereicht hat, steht dort „Standard“ statt einer leeren Zeile.
+  // Ohne eigene Wahl spricht die beste Stimme — dann steht auch die hier.
+  const voice = voices.find((entry) => entry.uri === account.assistantVoice) ?? voices[0];
+  const voiceLabel = voice ? voice.label : t('settings.voice.default');
 
   const backdrop = resolveBackdrop(account.backdrop, app.id);
   const backdropLabel =
@@ -171,6 +182,13 @@ export function SettingsScreen() {
               chevron
               onPress={() => setSheet('assistant')}
             />
+            <SettingsRow
+              icon="mic"
+              label={t('settings.voice')}
+              value={voiceLabel}
+              chevron
+              onPress={() => setSheet('voice')}
+            />
           </SettingsList>
         </SettingsGroup>
       ) : null}
@@ -260,6 +278,14 @@ export function SettingsScreen() {
           return null;
         }}
       />
+
+      <Sheet visible={sheet === 'voice'} onClose={() => setSheet(null)} title={t('settings.voice')}>
+        <VoicePicker
+          name={account.assistantName ?? ''}
+          value={account.assistantVoice}
+          onChange={(uri) => void setAssistantVoice(uri)}
+        />
+      </Sheet>
 
       <Sheet visible={sheet === 'style'} onClose={() => setSheet(null)} title={t('settings.style')}>
         <StylePicker />

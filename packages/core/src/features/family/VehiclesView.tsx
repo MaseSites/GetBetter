@@ -6,6 +6,7 @@ import { useLiveQuery, vehicles as vehicleRepo, type VehicleRow } from '@/db';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { daysUntil, relativeDay } from '@/features/shared/days';
 import { formatNumber, useI18n } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -87,7 +88,7 @@ export function VehiclesView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             rows.length === 0
               ? t('vehicles.empty.title')

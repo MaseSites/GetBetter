@@ -11,6 +11,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { after, before, describe, test } = require('node:test');
 
+const { parseMessage } = require('../mail/mime.js');
+const { encodeQuotedPrintable } = require('../mail/smtp.js');
 const { createFakeImap, createFakeSmtp } = require('./fakes.js');
 
 const SERVER = path.join(__dirname, '..', 'server.js');
@@ -20,11 +22,80 @@ const PNG = Buffer.from(
   'base64',
 );
 
+/** Gross genug, dass der Anhang in mehreren Stuecken durch den Dienst fliesst. */
+const PDF_BYTES = Buffer.from(Array.from({ length: 70_000 }, (_, index) => (index * 31 + 7) % 256));
+const base64Lines = (bytes) =>
+  bytes
+    .toString('base64')
+    .match(/.{1,76}/g)
+    .join('\r\n');
+const RICH_HTML =
+  '<p onclick="steal()">Hallo <b>HTML</b></p><img src="cid:logo@x">' +
+  '<img src="https://track.example/p.gif"><script>alert(1)</script>';
+
+/** Text und HTML, ein eingebettetes Bild, ein PDF und ein HTML-Anhang. */
+const RICH_RAW = [
+  'From: Eva <eva@example.ch>',
+  'To: user@example.ch',
+  'Subject: Newsletter',
+  'Message-ID: <rich1@example.ch>',
+  'Date: Fri, 11 Sep 2026 09:00:00 +0200',
+  'MIME-Version: 1.0',
+  'Content-Type: multipart/mixed; boundary="mix"',
+  '',
+  '--mix',
+  'Content-Type: multipart/alternative; boundary="alt"',
+  '',
+  '--alt',
+  'Content-Type: text/plain; charset=utf-8',
+  '',
+  'Hallo Text',
+  '--alt',
+  'Content-Type: text/html; charset=utf-8',
+  'Content-Transfer-Encoding: quoted-printable',
+  '',
+  encodeQuotedPrintable(RICH_HTML),
+  '--alt--',
+  '--mix',
+  'Content-Type: image/png; name="logo.png"',
+  'Content-ID: <logo@x>',
+  'Content-Disposition: inline; filename="logo.png"',
+  'Content-Transfer-Encoding: base64',
+  '',
+  base64Lines(PNG),
+  '--mix',
+  'Content-Type: application/pdf; name="Rechnung.pdf"',
+  'Content-Disposition: attachment; filename="Rechnung.pdf"',
+  'Content-Transfer-Encoding: base64',
+  '',
+  base64Lines(PDF_BYTES),
+  '--mix',
+  'Content-Type: text/html; name="evil.html"',
+  'Content-Disposition: attachment; filename="evil.html"',
+  '',
+  '<script>alert(1)</script>',
+  '--mix--',
+  '',
+].join('\r\n');
+
+/** Die BODYSTRUCTURE dazu; der PDF-Name versucht, aus dem Ordner zu klettern. */
+const RICH_STRUCTURE =
+  '(((' +
+  '"TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 10 1)' +
+  '("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 200 1) "ALTERNATIVE")' +
+  '("IMAGE" "PNG" ("NAME" "logo.png") "<logo@x>" NIL "BASE64" 96 NIL' +
+  ' ("inline" ("FILENAME" "logo.png")) NIL NIL)' +
+  '("APPLICATION" "PDF" ("NAME" "Rechnung.pdf") NIL NIL "BASE64" 94000 NIL' +
+  ' ("attachment" ("FILENAME" "..\\\\Rech\\"nung.pdf")) NIL NIL)' +
+  '("TEXT" "HTML" ("NAME" "evil.html") NIL NIL "7BIT" 25 1 NIL' +
+  ' ("attachment" ("FILENAME" "evil.html")) NIL NIL) "MIXED")';
+
 const MAIL_ACCOUNT_KEYS = [
   'accountId',
   'connectedAt',
   'displayName',
   'email',
+  'folders',
   'id',
   'imapHost',
   'imapPort',
@@ -39,18 +110,26 @@ const MAIL_ACCOUNT_KEYS = [
 ];
 const MAIL_MESSAGE_KEYS = [
   'accountId',
+  'answered',
   'arrivedAfterConnect',
+  'attachments',
+  'bcc',
   'cc',
   'date',
+  'flagged',
   'folder',
+  'folderRole',
   'from',
   'id',
+  'inReplyTo',
   'mailAccountId',
   'messageId',
+  'references',
   'seen',
   'snippet',
   'subject',
   'text',
+  'threadId',
   'to',
   'uid',
 ];
@@ -475,6 +554,7 @@ describe('service endpoints', () => {
       const fresh = current.mailMessages.find((row) => row.uid === 3);
       assert.equal(fresh.arrivedAfterConnect, true);
       assert.equal(fresh.messageId, '<n1@example.ch>');
+      assert.match(fresh.threadId, /^th_[a-f0-9]{24}$/);
       const [notification] = current.notifications.filter((row) => row.kind === 'mail');
       assert.deepEqual(
         {
@@ -486,7 +566,7 @@ describe('service endpoints', () => {
         {
           title: 'Cara Neu',
           body: 'Neu da',
-          ref: { mailMessageId: fresh.id, mailAccountId: mailAccount.id },
+          ref: { mailMessageId: fresh.id, mailAccountId: mailAccount.id, threadId: fresh.threadId },
           app: 'getbetter',
         },
       );
@@ -525,6 +605,7 @@ describe('service endpoints', () => {
       const [delivered] = smtp.state.messages;
       assert.deepEqual(delivered.recipients, ['cara@example.ch']);
       assert.match(delivered.message, /\r\nIn-Reply-To: <n1@example\.ch>\r\n/);
+      assert.match(delivered.message, /\r\nReferences: <n1@example\.ch>\r\n/);
       assert.match(delivered.message, /^From: Anna <user@example\.ch>\r\n/);
       assert.ok(delivered.stuffed.includes('\r\n..punkt'));
       await waitFor(() => imap.state.boxes.Sent.length === 1);
@@ -565,6 +646,351 @@ describe('service endpoints', () => {
       assert.ok(!current.notifications.some((row) => row.ref.mailMessageId === target.id));
     });
 
+    test('learns which folders the mailbox keeps', async () => {
+      assert.deepEqual((await tables()).mailAccounts[0].folders, [
+        { role: 'inbox', name: 'INBOX' },
+        { role: 'sent', name: 'Sent' },
+        { role: 'drafts', name: 'Drafts' },
+        { role: 'junk', name: 'Junk' },
+        { role: 'trash', name: 'Trash' },
+        { role: 'archive', name: 'Archive' },
+      ]);
+    });
+
+    test('syncs every folder, reads attachments and moves mail into the junk folder', async () => {
+      const withPdf =
+        '(("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 20 2)' +
+        '("APPLICATION" "PDF" ("NAME" "Rechnung.pdf") NIL NIL "BASE64" 1000 NIL' +
+        ' ("attachment" ("FILENAME" "Rechnung.pdf")) NIL NIL) "MIXED")';
+      imap.addMessage(
+        'INBOX',
+        mailRaw({
+          from: 'Dora <dora@example.ch>',
+          subject: 'Mit Anhang',
+          text: 'Beilage',
+          id: 'd1',
+        }),
+        { structure: withPdf },
+      );
+      imap.addMessage(
+        'Junk',
+        mailRaw({ from: 'Werbung <spam@example.ch>', subject: 'Gewinn', text: 'Klick', id: 'j1' }),
+      );
+
+      await call('POST', '/v1/mail/sync', { accountId: accountA.id });
+      const synced = await tables();
+      const byRole = (rows, role) => rows.filter((row) => row.folderRole === role);
+      assert.equal(byRole(synced.mailMessages, 'sent').length, 1);
+      assert.equal(byRole(synced.mailMessages, 'trash').length, 1);
+      assert.equal(byRole(synced.mailMessages, 'junk').length, 1);
+      const attached = synced.mailMessages.find((row) => row.subject === 'Mit Anhang');
+      assert.equal(attached.folderRole, 'inbox');
+      assert.deepEqual(attached.attachments, [
+        {
+          filename: 'Rechnung.pdf',
+          mime: 'application/pdf',
+          size: 750,
+          part: '2',
+          contentId: null,
+        },
+      ]);
+
+      const moved = await call('POST', '/v1/mail/messages/actions', {
+        ids: [attached.id],
+        action: 'move',
+        role: 'junk',
+      });
+      assert.deepEqual(moved.data, { ok: true, changed: 1 });
+      assert.ok(!imap.state.boxes.INBOX.some((m) => m.body.includes('Mit Anhang')));
+      assert.equal(imap.state.boxes.Junk.length, 2);
+
+      const after = await tables();
+      assert.ok(!after.mailMessages.some((row) => row.id === attached.id));
+      const inJunk = after.mailMessages.find((row) => row.subject === 'Mit Anhang');
+      assert.equal(inJunk.folderRole, 'junk');
+      assert.deepEqual(inJunk.attachments, attached.attachments);
+      // Verschieben ist kein Eintreffen: dafuer gibt es keine Mitteilung.
+      assert.ok(!after.notifications.some((row) => row.ref.mailMessageId === inJunk.id));
+    });
+
+    test('flags mail, works on several at once and refuses nonsense', async () => {
+      const inbox = (await tables()).mailMessages.filter((row) => row.folderRole === 'inbox');
+      assert.ok(inbox.length > 0);
+      const ids = inbox.map((row) => row.id);
+
+      const flagged = await call('POST', '/v1/mail/messages/actions', {
+        ids: [ids[0]],
+        action: 'flag',
+      });
+      assert.deepEqual(flagged.data, { ok: true, changed: 1 });
+      assert.ok(imap.state.boxes.INBOX.some((m) => m.flags.includes('\\Flagged')));
+      assert.equal((await tables()).mailMessages.find((row) => row.id === ids[0]).flagged, true);
+
+      const unread = await call('POST', '/v1/mail/messages/actions', { ids, action: 'unseen' });
+      assert.deepEqual(unread.data, { ok: true, changed: ids.length });
+      const current = await tables();
+      assert.ok(
+        ids.every((id) => current.mailMessages.find((row) => row.id === id).seen === false),
+      );
+
+      assert.equal(
+        (await call('POST', '/v1/mail/messages/actions', { ids: [], action: 'seen' })).status,
+        400,
+      );
+      assert.equal(
+        (await call('POST', '/v1/mail/messages/actions', { ids: [ids[0]], action: 'move' })).status,
+        400,
+      );
+      assert.equal(
+        (await call('POST', '/v1/mail/messages/actions', { ids: ['mm_fehlt'], action: 'seen' }))
+          .status,
+        404,
+      );
+    });
+
+    test('groups the own reply from Sent with the mail it answers', async () => {
+      await call('POST', '/v1/mail/sync', { accountId: accountA.id });
+      const rows = (await tables()).mailMessages;
+      const reply = rows.find(
+        (row) => row.folderRole === 'sent' && row.inReplyTo === '<n1@example.ch>',
+      );
+      const answered = rows.find(
+        (row) => row.messageId === '<n1@example.ch>' && row.folderRole !== 'sent',
+      );
+      assert.ok(reply && answered);
+      assert.deepEqual(reply.references, ['<n1@example.ch>']);
+      assert.match(reply.threadId, /^th_[a-f0-9]{24}$/);
+      assert.equal(reply.threadId, answered.threadId);
+      assert.notEqual(rows.find((row) => row.subject === 'Gewinn').threadId, answered.threadId);
+    });
+
+    test('serves a sanitised HTML body on demand and keeps it out of db.json', async () => {
+      imap.addMessage('INBOX', RICH_RAW, { structure: RICH_STRUCTURE });
+      await call('POST', '/v1/mail/sync', { accountId: accountA.id });
+      const rich = (await tables()).mailMessages.find(
+        (row) => row.messageId === '<rich1@example.ch>',
+      );
+      assert.equal(rich.text, 'Hallo Text');
+      assert.deepEqual(
+        rich.attachments.map((entry) => [entry.part, entry.mime, entry.contentId]),
+        [
+          ['2', 'image/png', 'logo@x'],
+          ['3', 'application/pdf', null],
+          ['4', 'text/html', null],
+        ],
+      );
+      assert.ok(!JSON.stringify(await tables()).includes('track.example'));
+
+      const fetches = () =>
+        imap.state.lines.filter((line) => line.includes('BODY.PEEK[1.2]')).length;
+      const blocked = await call('GET', `/v1/mail/messages/${rich.id}/body`);
+      assert.equal(blocked.status, 200);
+      assert.deepEqual(Object.keys(blocked.data).sort(), [
+        'html',
+        'inlineAttachments',
+        'remoteImages',
+        'text',
+      ]);
+      assert.equal(blocked.data.text, 'Hallo Text');
+      assert.equal(blocked.data.remoteImages, 1);
+      assert.deepEqual(blocked.data.inlineAttachments, [0]);
+      assert.ok(blocked.data.html.startsWith('<p>Hallo <b>HTML</b></p>'));
+      assert.ok(
+        blocked.data.html.includes(`<img src="/v1/mail/messages/${rich.id}/attachments/0">`),
+      );
+      assert.match(blocked.data.html, /data-remote-image="1"/);
+      assert.doesNotMatch(blocked.data.html, /script|onclick|track\.example/);
+      assert.equal(fetches(), 1);
+      await fs.access(path.join(dataDir, 'mail-cache', `${rich.id}.json`));
+
+      const allowed = await call('GET', `/v1/mail/messages/${rich.id}/body?images=1`);
+      assert.match(allowed.data.html, /<img src="https:\/\/track\.example\/p\.gif">/);
+      assert.equal(allowed.data.remoteImages, 1);
+      assert.equal(fetches(), 1, 'the second request is served from the cache');
+
+      assert.deepEqual((await call('GET', '/v1/mail/messages/mm_fehlt/body')).data, {
+        error: 'not_found',
+      });
+      assert.equal((await call('GET', '/v1/mail/messages/..%2F..%2Fdb/body')).status, 404);
+    });
+
+    test('streams attachments with safe headers and refuses unknown ones', async () => {
+      const rich = (await tables()).mailMessages.find(
+        (row) => row.messageId === '<rich1@example.ch>',
+      );
+      const base = `/v1/mail/messages/${rich.id}/attachments`;
+
+      const pdf = await call('GET', `${base}/1`);
+      assert.equal(pdf.status, 200);
+      assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+      assert.equal(
+        pdf.headers.get('content-disposition'),
+        `inline; filename="_Rech_nung.pdf"; filename*=UTF-8''_Rech_nung.pdf`,
+      );
+      assert.equal(pdf.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(pdf.headers.get('access-control-allow-origin'), '*');
+      assert.deepEqual(pdf.data, PDF_BYTES);
+
+      const logo = await call('GET', `${base}/0`);
+      assert.equal(logo.headers.get('content-type'), 'image/png');
+      assert.match(logo.headers.get('content-security-policy') ?? '', /sandbox/);
+      assert.deepEqual(logo.data, PNG);
+
+      const page = await call('GET', `${base}/2`);
+      assert.equal(page.headers.get('content-type'), 'application/octet-stream');
+      assert.match(
+        page.headers.get('content-disposition') ?? '',
+        /^attachment; filename="evil\.html"/,
+      );
+      assert.equal(page.data.toString(), '<script>alert(1)</script>');
+
+      for (const route of [
+        `${base}/9`,
+        `${base}/abc`,
+        '/v1/mail/messages/mm_fehlt/attachments/0',
+      ]) {
+        const missing = await call('GET', route);
+        assert.deepEqual([missing.status, missing.data], [404, { error: 'not_found' }], route);
+      }
+    });
+
+    test('forwards a message with its text quoted', async () => {
+      const original = (await tables()).mailMessages.find(
+        (row) => row.messageId === '<rich1@example.ch>',
+      );
+      const before = smtp.state.messages.length;
+      const sent = await call('POST', '/v1/mail/send', {
+        mailAccountId: mailAccount.id,
+        to: ['ben@example.ch'],
+        subject: '',
+        text: 'Schau mal',
+        forwardOf: original.id,
+      });
+      assert.deepEqual(sent.data, { ok: true });
+      const parsed = parseMessage(Buffer.from(smtp.state.messages[before].message));
+      assert.equal(parsed.subject, 'Fwd: Newsletter');
+      assert.match(
+        parsed.text,
+        /^Schau mal\n\n---------- Forwarded message ----------\nFrom: Eva <eva@example\.ch>\n/,
+      );
+      assert.match(parsed.text, /\n> Hallo Text$/);
+      assert.equal(parsed.inReplyTo, null);
+
+      const both = await call('POST', '/v1/mail/send', {
+        mailAccountId: mailAccount.id,
+        to: ['ben@example.ch'],
+        subject: 'x',
+        text: 'x',
+        forwardOf: original.id,
+        inReplyTo: original.id,
+      });
+      assert.deepEqual(both.data, { error: 'bad_request' });
+    });
+
+    test('saves drafts into the drafts folder, replaces and deletes them', async () => {
+      const draft = {
+        accountId: accountA.id,
+        mailAccountId: mailAccount.id,
+        to: ['cara@example.ch'],
+        cc: [],
+        bcc: ['geheim@example.ch'],
+        subject: 'Offerte',
+        text: 'Erste Fassung',
+      };
+      const first = await call('POST', '/v1/mail/drafts', draft);
+      assert.equal(first.status, 200);
+      assert.match(first.data.draftId, /^dft_/);
+      assert.equal(imap.state.boxes.Drafts.length, 1);
+      assert.ok(imap.state.boxes.Drafts[0].flags.includes('\\Draft'));
+      assert.match(imap.state.boxes.Drafts[0].body.toString(), /\r\nBcc: geheim@example\.ch\r\n/);
+
+      const second = await call('POST', '/v1/mail/drafts', {
+        ...draft,
+        text: 'Zweite Fassung',
+        draftId: first.data.draftId,
+      });
+      assert.deepEqual(second.data, { draftId: first.data.draftId });
+      assert.equal(imap.state.boxes.Drafts.length, 1);
+      assert.match(imap.state.boxes.Drafts[0].body.toString(), /Zweite Fassung/);
+
+      await call('POST', '/v1/mail/sync', { accountId: accountA.id });
+      const row = (await tables()).mailMessages.find((entry) => entry.folderRole === 'drafts');
+      assert.deepEqual(row.bcc, [{ name: '', address: 'geheim@example.ch' }]);
+
+      // Ein Entwurf, den der Abgleich gefunden hat, laesst sich ueber seine Zeile weiterschreiben.
+      const third = await call('POST', '/v1/mail/drafts', {
+        ...draft,
+        text: 'Dritte Fassung',
+        draftId: row.id,
+      });
+      assert.match(third.data.draftId, /^dft_/);
+      assert.notEqual(third.data.draftId, first.data.draftId);
+      assert.equal(imap.state.boxes.Drafts.length, 1);
+      assert.ok(!(await tables()).mailMessages.some((entry) => entry.id === row.id));
+
+      assert.deepEqual((await call('DELETE', `/v1/mail/drafts/${third.data.draftId}`)).data, {
+        ok: true,
+      });
+      assert.equal(imap.state.boxes.Drafts.length, 0);
+      assert.equal((await call('DELETE', `/v1/mail/drafts/${third.data.draftId}`)).status, 404);
+      assert.equal((await call('DELETE', `/v1/mail/drafts/${first.data.draftId}`)).status, 404);
+
+      assert.equal(
+        (await call('POST', '/v1/mail/drafts', { ...draft, to: ['kaputt'] })).status,
+        400,
+      );
+      const foreign = await call('POST', '/v1/mail/drafts', {
+        accountId: accountB.id,
+        mailAccountId: mailAccount.id,
+      });
+      assert.deepEqual([foreign.status, foreign.data], [404, { error: 'not_found' }]);
+    });
+
+    test('holds a delayed send, lets it be cancelled and says when it is too late', async () => {
+      const before = smtp.state.messages.length;
+      const mail = {
+        mailAccountId: mailAccount.id,
+        to: ['cara@example.ch'],
+        bcc: ['still@example.ch'],
+        subject: 'Spaeter',
+        text: 'Mit Verzoegerung',
+      };
+      const held = await call('POST', '/v1/mail/send', { ...mail, delayMs: 5000 });
+      assert.equal(held.status, 202);
+      assert.match(held.data.sendId, /^snd_/);
+      assert.ok(Date.parse(held.data.sendAt) > Date.now() + 3000);
+      assert.equal((await call('GET', `/v1/mail/send/${held.data.sendId}`)).data.state, 'pending');
+      const stored = await fs.readFile(path.join(dataDir, 'mail-outbox.json'), 'utf8');
+      assert.ok(stored.includes(held.data.sendId) && !stored.includes(MAIL_PASSWORD));
+      assert.deepEqual((await call('POST', `/v1/mail/send/${held.data.sendId}/cancel`)).data, {
+        cancelled: true,
+      });
+      assert.deepEqual(JSON.parse(await fs.readFile(path.join(dataDir, 'mail-outbox.json'))), {});
+
+      const quick = await call('POST', '/v1/mail/send', { ...mail, delayMs: 100 });
+      assert.equal(quick.status, 202);
+      await waitFor(() => smtp.state.messages.length === before + 1);
+      const delivered = smtp.state.messages[before];
+      assert.deepEqual(delivered.recipients, ['cara@example.ch', 'still@example.ch']);
+      assert.doesNotMatch(delivered.message, /^Bcc:/m);
+      await waitFor(async () => {
+        const status = await call('GET', `/v1/mail/send/${quick.data.sendId}`);
+        return status.data.state === 'sent';
+      });
+      const late = await call('POST', `/v1/mail/send/${quick.data.sendId}/cancel`);
+      assert.deepEqual([late.status, late.data], [409, { error: 'already_sent' }]);
+      // Die eigene Kopie unter „Gesendet“ weiss noch, wer Bcc bekam.
+      await waitFor(() =>
+        imap.state.boxes.Sent.some((m) => m.body.toString().includes('Bcc: still@example.ch')),
+      );
+
+      assert.equal((await call('POST', '/v1/mail/send/snd_unbekannt/cancel')).status, 404);
+      assert.equal((await call('GET', '/v1/mail/send/snd_unbekannt')).status, 404);
+      assert.equal((await call('POST', '/v1/mail/send', { ...mail, delayMs: 20_001 })).status, 400);
+      assert.equal((await call('POST', '/v1/mail/send', { ...mail, delayMs: 1.5 })).status, 400);
+      assert.equal(smtp.state.messages.length, before + 1, 'the cancelled mail never left');
+    });
+
     test('records sync errors and removes everything on disconnect', async () => {
       await imap.close();
       const result = await call('POST', '/v1/mail/sync', { accountId: accountA.id });
@@ -583,6 +1009,11 @@ describe('service endpoints', () => {
       assert.equal(current.notifications.filter((row) => row.kind === 'mail').length, 0);
       const vault = JSON.parse(await fs.readFile(path.join(dataDir, 'mail-vault.json'), 'utf8'));
       assert.deepEqual(vault.entries, {});
+      const cached = await fs.readdir(path.join(dataDir, 'mail-cache'));
+      assert.deepEqual(
+        cached.filter((name) => name.endsWith('.json')),
+        [],
+      );
       assert.equal((await call('DELETE', `/v1/mail/accounts/${mailAccount.id}`)).status, 404);
     });
   });

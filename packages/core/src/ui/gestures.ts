@@ -13,6 +13,11 @@ export function isHorizontalSwipe(gesture: PanResponderGestureState, slop = SWIP
   return Math.abs(gesture.dx) > slop && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5;
 }
 
+/** Nach oben oder unten, und nicht bloss ein schraeger Wisch zur Seite. */
+export function isVerticalSwipe(gesture: PanResponderGestureState, slop = SWIPE_SLOP): boolean {
+  return Math.abs(gesture.dy) > slop && Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
+}
+
 /** Nach unten, und nicht bloss ein schraeger Wisch zur Seite. */
 export function isDownwardSwipe(gesture: PanResponderGestureState, slop = SWIPE_SLOP): boolean {
   return gesture.dy > slop && gesture.dy > Math.abs(gesture.dx) * 1.5;

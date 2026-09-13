@@ -4,13 +4,12 @@ const net = require('node:net');
 const { afterEach, beforeEach, describe, test } = require('node:test');
 
 const { createFakeImap } = require('../test/fakes.js');
+const { findSent, findTrash } = require('./folders.js');
 const {
   ImapConnection,
   astring,
   connectImap,
   decodeMailboxName,
-  findSent,
-  findTrash,
   parseValues,
   sequenceSet,
   withImap,
@@ -167,6 +166,39 @@ describe('against a fake IMAP server', () => {
     assert.equal(fake.state.boxes.Sent[0].body.toString(), 'Subject: Gesendet\r\n\r\nText\r\n');
     assert.ok(fake.state.lines.some((line) => /UID COPY 1 "Trash"$/.test(line)));
     assert.ok(fake.state.lines.some((line) => /UID EXPUNGE 1$/.test(line)));
+  });
+
+  test('streams a large part to a sink and finds mail by Message-ID', async () => {
+    const payload = 'x'.repeat(4_500_000);
+    fake.addMessage(
+      'INBOX',
+      'Message-ID: <gross@example.ch>\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n' +
+        `--b\r\nContent-Type: text/plain\r\n\r\nHallo\r\n--b\r\n\r\n${payload}\r\n--b--\r\n`,
+    );
+    const chunks = [];
+    const result = await withImap(options(), async (client) => {
+      await client.select('INBOX');
+      const found = await client.uidSearchHeader('Message-ID', '<gross@example.ch>');
+      const entries = await client.fetch('1', '(UID BODY.PEEK[2])', {
+        uid: true,
+        sink: (chunk) => chunks.push(chunk),
+        maxStream: 5_000_000,
+      });
+      return { found, entries };
+    });
+    assert.deepEqual(result.found, [1]);
+    assert.equal(Buffer.concat(chunks).toString(), payload);
+    assert.equal(result.entries[0].uid, 1);
+    assert.equal(result.entries[0].body.length, 0);
+
+    // Ohne Abnehmer gilt die Grenze fuer Literale weiter.
+    await assert.rejects(
+      withImap(options(), async (client) => {
+        await client.select('INBOX');
+        await client.fetch('1', '(UID BODY.PEEK[2])', { uid: true });
+      }),
+      { code: 'protocol' },
+    );
   });
 
   test('uses UID MOVE when the server can', async () => {

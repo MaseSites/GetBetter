@@ -1,14 +1,26 @@
+import { deAssistant } from './de-assistant';
 import { deAuth } from './de-auth';
+import { deBirthdays } from './de-birthdays';
+import { deExtra } from './de-extra';
 import { deIntro } from './de-intro';
 import { deMail } from './de-mail';
+import { deMailUi } from './de-mailui';
+import { deModules } from './de-modules';
 import { deNews } from './de-news';
+import { deNotes } from './de-notes';
 import { dePersonalize } from './de-personalize';
 import { deQuick } from './de-quick';
 import { deSettings } from './de-settings';
+import { deShell } from './de-shell';
+import { deTasks } from './de-tasks';
+import { deUi } from './de-ui';
+import { deVoice } from './de-voice';
+import { deWeather } from './de-weather';
 
 /** Die einzige vollstaendig gefuellte Sprache. Alle anderen fallen hierauf zurueck. */
 export const de = {
   // Grosse Funktionen fuehren ihre Texte in eigenen Dateien.
+  ...deVoice,
   ...deQuick,
   ...deMail,
   ...deNews,
@@ -16,6 +28,17 @@ export const de = {
   ...dePersonalize,
   ...deAuth,
   ...deSettings,
+  ...deAssistant,
+  ...deModules,
+  ...deExtra,
+  // Der Neuaufbau: je Bereich eine Datei, damit niemand dieselbe anfasst.
+  ...deShell,
+  ...deTasks,
+  ...deNotes,
+  ...deBirthdays,
+  ...deWeather,
+  ...deMailUi,
+  ...deUi,
 
   'app.tagline': 'Alles, was dein Alltag braucht — an einem Ort.',
   'apps.getbetter.tagline':
@@ -478,6 +501,8 @@ export const de = {
   'tabs.search': 'Suche',
   'areas.title': 'Bereiche',
   'areas.search': 'Suchen — «Vertrag», «Geburtstag», «Reise»',
+  'areas.noHit': 'Nichts gefunden',
+  'areas.noHit.body': 'Zu dieser Suche gibt es hier keinen Bereich.',
   'value.today': '{count} heute',
   'value.deadlines': '{count} Fristen',
   'value.birthdays': '{count} Geburtstage',

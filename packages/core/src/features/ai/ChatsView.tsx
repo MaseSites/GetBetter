@@ -3,28 +3,19 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { chatMessages as messageRepo, chats as chatRepo, dayKey, useLiveQuery } from '@/db';
-import { DarkSurface } from '@/features/assistant/AssistantView';
 import { relativeDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
-import { AI_CHAT_CANNED_REPLY, AI_CHAT_STARTERS } from '@/mocks/aiChat';
+import { AI_CHAT_CANNED_REPLY_KEY, AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { ComposeBar, EmptyState, Header, Screen, SuggestionChip, SwipeRow, Text } from '@/ui';
 
 /**
- * Die Startseite von BetterAi: die Gespraeche, das Neueste zuerst — auf der
- * dunklen Flaeche wie der Assistent. Unten das Feld: wer tippt, faengt ein
- * neues Gespraech an; die Vorschlaege darueber tun dasselbe mit einem Tipp.
+ * Die Startseite von BetterAi: die Gespraeche, das Neueste zuerst, im Aussehen
+ * des Kontos. Unten das Feld: wer tippt, faengt ein neues Gespraech an; die
+ * Vorschlaege darueber tun dasselbe mit einem Tipp.
  */
 export function ChatsView() {
-  return (
-    <DarkSurface>
-      <Chats />
-    </DarkSurface>
-  );
-}
-
-function Chats() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
@@ -51,7 +42,7 @@ function Chats() {
         chatId: created.id,
         accountId: account.id,
         role: 'assistant',
-        text: AI_CHAT_CANNED_REPLY,
+        text: t(AI_CHAT_CANNED_REPLY_KEY),
       });
     }
     router.push(`/chat/${created.id}`);
@@ -90,12 +81,8 @@ function Chats() {
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ gap: theme.spacing.sm }}
             >
-              {AI_CHAT_STARTERS.map((starter) => (
-                <SuggestionChip
-                  key={starter}
-                  label={starter}
-                  onPress={() => void startChat(starter)}
-                />
+              {AI_CHAT_STARTER_KEYS.map((key) => (
+                <SuggestionChip key={key} label={t(key)} onPress={() => void startChat(t(key))} />
               ))}
             </ScrollView>
           ) : null}

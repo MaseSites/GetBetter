@@ -3,22 +3,19 @@ import { Tabs } from 'expo-router';
 import { tabIcon, useTabScreenOptions } from '@/app/tabs';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
-import { createTheme, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 
 /** Heute, Bereiche, Assistent, Suche, Profil — in dieser Reihenfolge wie im Entwurf. */
 export default function TabsLayout() {
   const theme = useTheme();
   const t = useTranslate();
   const screenOptions = useTabScreenOptions(theme);
-  const { account, appearance } = useApp();
+  const { account } = useApp();
 
   // Beim Abmelden bleiben die Tabs kurz stehen; ohne Konto wuerden sie werfen.
   if (!account) return null;
 
-  // Im Assistenten wird auch die Leiste dunkel — sonst stuende ein heller
-  // Balken unter der dunklen Flaeche.
-  const dark = createTheme('dark', appearance.accent, appearance.preset);
-
+  // Die Leiste folgt ueberall dem Aussehen des Kontos, auch unter dem Assistenten.
   return (
     <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
@@ -31,17 +28,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="assistant"
-        options={{
-          title: t('tabs.assistant'),
-          tabBarIcon: tabIcon('sparkles'),
-          tabBarActiveTintColor: dark.colors.text,
-          tabBarInactiveTintColor: dark.colors.textFaint,
-          tabBarStyle: {
-            ...screenOptions.tabBarStyle,
-            backgroundColor: dark.colors.background,
-            borderTopColor: dark.colors.background,
-          },
-        }}
+        options={{ title: t('tabs.assistant'), tabBarIcon: tabIcon('sparkles') }}
       />
       <Tabs.Screen
         name="search"

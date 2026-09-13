@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { dayKey, moods as moodRepo, useLiveQuery } from '@/db';
 import { relativeDay } from '@/features/shared/days';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -67,7 +68,7 @@ export function MindView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={todayRow ? moodLabel(todayRow.mood) : t('mind.today')}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}

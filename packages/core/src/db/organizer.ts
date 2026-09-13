@@ -1,6 +1,8 @@
 import { notifyDataChanged } from './events';
 import { db, newId } from './store';
 import type {
+  BirthdayReminders,
+  ContactGift,
   ContactRow,
   DocumentCategory,
   DocumentRow,
@@ -207,6 +209,21 @@ export const trips = {
 
 // -------------------------------------------------------------- Kontakte
 
+/** Was sich an einem Kontakt aendern laesst. */
+export type ContactPatch = {
+  name?: string;
+  birthday?: string | null;
+  /** Ob das Jahr in `birthday` stimmt. */
+  birthYearKnown?: boolean;
+  phone?: string | null;
+  note?: string | null;
+  lastSeenOn?: string | null;
+  photoUploadId?: string | null;
+  close?: boolean;
+  gifts?: readonly ContactGift[];
+  birthdayReminders?: BirthdayReminders | null;
+};
+
 export const contacts = {
   list(accountId: string) {
     return db.contacts.list({
@@ -215,13 +232,13 @@ export const contacts = {
     });
   },
 
-  async add(input: {
-    accountId: string;
-    name: string;
-    birthday?: string | null;
-    phone?: string | null;
-    note?: string | null;
-  }): Promise<ContactRow> {
+  find(id: string) {
+    return db.contacts.find(id);
+  },
+
+  async add(
+    input: { accountId: string; name: string } & Omit<ContactPatch, 'name' | 'lastSeenOn'>,
+  ): Promise<ContactRow> {
     const row: ContactRow = {
       id: newId('ct'),
       accountId: input.accountId,
@@ -231,20 +248,18 @@ export const contacts = {
       note: clean(input.note),
       lastSeenOn: null,
       createdAt: now(),
+      ...(input.birthYearKnown !== undefined ? { birthYearKnown: input.birthYearKnown } : {}),
+      ...(input.photoUploadId ? { photoUploadId: input.photoUploadId } : {}),
+      ...(input.close !== undefined ? { close: input.close } : {}),
+      ...(input.gifts ? { gifts: input.gifts } : {}),
+      ...(input.birthdayReminders !== undefined
+        ? { birthdayReminders: input.birthdayReminders }
+        : {}),
     };
     return changed(await db.contacts.insert(row));
   },
 
-  async update(
-    id: string,
-    patch: {
-      name?: string;
-      birthday?: string | null;
-      phone?: string | null;
-      note?: string | null;
-      lastSeenOn?: string | null;
-    },
-  ) {
+  async update(id: string, patch: ContactPatch) {
     return changed(
       await db.contacts.update(id, {
         ...patch,
@@ -261,17 +276,25 @@ export const contacts = {
   },
 
   /**
-   * Einen Geburtstag loeschen. Wer nur wegen des Geburtstags eingetragen war,
-   * geht ganz; wer Telefon, Notiz oder ein Treffen hat, bleibt als Kontakt.
+   * Nur den Geburtstag entfernen — der Kontakt bleibt immer, samt Telefon,
+   * Notiz und Geschenkideen. Gibt die Zeile von vorher zurueck, damit
+   * Rueckgaengig sie mit `restoreBirthday` wiederherstellen kann.
    */
-  async removeBirthday(id: string) {
+  async removeBirthday(id: string): Promise<ContactRow | undefined> {
     const row = await db.contacts.find(id);
-    if (!row) return;
-    if (row.phone === null && row.note === null && row.lastSeenOn === null) {
-      await db.contacts.remove(id);
-    } else {
-      await db.contacts.update(id, { birthday: null });
-    }
+    if (!row) return undefined;
+    await db.contacts.update(id, { birthday: null });
     changed(null);
+    return row;
+  },
+
+  /** Rueckgaengig zu `removeBirthday`: Tag und Jahr wie vorher. */
+  async restoreBirthday(before: ContactRow) {
+    return changed(
+      await db.contacts.update(before.id, {
+        birthday: before.birthday,
+        birthYearKnown: before.birthYearKnown,
+      }),
+    );
   },
 };

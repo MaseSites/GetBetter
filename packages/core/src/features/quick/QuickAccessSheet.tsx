@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useI18n } from '@/i18n';
+import { moduleName, moduleShort } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useTheme } from '@/theme';
 import { AppIcon, Icon, ModuleIcon, Sheet, Text } from '@/ui';
@@ -67,13 +68,16 @@ function ToggleRow({
   active: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useI18n();
   const theme = useTheme();
+  const name = moduleName(t, module.id);
+  const short = moduleShort(t, module.id);
 
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: active }}
-      accessibilityLabel={module.name}
+      accessibilityLabel={name}
       onPress={onToggle}
       style={({ pressed }) => [
         styles.row,
@@ -94,11 +98,11 @@ function ToggleRow({
           numberOfLines={1}
           style={{ fontSize: theme.fontSize.md, letterSpacing: theme.tracking.body }}
         >
-          {module.name}
+          {name}
         </Text>
-        {module.short ? (
+        {short ? (
           <Text variant="caption" tone="faint" numberOfLines={1}>
-            {module.short}
+            {short}
           </Text>
         ) : null}
       </View>

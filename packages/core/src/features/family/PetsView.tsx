@@ -15,6 +15,7 @@ import { formatDateValue, parseDateValue } from '@/features/calendar/dates';
 import { daysUntil, parseDay, relativeDay } from '@/features/shared/days';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -105,7 +106,7 @@ export function PetsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             upcoming[0]
               ? `${nameOf(upcoming[0].petId)} · ${eventLabel(upcoming[0].kind)} · ${relativeDay(t, language, upcoming[0].day)}`

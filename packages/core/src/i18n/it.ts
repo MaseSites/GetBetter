@@ -1,13 +1,27 @@
-import type { Translations } from './de';
+import type { TranslationKey } from './de';
+import { itA } from './it-a';
+import { itB } from './it-b';
+import { itBirthdays } from './it-birthdays';
+import { itC } from './it-c';
+import { itMailUi } from './it-mailui';
+import { itNotes } from './it-notes';
+import { itShell } from './it-shell';
+import { itTasks } from './it-tasks';
+import { itUi } from './it-ui';
+import { itVoice } from './it-voice';
+import { itWeather } from './it-weather';
 
-/** Noch nicht uebersetzt. Fehlende Schluessel fallen auf Deutsch zurueck. */
-export const it: Translations = {
-  'app.tagline': 'Tutto ciò che serve alla tua giornata — in un unico posto.',
-  'common.continue': 'Avanti',
-  'common.back': 'Indietro',
-  'tabs.today': 'Home',
-  'tabs.modules': 'App',
-  'tabs.assistant': 'Assistente',
-  'tabs.household': 'Casa',
-  'tabs.profile': 'Profilo',
+/** Italienisch, vollstaendig: jeder Schluessel aus `de`. Fehlt einer, meldet es der Typ. */
+export const it: Readonly<Record<TranslationKey, string>> = {
+  ...itA,
+  ...itB,
+  ...itC,
+  ...itVoice,
+  ...itShell,
+  ...itTasks,
+  ...itNotes,
+  ...itBirthdays,
+  ...itWeather,
+  ...itMailUi,
+  ...itUi,
 };

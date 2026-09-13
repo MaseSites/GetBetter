@@ -14,6 +14,16 @@ export { mail } from './mail';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';
 export { pets, plantDueDay, plants, recipes, vehicles } from './family';
+export { tasks } from './tasks';
+export { notes } from './notes';
+export { projects } from './projects';
+export { noteFolders } from './noteFolders';
+export { priorityOf, TASK_PRIORITIES } from './taskFields';
+export { blocksOf, noteTextOf } from './noteBlocks';
+export type { TaskInput, TaskPatch } from './tasks';
+export type { NotePatch } from './notes';
+export type { ProjectInput } from './projects';
+export type { NoteFolderInput } from './noteFolders';
 export type { SharePerson, ShareError, ShareResult } from './shares';
 export type {
   CalendarInvite,
@@ -88,10 +98,19 @@ export type {
   HouseholdMemberStatus,
   HouseholdRole,
   HouseholdRow,
+  NoteBlock,
+  NoteBlockKind,
+  NoteFolderRow,
   NoteRow,
+  ProjectRow,
   Row,
   Schema,
   ShoppingItemRow,
+  TaskPriority,
+  TaskRepeat,
+  TaskRepeatUnit,
   TaskRow,
+  ContactGift,
+  BirthdayReminders,
   WeatherPlace,
 } from './types';

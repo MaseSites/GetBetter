@@ -6,6 +6,7 @@ import { dayKey, habits as habitRepo, useLiveQuery, type HabitRow, type HabitTic
 import { weekDays } from '@/features/calendar/dates';
 import { shiftDay } from '@/features/shared/days';
 import { formatWeekday, useI18n } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -93,7 +94,7 @@ export function HabitsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             rows.length > 0
               ? t('habits.today', { done: doneToday, total: rows.length })

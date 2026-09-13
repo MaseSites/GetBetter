@@ -6,6 +6,7 @@ import { recipes as recipeRepo, useLiveQuery, type RecipeRow } from '@/db';
 import { shopping as shoppingRepo } from '@/db/repositories';
 import { guessCategory, splitQuantity } from '@/features/shopping/categories';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -53,7 +54,7 @@ export function RecipesView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={t(rows.length === 1 ? 'recipes.count.one' : 'recipes.count', {
             count: rows.length,
           })}

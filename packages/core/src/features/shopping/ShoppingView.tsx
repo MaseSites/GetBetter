@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useLiveQuery, type ShoppingItemRow } from '@/db';
 import { shopping as shoppingRepo } from '@/db/repositories';
 import { useTranslate, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -141,7 +142,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             household
               ? `${household.name} · ${t('shopping.openCount', { count: open.length })}`

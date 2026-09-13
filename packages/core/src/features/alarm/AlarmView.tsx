@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { useLiveQuery, type AlarmRow } from '@/db';
 import { alarms as alarmRepo } from '@/db/repositories';
 import { useTranslate, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -37,7 +38,7 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={nextText}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}

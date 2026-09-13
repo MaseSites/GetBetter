@@ -20,6 +20,7 @@ import {
 import { parseDay } from '@/features/shared/days';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -246,7 +247,9 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
           calendar: 'personal',
           calendarId: null,
           isPrivate: true,
-          title: t('birthdays.event', { name: entry.person.name, age: entry.age }),
+          title: entry.person.yearKnown
+            ? t('birthdays.event', { name: entry.person.name, age: entry.age })
+            : t('birthdays.eventNoAge', { name: entry.person.name }),
           location: null,
           notes: null,
           startsAt,
@@ -320,7 +323,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${module.name}: ${t('calendar.picker.title')}`}
+            accessibilityLabel={`${moduleName(t, module.id)}: ${t('calendar.picker.title')}`}
             accessibilityState={{ expanded: picking }}
             onPress={() => setPicking(true)}
             style={[styles.titleRow, { gap: theme.spacing.sm }]}

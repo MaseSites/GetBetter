@@ -1,16 +1,35 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { contacts as contactRepo, type ContactRow } from '@/db';
+import { contacts as contactRepo, useLiveQuery, type ContactRow } from '@/db';
+import { canPickImage, pickImage } from '@/features/personalize/pickImage';
+import { uploadBackdrop } from '@/features/personalize/uploads';
 import { parseDay } from '@/features/shared/days';
-import { formatDayMonth, localeFor, useI18n } from '@/i18n';
+import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Input, Sheet, Text, Wheel, WheelFrame } from '@/ui';
+import {
+  Button,
+  HIT_TARGET,
+  Icon,
+  PlainList,
+  PlainRow,
+  Sheet,
+  Text,
+  Wheel,
+  WheelFrame,
+  useUndo,
+} from '@/ui';
 
-import { birthdayKey, daysInMonth } from './birthdays';
+import { dayCountOf, draftBirthdayKey, previewOf, suggestContacts } from './birthdays';
+import { DangerAction } from './DangerAction';
+import { formatDayMonthLong, formatLongDay, monthName } from './format';
+import { AVATAR, PersonAvatar } from './PersonAvatar';
+import { SheetHeader } from './SheetHeader';
+import { SwitchRow } from './SwitchRow';
+import { useBirthdayActions } from './useBirthdayActions';
 
 export type BirthdayDraft = {
-  /** Gesetzt beim Bearbeiten, leer beim Anlegen. */
+  /** Gesetzt beim Bearbeiten — auch ein Kontakt, der noch keinen Geburtstag hat. */
   contact?: ContactRow;
   /** Vorgeschlagener Tag — etwa der, auf dem man im Kalender stand. */
   day?: Date;
@@ -18,16 +37,293 @@ export type BirthdayDraft = {
 
 /** So weit zurueck reicht das Jahresrad. */
 const FIRST_YEAR = 1900;
-/** Ohne bekanntes Jahr steht das Rad auf einem mittleren Alter statt auf 1900. */
-const DEFAULT_AGE = 30;
-
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
+const WHEEL_WIDTH = { day: 72, month: 136, year: 88 } as const;
 
-/**
- * Name, Tag und Notiz eines Geburtstags. Er landet beim Kontakt: gibt es den
- * Kontakt schon, bekommt er das Datum; sonst entsteht er dafuer. Dieselbe
- * Eingabe steht im Geburtstags-Blatt und im Kalender unter „Geburtstag“.
- */
+type PhotoState = { id: string | null; busy: boolean; failed: boolean };
+type DateState = { day: number; month: number; yearKnown: boolean; year: number };
+
+function dateOf(contact: ContactRow | undefined, fallback: Date): DateState {
+  const thisYear = new Date().getFullYear();
+  if (contact?.birthday) {
+    const born = parseDay(contact.birthday);
+    const yearKnown = contact.birthYearKnown !== false;
+    return {
+      day: born.getDate(),
+      month: born.getMonth() + 1,
+      yearKnown,
+      year: yearKnown ? born.getFullYear() : thisYear,
+    };
+  }
+  // Das Jahr ist freiwillig und hat keine Vorgabe: der Schalter steht auf aus.
+  return {
+    day: fallback.getDate(),
+    month: fallback.getMonth() + 1,
+    yearKnown: false,
+    year: thisYear,
+  };
+}
+
+/** Der Stand des Formulars — geteilt vom Blatt und vom Kalender. */
+function useBirthdayForm(draft: BirthdayDraft, accountId: string) {
+  const { t } = useI18n();
+  const undo = useUndo();
+
+  const [name, setName] = useState(draft.contact?.name ?? '');
+  const [linked, setLinked] = useState<ContactRow | null>(draft.contact ?? null);
+  const [photo, setPhoto] = useState<PhotoState>({
+    id: draft.contact?.photoUploadId ?? null,
+    busy: false,
+    failed: false,
+  });
+  const [date, setDate] = useState<DateState>(() => dateOf(draft.contact, draft.day ?? new Date()));
+
+  const list = useLiveQuery(() => contactRepo.list(accountId), [accountId]);
+  const rows = list.data ?? [];
+
+  const year = date.yearKnown ? date.year : null;
+  const dayCount = dayCountOf(date.month, year);
+  // Vom 31. in den Februar: der Tag rutscht auf den letzten, den es gibt.
+  const day = Math.min(date.day, dayCount);
+  const canSave = name.trim().length > 0 && !photo.busy;
+  const suggestions = linked ? [] : suggestContacts(rows, name);
+
+  function changeName(value: string) {
+    setName(value);
+    // Wer den Namen ganz loescht, meint den vorgeschlagenen Kontakt nicht mehr.
+    if (value.trim().length === 0 && linked && linked.id !== draft.contact?.id) setLinked(null);
+  }
+
+  /** Ein Vorschlag uebernimmt Name, Foto und Datum — und haengt sich an diesen Kontakt. */
+  function pick(contact: ContactRow) {
+    setLinked(contact);
+    setName(contact.name);
+    setPhoto({ id: contact.photoUploadId ?? null, busy: false, failed: false });
+    if (contact.birthday) setDate(dateOf(contact, new Date()));
+  }
+
+  async function choosePhoto() {
+    let dataUrl: string | null;
+    try {
+      dataUrl = await pickImage();
+    } catch {
+      setPhoto((current) => ({ ...current, failed: true }));
+      return;
+    }
+    if (!dataUrl) return;
+    setPhoto((current) => ({ ...current, busy: true, failed: false }));
+    const result = await uploadBackdrop(accountId, dataUrl);
+    setPhoto((current) =>
+      result.ok
+        ? { id: result.id, busy: false, failed: false }
+        : { ...current, busy: false, failed: true },
+    );
+  }
+
+  /** Sichert: an den gewaehlten Kontakt, sonst entsteht einer. `false` ohne Namen. */
+  async function save(): Promise<boolean> {
+    if (!canSave) return false;
+    const patch = {
+      name,
+      birthday: draftBirthdayKey(date.month, day, year),
+      birthYearKnown: date.yearKnown,
+      photoUploadId: photo.id,
+    };
+    // Beim allerersten Geburtstag sagt die App einmal, woran sie denkt.
+    const first = !list.loading && !rows.some((row) => row.birthday);
+    if (linked) {
+      await contactRepo.update(linked.id, patch);
+    } else {
+      await contactRepo.add({ accountId, ...patch });
+    }
+    if (first) undo.show({ message: t('birthdays.form.firstSaved') });
+    return true;
+  }
+
+  return {
+    name,
+    changeName,
+    photo,
+    choosePhoto,
+    date,
+    setDay: (value: number) => setDate((current) => ({ ...current, day: value })),
+    setMonth: (value: number) => setDate((current) => ({ ...current, month: value })),
+    setYear: (value: number) => setDate((current) => ({ ...current, year: value })),
+    setYearKnown: (value: boolean) => setDate((current) => ({ ...current, yearKnown: value })),
+    year,
+    day,
+    dayCount,
+    canSave,
+    suggestions,
+    pick,
+    save,
+  };
+}
+
+type FormApi = ReturnType<typeof useBirthdayForm>;
+
+/** Foto, Name mit Vorschlaegen, Tag und Monat, „Jahr bekannt“ und die Vorschau. */
+function BirthdayFields({ form }: { form: FormApi }) {
+  const { t, language } = useI18n();
+  const theme = useTheme();
+
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: thisYear - FIRST_YEAR + 1 }, (_, index) => FIRST_YEAR + index);
+  const days = Array.from({ length: form.dayCount }, (_, index) => index + 1);
+
+  const preview = previewOf(form.date.month, form.day, form.year);
+  const longDate = formatLongDay(language, preview.day);
+  const previewText =
+    preview.age !== null
+      ? t('birthdays.turnsOn', { age: preview.age, date: longDate })
+      : form.year !== null
+        ? t('birthdays.previewBorn')
+        : t('birthdays.birthdayOn', { date: longDate });
+
+  return (
+    <View style={{ gap: theme.spacing.lg }}>
+      <View style={{ gap: theme.spacing.sm }}>
+        <View style={[styles.row, { gap: theme.spacing.md }]}>
+          <PhotoButton form={form} />
+          <TextInput
+            autoFocus
+            value={form.name}
+            onChangeText={form.changeName}
+            placeholder={t('birthdays.form.namePlaceholder')}
+            placeholderTextColor={theme.colors.textFaint}
+            accessibilityLabel={t('birthdays.name')}
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="done"
+            style={[
+              styles.name,
+              {
+                minHeight: HIT_TARGET + theme.spacing.xs,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radii.sm,
+                paddingHorizontal: theme.spacing.md,
+                backgroundColor: theme.colors.surface,
+                color: theme.colors.text,
+                fontFamily: theme.fontFamily,
+                fontSize: theme.fontSize.lg,
+              },
+            ]}
+          />
+        </View>
+        {form.photo.failed ? (
+          <Text variant="caption" tone="danger">
+            {t('birthdays.form.photoError')}
+          </Text>
+        ) : null}
+        {form.suggestions.length > 0 ? (
+          <PlainList>
+            {form.suggestions.map((contact) => (
+              <PlainRow
+                key={contact.id}
+                leading={
+                  <PersonAvatar
+                    name={contact.name}
+                    photoUploadId={contact.photoUploadId}
+                    size={AVATAR.suggestion}
+                  />
+                }
+                title={
+                  contact.birthday
+                    ? t('birthdays.form.suggestion', {
+                        name: contact.name,
+                        date: formatDayMonthLong(language, contact.birthday),
+                      })
+                    : contact.name
+                }
+                onPress={() => form.pick(contact)}
+              />
+            ))}
+          </PlainList>
+        ) : null}
+      </View>
+
+      <View style={{ gap: theme.spacing.sm }}>
+        <WheelFrame>
+          <Wheel
+            values={days}
+            value={form.day}
+            onChange={form.setDay}
+            label={t('birthdays.day')}
+            width={WHEEL_WIDTH.day}
+            loop
+          />
+          <Wheel
+            values={MONTHS}
+            value={form.date.month}
+            onChange={form.setMonth}
+            label={t('birthdays.month')}
+            format={(value) => monthName(language, value)}
+            width={WHEEL_WIDTH.month}
+            loop
+          />
+          {form.date.yearKnown ? (
+            <Wheel
+              values={years}
+              value={form.date.year}
+              onChange={form.setYear}
+              label={t('birthdays.year')}
+              format={String}
+              width={WHEEL_WIDTH.year}
+            />
+          ) : null}
+        </WheelFrame>
+        <SwitchRow
+          label={t('birthdays.form.yearKnown')}
+          value={form.date.yearKnown}
+          onChange={form.setYearKnown}
+        />
+        <Text variant="label" tone="muted" align="center">
+          {previewText}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** Der Kreis links vom Namen. Auf dem Geraet fehlt die Bildauswahl noch — dann ohne Kreis. */
+function PhotoButton({ form }: { form: FormApi }) {
+  const { t } = useI18n();
+  const theme = useTheme();
+  const size = AVATAR.form;
+  const circle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor: theme.colors.surfaceMuted,
+  };
+
+  const face = form.photo.busy ? (
+    <View style={[styles.center, circle]}>
+      <ActivityIndicator color={theme.colors.textMuted} />
+    </View>
+  ) : form.photo.id ? (
+    <PersonAvatar name={form.name} photoUploadId={form.photo.id} size={size} />
+  ) : (
+    <View style={[styles.center, circle]}>
+      <Icon name="image" size={22} color={theme.colors.textMuted} />
+    </View>
+  );
+
+  if (!canPickImage()) return form.photo.id ? face : null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('birthdays.form.photo')}
+      onPress={() => void form.choosePhoto()}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+    >
+      {face}
+    </Pressable>
+  );
+}
+
+/** Im Kalender unter „Geburtstag“: dieselbe Eingabe, mit „Sichern“ unten. */
 export function BirthdayForm({
   draft,
   accountId,
@@ -37,139 +333,37 @@ export function BirthdayForm({
   accountId: string;
   onDone: () => void;
 }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const theme = useTheme();
-  const editing = draft.contact;
-
-  const thisYear = new Date().getFullYear();
-  const born = editing?.birthday ? parseDay(editing.birthday) : null;
-  const suggested = draft.day ?? new Date();
-
-  const [name, setName] = useState(editing?.name ?? '');
-  const [day, setDay] = useState(born ? born.getDate() : suggested.getDate());
-  const [month, setMonth] = useState(born ? born.getMonth() + 1 : suggested.getMonth() + 1);
-  const [year, setYear] = useState(born ? born.getFullYear() : thisYear - DEFAULT_AGE);
-  const [note, setNote] = useState(editing?.note ?? '');
-  const [error, setError] = useState(false);
-
-  const years = Array.from({ length: thisYear - FIRST_YEAR + 1 }, (_, index) => FIRST_YEAR + index);
-  const dayCount = daysInMonth(year, month);
-  const days = Array.from({ length: dayCount }, (_, index) => index + 1);
-  // Vom 31. in den Februar: der Tag rutscht auf den letzten, den es gibt.
-  const shownDay = Math.min(day, dayCount);
-
-  const monthName = (value: number) =>
-    new Intl.DateTimeFormat(localeFor(language), { month: 'short' }).format(
-      new Date(2000, value - 1, 1),
-    );
-
-  const key = birthdayKey(year, month, shownDay);
-  const nextAge = (() => {
-    const today = new Date();
-    const passed =
-      month - 1 < today.getMonth() ||
-      (month - 1 === today.getMonth() && shownDay < today.getDate());
-    return today.getFullYear() + (passed ? 1 : 0) - year;
-  })();
+  const form = useBirthdayForm(draft, accountId);
 
   async function save() {
-    if (name.trim().length === 0) {
-      setError(true);
-      return;
-    }
-    if (editing) {
-      await contactRepo.update(editing.id, { name, birthday: key, note });
-    } else {
-      await contactRepo.add({ accountId, name, birthday: key, note });
-    }
-    onDone();
-  }
-
-  async function remove() {
-    if (editing) await contactRepo.removeBirthday(editing.id);
-    onDone();
+    if (await form.save()) onDone();
   }
 
   return (
-    <View style={{ gap: theme.spacing.lg, paddingTop: theme.spacing.sm }}>
-      <Input
-        label={t('birthdays.name')}
-        placeholder={t('birthdays.namePlaceholder')}
-        value={name}
-        onChangeText={(value) => {
-          setName(value);
-          setError(false);
-        }}
-        autoCapitalize="words"
-        {...(error ? { error: t('birthdays.error.name') } : {})}
+    <View
+      style={{
+        gap: theme.spacing.lg,
+        paddingTop: theme.spacing.sm,
+        paddingBottom: theme.spacing.lg,
+      }}
+    >
+      <BirthdayFields form={form} />
+      <Button
+        label={t('birthdays.form.save')}
+        icon="check"
+        disabled={!form.canSave}
+        onPress={() => void save()}
       />
-
-      <View style={{ gap: theme.spacing.sm }}>
-        <Text variant="label" tone="muted">
-          {t('birthdays.date')}
-        </Text>
-        <WheelFrame>
-          <Wheel
-            values={days}
-            value={shownDay}
-            onChange={setDay}
-            label={t('birthdays.day')}
-            width={72}
-            loop
-          />
-          <Wheel
-            values={MONTHS}
-            value={month}
-            onChange={setMonth}
-            label={t('birthdays.month')}
-            format={monthName}
-            width={112}
-            loop
-          />
-          <Wheel
-            values={years}
-            value={year}
-            onChange={setYear}
-            label={t('birthdays.year')}
-            format={String}
-            width={96}
-          />
-        </WheelFrame>
-        <Text variant="caption" tone="faint" align="center">
-          {nextAge > 0
-            ? t('birthdays.preview', {
-                age: nextAge,
-                date: formatDayMonth(language, parseDay(key)),
-              })
-            : t('birthdays.previewBorn')}
-        </Text>
-      </View>
-
-      <Input
-        label={t('birthdays.note')}
-        placeholder={t('birthdays.notePlaceholder')}
-        value={note}
-        onChangeText={setNote}
-        multiline
-        autoCapitalize="sentences"
-      />
-
-      <View style={{ gap: theme.spacing.sm, paddingBottom: theme.spacing.lg }}>
-        <Button label={t('common.done')} icon="check" onPress={() => void save()} />
-        {editing ? (
-          <Button
-            label={t('birthdays.remove')}
-            variant="danger"
-            icon="trash"
-            onPress={() => void remove()}
-          />
-        ) : null}
-      </View>
     </View>
   );
 }
 
-/** Das Blatt drumherum — fuer die Geburtstage selbst und fuer den Kalender. */
+/**
+ * Das Blatt „Person hinzufügen“ bzw. „Geburtstag bearbeiten“ — mittelhoch,
+ * „Sichern“ oben rechts. Schliessen sichert, sobald ein Name da ist.
+ */
 export function BirthdayEditor({
   draft,
   accountId,
@@ -179,19 +373,75 @@ export function BirthdayEditor({
   accountId: string;
   onClose: () => void;
 }) {
+  if (!draft) return null;
+  const key = draft.contact?.id ?? (draft.day ? draft.day.toISOString() : 'new');
+  return <EditorSheet key={key} draft={draft} accountId={accountId} onClose={onClose} />;
+}
+
+function EditorSheet({
+  draft,
+  accountId,
+  onClose,
+}: {
+  draft: BirthdayDraft;
+  accountId: string;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
-  const formKey = draft?.contact?.id ?? (draft?.day ? draft.day.toISOString() : 'new');
+  const theme = useTheme();
+  const form = useBirthdayForm(draft, accountId);
+  const actions = useBirthdayActions();
+
+  const existing = draft.contact?.birthday ? draft.contact : null;
+  const title = existing
+    ? t('birthdays.form.titleEdit')
+    : draft.contact
+      ? t('birthdays.add')
+      : t('birthdays.addPerson');
+
+  async function saveAndClose() {
+    try {
+      await form.save();
+    } finally {
+      onClose();
+    }
+  }
+
+  function remove() {
+    if (!existing) return;
+    onClose();
+    void actions.removeBirthday(existing.id);
+  }
 
   return (
     <Sheet
-      visible={draft !== null}
-      onClose={onClose}
-      title={draft?.contact ? t('birthdays.edit') : t('birthdays.add')}
-      fullScreen
+      visible
+      onClose={() => void saveAndClose()}
+      detent="medium"
+      header={
+        <SheetHeader
+          title={title}
+          saveLabel={t('birthdays.form.save')}
+          canSave={form.canSave}
+          onSave={() => void saveAndClose()}
+        />
+      }
     >
-      {draft ? (
-        <BirthdayForm key={formKey} draft={draft} accountId={accountId} onDone={onClose} />
-      ) : null}
+      <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.lg }}>
+        <BirthdayFields form={form} />
+        {existing ? <DangerAction label={t('birthdays.removeBirthday')} onPress={remove} /> : null}
+      </View>
     </Sheet>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center' },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  name: {
+    flex: 1,
+    borderWidth: 1,
+    // Der Browser zeichnet sonst einen eigenen Fokusrahmen ueber unseren.
+    outlineStyle: 'none' as never,
+  },
+});

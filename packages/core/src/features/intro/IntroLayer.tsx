@@ -8,6 +8,8 @@ import { useTheme, type Theme } from '@/theme';
 import { Button, Sheet, usePhoneFrame } from '@/ui';
 
 import { ClubAvatar, type AvatarPhase } from './ClubAvatar';
+import { useNarration } from './narration';
+import { NarrationButton } from './NarrationButton';
 import { SpeechBubble } from './SpeechBubble';
 import { Tutorial } from './Tutorial';
 import { useReducedMotion } from './useReducedMotion';
@@ -194,6 +196,8 @@ function AskSheet({
   const question = name
     ? t('intro.arrive.questionNamed', { name, app })
     : t('intro.arrive.question', { app });
+  // Die Frage sagt er auch laut — aber nur, solange das Blatt offen ist.
+  const narration = useNarration('arrive', visible ? question : '');
 
   return (
     <Sheet visible={visible} onClose={onKnown}>
@@ -203,6 +207,7 @@ function AskSheet({
           <View style={styles.fill}>
             <SpeechBubble text={question} tail="left" />
           </View>
+          <NarrationButton narration={narration} />
         </View>
         <View style={{ gap: theme.spacing.sm }}>
           <Button label={t('intro.arrive.yes')} onPress={onKnown} />

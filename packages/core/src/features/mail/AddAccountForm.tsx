@@ -6,15 +6,15 @@ import {
   type MailConnectInput,
   type MailError,
   type MailProviderInfo,
-  type MailProviderNote,
   type MailResult,
 } from '@/db/mail';
 import type { MailAccountRow } from '@/db/types';
-import { useI18n, type TranslationKey } from '@/i18n';
+import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Badge, Button, Chip, Icon, IconButton, Input, Text } from '@/ui';
 
 import { isEmailAddress, mailErrorKey, parsePort } from './format';
+import { MAIL_NOTE_KEYS, PROVIDER_LABEL_KEYS, type MailProviderChoice } from './providers';
 
 /** So lange nach dem letzten Tippen, bis der Anbieter nachgeschlagen wird. */
 const PROVIDER_DELAY_MS = 450;
@@ -32,12 +32,6 @@ type ServerFields = { host: string; port: string; secure: boolean | null };
 
 const EMPTY_SERVER: ServerFields = { host: '', port: '', secure: null };
 
-const NOTE_KEY: Record<MailProviderNote, TranslationKey> = {
-  app_password: 'mail.add.note.appPassword',
-  enable_imap: 'mail.add.note.enableImap',
-  oauth_only: 'mail.add.note.oauthOnly',
-};
-
 function isFieldError(error: FormError | null): error is FieldError {
   return error === 'email' || error === 'password' || error === 'port';
 }
@@ -47,6 +41,10 @@ export type AddAccountFormProps = {
   onConnected: (mailbox: MailAccountRow) => void;
   /** Fehlt, wenn es noch kein Postfach gibt — dann gibt es nichts, wohin zurueck. */
   onCancel?: () => void;
+  /** Die Adresse steht schon da — etwa beim Neuverbinden nach „Anmeldung abgelehnt“. */
+  initialEmail?: string;
+  /** Der angetippte Anbieter: Beispieladresse und sein Hinweis, bevor der Dienst antwortet. */
+  preset?: MailProviderChoice | null;
 };
 
 /**
@@ -55,11 +53,17 @@ export type AddAccountFormProps = {
  * sagt, was er braucht. Das Passwort geht nur an den Dienst und verschwindet
  * nach dem Verbinden aus dem Zustand.
  */
-export function AddAccountForm({ accountId, onConnected, onCancel }: AddAccountFormProps) {
+export function AddAccountForm({
+  accountId,
+  onConnected,
+  onCancel,
+  initialEmail,
+  preset,
+}: AddAccountFormProps) {
   const { t } = useI18n();
   const theme = useTheme();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [advanced, setAdvanced] = useState(false);
@@ -96,6 +100,8 @@ export function AddAccountForm({ accountId, onConnected, onCancel }: AddAccountF
   const provider = current?.ok ? current.data : null;
   const detecting = looksValid && current === null;
   const oauthOnly = provider?.note === 'oauth_only';
+  // Bis der Dienst den Anbieter kennt, sagt der angetippte, was er braucht.
+  const presetNote = !provider && preset?.note ? preset.note : null;
 
   async function submit() {
     if (busy) return;
@@ -157,7 +163,11 @@ export function AddAccountForm({ accountId, onConnected, onCancel }: AddAccountF
       <View style={{ gap: theme.spacing.sm }}>
         <Input
           label={t('mail.add.email')}
-          placeholder={t('mail.add.emailPlaceholder')}
+          placeholder={
+            preset?.domain
+              ? t('mailui.add.placeholderAt', { domain: preset.domain })
+              : t('mail.add.emailPlaceholder')
+          }
           value={email}
           onChangeText={(value) => {
             setEmail(value);
@@ -183,10 +193,15 @@ export function AddAccountForm({ accountId, onConnected, onCancel }: AddAccountF
             />
             {provider.note ? (
               <Text variant="caption" tone={oauthOnly ? 'danger' : 'muted'}>
-                {t(NOTE_KEY[provider.note], { name: provider.label })}
+                {t(MAIL_NOTE_KEYS[provider.note], { name: provider.label })}
               </Text>
             ) : null}
           </View>
+        ) : null}
+        {presetNote && preset ? (
+          <Text variant="caption" tone={presetNote === 'oauth_only' ? 'danger' : 'muted'}>
+            {t(MAIL_NOTE_KEYS[presetNote], { name: t(PROVIDER_LABEL_KEYS[preset.key]) })}
+          </Text>
         ) : null}
         {current && !current.ok ? (
           <Text variant="caption" tone="danger">

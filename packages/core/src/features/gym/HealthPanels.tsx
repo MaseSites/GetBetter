@@ -11,15 +11,13 @@ import {
 } from '@/db';
 import { TARGET_MINUTES } from '@/features/gym/SleepView';
 import { useI18n, type TranslationKey } from '@/i18n';
-import { MODULES } from '@/mocks/modules';
+import { moduleName } from '@/mocks/moduleText';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Divider, Panel, Text, TickRow, Track } from '@/ui';
 
 /** So viele offene Einnahmen passen in den Block, ohne dass er zur Liste wird. */
 const MED_ROWS = 4;
-
-const nameOf = (id: string) => MODULES.find((module) => module.id === id)?.name ?? id;
 
 /**
  * Was BetterGym auf der Startseite ausser den vier Bloecken des Entwurfs weiss:
@@ -38,14 +36,17 @@ export function SleepPanel() {
 
   return (
     <Panel
-      label={nameOf('sleep')}
+      label={moduleName(t, 'sleep')}
       more={t('sleep.lastNight')}
       onMore={() => router.push('/run/sleep')}
     >
       {night ? (
         <>
           <View style={[styles.baseline, { gap: theme.spacing.md, marginTop: theme.spacing.sm }]}>
-            <Text variant="display" style={{ fontSize: theme.fontSize.xl, lineHeight: theme.lineHeight.xl }}>
+            <Text
+              variant="display"
+              style={{ fontSize: theme.fontSize.xl, lineHeight: theme.lineHeight.xl }}
+            >
               {t('sleep.duration', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })}
             </Text>
             <View style={styles.grow} />
@@ -92,7 +93,7 @@ export function MedsPanel() {
 
   return (
     <Panel
-      label={nameOf('meds')}
+      label={moduleName(t, 'meds')}
       more={
         medRows.length === 0
           ? t('health.write')
@@ -143,13 +144,16 @@ export function MindPanel() {
 
   return (
     <Panel
-      label={nameOf('mind')}
+      label={moduleName(t, 'mind')}
       more={isToday ? t('health.today') : t('health.write')}
       onMore={() => router.push('/run/mind')}
     >
       {isToday && mood ? (
         <View style={{ gap: theme.spacing.xs, marginTop: theme.spacing.sm }}>
-          <Text variant="display" style={{ fontSize: theme.fontSize.xl, lineHeight: theme.lineHeight.xl }}>
+          <Text
+            variant="display"
+            style={{ fontSize: theme.fontSize.xl, lineHeight: theme.lineHeight.xl }}
+          >
             {t(`mind.mood.${mood.mood}` as TranslationKey)}
           </Text>
           {mood.note ? (

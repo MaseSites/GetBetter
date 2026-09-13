@@ -2,128 +2,343 @@ import type { WeatherPlace } from '@/db';
 import type { TranslationKey } from '@/i18n';
 import type { IconName } from '@/ui';
 
+import { hoursFrom, type Pollutant } from './insights';
+import { kindOfCode } from './kinds';
+import { DEFAULT_PLACE, isPlace } from './places';
+import type { Quarter } from './rain';
+
+export { DEFAULT_PLACE };
+
 /**
- * Das Wetter kommt von Open-Meteo — frei, ohne Schluessel, ohne Konto.
- * Zwei Dienste: die Vorhersage und die Ortssuche.
+ * Das Wetter kommt von Open-Meteo — frei, ohne Schluessel, ohne Konto. Drei
+ * Dienste: die Vorhersage, die Luftqualitaet und die Ortssuche. Warnungen
+ * liefert keiner davon.
+ *
+ * Alle Zeiten kommen als Unix-Sekunden (`timeformat=unixtime`) und werden hier
+ * zu Millisekunden: so rechnet die App fuer Orte in anderen Zeitzonen richtig,
+ * und auch ueber die Umstellung auf Sommerzeit.
  */
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
+const AIR_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 
-/** Ohne gewaehlten Ort gilt Zuerich. */
-export const DEFAULT_PLACE: WeatherPlace = { name: 'Zürich', lat: 47.3769, lon: 8.5417 };
+const TIMEOUT_MS = 12_000;
+const SECOND_MS = 1000;
+const DAY_MS = 86_400_000;
+const FORECAST_DAYS = 7;
+/** Drei Stunden in Viertelstunden — zwei fuer das Modul, eine als Reserve. */
+const QUARTERS = 12;
+const SEARCH_RESULTS = 8;
 
-export type HourForecast = { at: string; temp: number; code: number; rain: number };
+export type CurrentWeather = {
+  ts: number;
+  temp: number;
+  feelsLike: number;
+  code: number;
+  wind: number;
+  windDir: number;
+  gusts: number;
+  humidity: number;
+  dewPoint: number;
+  pressure: number;
+  visibility: number;
+  uv: number;
+  isDay: boolean;
+};
+
+export type HourForecast = {
+  ts: number;
+  temp: number;
+  feelsLike: number;
+  code: number;
+  /** Regenwahrscheinlichkeit in Prozent. */
+  rain: number;
+  /** Niederschlag in mm. */
+  precip: number;
+  wind: number;
+  windDir: number;
+  gusts: number;
+  humidity: number;
+  pressure: number;
+  visibility: number;
+  uv: number;
+};
+
 export type DayForecast = {
+  /** Mitternacht am Ort. */
+  ts: number;
+  /** `YYYY-MM-DD` am Ort. */
   day: string;
   code: number;
   max: number;
   min: number;
   rain: number;
-  sunrise: string;
-  sunset: string;
+  precipSum: number;
+  sunrise: number;
+  sunset: number;
+  uvMax: number;
+  windMax: number;
+  gustMax: number;
+  windDir: number;
+  /** Tageslicht in Sekunden. */
+  daylight: number;
+};
+
+export type AirQuality = {
+  ts: number;
+  /** Der europaeische Index (EAQI), 0 bis ueber 100. */
+  index: number;
+  parts: Partial<Record<Pollutant, number>>;
+  hourly: readonly { ts: number; index: number }[];
 };
 
 export type Forecast = {
   place: WeatherPlace;
   fetchedAt: number;
-  current: { temp: number; feelsLike: number; code: number; wind: number; humidity: number };
+  timezone: string;
+  utcOffsetSeconds: number;
+  current: CurrentWeather;
   hourly: readonly HourForecast[];
+  quarters: readonly Quarter[];
   daily: readonly DayForecast[];
-};
-
-type ForecastResponse = {
-  current: {
-    temperature_2m: number;
-    apparent_temperature: number;
-    weather_code: number;
-    wind_speed_10m: number;
-    relative_humidity_2m: number;
-  };
-  hourly: {
-    time: string[];
-    temperature_2m: number[];
-    weather_code: number[];
-    precipitation_probability: number[];
-  };
-  daily: {
-    time: string[];
-    weather_code: number[];
-    temperature_2m_max: number[];
-    temperature_2m_min: number[];
-    precipitation_probability_max: number[];
-    sunrise: string[];
-    sunset: string[];
-  };
-};
-
-export async function fetchForecast(place: WeatherPlace): Promise<Forecast> {
-  const params = new URLSearchParams({
-    latitude: String(place.lat),
-    longitude: String(place.lon),
-    current: 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m',
-    hourly: 'temperature_2m,weather_code,precipitation_probability',
-    daily:
-      'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset',
-    timezone: 'auto',
-    forecast_days: '7',
-  });
-  const response = await fetch(`${FORECAST_URL}?${params.toString()}`);
-  if (!response.ok) throw new Error(`Wetter: ${response.status}`);
-  const data = (await response.json()) as ForecastResponse;
-
-  return {
-    place,
-    fetchedAt: Date.now(),
-    current: {
-      temp: data.current.temperature_2m,
-      feelsLike: data.current.apparent_temperature,
-      code: data.current.weather_code,
-      wind: data.current.wind_speed_10m,
-      humidity: data.current.relative_humidity_2m,
-    },
-    hourly: data.hourly.time.map((at, index) => ({
-      at,
-      temp: data.hourly.temperature_2m[index] ?? 0,
-      code: data.hourly.weather_code[index] ?? 0,
-      rain: data.hourly.precipitation_probability[index] ?? 0,
-    })),
-    daily: data.daily.time.map((day, index) => ({
-      day,
-      code: data.daily.weather_code[index] ?? 0,
-      max: data.daily.temperature_2m_max[index] ?? 0,
-      min: data.daily.temperature_2m_min[index] ?? 0,
-      rain: data.daily.precipitation_probability_max[index] ?? 0,
-      sunrise: data.daily.sunrise[index] ?? '',
-      sunset: data.daily.sunset[index] ?? '',
-    })),
-  };
-}
-
-type GeocodingResponse = {
-  results?: {
-    name: string;
-    latitude: number;
-    longitude: number;
-    admin1?: string;
-    country?: string;
-  }[];
+  /** Fehlt, wenn der Luftqualitaets-Dienst nicht antwortet — dann faellt nur die Kachel weg. */
+  air: AirQuality | null;
 };
 
 export type PlaceHit = WeatherPlace & { region: string };
 
-/** Orte zu einem Suchwort — Name, Region und Land, damit man Zuerich von Zuerich unterscheidet. */
-export async function searchPlaces(query: string): Promise<PlaceHit[]> {
-  const params = new URLSearchParams({ name: query, count: '6', language: 'de', format: 'json' });
-  const response = await fetch(`${GEOCODING_URL}?${params.toString()}`);
-  if (!response.ok) throw new Error(`Ortssuche: ${response.status}`);
-  const data = (await response.json()) as GeocodingResponse;
-  return (data.results ?? []).map((hit) => ({
-    name: hit.name,
-    lat: hit.latitude,
-    lon: hit.longitude,
-    region: [hit.admin1, hit.country].filter(Boolean).join(', '),
+// ─── Lesen, ohne der Antwort blind zu trauen ────────────────────────────────
+
+function field(record: unknown, name: string): unknown {
+  return typeof record === 'object' && record !== null
+    ? (record as Record<string, unknown>)[name]
+    : undefined;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function numberAt(series: unknown, index: number, fallback = 0): number {
+  return Array.isArray(series) ? asNumber(series[index], fallback) : fallback;
+}
+
+function timesOf(series: unknown): number[] {
+  return Array.isArray(series)
+    ? series.filter((value): value is number => typeof value === 'number').map((s) => s * SECOND_MS)
+    : [];
+}
+
+async function fetchJson(url: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Open-Meteo antwortet mit ${response.status}`);
+    return (await response.json()) as unknown;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function coordinates(place: WeatherPlace): Record<string, string> {
+  return { latitude: String(place.lat), longitude: String(place.lon) };
+}
+
+// ─── Vorhersage ──────────────────────────────────────────────────────────────
+
+function forecastUrl(place: WeatherPlace): string {
+  const params = new URLSearchParams({
+    ...coordinates(place),
+    current:
+      'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,' +
+      'wind_gusts_10m,relative_humidity_2m,dew_point_2m,pressure_msl,visibility,uv_index,is_day',
+    hourly:
+      'temperature_2m,apparent_temperature,weather_code,precipitation_probability,precipitation,' +
+      'wind_speed_10m,wind_direction_10m,wind_gusts_10m,relative_humidity_2m,pressure_msl,' +
+      'visibility,uv_index',
+    minutely_15: 'precipitation',
+    daily:
+      'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,' +
+      'precipitation_sum,sunrise,sunset,uv_index_max,wind_speed_10m_max,wind_gusts_10m_max,' +
+      'wind_direction_10m_dominant,daylight_duration',
+    timezone: 'auto',
+    timeformat: 'unixtime',
+    forecast_days: String(FORECAST_DAYS),
+    forecast_minutely_15: String(QUARTERS),
+  });
+  return `${FORECAST_URL}?${params.toString()}`;
+}
+
+function parseCurrent(current: unknown): CurrentWeather {
+  const temp = field(current, 'temperature_2m');
+  if (typeof temp !== 'number') throw new Error('Open-Meteo: keine aktuelle Temperatur');
+  return {
+    ts: asNumber(field(current, 'time')) * SECOND_MS,
+    temp,
+    feelsLike: asNumber(field(current, 'apparent_temperature'), temp),
+    code: asNumber(field(current, 'weather_code')),
+    wind: asNumber(field(current, 'wind_speed_10m')),
+    windDir: asNumber(field(current, 'wind_direction_10m')),
+    gusts: asNumber(field(current, 'wind_gusts_10m')),
+    humidity: asNumber(field(current, 'relative_humidity_2m')),
+    dewPoint: asNumber(field(current, 'dew_point_2m')),
+    pressure: asNumber(field(current, 'pressure_msl')),
+    visibility: asNumber(field(current, 'visibility')),
+    uv: asNumber(field(current, 'uv_index')),
+    isDay: asNumber(field(current, 'is_day'), 1) === 1,
+  };
+}
+
+function parseHourly(hourly: unknown): HourForecast[] {
+  const at = (name: string, index: number) => numberAt(field(hourly, name), index);
+  return timesOf(field(hourly, 'time')).map((ts, index) => ({
+    ts,
+    temp: at('temperature_2m', index),
+    feelsLike: at('apparent_temperature', index),
+    code: at('weather_code', index),
+    rain: at('precipitation_probability', index),
+    precip: at('precipitation', index),
+    wind: at('wind_speed_10m', index),
+    windDir: at('wind_direction_10m', index),
+    gusts: at('wind_gusts_10m', index),
+    humidity: at('relative_humidity_2m', index),
+    pressure: at('pressure_msl', index),
+    visibility: at('visibility', index),
+    uv: at('uv_index', index),
   }));
 }
+
+function parseDaily(daily: unknown, offsetSeconds: number): DayForecast[] {
+  const at = (name: string, index: number) => numberAt(field(daily, name), index);
+  return timesOf(field(daily, 'time')).map((ts, index) => ({
+    ts,
+    // Der Tag am Ort, nicht auf dem Geraet: Mitternacht dort plus Versatz ergibt das UTC-Datum.
+    day: new Date(ts + offsetSeconds * SECOND_MS).toISOString().slice(0, 10),
+    code: at('weather_code', index),
+    max: at('temperature_2m_max', index),
+    min: at('temperature_2m_min', index),
+    rain: at('precipitation_probability_max', index),
+    precipSum: at('precipitation_sum', index),
+    sunrise: at('sunrise', index) * SECOND_MS,
+    sunset: at('sunset', index) * SECOND_MS,
+    uvMax: at('uv_index_max', index),
+    windMax: at('wind_speed_10m_max', index),
+    gustMax: at('wind_gusts_10m_max', index),
+    windDir: at('wind_direction_10m_dominant', index),
+    daylight: at('daylight_duration', index),
+  }));
+}
+
+function parseQuarters(minutely: unknown): Quarter[] {
+  const precipitation = field(minutely, 'precipitation');
+  return timesOf(field(minutely, 'time')).map((ts, index) => ({
+    ts,
+    precip: numberAt(precipitation, index),
+  }));
+}
+
+// ─── Luftqualitaet ───────────────────────────────────────────────────────────
+
+const POLLUTANT_FIELDS: Record<Pollutant, string> = {
+  pm2_5: 'european_aqi_pm2_5',
+  pm10: 'european_aqi_pm10',
+  no2: 'european_aqi_nitrogen_dioxide',
+  o3: 'european_aqi_ozone',
+  so2: 'european_aqi_sulphur_dioxide',
+};
+
+function airUrl(place: WeatherPlace): string {
+  const params = new URLSearchParams({
+    ...coordinates(place),
+    current: ['european_aqi', ...Object.values(POLLUTANT_FIELDS)].join(','),
+    hourly: 'european_aqi',
+    timezone: 'auto',
+    timeformat: 'unixtime',
+    forecast_days: String(FORECAST_DAYS),
+  });
+  return `${AIR_URL}?${params.toString()}`;
+}
+
+function parseAir(data: unknown): AirQuality | null {
+  const current = field(data, 'current');
+  const index = field(current, 'european_aqi');
+  if (typeof index !== 'number' || !Number.isFinite(index)) return null;
+  const hourly = field(data, 'hourly');
+  const series = field(hourly, 'european_aqi');
+  const parts = Object.fromEntries(
+    (Object.entries(POLLUTANT_FIELDS) as [Pollutant, string][])
+      .map(([pollutant, name]) => [pollutant, field(current, name)] as const)
+      .filter((entry): entry is readonly [Pollutant, number] => typeof entry[1] === 'number'),
+  ) as Partial<Record<Pollutant, number>>;
+  return {
+    ts: asNumber(field(current, 'time')) * SECOND_MS,
+    index,
+    parts,
+    hourly: timesOf(field(hourly, 'time'))
+      .map((ts, position) => ({ ts, index: numberAt(series, position, Number.NaN) }))
+      .filter((entry) => Number.isFinite(entry.index)),
+  };
+}
+
+// ─── Abrufen ─────────────────────────────────────────────────────────────────
+
+/**
+ * Vorhersage und Luftqualitaet gleichzeitig. Scheitert die Vorhersage, scheitert
+ * alles; scheitert nur die Luftqualitaet, bleibt `air` leer.
+ */
+export async function fetchForecast(place: WeatherPlace): Promise<Forecast> {
+  const [forecast, air] = await Promise.allSettled([
+    fetchJson(forecastUrl(place)),
+    fetchJson(airUrl(place)),
+  ]);
+  if (forecast.status === 'rejected') {
+    throw forecast.reason instanceof Error ? forecast.reason : new Error('Open-Meteo');
+  }
+  const data = forecast.value;
+  const offset = asNumber(field(data, 'utc_offset_seconds'));
+  const hourly = parseHourly(field(data, 'hourly'));
+  const daily = parseDaily(field(data, 'daily'), offset);
+  if (hourly.length === 0 || daily.length === 0) throw new Error('Open-Meteo: leere Vorhersage');
+
+  const timezone = field(data, 'timezone');
+  return {
+    place,
+    fetchedAt: Date.now(),
+    timezone: typeof timezone === 'string' ? timezone : 'UTC',
+    utcOffsetSeconds: offset,
+    current: parseCurrent(field(data, 'current')),
+    hourly,
+    quarters: parseQuarters(field(data, 'minutely_15')),
+    daily,
+    air: air.status === 'fulfilled' ? parseAir(air.value) : null,
+  };
+}
+
+/** Orte zu einem Suchwort — Name, Region und Land, damit man Zürich von Zürich unterscheidet. */
+export async function searchPlaces(query: string, language: string): Promise<PlaceHit[]> {
+  const params = new URLSearchParams({
+    name: query,
+    count: String(SEARCH_RESULTS),
+    language,
+    format: 'json',
+  });
+  const data = await fetchJson(`${GEOCODING_URL}?${params.toString()}`);
+  const results = field(data, 'results');
+  if (!Array.isArray(results)) return [];
+  return results
+    .map((hit: unknown) => ({
+      name: field(hit, 'name'),
+      lat: field(hit, 'latitude'),
+      lon: field(hit, 'longitude'),
+      region: [field(hit, 'admin1'), field(hit, 'country')]
+        .filter((part): part is string => typeof part === 'string' && part.length > 0)
+        .join(', '),
+    }))
+    .filter((hit): hit is PlaceHit => isPlace(hit));
+}
+
+// ─── Deutung der Codes ───────────────────────────────────────────────────────
 
 /** Die Wettercodes der WMO, gebuendelt zu dem, was man sagen wuerde. */
 export function weatherLabelKey(code: number): TranslationKey {
@@ -151,12 +366,20 @@ export function weatherIcon(code: number): IconName {
   return 'cloud';
 }
 
+/** Nachts ist klar ein Mond und nicht eine Sonne. */
+export function weatherIconAt(code: number, isDay: boolean): IconName {
+  if (isDay) return weatherIcon(code);
+  if (kindOfCode(code) === 'clear') return 'sleep';
+  return code === 2 ? 'cloud' : weatherIcon(code);
+}
+
+/** Ob die Sonne zu diesem Zeitpunkt am Ort ueber dem Horizont steht. */
+export function isDaylight(ts: number, daily: readonly DayForecast[]): boolean {
+  const day = daily.find((entry) => ts >= entry.ts && ts < entry.ts + DAY_MS);
+  return day ? ts >= day.sunrise && ts < day.sunset : true;
+}
+
 /** Die naechsten Stunden ab jetzt — die vergangenen des Tages nicht mehr. */
-export function upcomingHours(forecast: Forecast, count = 24, now = new Date()): HourForecast[] {
-  const cutoff = new Date(now);
-  cutoff.setMinutes(0, 0, 0);
-  const start = forecast.hourly.findIndex(
-    (hour) => new Date(hour.at).getTime() >= cutoff.getTime(),
-  );
-  return forecast.hourly.slice(Math.max(0, start), Math.max(0, start) + count);
+export function upcomingHours(forecast: Forecast, count = 24, now = Date.now()): HourForecast[] {
+  return hoursFrom(forecast.hourly, now, count);
 }

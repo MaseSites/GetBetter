@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,44 +8,29 @@ import { APPS } from '@/app/identity';
 import { ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
 import type { AssistantMessage } from '@/mocks/types';
 import { useApp } from '@/state/AppContext';
-import { ThemeProvider, createTheme, useTheme } from '@/theme';
-import { ComposeBar, EmptyState, Loading, Screen, SuggestionChip, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { ComposeBar, Loading, Screen, SuggestionChip, Text } from '@/ui';
 
+import { AssistantAvatar } from './AssistantAvatar';
 import { route } from './route';
+import { useVoice } from './useVoice';
+import { VoiceControls } from './VoiceControls';
+
+/**
+ * Wo der Avatar gerade steht: `here` wartet er, `leaving` zerfaellt er in die
+ * Nachricht hinein, `gone` ist er aus dem Baum.
+ */
+type AvatarState = 'here' | 'leaving' | 'gone';
 
 /** Beispiele, die wirklich ankommen — beide erkennt `route()` als Auftrag. */
 const SUGGESTIONS = ['assistant.chip.shopping', 'assistant.chip.chore'] as const;
 
 /**
- * Die dunkle Flaeche fuer alles, womit man redet: der Assistent in GetBetter
- * und die Gespraeche in BetterAi. Farbe und Voreinstellung bleiben die des Kontos.
- */
-export function DarkSurface({ children }: { children: ReactNode }) {
-  const { appearance } = useApp();
-  const dark = useMemo(
-    () => createTheme('dark', appearance.accent, appearance.preset),
-    [appearance.accent, appearance.preset],
-  );
-
-  return <ThemeProvider value={dark}>{children}</ThemeProvider>;
-}
-
-/**
- * Der Assistent — die eine dunkle Flaeche in einer hellen App.
- *
- * Er steht quer ueber allen Bereichen, und der Wechsel ins Dunkle sagt ohne
- * Worte: hier redest du mit etwas. Er startet leer mit der Frage, womit er
+ * Der Assistent. Er folgt dem Aussehen des Kontos wie jeder andere Bildschirm —
+ * hell, dunkel oder wie das Geraet. Er startet leer mit der Frage, womit er
  * helfen soll; unten liegt das Feld als Pille, der Senden-Knopf in Signalgruen.
  */
 export function AssistantView() {
-  return (
-    <DarkSurface>
-      <Conversation />
-    </DarkSurface>
-  );
-}
-
-function Conversation() {
   const t = useTranslate();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -60,9 +45,16 @@ function Conversation() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Fortlaufend statt Zeitstempel: stabile, eindeutige Schluessel.
   const nextId = useRef(0);
+  // Eine Frage nach der anderen — auch wenn sie aus dem Gespraech kommt.
+  const asking = useRef(false);
+  const alive = useRef(true);
+  // In welche Nachricht er geflogen ist. Mehr braucht es nicht: wo er steht,
+  // ergibt sich daraus und aus dem Gespraech.
+  const [flownInto, setFlownInto] = useState<string | null>(null);
 
   useEffect(
     () => () => {
+      alive.current = false;
       if (timer.current) clearTimeout(timer.current);
     },
     [],
@@ -73,39 +65,62 @@ function Conversation() {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   }
 
-  function respondLater(text: string) {
-    setThinking(true);
-    timer.current = setTimeout(() => {
-      setThinking(false);
-      append({ id: `a-${(nextId.current += 1)}`, role: 'assistant', text });
-    }, ASSISTANT_REPLY_DELAY_MS);
+  /** Warten, aber abbrechbar: beim Verlassen loest das Versprechen nie aus. */
+  function pause(): Promise<void> {
+    return new Promise((resolve) => {
+      timer.current = setTimeout(resolve, ASSISTANT_REPLY_DELAY_MS);
+    });
   }
 
-  function ask(text: string) {
-    if (text.length === 0 || thinking) return;
-    setDraft('');
-    append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
-
+  /** Die Antwort auf einen Satz. Hinter ihr steckt noch kein Modell. */
+  async function answerTo(text: string): Promise<string> {
     // Was in eine andere Better-App gehoert, wird dorthin geschickt.
     const routed = route(text);
     if (!routed) {
-      respondLater(t('assistant.reply'));
-      return;
+      await pause();
+      return t('assistant.reply');
     }
 
     const target = APPS[routed.command.app].name;
-    setThinking(true);
-    void sendCommand(routed.command).then((sent) => {
-      setThinking(false);
-      append({
-        id: `a-${(nextId.current += 1)}`,
-        role: 'assistant',
-        text: sent
-          ? t('assistant.handedOver', { app: target, subject: routed.subject })
-          : t('assistant.notInstalled', { app: target }),
-      });
-    });
+    const sent = await sendCommand(routed.command);
+    return sent
+      ? t('assistant.handedOver', { app: target, subject: routed.subject })
+      : t('assistant.notInstalled', { app: target });
   }
+
+  /**
+   * Fragen und antworten. Gibt die Antwort zurueck, damit das Gespraech sie
+   * vorlesen kann — geschrieben steht sie ohnehin schon da.
+   */
+  async function ask(text: string): Promise<string | null> {
+    if (text.length === 0 || asking.current) return null;
+    asking.current = true;
+    setDraft('');
+    append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
+    setThinking(true);
+
+    const reply = await answerTo(text);
+    if (!alive.current) return null;
+    asking.current = false;
+    setThinking(false);
+    append({ id: `a-${(nextId.current += 1)}`, role: 'assistant', text: reply });
+    return reply;
+  }
+
+  const voicing = useVoice({
+    // Eine einzelne Sprachnachricht landet im Feld — so kann man sie noch aendern.
+    onDictate: setDraft,
+    onTurn: ask,
+  });
+  const talking = voicing.mode === 'talk';
+
+  // Leer steht er da und schaut sich um. Ist etwas abgeschickt, fliegt er der
+  // Nachricht nach; ist er dort angekommen, ist er weg. Wuerde das Gespraech
+  // je wieder leer, gaebe es die Nachricht nicht mehr — und er setzt sich
+  // von selbst wieder zusammen.
+  const empty = messages.length === 0 && !thinking;
+  const landed = flownInto !== null && messages.some((message) => message.id === flownInto);
+  const avatar: AvatarState = empty ? 'here' : landed ? 'gone' : 'leaving';
 
   return (
     <Screen
@@ -113,68 +128,75 @@ function Conversation() {
       padded={false}
       footer={
         <View style={{ gap: theme.spacing.sm }}>
-          {draft.length === 0 && !thinking ? (
+          {draft.length === 0 && !thinking && voicing.mode === 'off' ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: theme.spacing.sm }}
             >
               {SUGGESTIONS.map((key) => (
-                <SuggestionChip key={key} label={t(key)} onPress={() => ask(t(key))} />
+                <SuggestionChip key={key} label={t(key)} onPress={() => void ask(t(key))} />
               ))}
             </ScrollView>
           ) : null}
 
           <ComposeBar
             value={draft}
-            onChangeText={setDraft}
-            onSubmit={() => ask(draft.trim())}
+            onChangeText={(value) => {
+              setDraft(value);
+              // Wer tippt, hat die Meldung gelesen.
+              voicing.clear();
+            }}
+            onSubmit={() => void ask(draft.trim())}
             placeholder={
               name
                 ? t('personalize.assistant.placeholderNamed', { name })
                 : t('assistant.placeholder')
             }
             sendLabel={t('assistant.send')}
-            busy={thinking}
+            busy={thinking || talking}
           />
+
+          <VoiceControls voicing={voicing} name={name} busy={thinking && !talking} />
         </View>
       }
     >
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: theme.spacing.edge,
-          paddingTop: theme.spacing.xxl + insets.top,
-          paddingBottom: theme.spacing.lg,
-          gap: theme.spacing.lg,
-          // Solange nichts dasteht, sitzt die Frage in der Mitte; danach
-          // waechst das Gespraech von unten nach oben, wie im Entwurf.
-          justifyContent: messages.length === 0 && !thinking ? 'center' : 'flex-end',
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {messages.length === 0 && !thinking ? (
-          <EmptyState
-            title={
-              name ? t('personalize.assistant.greeting', { name }) : t('assistant.empty.title')
-            }
-            body={t('assistant.empty.body')}
-          />
-        ) : null}
+      <View style={styles.stage}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: theme.spacing.edge,
+            paddingTop: theme.spacing.xxl + insets.top,
+            paddingBottom: theme.spacing.lg,
+            gap: theme.spacing.lg,
+            // Das Gespraech waechst von unten nach oben, wie im Entwurf. Solange
+            // nichts dasteht, steht der Avatar in der Mitte darueber.
+            justifyContent: 'flex-end',
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.map((message) => (
+            <Message key={message.id} message={message} />
+          ))}
 
-        {messages.map((message) => (
-          <Message key={message.id} message={message} />
-        ))}
+          {thinking ? (
+            <Loading
+              label={name ? t('personalize.assistant.thinking', { name }) : t('assistant.thinking')}
+              compact
+            />
+          ) : null}
+        </ScrollView>
 
-        {thinking ? (
-          <Loading
-            label={name ? t('personalize.assistant.thinking', { name }) : t('assistant.thinking')}
-            compact
+        {avatar === 'gone' ? null : (
+          <AssistantAvatar
+            name={name}
+            leaving={avatar === 'leaving'}
+            onGone={() => setFlownInto(messages[messages.length - 1]?.id ?? null)}
           />
-        ) : null}
-      </ScrollView>
+        )}
+      </View>
     </Screen>
   );
 }
@@ -213,6 +235,8 @@ export function Message({ message }: { message: AssistantMessage }) {
 }
 
 const styles = StyleSheet.create({
+  // Das Gespraech und darueber der Avatar — er soll nichts verschieben.
+  stage: { flex: 1 },
   ask: { alignSelf: 'flex-end', maxWidth: '85%' },
   said: { maxWidth: 305 },
 });

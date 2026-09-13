@@ -6,6 +6,7 @@ import { dayKey, trips as tripRepo, useLiveQuery, type PackingItemRow, type Trip
 import { DayPicker } from '@/features/shared/DayPicker';
 import { daysUntil, parseDay, relativeDay, shiftDay } from '@/features/shared/days';
 import { formatShortDate, useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -130,7 +131,7 @@ export function TripsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={subtitle}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}

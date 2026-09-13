@@ -170,21 +170,59 @@ function safeMessageId(value) {
   return match ? match[0] : null;
 }
 
+/** So viele Eintraege traegt `References` hoechstens: die Wurzel und die juengsten. */
+const MAX_REFERENCES = 20;
+
+/** Die Kette fuer `References`: gueltige Ids ohne Doppelte, der beantwortete zuletzt. */
+function referenceChain(references, parent) {
+  const ids = [
+    ...new Set(
+      [...references.map(safeMessageId), parent].filter((id) => id !== null && id.length <= 250),
+    ),
+  ];
+  const ordered = parent ? [...ids.filter((id) => id !== parent), parent] : ids;
+  return ordered.length > MAX_REFERENCES
+    ? [ordered[0], ...ordered.slice(-(MAX_REFERENCES - 1))]
+    : ordered;
+}
+
 /**
  * Baut die Nachricht. `inReplyTo` ist die Message-ID der beantworteten Mail
- * (mit spitzen Klammern); sie geht in In-Reply-To und References.
+ * (mit spitzen Klammern); sie geht in In-Reply-To und ans Ende von References,
+ * davor stehen deren eigene `references`.
+ *
+ * `bcc` steht nur mit `includeBcc` im Kopf — fuer Entwuerfe und die eigene Kopie
+ * unter „Gesendet“, nie in der Nachricht, die per SMTP hinausgeht. Ein leeres
+ * `to` laesst den Header weg (nur fuer Entwuerfe). `messageId` erlaubt, zwei
+ * Fassungen derselben Nachricht zu bauen.
  */
-function buildMessage({ from, to, cc = [], subject, text, inReplyTo = null, date = new Date() }) {
-  const messageId = messageIdFor(from.address);
+function buildMessage({
+  from,
+  to,
+  cc = [],
+  bcc = [],
+  includeBcc = false,
+  subject,
+  text,
+  inReplyTo = null,
+  references = [],
+  messageId: givenId = null,
+  date = new Date(),
+}) {
+  const messageId = (givenId ? safeMessageId(givenId) : null) ?? messageIdFor(from.address);
   const parent = inReplyTo ? safeMessageId(inReplyTo) : null;
+  const chain = referenceChain(references, parent);
+  const withBcc = includeBcc && bcc.length > 0;
   const headers = [
     `From: ${formatAddress(from.name, from.address, 'From: '.length)}`,
-    `To: ${foldList(to.map(assertAddress), 'To: '.length)}`,
+    ...(to.length > 0 ? [`To: ${foldList(to.map(assertAddress), 'To: '.length)}`] : []),
     ...(cc.length > 0 ? [`Cc: ${foldList(cc.map(assertAddress), 'Cc: '.length)}`] : []),
+    ...(withBcc ? [`Bcc: ${foldList(bcc.map(assertAddress), 'Bcc: '.length)}`] : []),
     `Subject: ${encodeHeaderText(subject, 'Subject: '.length)}`,
     `Date: ${formatDate(date)}`,
     `Message-ID: ${messageId}`,
-    ...(parent ? [`In-Reply-To: ${parent}`, `References: ${parent}`] : []),
+    ...(parent ? [`In-Reply-To: ${parent}`] : []),
+    ...(chain.length > 0 ? [`References: ${chain.join('\r\n ')}`] : []),
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8',
     'Content-Transfer-Encoding: quoted-printable',

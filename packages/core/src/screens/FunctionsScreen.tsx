@@ -23,6 +23,7 @@ import { appNameOf, useFavorites, type Favorites } from '@/features/quick/useFav
 import { daysUntil, nextBirthday, relativeDay } from '@/features/shared/days';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { BUILT_MODULE_IDS, modulesOfApp } from '@/mocks/modules';
+import { moduleName, moduleShort } from '@/mocks/moduleText';
 import { TOPICS, type ModuleDefinition, type Topic } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -138,9 +139,6 @@ export function FunctionsScreen() {
           id: 'household',
           area: 'household',
           topic: 'supplies',
-          name: t('tabs.household'),
-          short: '',
-          description: '',
           icon: 'people',
           priority: 1,
           permissions: { read: [], write: [] },
@@ -152,8 +150,8 @@ export function FunctionsScreen() {
   const all = [...householdModule, ...mine].filter(
     (module) =>
       needle.length === 0 ||
-      module.name.toLocaleLowerCase('de-CH').includes(needle) ||
-      module.short.toLocaleLowerCase('de-CH').includes(needle),
+      moduleName(t, module.id).toLocaleLowerCase('de-CH').includes(needle) ||
+      moduleShort(t, module.id).toLocaleLowerCase('de-CH').includes(needle),
   );
   const groups = ORDER.map((topic) => ({
     topic,
@@ -184,41 +182,45 @@ export function FunctionsScreen() {
         accessibilityLabel={t('quick.view')}
       />
 
+      {/* Die Suche gilt fuer beide Ansichten und bleibt darum stehen. */}
+      <View
+        style={[
+          styles.field,
+          {
+            backgroundColor: theme.colors.surfaceMuted,
+            borderRadius: theme.radii.sm,
+            paddingHorizontal: theme.spacing.md,
+            gap: theme.spacing.sm,
+            marginBottom: theme.spacing.xs,
+          },
+        ]}
+      >
+        <Icon name="search" size={17} color={theme.colors.textFaint} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t('areas.search')}
+          placeholderTextColor={theme.colors.textFaint}
+          autoCorrect={false}
+          accessibilityLabel={t('areas.search')}
+          style={[
+            styles.input,
+            {
+              fontFamily: theme.fontFamily,
+              fontSize: theme.fontSize.lede,
+              color: theme.colors.text,
+            },
+          ]}
+        />
+      </View>
+
       {listing === 'favorites' ? (
-        <FavoriteRows favorites={favorites} valueOf={valueOf} />
+        <FavoriteRows favorites={favorites} valueOf={valueOf} needle={needle} />
+      ) : groups.length === 0 ? (
+        // Die Funktionen der anderen Apps stehen nur noch in der Suche.
+        <EmptyState title={t('areas.noHit')} body={t('areas.noHit.body')} />
       ) : (
         <>
-          <View
-            style={[
-              styles.field,
-              {
-                backgroundColor: theme.colors.surfaceMuted,
-                borderRadius: theme.radii.sm,
-                paddingHorizontal: theme.spacing.md,
-                gap: theme.spacing.sm,
-                marginBottom: theme.spacing.xs,
-              },
-            ]}
-          >
-            <Icon name="search" size={17} color={theme.colors.textFaint} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder={t('areas.search')}
-              placeholderTextColor={theme.colors.textFaint}
-              autoCorrect={false}
-              accessibilityLabel={t('areas.search')}
-              style={[
-                styles.input,
-                {
-                  fontFamily: theme.fontFamily,
-                  fontSize: theme.fontSize.lede,
-                  color: theme.colors.text,
-                },
-              ]}
-            />
-          </View>
-
           {groups.map((group) => (
             <View key={group.topic} style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
               <TopicHead topic={group.topic} />
@@ -267,17 +269,30 @@ export function FunctionsScreen() {
 function FavoriteRows({
   favorites,
   valueOf,
+  needle,
 }: {
   favorites: Favorites;
   valueOf: (id: string) => RowValue | null;
+  /** Dieselbe Suche wie in „Alle“ — sonst waere das Feld hier nur Zierde. */
+  needle: string;
 }) {
   const { t } = useI18n();
   const theme = useTheme();
+
+  const entries = favorites.entries.filter(
+    (entry) =>
+      needle.length === 0 ||
+      moduleName(t, entry.module.id).toLocaleLowerCase('de-CH').includes(needle),
+  );
 
   if (favorites.entries.length === 0) {
     return (
       <EmptyState title={t('quick.favorites.emptyTitle')} body={t('quick.favorites.emptyBody')} />
     );
+  }
+
+  if (entries.length === 0) {
+    return <EmptyState title={t('areas.noHit')} body={t('areas.noHit.body')} />;
   }
 
   return (
@@ -292,7 +307,7 @@ function FavoriteRows({
         },
       ]}
     >
-      {favorites.entries.map((entry, index) => {
+      {entries.map((entry, index) => {
         const own = entry.appId === favorites.currentAppId;
         return (
           <Row
@@ -352,12 +367,49 @@ function Row({
   /** Die einzige zweite Zeile: der Name der App, aus der ein Favorit kommt. */
   caption?: string | undefined;
   favorite?: RowFavorite | null;
-  onPress: () => void;
+  /** Fehlt er, ist die Zeile nur zum Ansehen. */
+  onPress?: () => void;
 }) {
+  const { t } = useI18n();
   const theme = useTheme();
   const press = usePressScale(theme.motion.pressScale.row);
+  const name = moduleName(t, module.id);
   // Kein Kurztext unter dem Namen: die Liste soll ruhig sein, nicht erklaeren.
   const subtitle = caption ?? null;
+
+  const body = (
+    <Animated.View
+      style={[
+        styles.rowBody,
+        {
+          paddingLeft: theme.spacing.md,
+          paddingRight: favorite ? 0 : theme.spacing.md,
+          gap: theme.spacing.md,
+          transform: [{ scale: press.scale }],
+        },
+      ]}
+    >
+      <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
+      <View style={styles.text}>
+        <Text
+          variant="label"
+          numberOfLines={1}
+          style={{ fontSize: theme.fontSize.md, letterSpacing: theme.tracking.body }}
+        >
+          {name}
+        </Text>
+        {value || !subtitle ? null : (
+          <Text variant="caption" tone="faint" numberOfLines={1}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {value ? <RowValueText value={value} /> : null}
+      {favorite || !onPress ? null : (
+        <Icon name="forward" size={15} color={theme.colors.borderStrong} />
+      )}
+    </Animated.View>
+  );
 
   return (
     <View
@@ -367,51 +419,28 @@ function Row({
           minHeight: value ? 48 : 54,
           borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
           borderTopColor: theme.colors.border,
-          // Was noch nicht gebaut ist, steht blass da statt so zu tun.
-          opacity: built ? 1 : 0.5,
+          // Blass: was noch nicht gebaut ist. Die Funktionen anderer Apps stehen
+          // nicht hier, sondern zugeklappt in der Suche.
+          opacity: !onPress ? 0.45 : built ? 1 : 0.5,
         },
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={module.name}
-        onPress={onPress}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        style={styles.rowPress}
-      >
-        <Animated.View
-          style={[
-            styles.rowBody,
-            {
-              paddingLeft: theme.spacing.md,
-              paddingRight: favorite ? 0 : theme.spacing.md,
-              gap: theme.spacing.md,
-              transform: [{ scale: press.scale }],
-            },
-          ]}
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          onPress={onPress}
+          onPressIn={press.onPressIn}
+          onPressOut={press.onPressOut}
+          style={styles.rowPress}
         >
-          <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
-          <View style={styles.text}>
-            <Text
-              variant="label"
-              numberOfLines={1}
-              style={{ fontSize: theme.fontSize.md, letterSpacing: theme.tracking.body }}
-            >
-              {module.name}
-            </Text>
-            {value || !subtitle ? null : (
-              <Text variant="caption" tone="faint" numberOfLines={1}>
-                {subtitle}
-              </Text>
-            )}
-          </View>
-          {value ? <RowValueText value={value} /> : null}
-          {favorite ? null : <Icon name="forward" size={15} color={theme.colors.borderStrong} />}
-        </Animated.View>
-      </Pressable>
+          {body}
+        </Pressable>
+      ) : (
+        <View style={styles.rowPress}>{body}</View>
+      )}
       {favorite ? (
-        <StarButton active={favorite.active} name={module.name} onPress={favorite.onToggle} />
+        <StarButton active={favorite.active} name={name} onPress={favorite.onToggle} />
       ) : null}
     </View>
   );

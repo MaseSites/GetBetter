@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { contacts as contactRepo, dayKey, useLiveQuery, type ContactRow } from '@/db';
-import { formatDateValue, parseDateValue } from '@/features/calendar/dates';
-import { nextBirthday, parseDay, relativeDay } from '@/features/shared/days';
-import { formatShortDate, useI18n } from '@/i18n';
+import { BirthdayEditor, type BirthdayDraft } from '@/features/birthdays/BirthdayEditor';
+import { formatDayMonthLong } from '@/features/birthdays/format';
+import { parseDay, relativeDay } from '@/features/shared/days';
+import { formatShortDate, useI18n, type Language } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -25,12 +27,19 @@ import {
   Text,
 } from '@/ui';
 
-/** Geburtstage in dieser Spanne stehen oben. */
-export const BIRTHDAY_DAYS = 30;
-
 type Editor = { mode: 'new' } | { mode: 'edit'; row: ContactRow } | null;
 
-/** Menschen, Geburtstage, und wann man sich zuletzt gesehen hat. */
+/** Das Geburtsdatum eines Kontakts — ohne bekanntes Jahr nur Tag und Monat. */
+function birthdayText(language: Language, row: ContactRow & { birthday: string }): string {
+  return row.birthYearKnown === false
+    ? formatDayMonthLong(language, row.birthday)
+    : formatShortDate(language, parseDay(row.birthday).toISOString());
+}
+
+/**
+ * Menschen und wann man sich zuletzt gesehen hat. Geburtstage leben in der
+ * Funktion „Geburtstage“; hier fuehrt nur eine Zeile im Kontakt dorthin.
+ */
 export function ContactsView({ module }: { module: ModuleDefinition }) {
   const { t, language } = useI18n();
   const theme = useTheme();
@@ -38,19 +47,16 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
   const account = useAccount();
 
   const [editor, setEditor] = useState<Editor>(null);
+  const [birthday, setBirthday] = useState<BirthdayDraft | null>(null);
 
   const list = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
   const rows = list.data ?? [];
-  const birthdays = rows
-    .flatMap((row) => (row.birthday ? [{ row, next: nextBirthday(row.birthday) }] : []))
-    .filter((entry) => entry.next.days <= BIRTHDAY_DAYS)
-    .sort((a, b) => a.next.days - b.next.days);
 
   function subtitleOf(row: ContactRow): string | undefined {
     if (row.lastSeenOn) {
       return t('contacts.lastSeen', { when: relativeDay(t, language, row.lastSeenOn) });
     }
-    if (row.birthday) return formatShortDate(language, parseDay(row.birthday).toISOString());
+    if (row.birthday) return birthdayText(language, { ...row, birthday: row.birthday });
     return undefined;
   }
 
@@ -58,7 +64,7 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={t(rows.length === 1 ? 'contacts.count.one' : 'contacts.count', {
             count: rows.length,
           })}
@@ -71,41 +77,8 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
         <EmptyState title={t('contacts.empty.title')} body={t('contacts.empty.body')} />
       ) : null}
 
-      {birthdays.length > 0 ? (
-        <View style={{ gap: theme.spacing.sm }}>
-          <Text variant="section" tone="muted">
-            {t('contacts.birthdays')}
-          </Text>
-          <Card>
-            {birthdays.map(({ row, next }, index) => (
-              <View key={row.id}>
-                {index > 0 ? <Divider /> : null}
-                <SwipeRow onDelete={() => void contactRepo.remove(row.id)}>
-                  <ListItem
-                    title={row.name}
-                    icon="gift"
-                    subtitle={t('contacts.turns', { age: next.age })}
-                    right={
-                      <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
-                        {relativeDay(t, language, next.day)}
-                      </Text>
-                    }
-                    onPress={() => setEditor({ mode: 'edit', row })}
-                  />
-                </SwipeRow>
-              </View>
-            ))}
-          </Card>
-        </View>
-      ) : null}
-
       {rows.length > 0 ? (
         <View style={{ gap: theme.spacing.sm }}>
-          {birthdays.length > 0 ? (
-            <Text variant="section" tone="muted">
-              {t('contacts.everyone')}
-            </Text>
-          ) : null}
           <Card>
             {rows.map((row, index) => (
               <View key={row.id}>
@@ -131,7 +104,13 @@ export function ContactsView({ module }: { module: ModuleDefinition }) {
         editor={editor}
         accountId={account.id}
         onClose={() => setEditor(null)}
+        onBirthday={(row) => {
+          setEditor(null);
+          setBirthday({ contact: row });
+        }}
       />
+
+      <BirthdayEditor draft={birthday} accountId={account.id} onClose={() => setBirthday(null)} />
     </Screen>
   );
 }
@@ -140,40 +119,46 @@ function ContactEditor({
   editor,
   accountId,
   onClose,
+  onBirthday,
 }: {
   editor: Editor;
   accountId: string;
   onClose: () => void;
+  /** Der Geburtstag wird mit denselben Raedern eingetragen wie in „Geburtstage“. */
+  onBirthday: (row: ContactRow) => void;
 }) {
   const { t, language } = useI18n();
   const theme = useTheme();
   const existing = editor?.mode === 'edit' ? editor.row : null;
 
   const [name, setName] = useState(existing?.name ?? '');
-  const [birthdayText, setBirthdayText] = useState(
-    existing?.birthday ? formatDateValue(parseDay(existing.birthday)) : '',
-  );
   const [phone, setPhone] = useState(existing?.phone ?? '');
   const [note, setNote] = useState(existing?.note ?? '');
-  const [error, setError] = useState<'name' | 'birthday' | null>(null);
+  const [error, setError] = useState<'name' | null>(null);
 
   async function save() {
     if (name.trim().length === 0) {
       setError('name');
       return;
     }
-    const parsed = birthdayText.trim().length > 0 ? parseDateValue(birthdayText) : null;
-    if (birthdayText.trim().length > 0 && !parsed) {
-      setError('birthday');
-      return;
-    }
-    const birthday = parsed ? dayKey(parsed) : null;
     if (existing) {
-      await contactRepo.update(existing.id, { name, birthday, phone, note });
+      await contactRepo.update(existing.id, { name, phone, note });
     } else {
-      await contactRepo.add({ accountId, name, birthday, phone, note });
+      await contactRepo.add({ accountId, name, phone, note });
     }
     onClose();
+  }
+
+  /** Ein neuer Kontakt wird erst angelegt — der Geburtstag gehoert zu ihm. */
+  async function openBirthday() {
+    if (name.trim().length === 0) {
+      setError('name');
+      return;
+    }
+    const row = existing
+      ? await contactRepo.update(existing.id, { name, phone, note })
+      : await contactRepo.add({ accountId, name, phone, note });
+    if (row) onBirthday(row);
   }
 
   async function seenToday() {
@@ -207,13 +192,16 @@ function ContactEditor({
           autoCapitalize="words"
           {...(error === 'name' ? { error: t('contacts.error.name') } : {})}
         />
-        <Input
-          label={t('contacts.birthday')}
-          placeholder={t('contacts.birthdayPlaceholder')}
-          value={birthdayText}
-          onChangeText={setBirthdayText}
-          keyboardType="numbers-and-punctuation"
-          {...(error === 'birthday' ? { error: t('contacts.birthdayError') } : {})}
+        <ListItem
+          title={t('contacts.birthday')}
+          icon="gift"
+          subtitle={
+            existing?.birthday
+              ? birthdayText(language, { ...existing, birthday: existing.birthday })
+              : t('birthdays.add')
+          }
+          showChevron
+          onPress={() => void openBirthday()}
         />
         <Input
           label={t('contacts.phone')}

@@ -1,13 +1,27 @@
-import type { Translations } from './de';
+import type { TranslationKey } from './de';
+import { enA } from './en-a';
+import { enB } from './en-b';
+import { enBirthdays } from './en-birthdays';
+import { enC } from './en-c';
+import { enMailUi } from './en-mailui';
+import { enNotes } from './en-notes';
+import { enShell } from './en-shell';
+import { enTasks } from './en-tasks';
+import { enUi } from './en-ui';
+import { enVoice } from './en-voice';
+import { enWeather } from './en-weather';
 
-/** Noch nicht uebersetzt. Fehlende Schluessel fallen auf Deutsch zurueck. */
-export const en: Translations = {
-  'app.tagline': 'Everything your day needs — in one place.',
-  'common.continue': 'Continue',
-  'common.back': 'Back',
-  'tabs.today': 'Home',
-  'tabs.modules': 'Apps',
-  'tabs.assistant': 'Assistant',
-  'tabs.household': 'Household',
-  'tabs.profile': 'Profile',
+/** Englisch, vollstaendig: jeder Schluessel aus `de`. Fehlt einer, meldet es der Typ. */
+export const en: Readonly<Record<TranslationKey, string>> = {
+  ...enA,
+  ...enB,
+  ...enC,
+  ...enVoice,
+  ...enShell,
+  ...enTasks,
+  ...enNotes,
+  ...enBirthdays,
+  ...enWeather,
+  ...enMailUi,
+  ...enUi,
 };

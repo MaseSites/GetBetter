@@ -69,9 +69,7 @@ export type ModuleDefinition = {
   area: Area;
   /** Die Ueberschrift, unter der die Funktion in „Bereiche“ steht. */
   topic: Topic;
-  name: string;
-  short: string;
-  description: string;
+  /** Name, Kurztext und Beschreibung stehen in der Sprache: `moduleText.ts`. */
   icon: IconName;
   priority: ModulePriority;
   permissions: ModulePermissions;

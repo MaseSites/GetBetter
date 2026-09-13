@@ -18,17 +18,30 @@ import { useReducedMotion } from './useReducedMotion';
  * - `assemble` — die Stuecke fliegen an ihren Platz, danach schaut er sich um
  * - `idle`     — steht schon da und schaut sich um
  * - `turnAway` — dreht sich weg und blendet aus
+ * - `scatter`  — er zerfaellt und fliegt als Welle zum Ziel davon
  */
-export type AvatarPhase = 'assemble' | 'idle' | 'turnAway';
+export type AvatarPhase = 'assemble' | 'idle' | 'turnAway' | 'scatter';
+
+/** Wohin die Stuecke beim Zerfallen fliegen, in Punkten vom Mittelpunkt aus. */
+export type AvatarTarget = { x: number; y: number };
 
 export type ClubAvatarProps = {
   phase?: AvatarPhase;
   /** Kantenlaenge in Punkten. */
   size?: number;
+  /**
+   * Im Ruhezustand wandert nur der Blick, nicht der ganze Koerper. Ruhiger —
+   * gedacht fuer den Assistenten, wo er lange einfach dasteht.
+   */
+  gazeOnly?: boolean;
+  /** Ziel fuer `scatter`. Ohne Angabe fliegen die Stuecke einfach auseinander. */
+  target?: AvatarTarget;
   /** Alle Stuecke sitzen (ohne Bewegung: sofort). */
   onAssembled?: () => void;
   /** Weggedreht und ausgeblendet. */
   onTurnedAway?: () => void;
+  /** Zerfallen und angekommen — jetzt darf er aus dem Baum. */
+  onScattered?: () => void;
   /** Wechselt der Wert, nickt er kurz — etwa bei jedem Schritt im Gespraech. */
   bounceKey?: string | number;
 };
@@ -47,6 +60,13 @@ const BLINK_OPEN_MS = 110;
 const BLINK_PAUSES_MS = [2600, 3400, 140] as const;
 const BOUNCE_UP_MS = 140;
 const BOUNCE_DOWN_MS = 260;
+/** Zerfallen: ein Stueck fliegt so lange, alle zusammen brauchen so lange. */
+const SCATTER_MS = 760;
+const DRIFT_MS = 440;
+/** Wie lange der Blick fuer einmal hin und her braucht. Ruhig, nicht hektisch. */
+const GAZE_MS = 4200;
+/** Und wie lange er dazwischen stehen bleibt — sonst pendelt er, statt zu schauen. */
+const GAZE_HOLD_MS = 900;
 
 const SWAY_DEG = 16;
 const TURN_DEG = 90;
@@ -56,6 +76,13 @@ const HOVER_UNITS = 2.2;
 const FACE_DEPTH = 3.5;
 const SPARK_FLOAT = 2.8;
 const BLINK_CLOSED = 0.1;
+/** Wie weit die Augen dabei wandern, in Leinwand-Einheiten. */
+const GAZE_UNITS = 2.6;
+/** Beim Zerfallen: so klein wird ein Stueck, und so weit dreht es sich dabei. */
+const SCATTER_SCALE = 0.12;
+const SCATTER_SPIN_DEG = 140;
+/** Die Stuecke fliegen nicht schnurgerade — so weit weicht jedes seitlich aus. */
+const SCATTER_ARC = 0.22;
 const BOUNCE_SCALE = 1.08;
 const TURN_SCALE = 0.86;
 const CHEEK_OPACITY = 0.45;
@@ -75,7 +102,18 @@ type PieceMotion = {
   opacity: AnimatedNumber;
 };
 
-type Handlers = { onAssembled?: () => void; onTurnedAway?: () => void };
+/** Mehrere Bewegungen auf derselben Achse addieren; was fehlt, faellt weg. */
+function sum(parts: readonly (AnimatedNumber | null)[]): AnimatedNumber {
+  const [first, ...rest] = parts.filter((part): part is AnimatedNumber => part !== null);
+  if (!first) return new Animated.Value(0);
+  return rest.reduce<AnimatedNumber>((total, part) => Animated.add<number>(total, part), first);
+}
+
+type Handlers = {
+  onAssembled?: () => void;
+  onTurnedAway?: () => void;
+  onScattered?: () => void;
+};
 
 /**
  * Die ganze Bewegung lebt ausserhalb von React. Gerendert wird nur, wenn sich
@@ -89,6 +127,11 @@ class AvatarMotion {
   readonly blink = new Animated.Value(1);
   readonly away = new Animated.Value(0);
   readonly bounce = new Animated.Value(1);
+  /** Wohin er schaut: -1 links, 1 rechts. Bewegt nur die Augen. */
+  readonly gaze = new Animated.Value(0);
+  /** Wohin die Stuecke zerfallen. Wird von aussen gesetzt, wenn es gemessen ist. */
+  readonly targetX = new Animated.Value(0);
+  readonly targetY = new Animated.Value(0);
   readonly pieces: readonly PieceMotion[];
   readonly rotateY: Animated.AnimatedInterpolation<string>;
   readonly hoverY: AnimatedNumber;
@@ -144,6 +187,11 @@ class AvatarMotion {
     );
   }
 
+  /**
+   * Ein Stueck auf einer Bahn mit drei Punkten: 0 verstreut, 1 an seinem Platz,
+   * 2 im Ziel. Das Zusammensetzen laeuft von 0 nach 1, das Zerfallen von 1
+   * nach 2 — dieselbe Zahl, zwei Richtungen.
+   */
   private pieceMotion(
     piece: AvatarPiece,
     index: number,
@@ -151,15 +199,11 @@ class AvatarMotion {
   ): PieceMotion {
     const progress = new Animated.Value(0);
     const scatter = scatterOf(index);
-    const range = [0, 1];
-    const translateY = progress.interpolate<number>({
-      inputRange: range,
-      outputRange: [scatter.dy, 0],
-    });
+    const home = [0, 1];
     const peak = piece.tone === 'cheek' ? CHEEK_OPACITY : 1;
     const opacity = progress.interpolate<number>({
-      inputRange: [0, 0.3, 1],
-      outputRange: [0, peak, peak],
+      inputRange: [0, 0.3, 1, 1.7, 2],
+      outputRange: [0, peak, peak, peak, 0],
     });
     // Funken schweben gegeneinander, Glanzpunkte verschwinden beim Blinzeln.
     const float =
@@ -170,17 +214,69 @@ class AvatarMotion {
               index % 2 === 0 ? [-SPARK_FLOAT, SPARK_FLOAT] : [SPARK_FLOAT, -SPARK_FLOAT],
           })
         : null;
+    // Nur die Augen wandern — der Kopf bleibt, wo er ist.
+    const look = piece.blink
+      ? this.gaze.interpolate<number>({
+          inputRange: [-1, 1],
+          outputRange: [-GAZE_UNITS, GAZE_UNITS],
+        })
+      : null;
+
+    // Wie weit es auf dem Weg zum Ziel schon ist, und wie es dabei ausweicht.
+    const gone = progress.interpolate<number>({
+      inputRange: [1, 2],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    });
+    const arc = (span: number) =>
+      progress.interpolate<number>({
+        inputRange: [1, 1.5, 2],
+        outputRange: [0, span * SCATTER_ARC, 0],
+        extrapolate: 'clamp',
+      });
+
+    const homeX = progress.interpolate<number>({
+      inputRange: home,
+      outputRange: [scatter.dx, 0],
+      extrapolate: 'clamp',
+    });
+    const homeY = progress.interpolate<number>({
+      inputRange: home,
+      outputRange: [scatter.dy, 0],
+      extrapolate: 'clamp',
+    });
+
+    const translateX = sum([
+      homeX,
+      Animated.multiply<number>(gone, this.targetX),
+      arc(scatter.dx),
+      look,
+    ]);
+    const translateY = sum([
+      homeY,
+      Animated.multiply<number>(gone, this.targetY),
+      arc(scatter.dy),
+      float,
+    ]);
+    const spin = scatter.rotate < 0 ? -SCATTER_SPIN_DEG : SCATTER_SPIN_DEG;
 
     return {
       piece,
       progress,
-      translateX: progress.interpolate({ inputRange: range, outputRange: [scatter.dx, 0] }),
-      translateY: float ? Animated.add<number>(translateY, float) : translateY,
+      translateX,
+      translateY,
       rotate: progress.interpolate({
-        inputRange: range,
-        outputRange: [`${piece.rotate + scatter.rotate}deg`, `${piece.rotate}deg`],
+        inputRange: [0, 1, 2],
+        outputRange: [
+          `${piece.rotate + scatter.rotate}deg`,
+          `${piece.rotate}deg`,
+          `${piece.rotate + spin}deg`,
+        ],
       }),
-      scale: progress.interpolate({ inputRange: range, outputRange: [scatter.scale, 1] }),
+      scale: progress.interpolate({
+        inputRange: [0, 1, 2],
+        outputRange: [scatter.scale, 1, SCATTER_SCALE],
+      }),
       scaleY: piece.blink ? this.blink : 1,
       opacity: piece.blink === 'glint' ? Animated.multiply<number>(opacity, glintOpacity) : opacity,
     };
@@ -190,21 +286,31 @@ class AvatarMotion {
     this.handlers = handlers;
   }
 
-  play(phase: AvatarPhase, reduced: boolean) {
+  play(phase: AvatarPhase, reduced: boolean, gazeOnly: boolean) {
     if (phase === 'turnAway') {
       this.turnAway(reduced);
       return;
     }
+    if (phase === 'scatter') {
+      this.scatter(reduced);
+      return;
+    }
     this.comeBack();
     if (this.assembled) {
-      this.startIdle(reduced);
+      this.startIdle(reduced, gazeOnly);
       return;
     }
     if (phase === 'idle' || reduced) {
-      this.snap(reduced);
+      this.snap(reduced, gazeOnly);
       return;
     }
-    this.assemble();
+    this.assemble(gazeOnly);
+  }
+
+  /** Wohin die Stuecke zerfallen — gemessen, sobald der Platz bekannt ist. */
+  setTarget(target: AvatarTarget | undefined) {
+    this.targetX.setValue(target?.x ?? 0);
+    this.targetY.setValue(target?.y ?? 0);
   }
 
   nod(key: string | number | undefined, reduced: boolean) {
@@ -237,17 +343,21 @@ class AvatarMotion {
     return Animated.timing(value, { toValue, duration, easing, useNativeDriver });
   }
 
-  private snap(reduced: boolean) {
+  private snap(reduced: boolean, gazeOnly: boolean) {
     this.pieces.forEach(({ progress }) => progress.setValue(1));
     this.spin.setValue(1);
     this.assembled = true;
-    this.startIdle(reduced);
+    this.startIdle(reduced, gazeOnly);
     this.handlers.onAssembled?.();
   }
 
-  private assemble() {
+  private assemble(gazeOnly: boolean) {
     this.stopAll();
     this.spin.setValue(0);
+    this.blink.setValue(1);
+    // Nach einem Zerfall stehen die Stuecke im Ziel — von dort faengt niemand
+    // an. Sie gehen zuerst zurueck an ihre Startpunkte.
+    this.pieces.forEach(({ progress }) => progress.setValue(0));
     const flights = this.pieces.map(({ piece, progress }) =>
       Animated.timing(progress, {
         toValue: 1,
@@ -263,16 +373,53 @@ class AvatarMotion {
       if (!finished) return;
       this.running = null;
       this.assembled = true;
-      this.startIdle(false);
+      this.startIdle(false, gazeOnly);
       this.handlers.onAssembled?.();
     });
   }
 
-  private startIdle(reduced: boolean) {
+  /**
+   * Er zerfaellt und fliegt als Welle zum Ziel: was zuletzt angekommen war,
+   * geht zuerst. Wer weniger Bewegung wuenscht, sieht ihn nur ausblenden.
+   */
+  private scatter(reduced: boolean) {
+    this.stopAll();
+    this.blink.setValue(1);
+    this.assembled = false;
+
+    if (reduced) {
+      this.timing(this.away, 1, this.motion.duration.exit, this.motion.easing.inOut).start(
+        ({ finished }) => {
+          if (finished) this.handlers.onScattered?.();
+        },
+      );
+      return;
+    }
+
+    const flights = this.pieces.map(({ piece, progress }) =>
+      Animated.timing(progress, {
+        toValue: 2,
+        duration: DRIFT_MS,
+        delay: arrivalDelay(1 - piece.wave, SCATTER_MS, DRIFT_MS),
+        easing: this.motion.easing.inOut,
+        useNativeDriver,
+      }),
+    );
+    const run = Animated.parallel(flights);
+    this.running = run;
+    run.start(({ finished }) => {
+      if (!finished) return;
+      this.running = null;
+      this.handlers.onScattered?.();
+    });
+  }
+
+  private startIdle(reduced: boolean, gazeOnly: boolean) {
     this.stopLoops();
     if (reduced) {
       this.sway.setValue(0);
       this.hover.setValue(0);
+      this.gaze.setValue(0);
       return;
     }
     const ease = this.motion.easing.inOut;
@@ -281,31 +428,46 @@ class AvatarMotion {
       this.timing(this.blink, 1, BLINK_OPEN_MS),
     ];
     const [first, second, double] = BLINK_PAUSES_MS;
-    this.loops = [
-      Animated.loop(
-        Animated.sequence([
-          this.timing(this.sway, 1, SWAY_MS / 4, ease),
-          this.timing(this.sway, -1, SWAY_MS / 2, ease),
-          this.timing(this.sway, 0, SWAY_MS / 4, ease),
-        ]),
-      ),
-      Animated.loop(
-        Animated.sequence([
-          this.timing(this.hover, 1, HOVER_MS, ease),
-          this.timing(this.hover, -1, HOVER_MS, ease),
-        ]),
-      ),
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(first),
-          ...blink(),
-          Animated.delay(second),
-          ...blink(),
-          Animated.delay(double),
-          ...blink(),
-        ]),
-      ),
-    ];
+
+    // Der Blick wandert immer, mit Pausen dazwischen — so wirkt es wie
+    // Umschauen und nicht wie ein Pendel.
+    const looking = Animated.loop(
+      Animated.sequence([
+        Animated.delay(GAZE_HOLD_MS),
+        this.timing(this.gaze, 1, GAZE_MS / 4, ease),
+        Animated.delay(GAZE_HOLD_MS),
+        this.timing(this.gaze, -1, GAZE_MS / 2, ease),
+        Animated.delay(GAZE_HOLD_MS),
+        this.timing(this.gaze, 0, GAZE_MS / 4, ease),
+      ]),
+    );
+    const swaying = Animated.loop(
+      Animated.sequence([
+        this.timing(this.sway, 1, SWAY_MS / 4, ease),
+        this.timing(this.sway, -1, SWAY_MS / 2, ease),
+        this.timing(this.sway, 0, SWAY_MS / 4, ease),
+      ]),
+    );
+    const hovering = Animated.loop(
+      Animated.sequence([
+        this.timing(this.hover, 1, HOVER_MS, ease),
+        this.timing(this.hover, -1, HOVER_MS, ease),
+      ]),
+    );
+    const blinking = Animated.loop(
+      Animated.sequence([
+        Animated.delay(first),
+        ...blink(),
+        Animated.delay(second),
+        ...blink(),
+        Animated.delay(double),
+        ...blink(),
+      ]),
+    );
+
+    // Wo nur der Blick wandern soll, steht der Koerper still.
+    if (gazeOnly) this.sway.setValue(0);
+    this.loops = gazeOnly ? [looking, hovering, blinking] : [looking, swaying, hovering, blinking];
     this.loops.forEach((loop) => loop.start());
   }
 
@@ -362,8 +524,11 @@ function toneColors(theme: Theme): Record<PieceTone, string> {
 export function ClubAvatar({
   phase = 'assemble',
   size = 160,
+  gazeOnly = false,
+  target,
   onAssembled,
   onTurnedAway,
+  onScattered,
   bounceKey,
 }: ClubAvatarProps) {
   const theme = useTheme();
@@ -371,13 +536,23 @@ export function ClubAvatar({
   const [motion] = useState(() => new AvatarMotion(theme.motion));
 
   useEffect(() => {
-    motion.setHandlers({ onAssembled, onTurnedAway });
-  }, [motion, onAssembled, onTurnedAway]);
+    motion.setHandlers({ onAssembled, onTurnedAway, onScattered });
+  }, [motion, onAssembled, onTurnedAway, onScattered]);
+
+  // Auf die Zahlen hoeren, nicht auf das Objekt: sonst liefe der Effekt bei
+  // jedem Rendern, weil der Aufrufer es frisch baut.
+  const targetX = target?.x;
+  const targetY = target?.y;
+  useEffect(() => {
+    motion.setTarget(
+      targetX === undefined || targetY === undefined ? undefined : { x: targetX, y: targetY },
+    );
+  }, [motion, targetX, targetY]);
 
   useEffect(() => {
     if (reduced === null) return;
-    motion.play(phase, reduced);
-  }, [motion, phase, reduced]);
+    motion.play(phase, reduced, gazeOnly);
+  }, [motion, phase, reduced, gazeOnly]);
 
   useEffect(() => {
     if (reduced === null) return;

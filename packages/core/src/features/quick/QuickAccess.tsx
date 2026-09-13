@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { useI18n } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import { useTheme } from '@/theme';
 import { Icon, ModuleIcon, SectionHead, Text, usePhoneFrame } from '@/ui';
 
@@ -166,7 +167,7 @@ export function QuickAccess() {
                 <View style={styles.star}>
                   <StarButton
                     active={favorites.isFavorite(entry.appId, entry.module.id)}
-                    name={entry.module.name}
+                    name={moduleName(t, entry.module.id)}
                     onPress={() => favorites.toggle(entry.appId, entry.module.id)}
                   />
                 </View>
@@ -231,13 +232,12 @@ function FavoriteCard({
   const { t } = useI18n();
   const theme = useTheme();
   const appName = appNameOf(entry.appId);
+  const name = moduleName(t, entry.module.id);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={
-        foreign ? t('quick.inApp', { name: entry.module.name, app: appName }) : entry.module.name
-      }
+      accessibilityLabel={foreign ? t('quick.inApp', { name, app: appName }) : name}
       accessibilityHint={t('quick.editHint')}
       onPress={onOpen}
       onLongPress={onEdit}
@@ -261,7 +261,7 @@ function FavoriteCard({
           numberOfLines={1}
           style={{ fontWeight: theme.fontWeight.semibold }}
         >
-          {entry.module.name}
+          {name}
         </Text>
         {foreign ? (
           <Text variant="caption" tone="faint" align="center" numberOfLines={1}>

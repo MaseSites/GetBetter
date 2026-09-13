@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { households as householdRepo, useLiveQuery, type ChoreRepeat, type ChoreRow } from '@/db';
 import { chores as choreRepo } from '@/db/repositories';
 import { formatShortDate, useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -61,7 +62,7 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
 
   const header = (
     <Header
-      title={module.name}
+      title={moduleName(t, module.id)}
       subtitle={household ? household.name : t('chores.noHousehold.title')}
       showBack
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}

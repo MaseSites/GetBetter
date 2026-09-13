@@ -15,6 +15,7 @@ const crypto = require('node:crypto');
 
 const { dataDir, mailSyncMs } = require('./config.js');
 const { createMailService } = require('./mail/service.js');
+const { createSpeechService } = require('./speech/service.js');
 const {
   createNotification,
   deleteNotification,
@@ -307,6 +308,14 @@ async function serveUpload({ res, params: [id] }) {
 
 const ok = (status, body) => ({ status, body });
 
+// Echt klingende Stimmen. `BETTER_ELEVENLABS_URL` gilt nur fuer 127.0.0.1 (Tests).
+const speech = createSpeechService({
+  dataDir: dataDir(),
+  cors: CORS,
+  baseUrl: process.env.BETTER_ELEVENLABS_URL,
+  model: process.env.BETTER_SPEECH_MODEL,
+});
+
 /** `body: true` liest JSON; `raw: true` schreibt die Antwort selbst. */
 const ROUTES = [
   {
@@ -405,6 +414,26 @@ const ROUTES = [
     handler: ({ params: [id] }) => deleteUpload(id),
   },
 
+  // Stimmen
+  { method: 'GET', path: /^\/v1\/speech\/status$/, handler: () => speech.status() },
+  {
+    method: 'GET',
+    path: /^\/v1\/speech\/voices$/,
+    handler: ({ url }) => speech.voices(url.searchParams.get('language')),
+  },
+  {
+    method: 'POST',
+    path: /^\/v1\/speech$/,
+    body: true,
+    handler: ({ body }) => speech.prepare(body),
+  },
+  {
+    method: 'GET',
+    path: /^\/v1\/speech\/([a-f0-9]{32})\.mp3$/,
+    raw: true,
+    handler: ({ res, params: [id] }) => speech.serve(res, id),
+  },
+
   // E-Mail
   {
     method: 'GET',
@@ -430,6 +459,12 @@ const ROUTES = [
   },
   {
     method: 'POST',
+    path: /^\/v1\/mail\/messages\/actions$/,
+    body: true,
+    handler: ({ body }) => mail.messageActions(body),
+  },
+  {
+    method: 'POST',
     path: /^\/v1\/mail\/messages\/([^/]+)\/seen$/,
     body: true,
     handler: ({ params: [id], body }) => mail.markSeen(id, body),
@@ -440,10 +475,43 @@ const ROUTES = [
     handler: ({ params: [id] }) => mail.deleteMessage(id),
   },
   {
+    method: 'GET',
+    path: /^\/v1\/mail\/messages\/([^/]+)\/body$/,
+    handler: ({ params: [id], url }) =>
+      mail.messageBody(id, url.searchParams.get('images') === '1'),
+  },
+  {
+    method: 'GET',
+    path: /^\/v1\/mail\/messages\/([^/]+)\/attachments\/([^/]+)$/,
+    raw: true,
+    handler: ({ res, params: [id, index] }) => mail.serveAttachment(res, id, index, CORS),
+  },
+  {
     method: 'POST',
     path: /^\/v1\/mail\/send$/,
     body: true,
     handler: ({ body }) => mail.send(body),
+  },
+  {
+    method: 'POST',
+    path: /^\/v1\/mail\/send\/([^/]+)\/cancel$/,
+    handler: ({ params: [id] }) => mail.cancelSend(id),
+  },
+  {
+    method: 'GET',
+    path: /^\/v1\/mail\/send\/([^/]+)$/,
+    handler: ({ params: [id] }) => mail.sendStatus(id),
+  },
+  {
+    method: 'POST',
+    path: /^\/v1\/mail\/drafts$/,
+    body: true,
+    handler: ({ body }) => mail.saveDraft(body),
+  },
+  {
+    method: 'DELETE',
+    path: /^\/v1\/mail\/drafts\/([^/]+)$/,
+    handler: ({ params: [id] }) => mail.deleteDraft(id),
   },
 ];
 
@@ -497,4 +565,8 @@ server.on('error', (error) => {
 server.listen(PORT, () => {
   process.stdout.write(`Datenbank laeuft auf http://localhost:${PORT}\n`);
   mail.startScheduler(mailSyncMs());
+  // Mails, die vor einem Neustart noch warteten, gehen jetzt hinaus.
+  mail.resumeOutbox().catch((error) => {
+    process.stderr.write(`[mail] Postausgang: ${error?.name ?? 'Error'}\n`);
+  });
 });

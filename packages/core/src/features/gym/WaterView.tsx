@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { dayKey, drinks as drinkRepo, useLiveQuery } from '@/db';
 import { useI18n } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -28,7 +29,7 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={t('water.target', { target: TARGET_DL / 10 })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}

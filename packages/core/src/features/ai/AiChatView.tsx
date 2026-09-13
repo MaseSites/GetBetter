@@ -3,9 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
-import { DarkSurface, Message } from '@/features/assistant/AssistantView';
+import { Message } from '@/features/assistant/AssistantView';
 import { useTranslate } from '@/i18n';
-import { AI_CHAT_CANNED_REPLY, AI_CHAT_REPLY_DELAY_MS, AI_CHAT_STARTERS } from '@/mocks/aiChat';
+import {
+  AI_CHAT_CANNED_REPLY_KEY,
+  AI_CHAT_REPLY_DELAY_MS,
+  AI_CHAT_STARTER_KEYS,
+} from '@/mocks/aiChat';
+import { moduleName } from '@/mocks/moduleText';
 import type { AssistantMessage, ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -23,17 +28,9 @@ export type AiChatViewProps = {
 /**
  * Das Modul "KI-Chat": ein offenes Gespraech, ohne Zugriff auf die Module.
  * Bewusst schlichter als der Assistent — keine Modul-Marken, keine Bestaetigung —,
- * aber auf derselben dunklen Flaeche und mit demselben Feld.
+ * aber mit demselben Feld.
  */
-export function AiChatView(props: AiChatViewProps) {
-  return (
-    <DarkSurface>
-      <ChatView {...props} />
-    </DarkSurface>
-  );
-}
-
-function ChatView({ module, chatId }: AiChatViewProps) {
+export function AiChatView({ module, chatId }: AiChatViewProps) {
   const t = useTranslate();
   const theme = useTheme();
   const router = useRouter();
@@ -85,7 +82,7 @@ function ChatView({ module, chatId }: AiChatViewProps) {
     setThinking(true);
     timer.current = setTimeout(() => {
       setThinking(false);
-      void append('assistant', AI_CHAT_CANNED_REPLY);
+      void append('assistant', t(AI_CHAT_CANNED_REPLY_KEY));
     }, AI_CHAT_REPLY_DELAY_MS);
   }
 
@@ -96,7 +93,7 @@ function ChatView({ module, chatId }: AiChatViewProps) {
     else router.replace('/');
   }
 
-  const title = chatId ? chat.data?.title || t('chats.untitled') : module.name;
+  const title = chatId ? chat.data?.title || t('chats.untitled') : moduleName(t, module.id);
   const empty = messages.length === 0 && !thinking;
 
   return (
@@ -133,12 +130,12 @@ function ChatView({ module, chatId }: AiChatViewProps) {
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ gap: theme.spacing.sm }}
             >
-              {AI_CHAT_STARTERS.map((starter) => (
+              {AI_CHAT_STARTER_KEYS.map((key) => (
                 <SuggestionChip
-                  key={starter}
-                  label={starter}
+                  key={key}
+                  label={t(key)}
                   disabled={thinking}
-                  onPress={() => ask(starter)}
+                  onPress={() => ask(t(key))}
                 />
               ))}
             </ScrollView>

@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
+import { useNarration } from '@/features/intro/narration';
+import { NarrationButton } from '@/features/intro/NarrationButton';
 import { SpeechBubble } from '@/features/intro/SpeechBubble';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
@@ -47,6 +49,8 @@ export function AuthShell({
 }: AuthShellProps) {
   const t = useTranslate();
   const theme = useTheme();
+  // Er sagt laut, was in seiner Blase steht — schon bevor es ein Konto gibt.
+  const narration = useNarration(`auth:${bubble ?? ''}`, bubble ?? '');
 
   return (
     <Screen
@@ -69,6 +73,7 @@ export function AuthShell({
           <View style={styles.bubble}>
             <SpeechBubble text={bubble} tail="left" />
           </View>
+          <NarrationButton narration={narration} />
         </View>
       ) : null}
 

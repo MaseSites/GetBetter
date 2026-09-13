@@ -25,6 +25,8 @@ export const deSettings = {
   'settings.style': 'Aussehen',
   'settings.backdrop': 'Hintergrund',
   'settings.assistant.none': 'Noch ohne Namen',
+  'settings.voice': 'Stimme',
+  'settings.voice.default': 'Standard',
 
   'settings.household': 'Haushalt',
   'settings.household.none': 'Du bist noch in keinem Haushalt.',

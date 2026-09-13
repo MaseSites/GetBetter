@@ -1,16 +1,26 @@
 /**
  * Die E-Mail-Schnittstellen des Dienstes: Anbieter raten, Postfach verbinden
- * und trennen, abgleichen, gelesen markieren, loeschen und senden.
+ * und trennen, abgleichen, senden (auch verzoegert, als Antwort oder
+ * Weiterleitung), Entwuerfe — und die Handgriffe an einer oder vielen
+ * Nachrichten (gelesen, markiert, verschoben, geloescht).
  *
  * Jede Funktion antwortet mit `{ status, body }`; server.js schickt es nur ab.
  * Passwoerter kommen nur hier herein und gehen direkt in den Tresor.
+ * HTML und Anhaenge liefert `bodies.js`, Entwuerfe `drafts.js`, das Warten vor
+ * dem Senden `outbox.js`.
  */
 const path = require('node:path');
 
+const { buildNotification } = require('../notifications.js');
 const { load, newId, rowsOf, save } = require('../store.js');
+const { createBodies } = require('./bodies.js');
+const { forwardSubject, forwardText, referencesFor } = require('./compose.js');
 const { MailError } = require('./connection.js');
-const { connectImap, findSent, findTrash, withImap } = require('./imap.js');
+const { createDrafts } = require('./drafts.js');
+const { findSent, isRole, resolveFolder } = require('./folders.js');
+const { connectImap, sequenceSet, withImap } = require('./imap.js');
 const { parseAddressList } = require('./mime.js');
+const { createOutbox } = require('./outbox.js');
 const { detectProvider, requiresOAuth } = require('./providers.js');
 const { buildMessage, sendMail } = require('./smtp.js');
 const { createMailSync } = require('./sync.js');
@@ -21,6 +31,21 @@ const HOST_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const MAX_RECIPIENTS = 50;
 const MAX_SUBJECT = 500;
 const MAX_TEXT = 100_000;
+/** So viele Nachrichten darf ein Handgriff auf einmal betreffen. */
+const MAX_ACTION_IDS = 100;
+/** „Rueckgaengig“ geht hoechstens so lange. */
+const MAX_DELAY_MS = 20_000;
+
+/** Was mit einer Nachricht geschehen kann. `move` braucht dazu eine Rolle. */
+const FLAG_ACTIONS = {
+  seen: { flag: '\\Seen', add: true },
+  unseen: { flag: '\\Seen', add: false },
+  flag: { flag: '\\Flagged', add: true },
+  unflag: { flag: '\\Flagged', add: false },
+};
+const ACTIONS = new Set([...Object.keys(FLAG_ACTIONS), 'move', 'delete']);
+/** Nach diesen Handgriffen ist die Nachricht dort, wo sie war, nicht mehr. */
+const LEAVES_FOLDER = new Set(['move', 'delete']);
 
 const reply = (status, body) => ({ status, body });
 const badRequest = () => reply(400, { error: 'bad_request' });
@@ -49,6 +74,12 @@ function readPort(value) {
 }
 
 const singleLine = (value) => typeof value === 'string' && !/[\r\n\0]/.test(value);
+
+/** Eine Id, die fehlen darf: `undefined`, `null` oder ein kurzer Text. */
+const optionalId = (value) =>
+  value === undefined ||
+  value === null ||
+  (typeof value === 'string' && value.length > 0 && value.length <= 100);
 
 function readAccountForm(input) {
   if (!input || typeof input !== 'object') return null;
@@ -101,18 +132,90 @@ function readRecipients(value, required) {
   return addresses.every((address) => address !== null) ? addresses : null;
 }
 
+/** Was eine Mail zum Schreiben braucht — fuers Senden (`to` Pflicht) wie fuer Entwuerfe. */
+function readMessageForm(input, { toRequired }) {
+  if (!input || typeof input !== 'object') return null;
+  const to = readRecipients(input.to, toRequired);
+  const cc = readRecipients(input.cc, false);
+  const bcc = readRecipients(input.bcc, false);
+  const { mailAccountId, subject, text, inReplyTo, draftId } = input;
+  const valid =
+    typeof mailAccountId === 'string' &&
+    to !== null &&
+    cc !== null &&
+    bcc !== null &&
+    typeof subject === 'string' &&
+    subject.length <= MAX_SUBJECT &&
+    typeof text === 'string' &&
+    text.length <= MAX_TEXT &&
+    optionalId(inReplyTo) &&
+    optionalId(draftId);
+  if (!valid) return null;
+  return {
+    mailAccountId,
+    to,
+    cc,
+    bcc,
+    subject,
+    text,
+    inReplyTo: inReplyTo ?? null,
+    draftId: draftId ?? null,
+  };
+}
+
+function readSendForm(input) {
+  const form = readMessageForm(input, { toRequired: true });
+  if (!form) return null;
+  const forwardOf = input.forwardOf ?? null;
+  const delayMs = input.delayMs ?? 0;
+  const valid =
+    optionalId(forwardOf) &&
+    !(form.inReplyTo !== null && forwardOf !== null) &&
+    Number.isInteger(delayMs) &&
+    delayMs >= 0 &&
+    delayMs <= MAX_DELAY_MS;
+  return valid ? { ...form, forwardOf, delayMs } : null;
+}
+
+function readDraftForm(input) {
+  const form = readMessageForm(
+    input && typeof input === 'object'
+      ? { subject: '', text: '', ...input, to: input.to ?? [] }
+      : input,
+    { toRequired: false },
+  );
+  const accountId = input?.accountId;
+  return form && typeof accountId === 'string' && accountId.length > 0
+    ? { ...form, accountId }
+    : null;
+}
+
 // ------------------------------------------------------------------ Fehler
 
 const CONNECT_ERRORS = new Set(['auth_failed', 'unreachable', 'tls_failed', 'timeout']);
+const SEND_ERRORS = new Set([
+  'auth_failed',
+  'send_failed',
+  'bad_request',
+  'not_found',
+  'tls_failed',
+  'timeout',
+]);
+const DRAFT_ERRORS = new Set(['not_found', 'folder_missing', ...CONNECT_ERRORS]);
+
+const codeOf = (error) => (error instanceof MailError ? error.code : '');
 
 function connectError(error) {
-  const code = error instanceof MailError ? error.code : '';
-  return CONNECT_ERRORS.has(code) ? code : 'unreachable';
+  return CONNECT_ERRORS.has(codeOf(error)) ? codeOf(error) : 'unreachable';
 }
 
 function sendError(error) {
-  const code = error instanceof MailError ? error.code : '';
-  return ['auth_failed', 'send_failed', 'bad_request'].includes(code) ? code : 'unreachable';
+  return SEND_ERRORS.has(codeOf(error)) ? codeOf(error) : 'unreachable';
+}
+
+function draftError(error) {
+  const code = DRAFT_ERRORS.has(codeOf(error)) ? codeOf(error) : 'unreachable';
+  return reply(code === 'not_found' ? 404 : 400, { error: code });
 }
 
 // ------------------------------------------------------------------ Dienst
@@ -120,6 +223,13 @@ function sendError(error) {
 function createMailService({ dataDir }) {
   const vault = createVault(dataDir);
   const sync = createMailSync({ vault, stateFile: path.join(dataDir, 'mail-state.json') });
+  const bodies = createBodies({ dataDir, vault, sync });
+  const drafts = createDrafts({ dataDir, vault, sync, onRemoved: (ids) => bodies.forget(ids) });
+  const outbox = createOutbox({
+    file: path.join(dataDir, 'mail-outbox.json'),
+    deliver,
+    onFailure: reportSendFailure,
+  });
 
   function providers(email) {
     const address = String(email ?? '')
@@ -180,6 +290,8 @@ function createMailService({ dataDir }) {
       provider: preset.provider,
       username: form.username,
       ...settings,
+      // Welche Ordner es gibt, sagt der erste Abgleich.
+      folders: [],
       connectedAt: new Date().toISOString(),
       lastSyncAt: null,
       lastError: null,
@@ -209,13 +321,16 @@ function createMailService({ dataDir }) {
     db.tables.notifications = rowsOf(db, 'notifications').filter(
       (row) =>
         !(
-          row.kind === 'mail' &&
+          (row.kind === 'mail' || row.kind === 'system') &&
           (row.ref?.mailAccountId === id || gone.has(row.ref?.mailMessageId))
         ),
     );
     await save();
+    await outbox.dropMailbox(id);
     await vault.remove(id);
     await sync.forget(id);
+    await drafts.forgetMailbox(id);
+    await bodies.forget(gone);
     return reply(200, { ok: true });
   }
 
@@ -225,89 +340,180 @@ function createMailService({ dataDir }) {
     return reply(200, await sync.syncAccountsOf(accountId));
   }
 
-  /** Oeffnet den Ordner einer Nachricht und prueft, dass ihre UID noch gilt. */
-  async function onMessage(message, account, task) {
+  // ---------------------------------------------------------------- Handgriffe
+
+  function groupBy(rows, key) {
+    const groups = new Map();
+    for (const row of rows) groups.set(row[key], [...(groups.get(row[key]) ?? []), row]);
+    return groups;
+  }
+
+  /**
+   * Fuehrt eine Handlung auf den Nachrichten **eines** Postfachs aus: eine
+   * Verbindung, je Ordner ein SELECT. Zurueck kommen die Zeilen, die wirklich
+   * drankamen — bei einem Abbruch also weniger, als hineingingen.
+   */
+  async function actOnAccount(account, rows, action, role) {
     const password = await vault.get(account.id).catch(() => null);
-    if (password === null) throw new MailError('auth_failed');
+    if (password === null) return { error: 'auth_failed', done: [] };
     const state = await sync.stateOf(account.id);
-    await withImap(sync.imapOptions(account, password), async (client) => {
-      const box = await client.select(message.folder);
-      if (state && box.uidValidity !== null && state.uidValidity !== box.uidValidity) {
-        throw new MailError('stale');
-      }
-      await task(client, String(message.uid));
-    });
-  }
-
-  async function findMessage(id) {
-    const db = await load();
-    const message = rowsOf(db, 'mailMessages').find((row) => row.id === id);
-    const account = message
-      ? rowsOf(db, 'mailAccounts').find((row) => row.id === message.mailAccountId)
-      : undefined;
-    return message && account ? { message, account } : null;
-  }
-
-  async function markSeen(id, input) {
-    const seen = input && typeof input === 'object' ? input.seen : undefined;
-    if (typeof seen !== 'boolean') return badRequest();
-    const found = await findMessage(id);
-    if (!found) return notFound();
+    const byFolder = groupBy(rows, 'folder');
+    let done = [];
     try {
-      await onMessage(found.message, found.account, (client, uid) =>
-        client.uidStore(uid, seen ? '+FLAGS.SILENT' : '-FLAGS.SILENT', ['\\Seen']),
-      );
+      await withImap(sync.imapOptions(account, password), async (client) => {
+        const wanted = action === 'move' ? role : action === 'delete' ? 'trash' : null;
+        const target =
+          wanted === null ? null : await resolveFolder(client, account.folders, wanted);
+        if (action === 'move' && target === null) throw new MailError('folder_missing');
+        for (const [folder, list] of byFolder) {
+          // Was schon im Zielordner liegt, bleibt liegen.
+          if (action === 'move' && target === folder) continue;
+          const box = await client.select(folder);
+          const known = state?.folders?.[folder]?.uidValidity;
+          // Neue UIDVALIDITY heisst: die gemerkten UIDs meinen andere Mails.
+          if (known !== undefined && box.uidValidity !== null && known !== box.uidValidity) {
+            throw new MailError('stale');
+          }
+          const set = sequenceSet(list.map((row) => row.uid));
+          if (LEAVES_FOLDER.has(action)) {
+            if (target && target !== folder) await client.uidMove(set, target);
+            else await client.expungeUids(set);
+          } else {
+            const change = FLAG_ACTIONS[action];
+            await client.uidStore(set, change.add ? '+FLAGS.SILENT' : '-FLAGS.SILENT', [
+              change.flag,
+            ]);
+          }
+          done = [...done, ...list];
+        }
+      });
     } catch (error) {
-      if (error instanceof MailError && error.code === 'stale') return notFound();
-      return reply(400, { error: connectError(error) });
+      const code = codeOf(error);
+      if (code === 'stale') return { error: 'not_found', done };
+      if (code === 'folder_missing') return { error: 'folder_missing', done };
+      return { error: connectError(error), done };
     }
-    sync.touch(id);
+    return { error: null, done };
+  }
+
+  /** Schreibt in die Tabellen, was auf dem Mailserver schon geschehen ist. */
+  async function recordAction(account, done, action) {
     const db = await load();
-    const now = new Date().toISOString();
-    db.tables.mailMessages = rowsOf(db, 'mailMessages').map((row) =>
-      row.id === id ? { ...row, seen } : row,
-    );
-    if (seen) {
+    const messages = rowsOf(db, 'mailMessages');
+    const ids = new Set(done.map((row) => row.id));
+
+    if (LEAVES_FOLDER.has(action)) {
+      for (const row of done) sync.markDeleted(account.id, row.folder, row.uid);
+      // Auch eine Kopie, die ein gleichzeitiger Abgleich eben neu angelegt hat.
+      const places = new Set(done.map((row) => `${row.folder}:${row.uid}`));
+      const gone = new Set(
+        messages
+          .filter(
+            (row) =>
+              ids.has(row.id) ||
+              (row.mailAccountId === account.id && places.has(`${row.folder}:${row.uid}`)),
+          )
+          .map((row) => row.id),
+      );
+      db.tables.mailMessages = messages.filter((row) => !gone.has(row.id));
+      db.tables.notifications = rowsOf(db, 'notifications').filter(
+        (row) => !(row.kind === 'mail' && gone.has(row.ref?.mailMessageId)),
+      );
+      await save();
+      // Die verschobene Mail bekommt im Zielordner eine neue Id — der alte Text ist verwaist.
+      await bodies.forget(gone);
+      return;
+    }
+
+    const change = FLAG_ACTIONS[action];
+    const patch = change.flag === '\\Seen' ? { seen: change.add } : { flagged: change.add };
+    for (const row of done) sync.touch(row.id);
+    db.tables.mailMessages = messages.map((row) => (ids.has(row.id) ? { ...row, ...patch } : row));
+    if (patch.seen === true) {
+      const now = new Date().toISOString();
       db.tables.notifications = rowsOf(db, 'notifications').map((row) =>
-        row.kind === 'mail' && row.ref?.mailMessageId === id && !row.readAt
+        row.kind === 'mail' && ids.has(row.ref?.mailMessageId) && !row.readAt
           ? { ...row, readAt: now }
           : row,
       );
     }
     await save();
-    return reply(200, { ok: true });
+  }
+
+  function readActionForm(input) {
+    if (!input || typeof input !== 'object') return null;
+    const { ids, action, role } = input;
+    const valid =
+      Array.isArray(ids) &&
+      ids.length > 0 &&
+      ids.length <= MAX_ACTION_IDS &&
+      ids.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 100) &&
+      typeof action === 'string' &&
+      ACTIONS.has(action) &&
+      (action !== 'move' || isRole(role));
+    return valid ? { ids: [...new Set(ids)], action, role: action === 'move' ? role : null } : null;
+  }
+
+  /**
+   * Eine Handlung auf beliebig vielen Nachrichten, ueber Postfaecher hinweg.
+   * Was geklappt hat, wird sofort geschrieben; der erste Fehler kommt zurueck,
+   * sobald gar nichts mehr uebrig ist.
+   */
+  async function runAction(input) {
+    const form = readActionForm(input);
+    if (!form) return { status: 400, error: 'bad_request' };
+    const db = await load();
+    const wanted = new Set(form.ids);
+    const rows = rowsOf(db, 'mailMessages').filter((row) => wanted.has(row.id));
+    if (rows.length === 0) return { status: 404, error: 'not_found' };
+    const accounts = rowsOf(db, 'mailAccounts');
+
+    let failure = null;
+    let changed = 0;
+    let moved = [];
+    for (const [mailAccountId, list] of groupBy(rows, 'mailAccountId')) {
+      const account = accounts.find((row) => row.id === mailAccountId);
+      if (!account) {
+        failure = failure ?? 'not_found';
+        continue;
+      }
+      const result = await actOnAccount(account, list, form.action, form.role);
+      if (result.done.length > 0) {
+        await recordAction(account, result.done, form.action);
+        changed += result.done.length;
+        if (form.action === 'move') moved = [...moved, mailAccountId];
+      }
+      failure = failure ?? result.error;
+    }
+    // Nach dem Verschieben liegt die Nachricht im Zielordner — der Abgleich holt
+    // sie dort ab, ohne sie als Neuigkeit zu melden.
+    for (const id of moved) await sync.syncMailAccount(id, { manual: true, quiet: true });
+    if (failure && changed === 0) {
+      return { status: failure === 'not_found' ? 404 : 400, error: failure };
+    }
+    return { status: 200, changed };
+  }
+
+  async function markSeen(id, input) {
+    const seen = input && typeof input === 'object' ? input.seen : undefined;
+    if (typeof seen !== 'boolean') return badRequest();
+    const result = await runAction({ ids: [id], action: seen ? 'seen' : 'unseen' });
+    return result.error ? reply(result.status, { error: result.error }) : reply(200, { ok: true });
   }
 
   async function deleteMessage(id) {
-    const found = await findMessage(id);
-    if (!found) return notFound();
-    try {
-      await onMessage(found.message, found.account, async (client, uid) => {
-        const trash = findTrash(await client.list());
-        if (trash && trash !== found.message.folder) await client.uidMove(uid, trash);
-        else await client.expungeUids(uid);
-      });
-    } catch (error) {
-      if (error instanceof MailError && error.code === 'stale') return notFound();
-      return reply(400, { error: connectError(error) });
-    }
-    sync.markDeleted(found.account.id, found.message.uid);
-    const db = await load();
-    const messages = rowsOf(db, 'mailMessages');
-    // Auch eine Kopie, die ein gleichzeitiger Abgleich eben neu angelegt hat.
-    const sameMail = (row) =>
-      row.id === id ||
-      (row.mailAccountId === found.account.id &&
-        row.folder === found.message.folder &&
-        row.uid === found.message.uid);
-    const gone = new Set(messages.filter(sameMail).map((row) => row.id));
-    db.tables.mailMessages = messages.filter((row) => !gone.has(row.id));
-    db.tables.notifications = rowsOf(db, 'notifications').filter(
-      (row) => !(row.kind === 'mail' && gone.has(row.ref?.mailMessageId)),
-    );
-    await save();
-    return reply(200, { ok: true });
+    const result = await runAction({ ids: [id], action: 'delete' });
+    return result.error ? reply(result.status, { error: result.error }) : reply(200, { ok: true });
   }
+
+  async function messageActions(input) {
+    const result = await runAction(input);
+    return result.error
+      ? reply(result.status, { error: result.error })
+      : reply(200, { ok: true, changed: result.changed });
+  }
+
+  // ---------------------------------------------------------------- Senden
 
   /** Legt eine Kopie in „Gesendet“ ab. Gmail macht das selbst — dort doppelt es nur. */
   function storeInSent(account, password, raw) {
@@ -320,44 +526,77 @@ function createMailService({ dataDir }) {
     });
   }
 
-  async function send(input) {
-    if (!input || typeof input !== 'object') return badRequest();
-    const to = readRecipients(input.to, true);
-    const cc = readRecipients(input.cc, false);
-    const { mailAccountId, subject, text, inReplyTo } = input;
-    const valid =
-      typeof mailAccountId === 'string' &&
-      to !== null &&
-      cc !== null &&
-      typeof subject === 'string' &&
-      subject.length <= MAX_SUBJECT &&
-      typeof text === 'string' &&
-      text.length <= MAX_TEXT &&
-      (inReplyTo === undefined || inReplyTo === null || typeof inReplyTo === 'string');
-    if (!valid) return badRequest();
+  /** Die Zeile, auf die sich Antwort oder Weiterleitung bezieht: `undefined`, wenn es sie nicht gibt. */
+  function relatedMessage(db, id, account) {
+    if (id === null) return null;
+    return rowsOf(db, 'mailMessages').find(
+      (row) => row.id === id && row.accountId === account.accountId,
+    );
+  }
 
+  const senderOf = (account) => ({ name: account.displayName, address: account.email });
+
+  /**
+   * Prueft und baut eine Mail fertig: die Fassung fuer SMTP (ohne Bcc) und die
+   * Kopie fuer „Gesendet“ (mit Bcc), beide mit derselben Message-ID.
+   */
+  async function prepareSend(input) {
+    const form = readSendForm(input);
+    if (!form) return { failure: badRequest() };
     const db = await load();
-    const account = rowsOf(db, 'mailAccounts').find((row) => row.id === mailAccountId);
-    if (!account) return notFound(400);
-    const parent =
-      typeof inReplyTo === 'string'
-        ? rowsOf(db, 'mailMessages').find(
-            (row) => row.id === inReplyTo && row.accountId === account.accountId,
-          )
-        : null;
-    if (parent === undefined) return notFound(400);
-
+    const account = rowsOf(db, 'mailAccounts').find((row) => row.id === form.mailAccountId);
+    if (!account) return { failure: notFound(400) };
+    const parent = relatedMessage(db, form.inReplyTo, account);
+    const original = relatedMessage(db, form.forwardOf, account);
+    if (parent === undefined || original === undefined) return { failure: notFound(400) };
     const password = await vault.get(account.id).catch(() => null);
-    if (password === null) return reply(400, { error: 'auth_failed' });
+    if (password === null) return { failure: reply(400, { error: 'auth_failed' }) };
+
+    const sendAt = new Date(Date.now() + form.delayMs);
+    const subject =
+      original && form.subject.trim() === '' ? forwardSubject(original.subject) : form.subject;
+    const message = {
+      from: senderOf(account),
+      to: form.to,
+      cc: form.cc,
+      bcc: form.bcc,
+      subject,
+      text: original ? forwardText(form.text, original) : form.text,
+      inReplyTo: parent?.messageId ?? null,
+      references: parent ? referencesFor(parent) : [],
+      date: sendAt,
+    };
     try {
-      const { raw } = buildMessage({
-        from: { name: account.displayName, address: account.email },
-        to,
-        cc,
+      const wire = buildMessage(message);
+      const copy = buildMessage({ ...message, includeBcc: true, messageId: wire.messageId });
+      const job = {
+        sendId: newId('snd'),
+        accountId: account.accountId,
+        mailAccountId: account.id,
+        recipients: [...new Set([...form.to, ...form.cc, ...form.bcc])],
+        raw: wire.raw.toString('latin1'),
+        sentCopy: copy.raw.toString('latin1'),
+        messageId: wire.messageId,
         subject,
-        text,
-        inReplyTo: parent?.messageId ?? null,
-      });
+        draftId: form.draftId,
+        sendAt: sendAt.toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      return { job, delayMs: form.delayMs };
+    } catch (error) {
+      return { failure: reply(400, { error: sendError(error) }) };
+    }
+  }
+
+  /** Schickt eine fertig gebaute Mail ab — sofort oder, aus dem Postausgang, nach der Wartezeit. */
+  async function deliver(job) {
+    const account = rowsOf(await load(), 'mailAccounts').find(
+      (row) => row.id === job.mailAccountId,
+    );
+    if (!account) throw new MailError('not_found');
+    const password = await vault.get(account.id).catch(() => null);
+    if (password === null) throw new MailError('auth_failed');
+    try {
       await sendMail({
         host: account.smtpHost,
         port: account.smtpPort,
@@ -365,14 +604,137 @@ function createMailService({ dataDir }) {
         username: account.username,
         password,
         from: account.email,
-        recipients: [...to, ...cc],
-        raw,
+        recipients: job.recipients,
+        raw: Buffer.from(job.raw, 'latin1'),
       });
-      storeInSent(account, password, raw);
     } catch (error) {
-      return reply(400, { error: sendError(error) });
+      throw new MailError(sendError(error));
     }
-    return reply(200, { ok: true });
+    storeInSent(account, password, Buffer.from(job.sentCopy, 'latin1'));
+    if (job.draftId) {
+      drafts.removeDraft(job.draftId).catch((error) => {
+        process.stderr.write(
+          `[mail] Entwurf nach dem Senden geblieben: ${codeOf(error) || 'Error'}\n`,
+        );
+      });
+    }
+  }
+
+  /**
+   * Eine verzoegerte Mail kam nicht hinaus, und die App ist vielleicht schon zu:
+   * die Mail wird als Entwurf gesichert, und es gibt eine Mitteilung.
+   */
+  async function reportSendFailure(job, error) {
+    const account = rowsOf(await load(), 'mailAccounts').find(
+      (row) => row.id === job.mailAccountId,
+    );
+    const draftId = account
+      ? await drafts
+          .saveDraft({
+            account,
+            raw: Buffer.from(job.sentCopy, 'latin1'),
+            messageId: job.messageId,
+          })
+          .catch(() => null)
+      : null;
+    const db = await load();
+    if (!rowsOf(db, 'accounts').some((row) => row.id === job.accountId)) return;
+    const notification = buildNotification({
+      accountId: job.accountId,
+      kind: 'system',
+      title: String(job.subject ?? '').slice(0, 300),
+      body: job.recipients.join(', ').slice(0, 2000),
+      ref: {
+        reason: 'mailSendFailed',
+        sendId: job.sendId,
+        mailAccountId: job.mailAccountId,
+        error,
+        ...(draftId ? { draftId } : {}),
+      },
+      app: 'getbetter',
+    });
+    db.tables.notifications = [...rowsOf(db, 'notifications'), notification];
+    await save();
+  }
+
+  /**
+   * `delayMs` 0: sofort, `{ ok: true }`. Sonst wartet die Mail im Dienst und
+   * die Antwort ist `202 { sendId, sendAt }` — bis dahin laesst sie sich abbrechen.
+   */
+  async function send(input) {
+    const prepared = await prepareSend(input);
+    if (prepared.failure) return prepared.failure;
+    if (prepared.delayMs === 0) {
+      try {
+        await deliver(prepared.job);
+      } catch (error) {
+        return reply(400, { error: sendError(error) });
+      }
+      return reply(200, { ok: true });
+    }
+    return reply(202, await outbox.schedule(prepared.job));
+  }
+
+  async function cancelSend(sendId) {
+    const outcome = await outbox.cancel(String(sendId ?? ''));
+    if (outcome === 'cancelled') return reply(200, { cancelled: true });
+    if (outcome === 'already_sent') return reply(409, { error: 'already_sent' });
+    return notFound();
+  }
+
+  async function sendStatus(sendId) {
+    const status = await outbox.status(String(sendId ?? ''));
+    return status ? reply(200, status) : notFound();
+  }
+
+  // ---------------------------------------------------------------- Entwuerfe
+
+  async function saveDraft(input) {
+    const form = readDraftForm(input);
+    if (!form) return badRequest();
+    const db = await load();
+    const account = rowsOf(db, 'mailAccounts').find(
+      (row) => row.id === form.mailAccountId && row.accountId === form.accountId,
+    );
+    if (!account) return notFound();
+    const parent = relatedMessage(db, form.inReplyTo, account);
+    if (parent === undefined) return notFound();
+    let built;
+    try {
+      built = buildMessage({
+        from: senderOf(account),
+        to: form.to,
+        cc: form.cc,
+        bcc: form.bcc,
+        includeBcc: true,
+        subject: form.subject,
+        text: form.text,
+        inReplyTo: parent?.messageId ?? null,
+        references: parent ? referencesFor(parent) : [],
+      });
+    } catch {
+      return badRequest();
+    }
+    try {
+      const draftId = await drafts.saveDraft({
+        account,
+        raw: built.raw,
+        messageId: built.messageId,
+        draftId: form.draftId,
+      });
+      return reply(200, { draftId });
+    } catch (error) {
+      return draftError(error);
+    }
+  }
+
+  async function deleteDraft(draftId) {
+    try {
+      await drafts.removeDraft(draftId);
+      return reply(200, { ok: true });
+    } catch (error) {
+      return draftError(error);
+    }
   }
 
   return {
@@ -382,8 +744,16 @@ function createMailService({ dataDir }) {
     syncAccount,
     markSeen,
     deleteMessage,
+    messageActions,
     send,
+    cancelSend,
+    sendStatus,
+    saveDraft,
+    deleteDraft,
+    messageBody: (id, allowRemoteImages) => bodies.body(id, allowRemoteImages),
+    serveAttachment: (res, id, index, cors) => bodies.serveAttachment(res, id, index, cors),
     startScheduler: (intervalMs) => sync.startScheduler(intervalMs),
+    resumeOutbox: () => outbox.resume(),
   };
 }
 

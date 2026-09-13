@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { useI18n, type TranslationKey } from '@/i18n';
 import { permissionSentences } from '@/lib/permissions';
+import { moduleDescription, moduleName } from '@/mocks/moduleText';
 import { getModule } from '@/mocks/modules';
 import { useTheme } from '@/theme';
 import { Badge, Button, Card, EmptyState, Header, Icon, ModuleIcon, Screen, Text } from '@/ui';
@@ -44,7 +45,7 @@ export function ModuleDetailScreen() {
         <ModuleIcon moduleId={module.id} icon={module.icon} size="lg" />
 
         <View style={{ flex: 1, gap: theme.spacing.xs }}>
-          <Text variant="display">{module.name}</Text>
+          <Text variant="display">{moduleName(t, module.id)}</Text>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
             <Badge label={t(`area.${module.area}` as TranslationKey)} />
             {module.includedInPlan ? (
@@ -56,7 +57,7 @@ export function ModuleDetailScreen() {
 
       <Card title={t('detail.about')}>
         <Text variant="body" tone="muted">
-          {module.description}
+          {moduleDescription(t, module.id)}
         </Text>
       </Card>
 

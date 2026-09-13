@@ -157,9 +157,6 @@ export function AppFamily() {
     <View style={{ gap: theme.spacing.sm }}>
       <View style={[styles.head, { gap: theme.spacing.sm }]}>
         <Text variant="overline">{t('family.title')}</Text>
-        <Text variant="caption" tone="faint" style={styles.count}>
-          {String(others.length)}
-        </Text>
       </View>
 
       <View
@@ -331,7 +328,6 @@ function OpenApp({
 
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
-  count: { marginLeft: 'auto' },
   card: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1, minWidth: 0, gap: 2 },

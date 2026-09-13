@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { useTranslate } from '@/i18n';
@@ -9,17 +9,28 @@ import {
   Button,
   Card,
   Chip,
+  ContextMenu,
   Divider,
   EmptyState,
+  FloatingButton,
   Header,
   Icon,
   Input,
   ListItem,
   Loading,
+  Menu,
+  measureAnchor,
+  PlainList,
+  PlainRow,
   Screen,
+  SectionHeader,
   Sheet,
   Skeleton,
+  SwipeRow,
   Text,
+  useUndo,
+  type MenuAnchor,
+  type MenuEntry,
 } from '@/ui';
 import { ICONS, type IconName } from '@/ui/Icon';
 
@@ -27,14 +38,62 @@ import { ICONS, type IconName } from '@/ui/Icon';
 export default function UiKitScreen() {
   const t = useTranslate();
   const theme = useTheme();
+  const undo = useUndo();
 
   const [text, setText] = useState('');
   const [chip, setChip] = useState('a');
   const [sheet, setSheet] = useState(false);
   const [fullSheet, setFullSheet] = useState(false);
+  const [detentSheet, setDetentSheet] = useState(false);
+  const [lastAction, setLastAction] = useState('—');
+  const [fabCollapsed, setFabCollapsed] = useState(false);
+  const [view, setView] = useState<'list' | 'grid'>('list');
+  const [menu, setMenu] = useState<{ anchor: MenuAnchor; open: boolean } | null>(null);
+  const menuButton = useRef<View>(null);
+
+  const demoMenu: readonly MenuEntry[] = [
+    {
+      key: 'list',
+      label: 'Liste',
+      icon: 'lines',
+      selected: view === 'list',
+      onPress: () => setView('list'),
+    },
+    {
+      key: 'grid',
+      label: 'Raster',
+      icon: 'grid',
+      selected: view === 'grid',
+      onPress: () => setView('grid'),
+    },
+    { key: 'divider', divider: true },
+    { key: 'disabled', label: 'Deaktiviert', disabled: true, onPress: () => undefined },
+    {
+      key: 'delete',
+      label: 'Löschen',
+      icon: 'trash',
+      destructive: true,
+      onPress: () =>
+        undo.show({ message: 'Gelöscht', onUndo: () => setLastAction('Rückgängig gemacht') }),
+    },
+  ];
+
+  async function openMenu() {
+    const anchor = await measureAnchor(menuButton.current);
+    if (anchor) setMenu({ anchor, open: true });
+  }
 
   return (
-    <Screen header={<Header title={t('ui.kit.title')} subtitle={t('ui.kit.subtitle')} showBack />}>
+    <Screen
+      header={
+        <Header
+          title={t('ui.kit.title')}
+          subtitle={t('ui.kit.subtitle')}
+          showBack
+          titleMenu={demoMenu}
+        />
+      }
+    >
       <Card title="Text">
         <Text variant="display">Display 28</Text>
         <Text variant="title">Title 20</Text>
@@ -175,6 +234,181 @@ export default function UiKitScreen() {
         </View>
       </Card>
 
+      <Card title="SwipeRow" subtitle={`Zuletzt: ${lastAction}`} padded={false}>
+        <View>
+          <SwipeRow
+            leading={{
+              key: 'done',
+              label: 'Erledigt',
+              icon: 'check',
+              tone: 'accent',
+              onPress: () => setLastAction('Erledigt'),
+            }}
+            trailing={[
+              {
+                key: 'plan',
+                label: 'Planen',
+                icon: 'calendar',
+                tone: 'default',
+                onPress: () => setLastAction('Planen'),
+              },
+              {
+                key: 'remove',
+                label: 'Löschen',
+                icon: 'trash',
+                tone: 'danger',
+                onPress: () => setLastAction('Löschen'),
+              },
+            ]}
+            trailingFull={{
+              key: 'remove',
+              label: 'Löschen',
+              icon: 'trash',
+              tone: 'danger',
+              onPress: () =>
+                undo.show({
+                  message: 'Aufgabe gelöscht',
+                  onUndo: () => setLastAction('Wiederhergestellt'),
+                }),
+            }}
+          >
+            <View style={{ padding: theme.spacing.lg }}>
+              <Text>Nach rechts, halb oder ganz nach links</Text>
+            </View>
+          </SwipeRow>
+          <Divider />
+          <SwipeRow onDelete={() => setLastAction('onDelete')}>
+            <View style={{ padding: theme.spacing.lg }}>
+              <Text>Nur onDelete, wie bisher</Text>
+            </View>
+          </SwipeRow>
+        </View>
+      </Card>
+
+      <Card title="Rückgängig">
+        <View style={{ gap: theme.spacing.sm }}>
+          <Button
+            label="Mit Rückgängig"
+            variant="secondary"
+            onPress={() =>
+              undo.show({ message: 'Archiviert', onUndo: () => setLastAction('Zurückgeholt') })
+            }
+          />
+          <Button
+            label="Nur Nachricht"
+            variant="secondary"
+            onPress={() => undo.show({ message: 'Gesendet', durationMs: 2000 })}
+          />
+        </View>
+      </Card>
+
+      <Card title="PlainList" subtitle="Eine Liste mit Abschnitten statt Karten">
+        <View>
+          <SectionHeader
+            label="Heute"
+            actionLabel="Alle 12"
+            onAction={() => setLastAction('Alle 12')}
+            first
+          />
+          <PlainList>
+            <PlainRow
+              leading={<Icon name="circle" size={22} color={theme.colors.textFaint} />}
+              title="Eine Zeile, antippbar"
+              onPress={() => setLastAction('Zeile')}
+            />
+            <PlainRow
+              leading={<Icon name="circle" size={22} color={theme.colors.textFaint} />}
+              title="Zwei Zeilen"
+              subtitle="14:30 · Projekt"
+            />
+            <PlainRow
+              leading={<Avatar name="Anna Muster" size={36} />}
+              title="Drei Zeilen"
+              subtitle="wird 36"
+              meta="Morgen"
+              trailing={<Icon name="star" size={18} color={theme.colors.textMuted} />}
+            />
+          </PlainList>
+          <SectionHeader label="Ohne Spalte links" />
+          <PlainList separatorInset="none">
+            <PlainRow title="Linie über die ganze Breite" />
+            <PlainRow title="Noch eine" />
+          </PlainList>
+        </View>
+      </Card>
+
+      <Card title="Menu und ContextMenu" subtitle={`Ansicht: ${view}`}>
+        <View style={{ gap: theme.spacing.sm }}>
+          <View ref={menuButton} collapsable={false}>
+            <Button label="Menü öffnen" variant="secondary" onPress={() => void openMenu()} />
+          </View>
+          <ContextMenu
+            items={demoMenu}
+            onSelectMode={() => setLastAction('Auswahl (Android)')}
+            accessibilityLabel="Kontextmenü"
+          >
+            <View
+              style={{
+                padding: theme.spacing.md,
+                borderRadius: theme.radii.sm,
+                backgroundColor: theme.colors.surfaceMuted,
+              }}
+            >
+              <Text>Lange drücken</Text>
+            </View>
+          </ContextMenu>
+        </View>
+      </Card>
+
+      <Card title="FloatingButton">
+        <Button
+          label={fabCollapsed ? 'Wort zeigen' : 'Nur Symbol'}
+          variant="secondary"
+          onPress={() => setFabCollapsed((value) => !value)}
+        />
+        <View style={{ height: 96 }}>
+          <FloatingButton
+            label="Neu"
+            aboveTabBar
+            menu={[
+              {
+                key: 'task',
+                label: 'Aufgabe',
+                icon: 'checkCircle',
+                onPress: () => setLastAction('Aufgabe'),
+              },
+              { key: 'note', label: 'Notiz', icon: 'note', onPress: () => setLastAction('Notiz') },
+              {
+                key: 'mail',
+                label: 'E-Mail',
+                icon: 'mail',
+                onPress: () => setLastAction('E-Mail'),
+              },
+              {
+                key: 'birthday',
+                label: 'Geburtstag',
+                icon: 'gift',
+                onPress: () => setLastAction('Geburtstag'),
+              },
+            ]}
+          />
+        </View>
+        <View style={{ height: 96 }}>
+          <FloatingButton
+            label="E-Mail schreiben"
+            icon="note"
+            text="Schreiben"
+            collapsed={fabCollapsed}
+            aboveTabBar
+            onPress={() => setLastAction('Schreiben')}
+          />
+        </View>
+      </Card>
+
+      <Card title="Sheet mit Stufen">
+        <Button label="Mittel öffnen" variant="secondary" onPress={() => setDetentSheet(true)} />
+      </Card>
+
       <Card title="Icons">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md }}>
           {(Object.keys(ICONS) as IconName[]).map((name) => (
@@ -207,6 +441,26 @@ export default function UiKitScreen() {
           Nimmt den ganzen Bildschirm ein.
         </Text>
       </Sheet>
+
+      <Sheet
+        visible={detentSheet}
+        onClose={() => setDetentSheet(false)}
+        title="Stufen"
+        subtitle="Am Griff nach oben gross, nach unten zu"
+        detent="medium"
+        onDetentChange={(detent) => setLastAction(`Stufe ${detent}`)}
+      >
+        {Array.from({ length: 14 }, (_, index) => (
+          <ListItem key={`row-${index}`} title={`Zeile ${index + 1}`} />
+        ))}
+      </Sheet>
+
+      <Menu
+        visible={menu?.open ?? false}
+        anchor={menu?.anchor ?? null}
+        items={demoMenu}
+        onClose={() => setMenu((current) => (current ? { ...current, open: false } : null))}
+      />
     </Screen>
   );
 }

@@ -32,6 +32,7 @@ import { TasksView } from '@/features/tasks/TasksView';
 import { WeatherView } from '@/features/weather/WeatherView';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
+import { moduleDescription, moduleName, moduleShort } from '@/mocks/moduleText';
 import { getModule } from '@/mocks/modules';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useTheme } from '@/theme';
@@ -80,8 +81,8 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
-          subtitle={module.short}
+          title={moduleName(t, module.id)}
+          subtitle={moduleShort(t, module.id)}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         />
@@ -108,7 +109,7 @@ function PlaceholderModule({ module }: { module: ModuleDefinition }) {
 
       <Card title={t('detail.about')}>
         <Text variant="body" tone="muted">
-          {module.description}
+          {moduleDescription(t, module.id)}
         </Text>
       </Card>
     </Screen>

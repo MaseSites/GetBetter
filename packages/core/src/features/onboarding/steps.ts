@@ -1,6 +1,9 @@
 /**
  * Das Einrichten als Gespraech mit dem Avatar, in Schritten:
  *
+ * - `voice`     — zuerst, wie er klingen soll. Er redet von Anfang an mit dir,
+ *                 also waehlt man seine Stimme, bevor er viel sagt. Nur, wo es
+ *                 ueberhaupt Stimmen gibt.
  * - `name`      — wie darf ich dich ansprechen? Der Spitzname, mit dem die App
  *                 dich anredet (nur, wenn das Konto noch keinen hat). Der
  *                 Benutzername steht schon seit dem Registrieren fest.
@@ -10,12 +13,18 @@
  *
  * Reine Rechnung ohne React, damit sie unter Node getestet werden kann.
  */
-export type SetupStep = 'name' | 'assistant' | 'style' | 'ready';
+export type SetupStep = 'name' | 'assistant' | 'voice' | 'style' | 'ready';
 
 export type SetupDraft = { firstName: string; assistantName: string };
 
-export function setupSteps(hasFirstName: boolean): readonly SetupStep[] {
-  return hasFirstName ? ['assistant', 'style', 'ready'] : ['name', 'assistant', 'style', 'ready'];
+/**
+ * Die Schritte dieser Einrichtung. Die Stimme kommt zuerst — aber nur, wo es
+ * mehr als eine gibt; sonst waere das ein Schritt ohne Wahl.
+ */
+export function setupSteps(hasFirstName: boolean, canPickVoice: boolean): readonly SetupStep[] {
+  const voice: readonly SetupStep[] = canPickVoice ? ['voice'] : [];
+  const name: readonly SetupStep[] = hasFirstName ? [] : ['name'];
+  return [...voice, ...name, 'assistant', 'style', 'ready'];
 }
 
 /** Ob man von diesem Schritt weiter darf: Namen brauchen mindestens ein Zeichen. */

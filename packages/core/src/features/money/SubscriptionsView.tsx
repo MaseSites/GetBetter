@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { subscriptions as subscriptionRepo, useLiveQuery, type SubscriptionInterval } from '@/db';
 import { formatMoney, useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -71,7 +72,7 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             rows.length > 0
               ? t('subscriptions.total', {

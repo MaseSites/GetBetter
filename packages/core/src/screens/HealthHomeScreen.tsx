@@ -21,7 +21,7 @@ import {
   useI18n,
   type TranslationKey,
 } from '@/i18n';
-import { MODULES } from '@/mocks/modules';
+import { moduleName } from '@/mocks/moduleText';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
@@ -74,7 +74,7 @@ export function HealthHomeScreen() {
     maximumFractionDigits: 1,
     signDisplay: 'exceptZero',
   });
-  const nameOf = (id: string) => MODULES.find((module) => module.id === id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(t, id);
 
   // Gegessen — erst was schon drin ist, dann was noch offen ist, wie im Entwurf.
   const meals = mealList.data ?? [];
@@ -83,7 +83,10 @@ export function HealthHomeScreen() {
     slot,
     kcal: meals.filter((row) => row.slot === slot).reduce((sum, row) => sum + row.kcal, 0),
   }));
-  const ordered = [...bySlot.filter((entry) => entry.kcal > 0), ...bySlot.filter((entry) => entry.kcal === 0)];
+  const ordered = [
+    ...bySlot.filter((entry) => entry.kcal > 0),
+    ...bySlot.filter((entry) => entry.kcal === 0),
+  ];
   const slotLabel = (slot: string) => t(`meals.slot.${slot}` as TranslationKey);
   const mealSegments: Segment[] = [
     ...ordered.map((entry) => ({ key: entry.slot, value: entry.kcal, kind: 'ink' as const })),
@@ -93,10 +96,17 @@ export function HealthHomeScreen() {
     entry.kcal > 0
       ? {
           key: entry.slot,
-          label: t('health.slotKcal', { slot: slotLabel(entry.slot), kcal: whole.format(entry.kcal) }),
+          label: t('health.slotKcal', {
+            slot: slotLabel(entry.slot),
+            kcal: whole.format(entry.kcal),
+          }),
           kind: 'ink',
         }
-      : { key: entry.slot, label: t('health.slotOpen', { slot: slotLabel(entry.slot) }), kind: 'rest' },
+      : {
+          key: entry.slot,
+          label: t('health.slotOpen', { slot: slotLabel(entry.slot) }),
+          kind: 'rest',
+        },
   );
 
   // Getrunken — das Tagesziel in zehn Glaeser geteilt.
@@ -141,7 +151,11 @@ export function HealthHomeScreen() {
         />
       }
     >
-      <Panel label={t('health.eaten')} more={nameOf('meals')} onMore={() => router.push('/run/meals')}>
+      <Panel
+        label={t('health.eaten')}
+        more={nameOf('meals')}
+        onMore={() => router.push('/run/meals')}
+      >
         <BigFigure
           value={whole.format(kcal)}
           unit={t('health.ofKcal', { target: whole.format(DAILY_TARGET) })}
@@ -163,7 +177,8 @@ export function HealthHomeScreen() {
                 styles.glass,
                 {
                   borderRadius: theme.radii.xs,
-                  borderColor: index < filled ? theme.colors.accentStrong : theme.colors.borderStrong,
+                  borderColor:
+                    index < filled ? theme.colors.accentStrong : theme.colors.borderStrong,
                   backgroundColor: index < filled ? theme.colors.accent : 'transparent',
                 },
               ]}

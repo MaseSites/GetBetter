@@ -5,6 +5,8 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { PillButton } from '@/features/auth/PillButton';
 import { SocialButton } from '@/features/auth/SocialButton';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
+import { useNarration } from '@/features/intro/narration';
+import { NarrationButton } from '@/features/intro/NarrationButton';
 import { SpeechBubble } from '@/features/intro/SpeechBubble';
 import { useReducedMotion } from '@/features/intro/useReducedMotion';
 import { useTranslate } from '@/i18n';
@@ -73,6 +75,8 @@ export function StartScreen() {
   const bubble = provider
     ? { text: t(`intro.start.soon.${provider}`), size: 'md' as const, key: provider }
     : { text: t('intro.start.question'), size: 'lg' as const, key: 'question' };
+  // Er redet, sobald er steht — noch bevor es ein Konto gibt.
+  const narration = useNarration(`start:${bubble.key}`, ready ? bubble.text : '');
 
   return (
     <Screen
@@ -128,7 +132,13 @@ export function StartScreen() {
           ]}
         >
           {ready ? (
-            <SpeechBubble text={bubble.text} size={bubble.size} tail="top" typeKey={bubble.key} />
+            <View style={{ gap: theme.spacing.md }}>
+              <SpeechBubble text={bubble.text} size={bubble.size} tail="top" typeKey={bubble.key} />
+              {/* Vor dem ersten Tipp erlaubt der Browser keinen Ton — darum die Bitte. */}
+              <View style={styles.hear}>
+                <NarrationButton narration={narration} variant="pill" />
+              </View>
+            </View>
           ) : null}
         </View>
       </View>
@@ -140,6 +150,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center' },
   stage: { alignItems: 'center' },
   say: { alignSelf: 'stretch', justifyContent: 'flex-start' },
+  hear: { alignItems: 'center' },
   inert: { pointerEvents: 'none' },
   or: { flexDirection: 'row', alignItems: 'center' },
   line: { flex: 1, height: StyleSheet.hairlineWidth },

@@ -1,189 +1,83 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Animated, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
-import {
-  bills as billRepo,
-  contacts as contactRepo,
-  meds as medRepo,
-  recipes as recipeRepo,
-  savings as savingsRepo,
-  subscriptions as subscriptionRepo,
-  useLiveQuery,
-} from '@/db';
-import {
-  events as eventRepo,
-  notes as noteRepo,
-  shopping as shoppingRepo,
-  tasks as taskRepo,
-} from '@/db/repositories';
-import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { formatShortDate, useI18n } from '@/i18n';
+import { currentApp } from '@/app/identity';
+import { OtherAppsSection } from '@/features/search/OtherApps';
+import { rankResults, type SearchGroup } from '@/features/search/results';
+import { useRecentSearches } from '@/features/search/useRecentSearches';
+import { useSearchCandidates, type SearchEntry } from '@/features/search/useSearchCandidates';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
-import { useAccount, useApp } from '@/state/AppContext';
+import { moduleName } from '@/mocks/moduleText';
+import { useAccount } from '@/state/AppContext';
 import { moduleBase, useTheme } from '@/theme';
-import { Header, Icon, Screen, Text, usePressScale, type IconName } from '@/ui';
+import { Header, Icon, PlainList, PlainRow, Screen, SectionHeader, Text } from '@/ui';
 
-type Hit = {
-  key: string;
-  moduleId: string;
-  icon: IconName;
-  title: string;
-  meta?: string;
-  onPress: () => void;
+const GROUP_LABELS: Readonly<Record<SearchGroup, TranslationKey>> = {
+  tasks: 'search.group.tasks',
+  notes: 'search.group.notes',
+  mail: 'search.group.mail',
+  people: 'search.group.people',
+  places: 'search.group.places',
+  entries: 'search.group.entries',
+  functions: 'search.group.functions',
 };
 
-type Found = { key: string; title: string; meta?: string; match: boolean };
+/** Welche Gruppen „Alle“ aufgeklappt hat — gilt nur fuer die Suche, bei der es geschah. */
+type Expanded = { query: string; groups: readonly SearchGroup[] };
 
 /**
  * Suche ueber alles, was diese App fuehrt.
  *
- * Ein Feld, darunter die Treffer — erst die Funktionen, dann was in ihnen
- * steht. Jede App sucht nur in ihren eigenen Funktionen. Solange nichts
- * eingetippt ist, stehen alle Funktionen da, statt einer leeren Flaeche.
+ * Ohne Eingabe: zuletzt gesucht, dann die Funktionen. Mit Eingabe: der beste
+ * Treffer, dann Aufgaben, Notizen, E-Mails, Personen, Orte und Funktionen — je
+ * drei, „Alle“ zeigt den Rest. Ein Treffer oeffnet den Eintrag selbst. Ganz
+ * unten, zugeklappt, was die anderen Better-Apps fuehren.
  */
 export function SearchScreen() {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
-  const { household } = useApp();
-  const { access } = useCalendarAccess();
-  const householdId = household?.id ?? null;
+  const app = currentApp();
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<Expanded>({ query: '', groups: [] });
+  const { recent, remember } = useRecentSearches(account.id);
+  const { candidates, functions } = useSearchCandidates();
 
-  const taskList = useLiveQuery(
-    () => taskRepo.listOpen(account.id, householdId),
-    [account.id, householdId],
-  );
-  const noteList = useLiveQuery(() => noteRepo.list(account.id), [account.id]);
-  const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
-  const eventList = useLiveQuery(
-    () => eventRepo.listUpcoming(access, new Date().toISOString(), 50),
-    [access.accountId, access.householdIds, access.calendarIds],
-  );
-  const shoppingList = useLiveQuery(
-    () => shoppingRepo.list(account.id, householdId),
-    [account.id, householdId],
-  );
-  const recipeList = useLiveQuery(
-    () => recipeRepo.list(account.id, householdId),
-    [account.id, householdId],
-  );
-  const medList = useLiveQuery(() => medRepo.list(account.id), [account.id]);
-  const billList = useLiveQuery(() => billRepo.listOpen(account.id), [account.id]);
-  const subscriptionList = useLiveQuery(() => subscriptionRepo.list(account.id), [account.id]);
-  const goalList = useLiveQuery(() => savingsRepo.list(account.id), [account.id]);
+  const trimmed = query.trim();
+  const openGroups = expanded.query === trimmed ? expanded.groups : [];
+  const results = rankResults(trimmed, candidates, openGroups);
 
-  const needle = query.trim().toLocaleLowerCase('de-CH');
-  const has = (value: string | null | undefined) =>
-    Boolean(value && value.toLocaleLowerCase('de-CH').includes(needle));
-
-  const modules = modulesOfApp();
-  const owned = new Set(modules.map((module) => module.id));
   // Die Suche spricht die Sprache der laufenden App. In BetterMoney nach
-  // "Aufgabe, Termin, Notiz" zu fragen waere technisch harmlos, aber fuer
-  // Menschen ein falsches Versprechen.
-  const examples = modules
+  // "Aufgabe, Termin, Notiz" zu fragen waere ein falsches Versprechen.
+  const examples = modulesOfApp()
     .slice(0, 4)
-    .map((module) => module.name)
+    .map((module) => moduleName(t, module.id))
     .join(', ');
   const searchPlaceholder = examples || t('search.placeholder');
 
-  /** Eintraege einer Funktion — nur, wenn diese App sie fuehrt. */
-  function from<T>(
-    moduleId: string,
-    icon: IconName,
-    rows: readonly T[] | undefined,
-    read: (row: T) => Found,
-  ): Hit[] {
-    if (!owned.has(moduleId)) return [];
-    return (rows ?? [])
-      .map(read)
-      .filter((entry) => entry.match)
-      .map((entry) => ({
-        key: entry.key,
-        moduleId,
-        icon,
-        title: entry.title,
-        meta: entry.meta,
-        onPress: () => router.push(`/run/${moduleId}`),
-      }));
+  function open(entry: SearchEntry) {
+    remember(trimmed);
+    router.push(entry.item.href);
   }
 
-  const moduleHits: Hit[] = modules
-    .filter((module) => needle.length === 0 || has(module.name) || has(module.short))
-    .map((module) => ({
-      key: `m-${module.id}`,
-      moduleId: module.id,
-      icon: module.icon,
-      title: module.name,
-      meta: module.short,
-      onPress: () => router.push(`/run/${module.id}`),
-    }));
+  function showAll(group: SearchGroup) {
+    setExpanded({ query: trimmed, groups: [...openGroups, group] });
+  }
 
-  // Ohne Eingabe stehen alle Funktionen da; Eintraege kommen erst mit einem Wort.
-  const hits: Hit[] =
-    needle.length === 0
-      ? moduleHits
-      : [
-          ...moduleHits,
-          ...from('tasks', 'checkCircle', taskList.data, (row) => ({
-            key: `t-${row.id}`,
-            title: row.title,
-            match: has(row.title),
-          })),
-          ...from('calendar', 'calendar', eventList.data, (row) => ({
-            key: `e-${row.id}`,
-            title: row.title,
-            meta: formatShortDate(language, row.startsAt),
-            match: has(row.title),
-          })),
-          ...from('notes', 'note', noteList.data, (row) => ({
-            key: `n-${row.id}`,
-            title: row.title || t('notes.untitled'),
-            meta: row.body.slice(0, 60) || undefined,
-            match: has(row.title) || has(row.body),
-          })),
-          ...from('contacts', 'person', contactList.data, (row) => ({
-            key: `c-${row.id}`,
-            title: row.name,
-            match: has(row.name),
-          })),
-          ...from('shopping', 'cart', shoppingList.data, (row) => ({
-            key: `s-${row.id}`,
-            title: row.name,
-            meta: row.quantity ?? undefined,
-            match: has(row.name),
-          })),
-          ...from('recipes', 'book', recipeList.data, (row) => ({
-            key: `r-${row.id}`,
-            title: row.title,
-            match: has(row.title) || row.ingredients.some((line) => has(line)),
-          })),
-          ...from('meds', 'pill', medList.data, (row) => ({
-            key: `md-${row.id}`,
-            title: row.name,
-            meta: row.dose ?? undefined,
-            match: has(row.name),
-          })),
-          ...from('bills', 'doc', billList.data, (row) => ({
-            key: `b-${row.id}`,
-            title: row.title,
-            meta: formatShortDate(language, row.dueDay),
-            match: has(row.title),
-          })),
-          ...from('subscriptions', 'repeat', subscriptionList.data, (row) => ({
-            key: `su-${row.id}`,
-            title: row.name,
-            match: has(row.name),
-          })),
-          ...from('savings', 'star', goalList.data, (row) => ({
-            key: `g-${row.id}`,
-            title: row.name,
-            match: has(row.name),
-          })),
-        ];
+  const row = (entry: SearchEntry) => (
+    <PlainRow
+      key={entry.key}
+      title={entry.title}
+      subtitle={entry.item.subtitle}
+      leading={
+        <Icon name={entry.item.icon} size={20} color={moduleBase(theme, entry.item.moduleId)} />
+      }
+      onPress={() => open(entry)}
+    />
+  );
 
   return (
     <Screen header={<Header large title={t('search.title')} />} gap={theme.spacing.lg}>
@@ -202,6 +96,7 @@ export function SearchScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
+          onSubmitEditing={() => remember(trimmed)}
           placeholder={searchPlaceholder}
           placeholderTextColor={theme.colors.textFaint}
           autoCorrect={false}
@@ -218,72 +113,68 @@ export function SearchScreen() {
         />
       </View>
 
-      {hits.length === 0 ? (
-        <Text variant="body" tone="muted" style={{ fontSize: theme.fontSize.lede }}>
-          {t('search.none', { query: query.trim() })}
-        </Text>
+      {trimmed.length === 0 ? (
+        <View>
+          {recent.length > 0 ? (
+            <>
+              <SectionHeader label={t('search.recent')} first />
+              <PlainList>
+                {recent.map((entry) => (
+                  <PlainRow
+                    key={entry}
+                    title={entry}
+                    leading={<Icon name="search" size={18} color={theme.colors.textFaint} />}
+                    onPress={() => setQuery(entry)}
+                  />
+                ))}
+              </PlainList>
+            </>
+          ) : null}
+          {functions.length > 0 ? (
+            <>
+              <SectionHeader label={t('search.group.functions')} first={recent.length === 0} />
+              <PlainList>{functions.map(row)}</PlainList>
+            </>
+          ) : null}
+        </View>
       ) : (
-        <View
-          style={[
-            styles.card,
-            theme.elevation.card,
-            { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md },
-          ]}
-        >
-          {hits.map((hit, index) => (
-            <HitRow key={hit.key} hit={hit} first={index === 0} />
+        <View>
+          {results.best ? (
+            <>
+              <SectionHeader label={t('search.best')} first />
+              <PlainList>{row(results.best)}</PlainList>
+            </>
+          ) : (
+            <Text variant="body" tone="muted" style={{ fontSize: theme.fontSize.lede }}>
+              {t('search.none', { query: trimmed })}
+            </Text>
+          )}
+          {results.groups.map((group) => (
+            <View key={group.group}>
+              <SectionHeader label={t(GROUP_LABELS[group.group])} />
+              <PlainList>
+                {group.hits.map(row)}
+                {group.total > group.hits.length ? (
+                  <PlainRow
+                    key="all"
+                    title={t('search.showAll', { count: group.total })}
+                    titleTone="accent"
+                    leading={null}
+                    onPress={() => showAll(group.group)}
+                  />
+                ) : null}
+              </PlainList>
+            </View>
           ))}
         </View>
       )}
+
+      <OtherAppsSection current={app.id} query={trimmed} />
     </Screen>
-  );
-}
-
-function HitRow({ hit, first }: { hit: Hit; first: boolean }) {
-  const theme = useTheme();
-  const press = usePressScale(theme.motion.pressScale.row);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={hit.title}
-      onPress={hit.onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
-    >
-      <Animated.View
-        style={[
-          styles.row,
-          {
-            paddingHorizontal: theme.spacing.md,
-            gap: theme.spacing.md,
-            borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-            borderTopColor: theme.colors.border,
-            transform: [{ scale: press.scale }],
-          },
-        ]}
-      >
-        <Icon name={hit.icon} size={18} color={moduleBase(theme, hit.moduleId)} />
-        <View style={styles.text}>
-          <Text variant="label" numberOfLines={1} style={{ fontSize: theme.fontSize.md }}>
-            {hit.title}
-          </Text>
-          {hit.meta ? (
-            <Text variant="caption" tone="faint" numberOfLines={1}>
-              {hit.meta}
-            </Text>
-          ) : null}
-        </View>
-        <Icon name="forward" size={15} color={theme.colors.borderStrong} />
-      </Animated.View>
-    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', height: 44 },
   input: { flex: 1, height: '100%', outlineStyle: 'none' as never },
-  card: { overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
-  text: { flex: 1, gap: 1 },
 });

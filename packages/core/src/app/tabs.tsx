@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type Theme } from '@/theme';
 import { Icon } from '@/ui';
 import type { IconName } from '@/ui/Icon';
+import { TAB_BAR_HEIGHT } from '@/ui/layout';
 
 /**
  * Ein Tab in der Leiste. Wo man steht, sagt die Farbe: Tinte fuer den
@@ -51,7 +52,7 @@ export const accentTabOptions = {
 export function useTabScreenOptions(theme: Theme) {
   const insets = useSafeAreaInsets();
   // Ohne feste Hoehe schneidet die Leiste die Beschriftungen ab.
-  const barHeight = 76 + insets.bottom;
+  const barHeight = TAB_BAR_HEIGHT + insets.bottom;
 
   return {
     headerShown: false,

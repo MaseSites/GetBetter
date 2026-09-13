@@ -14,6 +14,10 @@ const MAX_DEPTH = 8;
 const MAX_PARTS = 100;
 const MAX_HEADERS = 500;
 const MAX_ADDRESS_HEADER = 10_000;
+/** So viele Eintraege aus `References` bleiben an einer Nachricht. */
+const MAX_REFERENCES = 20;
+/** Echte Message-IDs sind kaum 100 Zeichen lang; laengere blaehten nur die Datenbank. */
+const MAX_ID_LENGTH = 250;
 
 // ------------------------------------------------------------------ Zeichensaetze
 
@@ -544,6 +548,40 @@ function parseMessageId(value) {
   return bare.length > 0 && bare.length < 900 && !/\s/.test(bare) ? `<${bare}>` : null;
 }
 
+/** Alle `<…>` in einem Header, jede hoechstens `MAX_ID_LENGTH` lang — laengere fallen weg. */
+function messageIdsOf(value) {
+  const text = cut(String(value ?? ''), MAX_ADDRESS_HEADER);
+  return [...text.matchAll(/<[^<>\s]{1,2000}>/g)]
+    .map((match) => match[0])
+    .filter((id) => id.length <= MAX_ID_LENGTH);
+}
+
+/**
+ * `In-Reply-To` und `References` — damit werden Unterhaltungen gebuendelt.
+ * Lange Ketten behalten die Wurzel (die erste) und die juengsten Eintraege.
+ */
+function threadHeadersOf(headers) {
+  const references = [...new Set(messageIdsOf(headerValue(headers, 'references')))];
+  const kept =
+    references.length > MAX_REFERENCES
+      ? [references[0], ...references.slice(-(MAX_REFERENCES - 1))]
+      : references;
+  return {
+    inReplyTo: messageIdsOf(headerValue(headers, 'in-reply-to'))[0] ?? null,
+    references: kept,
+  };
+}
+
+/**
+ * `Bcc`, `In-Reply-To` und `References` aus rohen Kopfzeilen — etwa aus
+ * `BODY[HEADER.FIELDS (…)]`, wenn der Abgleich aeltere Zeilen nachtraegt.
+ */
+function threadFieldsOf(buffer) {
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(String(buffer ?? ''));
+  const headers = parseHeaders(decodeLoose(splitHeaderBody(bytes).head));
+  return { ...threadHeadersOf(headers), bcc: parseAddressList(headerValue(headers, 'bcc')) };
+}
+
 /**
  * Macht aus den rohen Bytes einer Mail, was in einer `mailMessages`-Zeile steht.
  * `internalDate` (vom IMAP-Server) springt ein, wenn der Date-Header fehlt.
@@ -557,9 +595,12 @@ function parseMessage(buffer, options = {}) {
   const from = parseAddressList(headerValue(root.headers, 'from'))[0] ?? { name: '', address: '' };
   return {
     messageId: parseMessageId(headerValue(root.headers, 'message-id')),
+    ...threadHeadersOf(root.headers),
     from,
     to: parseAddressList(headerValue(root.headers, 'to')),
     cc: parseAddressList(headerValue(root.headers, 'cc')),
+    // Steht nur in Entwuerfen und in der eigenen Kopie unter „Gesendet“.
+    bcc: parseAddressList(headerValue(root.headers, 'bcc')),
     subject: cut(
       decodeWords(headerValue(root.headers, 'subject')).replace(/\s+/g, ' ').trim(),
       1000,
@@ -573,12 +614,18 @@ function parseMessage(buffer, options = {}) {
 module.exports = {
   MAX_TEXT,
   MAX_SNIPPET,
+  cut,
   decodeBytes,
+  decodeEntities,
+  decodeTransfer,
   decodeWords,
   decodeQuotedPrintable,
+  normaliseText,
   parseHeaders,
   parseParams,
   parseAddressList,
   htmlToText,
   parseMessage,
+  threadFieldsOf,
+  threadHeadersOf,
 };

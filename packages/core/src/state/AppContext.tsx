@@ -20,6 +20,7 @@ import {
   type UsernameSave,
 } from '@/auth/accounts';
 import {
+  db,
   flush,
   households as householdRepo,
   notifyDataChanged,
@@ -32,6 +33,7 @@ import {
 } from '@/db';
 import { currentApp } from '@/app/identity';
 import { appAccess } from '@/db/appAccess';
+import { placesOf, withPlaceFirst } from '@/features/weather/places';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
 import {
@@ -75,14 +77,25 @@ export type AppContextValue = {
   /** Aussehen: was nicht mitgegeben wird, bleibt wie es ist. */
   appearance: Appearance;
   setAppearance: (patch: Partial<Appearance>) => Promise<void>;
-  /** Der Ort fuers Wetter, am Konto gespeichert. */
+  /** Der Ort fuers Wetter, am Konto gespeichert: holt ihn in der Liste nach vorne. */
   setWeatherPlace: (place: WeatherPlace) => Promise<void>;
+  /** Die gemerkten Orte fuers Wetter, in der Reihenfolge der Liste — nie leer, hoechstens 20. */
+  weatherPlaces: readonly WeatherPlace[];
+  /**
+   * Die Orte umbauen. `change` bekommt den frischen Stand aus der Ablage; der
+   * erste Ort wird zugleich `weatherPlace`, den die Startseite zeigt.
+   */
+  updateWeatherPlaces: (
+    change: (places: readonly WeatherPlace[]) => readonly WeatherPlace[],
+  ) => Promise<void>;
   /** Schnellzugriff und Favoriten (`appId:moduleId`), in dieser Reihenfolge. */
   setFavorites: (keys: readonly string[]) => Promise<void>;
   /** Der Schnellzugriff — eine eigene Liste neben den Favoriten. */
   setQuickAccess: (keys: readonly string[]) => Promise<void>;
   /** Wie der Assistent heisst. */
   setAssistantName: (name: string) => Promise<void>;
+  /** Mit welcher Stimme er spricht (`voiceURI`); leer heisst: die erste passende. */
+  setAssistantVoice: (voiceUri: string) => Promise<void>;
   /** Der Spitzname, mit dem die App dich anspricht. */
   setFirstName: (name: string) => Promise<void>;
   /**
@@ -268,19 +281,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [account],
   );
 
-  const setWeatherPlace = useCallback<AppContextValue['setWeatherPlace']>(
-    async (place) => {
+  // Aeltere Konten kennen nur `weatherPlace` — `placesOf` zieht ihn beim Lesen in die Liste.
+  const weatherPlaces = useMemo(() => placesOf(account), [account]);
+
+  const updateWeatherPlaces = useCallback<AppContextValue['updateWeatherPlaces']>(
+    async (change) => {
       if (!account) return;
-      const updated = await updateAccount(account.id, { weatherPlace: place });
+      // Frisch aus der Ablage, nicht aus dem letzten Rendern: zwei schnelle
+      // Aenderungen (Entfernen, dann Rückgängig) sollen sich nicht ueberschreiben.
+      const fresh = (await db.accounts.find(account.id)) ?? account;
+      const next = change(placesOf(fresh));
+      const first = next[0];
+      if (!first) return;
+      const updated = await updateAccount(account.id, {
+        weatherPlaces: [...next],
+        weatherPlace: first,
+      });
       if (updated) setAccount(updated);
     },
     [account],
+  );
+
+  const setWeatherPlace = useCallback<AppContextValue['setWeatherPlace']>(
+    (place) => updateWeatherPlaces((places) => withPlaceFirst(places, place)),
+    [updateWeatherPlaces],
   );
 
   const setFavorites = useCallback<AppContextValue['setFavorites']>(
     async (keys) => {
       if (!account) return;
       const updated = await updateAccount(account.id, { favorites: [...keys] });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setAssistantVoice = useCallback<AppContextValue['setAssistantVoice']>(
+    async (voiceUri) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { assistantVoice: voiceUri });
       if (updated) setAccount(updated);
     },
     [account],
@@ -396,9 +435,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       appearance,
       setAppearance,
       setWeatherPlace,
+      weatherPlaces,
+      updateWeatherPlaces,
       setFavorites,
       setQuickAccess,
       setAssistantName,
+      setAssistantVoice,
       setFirstName,
       setUsername,
       setBackdrop,
@@ -423,9 +465,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       appearance,
       setAppearance,
       setWeatherPlace,
+      weatherPlaces,
+      updateWeatherPlaces,
       setFavorites,
       setQuickAccess,
       setAssistantName,
+      setAssistantVoice,
       setFirstName,
       setUsername,
       setBackdrop,

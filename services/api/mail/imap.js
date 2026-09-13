@@ -14,6 +14,8 @@ const MAX_LINE = 1_000_000;
 const MAX_LITERAL = 4_000_000;
 // Was ein einzelner Befehl an Antworten sammeln darf, bevor die Verbindung faellt.
 const MAX_COMMAND_BYTES = 64_000_000;
+/** Ein Teil, dessen Bytes an `sink` gehen, statt im Speicher zu landen: `BODY[2]` oder `BODY[1.2]<0>`. */
+const STREAMED_SECTION = /BODY\[[0-9.]+\](?:<\d+>)? ?$/i;
 const OPEN = Symbol('open');
 const CLOSE = Symbol('close');
 
@@ -146,6 +148,13 @@ function asText(value) {
 
 const STATUS = /^(OK|NO|BAD|BYE|PREAUTH)\b ?(?:\[([^\]]*)\])? ?(.*)$/i;
 
+function searchResults(result) {
+  return result.untagged
+    .filter((entry) => entry.type === 'SEARCH')
+    .flatMap((entry) => entry.values.map((value) => Number(asText(value))))
+    .filter((uid) => Number.isInteger(uid) && uid > 0);
+}
+
 // ------------------------------------------------------------------ Befehle schreiben
 
 /** Ein astring: gequotet, wenn druckbares ASCII, sonst als Literal. */
@@ -192,6 +201,7 @@ class ImapConnection {
     this.received = 0;
     this.pieces = [];
     this.literalBytes = -1;
+    this.streaming = null;
     this.counter = 0;
     this.current = null;
     this.waitingGreeting = null;
@@ -230,6 +240,19 @@ class ImapConnection {
 
   drain() {
     while (!this.failure) {
+      if (this.literalBytes >= 0 && this.streaming) {
+        const size = Math.min(this.queue.length, this.literalBytes);
+        if (size > 0) {
+          this.literalBytes -= size;
+          this.streaming(this.queue.take(size));
+        }
+        if (this.literalBytes > 0) return;
+        // Der Inhalt ist schon weitergegeben; in der Antwort steht er als leerer Buffer.
+        this.streaming = null;
+        this.literalBytes = -1;
+        this.pieces.push(Buffer.alloc(0));
+        continue;
+      }
       if (this.literalBytes >= 0) {
         if (this.queue.length < this.literalBytes) return;
         this.pieces.push(this.queue.take(this.literalBytes));
@@ -245,9 +268,16 @@ class ImapConnection {
       this.queue.skip(2);
       const literal = /\{(\d{1,9})\+?\}$/.exec(line);
       if (literal) {
-        this.literalBytes = Number(literal[1]);
-        if (this.literalBytes > MAX_LITERAL) throw new MailError('protocol');
-        this.pieces.push(line.slice(0, literal.index));
+        const size = Number(literal[1]);
+        const prefix = line.slice(0, literal.index);
+        const sink = this.current?.sink ?? null;
+        const streamed = sink !== null && STREAMED_SECTION.test(prefix);
+        if (size > (streamed ? this.current.maxStream : MAX_LITERAL)) {
+          throw new MailError('protocol');
+        }
+        this.streaming = streamed ? sink : null;
+        this.literalBytes = size;
+        this.pieces.push(prefix);
         continue;
       }
       const pieces = [...this.pieces, line];
@@ -346,15 +376,17 @@ class ImapConnection {
   /**
    * Schickt einen Befehl. `parts` sind Textstuecke und Buffer; ein Buffer geht als
    * Literal hinaus, nach dem `+` des Servers.
+   * `sink`: bekommt die Bytes eines `BODY[…]`-Literals Stueck fuer Stueck, bis
+   * `maxStream` Bytes gross — sie landen dann nicht im Speicher.
    */
-  run(parts) {
+  run(parts, { sink = null, maxStream = MAX_LITERAL } = {}) {
     const task = () =>
       new Promise((resolve, reject) => {
         if (this.failure) return reject(this.failure);
         this.counter += 1;
         this.received = 0;
         const tag = `B${this.counter}`;
-        this.current = { tag, resolve, reject, untagged: [], onContinue: null };
+        this.current = { tag, resolve, reject, untagged: [], onContinue: null, sink, maxStream };
         const writeFrom = (index, prefix) => {
           let text = prefix;
           for (let i = index; i < parts.length; i += 1) {
@@ -422,16 +454,25 @@ class ImapConnection {
   }
 
   async uidSearch(criteria) {
-    const result = await this.run([`UID SEARCH ${criteria}`]);
-    return result.untagged
-      .filter((entry) => entry.type === 'SEARCH')
-      .flatMap((entry) => entry.values.map((value) => Number(asText(value))))
-      .filter((uid) => Number.isInteger(uid) && uid > 0);
+    return searchResults(await this.run([`UID SEARCH ${criteria}`]));
   }
 
-  /** FETCH ueber Nummern oder (mit `uid: true`) ueber UIDs. */
-  async fetch(set, items, { uid = false } = {}) {
-    const result = await this.run([`${uid ? 'UID ' : ''}FETCH ${set} ${items}`]);
+  /** `UID SEARCH HEADER Message-ID "<…>"` — der Wert geht gequotet oder als Literal hinaus. */
+  async uidSearchHeader(field, value) {
+    return searchResults(
+      await this.run(['UID SEARCH HEADER ', astring(field), ' ', astring(value)]),
+    );
+  }
+
+  /**
+   * FETCH ueber Nummern oder (mit `uid: true`) ueber UIDs.
+   * `sink` und `maxStream` wie bei `run`: ein grosser Teil fliesst durch, statt gesammelt zu werden.
+   */
+  async fetch(set, items, { uid = false, sink = null, maxStream = MAX_LITERAL } = {}) {
+    const result = await this.run([`${uid ? 'UID ' : ''}FETCH ${set} ${items}`], {
+      sink,
+      maxStream,
+    });
     return result.untagged
       .filter((entry) => entry.type === 'FETCH' && Array.isArray(entry.values[0]))
       .map((entry) => {
@@ -442,11 +483,13 @@ class ImapConnection {
         }
         const bodyKey = Object.keys(attributes).find((key) => key.startsWith('BODY['));
         const body = bodyKey ? attributes[bodyKey] : null;
+        const structure = attributes.BODYSTRUCTURE ?? attributes.BODY;
         return {
           seq: entry.number,
           uid: Number(asText(attributes.UID)) || null,
           flags: Array.isArray(attributes.FLAGS) ? attributes.FLAGS.map(asText) : null,
           internalDate: attributes.INTERNALDATE ? asText(attributes.INTERNALDATE) : null,
+          structure: Array.isArray(structure) ? structure : null,
           body: body === null ? null : Buffer.isBuffer(body) ? body : Buffer.from(asText(body)),
         };
       });
@@ -482,6 +525,7 @@ class ImapConnection {
     await this.run([this.capabilities.has('UIDPLUS') ? `UID EXPUNGE ${set}` : 'EXPUNGE']);
   }
 
+  /** Legt eine Nachricht ab. Mit UIDPLUS steht im Ergebnis `code` `APPENDUID <uidvalidity> <uid>`. */
   append(mailbox, flags, message) {
     return this.run(['APPEND ', astring(mailbox), ` (${flags.join(' ')}) `, message]);
   }
@@ -499,56 +543,6 @@ class ImapConnection {
     }
   }
 }
-
-// ------------------------------------------------------------------ Ordner
-
-const TRASH_NAMES = [
-  'trash',
-  'papierkorb',
-  'gelöscht',
-  'gelöschte elemente',
-  'gelöschte objekte',
-  'gelöschte nachrichten',
-  'deleted',
-  'deleted items',
-  'deleted messages',
-  'bin',
-];
-
-const SENT_NAMES = [
-  'sent',
-  'gesendet',
-  'gesendete elemente',
-  'gesendete objekte',
-  'gesendete nachrichten',
-  'sent items',
-  'sent messages',
-  'sent mail',
-];
-
-/** Erst nach Special-Use (`\Trash`, `\Sent`), dann nach bekannten Namen. */
-function findFolder(folders, use, names) {
-  const selectable = folders.filter(
-    (folder) => !folder.flags.some((flag) => /^\\(noselect|nonexistent)$/i.test(flag)),
-  );
-  const byUse = selectable.find((folder) =>
-    folder.flags.some((flag) => flag.toLowerCase() === use.toLowerCase()),
-  );
-  if (byUse) return byUse.name;
-  const byName = selectable.find((folder) => {
-    const decoded = decodeMailboxName(folder.name);
-    const segments = folder.delimiter ? decoded.split(folder.delimiter) : [decoded];
-    return names.includes(
-      String(segments[segments.length - 1])
-        .trim()
-        .toLowerCase(),
-    );
-  });
-  return byName ? byName.name : null;
-}
-
-const findTrash = (folders) => findFolder(folders, '\\Trash', TRASH_NAMES);
-const findSent = (folders) => findFolder(folders, '\\Sent', SENT_NAMES);
 
 // ------------------------------------------------------------------ Einstieg
 
@@ -598,6 +592,4 @@ module.exports = {
   sequenceSet,
   parseValues,
   decodeMailboxName,
-  findTrash,
-  findSent,
 };

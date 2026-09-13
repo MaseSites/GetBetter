@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { savings as savingsRepo, useLiveQuery } from '@/db';
 import { formatMoney, formatNumber, useI18n } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -67,7 +68,7 @@ export function SavingsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={
             rows.length > 0
               ? t('savings.total', { saved: money(saved), target: money(wanted) })

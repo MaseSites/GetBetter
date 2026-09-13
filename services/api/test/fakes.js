@@ -31,6 +31,82 @@ function inSet(set, value, highest) {
 
 const text = (value) => (Buffer.isBuffer(value) ? value.toString('utf8') : String(value ?? ''));
 
+/** Eine schlichte Textmail — so sieht ihre BODYSTRUCTURE aus. */
+const PLAIN_STRUCTURE = '("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 120 4)';
+
+/** Kopf und Rumpf einer Nachricht oder eines Teils (die Tests schreiben CRLF). */
+function splitEntity(buffer) {
+  // Ein Teil ohne eigene Kopfzeilen beginnt gleich mit der Leerzeile.
+  if (buffer.subarray(0, 2).toString('latin1') === '\r\n') {
+    return { head: '', body: buffer.subarray(2) };
+  }
+  const index = buffer.indexOf('\r\n\r\n');
+  if (index === -1) return { head: buffer.toString('latin1'), body: Buffer.alloc(0) };
+  return { head: buffer.subarray(0, index).toString('latin1'), body: buffer.subarray(index + 4) };
+}
+
+/** Die Teile eines multipart — oder `null`, wenn es keiner ist. */
+function childrenOf(entity) {
+  const { head, body } = splitEntity(entity);
+  if (!/^content-type:\s*multipart\//im.test(head)) return null;
+  const boundary = /boundary="?([^";\r\n]+)"?/i.exec(head)?.[1];
+  if (!boundary) return null;
+  const parts = [];
+  for (const piece of body.toString('latin1').split(`--${boundary}`).slice(1)) {
+    if (piece.startsWith('--')) break;
+    parts.push(Buffer.from(piece.replace(/^\r\n/, '').replace(/\r\n$/, ''), 'latin1'));
+  }
+  return parts;
+}
+
+/** Die Kopfzeilen mit diesen Namen, samt Faltung, wie `HEADER.FIELDS` sie liefert. */
+function headerLines(raw, names) {
+  const kept = [];
+  let keeping = false;
+  for (const line of splitEntity(raw).head.split('\r\n')) {
+    if (/^[ \t]/.test(line)) {
+      if (keeping) kept.push(line);
+      continue;
+    }
+    const colon = line.indexOf(':');
+    keeping = colon > 0 && names.includes(line.slice(0, colon).trim().toLowerCase());
+    if (keeping) kept.push(line);
+  }
+  return Buffer.from(`${kept.map((line) => `${line}\r\n`).join('')}\r\n`, 'latin1');
+}
+
+/** Was `BODY[section]` meint: alles, bestimmte Kopfzeilen oder ein Teil ohne seine MIME-Kopfzeilen. */
+function sectionOf(raw, section) {
+  if (section === '') return raw;
+  const fields = /^HEADER\.FIELDS \(([^)]*)\)$/i.exec(section);
+  if (fields) return headerLines(raw, fields[1].toLowerCase().split(/\s+/).filter(Boolean));
+  let entity = raw;
+  for (const number of section.split('.').map(Number)) {
+    const children = childrenOf(entity);
+    if (children) {
+      entity = children[number - 1];
+      if (!entity) return null;
+    } else if (number !== 1) {
+      return null;
+    }
+  }
+  return splitEntity(entity).body;
+}
+
+/** Die Ordner, die jedes nachgebaute Postfach fuehrt — mit Special-Use wie echte Server. */
+const FAKE_FOLDERS = [
+  { name: 'INBOX', flags: ['\\HasNoChildren'] },
+  { name: 'Trash', flags: ['\\HasNoChildren', '\\Trash'] },
+  { name: 'Sent', flags: ['\\HasNoChildren', '\\Sent'] },
+  { name: 'Junk', flags: ['\\HasNoChildren', '\\Junk'] },
+  { name: 'Drafts', flags: ['\\HasNoChildren', '\\Drafts'] },
+  { name: 'Archive', flags: ['\\HasNoChildren', '\\Archive'] },
+];
+
+function emptyBoxes(value) {
+  return Object.fromEntries(FAKE_FOLDERS.map((folder) => [folder.name, value]));
+}
+
 function createFakeImap({
   username = 'user@example.ch',
   password = 'secret',
@@ -40,42 +116,60 @@ function createFakeImap({
 } = {}) {
   const state = {
     uidValidity,
-    folders: [
-      { name: 'INBOX', flags: ['\\HasNoChildren'] },
-      { name: 'Trash', flags: ['\\HasNoChildren', '\\Trash'] },
-      { name: 'Sent', flags: ['\\HasNoChildren', '\\Sent'] },
-    ],
-    boxes: { INBOX: [], Trash: [], Sent: [] },
-    uidNext: { INBOX: 1, Trash: 1, Sent: 1 },
+    folders: FAKE_FOLDERS,
+    boxes: emptyBoxes([]),
+    uidNext: emptyBoxes(1),
     lines: [],
     logins: 0,
   };
   const sockets = new Set();
 
-  function addMessage(folder, raw, { flags = [], date = new Date() } = {}) {
+  function addMessage(
+    folder,
+    raw,
+    { flags = [], date = new Date(), structure = PLAIN_STRUCTURE } = {},
+  ) {
     const uid = state.uidNext[folder];
     state.uidNext = { ...state.uidNext, [folder]: uid + 1 };
-    const message = { uid, flags: [...flags], internalDate: date, body: Buffer.from(raw) };
+    const message = {
+      uid,
+      flags: [...flags],
+      internalDate: date,
+      structure,
+      body: Buffer.from(raw),
+    };
     state.boxes = { ...state.boxes, [folder]: [...state.boxes[folder], message] };
     return uid;
   }
 
   function fetchResponse(message, seq, items, byUid) {
-    const wanted = JSON.stringify(items).toUpperCase();
+    const list = (Array.isArray(items) ? items : [items]).map(text);
+    const has = (name) => list.some((item) => item.toUpperCase() === name);
     const head = [];
-    if (byUid || wanted.includes('"UID"')) head.push(`UID ${message.uid}`);
-    if (wanted.includes('FLAGS')) head.push(`FLAGS (${message.flags.join(' ')})`);
-    if (wanted.includes('INTERNALDATE')) {
+    if (byUid || has('UID')) head.push(`UID ${message.uid}`);
+    if (has('FLAGS')) head.push(`FLAGS (${message.flags.join(' ')})`);
+    if (has('INTERNALDATE')) {
       head.push(`INTERNALDATE "${formatInternalDate(message.internalDate)}"`);
     }
-    if (!wanted.includes('BODY.PEEK[]'))
-      return Buffer.from(`* ${seq} FETCH (${head.join(' ')})\r\n`);
-    const body = message.body.subarray(0, 200000);
-    return Buffer.concat([
-      Buffer.from(`* ${seq} FETCH (${head.join(' ')} BODY[]<0> {${body.length}}\r\n`),
-      body,
-      Buffer.from(')\r\n'),
-    ]);
+    if (has('BODYSTRUCTURE')) head.push(`BODYSTRUCTURE ${message.structure ?? PLAIN_STRUCTURE}`);
+    const chunks = [Buffer.from(`* ${seq} FETCH (${head.join(' ')}`)];
+    let separator = head.length > 0 ? ' ' : '';
+    for (const item of list) {
+      const match = /^BODY(?:\.PEEK)?\[([^\]]*)\](?:<(\d+)\.(\d+)>)?$/i.exec(item);
+      if (!match) continue;
+      const origin = match[2] === undefined ? null : Number(match[2]);
+      const key = `${separator}BODY[${match[1]}]${origin === null ? '' : `<${origin}>`}`;
+      separator = ' ';
+      const whole = sectionOf(message.body, match[1]);
+      if (whole === null) {
+        chunks.push(Buffer.from(`${key} NIL`));
+        continue;
+      }
+      const bytes = origin === null ? whole : whole.subarray(origin, origin + Number(match[3]));
+      chunks.push(Buffer.from(`${key} {${bytes.length}}\r\n`), bytes);
+    }
+    chunks.push(Buffer.from(')\r\n'));
+    return Buffer.concat(chunks);
   }
 
   function execute(socket, session, parts) {
@@ -108,8 +202,14 @@ function createFakeImap({
       return okay('[READ-WRITE] selected');
     }
     if (command === 'SEARCH') {
-      const set = text(args[1]);
-      const found = box().filter((m) => inSet(set, m.uid, highest()));
+      const byHeader = text(args[0]).toUpperCase() === 'HEADER';
+      const needle = text(args[2]).toLowerCase();
+      const field = text(args[1]).toLowerCase();
+      const found = box().filter((m) =>
+        byHeader
+          ? headerLines(m.body, [field]).toString('latin1').toLowerCase().includes(needle)
+          : inSet(text(args[1]), m.uid, highest()),
+      );
       write(`* SEARCH ${found.map((m) => m.uid).join(' ')}\r\n`.replace(' \r\n', '\r\n'));
       return okay();
     }
@@ -144,7 +244,13 @@ function createFakeImap({
     if (command === 'COPY' || command === 'MOVE') {
       const [set, target] = [text(args[0]), text(args[1])];
       const chosen = box().filter((m) => inSet(set, m.uid, highest()));
-      for (const m of chosen) addMessage(target, m.body, { flags: m.flags, date: m.internalDate });
+      for (const m of chosen) {
+        addMessage(target, m.body, {
+          flags: m.flags,
+          date: m.internalDate,
+          structure: m.structure,
+        });
+      }
       if (command === 'MOVE') {
         state.boxes[session.selected] = box().filter((m) => !chosen.includes(m));
       }
@@ -159,8 +265,13 @@ function createFakeImap({
     }
     if (command === 'APPEND') {
       const [folder, flags, body] = [text(args[0]), args[1], args[2]];
-      addMessage(folder, body, { flags: flags.map(text) });
-      return okay('[APPENDUID 1 1] appended');
+      const uid = addMessage(folder, body, { flags: flags.map(text) });
+      // Nur wer UIDPLUS kann, sagt, unter welcher UID die Nachricht liegt.
+      return okay(
+        capabilities.includes('UIDPLUS')
+          ? `[APPENDUID ${state.uidValidity} ${uid}] appended`
+          : 'appended',
+      );
     }
     if (command === 'LOGOUT') {
       write(`* BYE bye\r\n${tag} OK logged out\r\n`);
@@ -327,4 +438,4 @@ function createFakeSmtp({
   };
 }
 
-module.exports = { createFakeImap, createFakeSmtp };
+module.exports = { createFakeImap, createFakeSmtp, sectionOf };

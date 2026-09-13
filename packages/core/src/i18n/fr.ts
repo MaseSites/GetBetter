@@ -1,13 +1,27 @@
-import type { Translations } from './de';
+import type { TranslationKey } from './de';
+import { frA } from './fr-a';
+import { frB } from './fr-b';
+import { frBirthdays } from './fr-birthdays';
+import { frC } from './fr-c';
+import { frMailUi } from './fr-mailui';
+import { frNotes } from './fr-notes';
+import { frShell } from './fr-shell';
+import { frTasks } from './fr-tasks';
+import { frUi } from './fr-ui';
+import { frVoice } from './fr-voice';
+import { frWeather } from './fr-weather';
 
-/** Noch nicht uebersetzt. Fehlende Schluessel fallen auf Deutsch zurueck. */
-export const fr: Translations = {
-  'app.tagline': 'Tout ce dont votre quotidien a besoin — au même endroit.',
-  'common.continue': 'Continuer',
-  'common.back': 'Retour',
-  'tabs.today': 'Accueil',
-  'tabs.modules': 'Apps',
-  'tabs.assistant': 'Assistant',
-  'tabs.household': 'Ménage',
-  'tabs.profile': 'Profil',
+/** Französisch, vollstaendig: jeder Schluessel aus `de`. Fehlt einer, meldet es der Typ. */
+export const fr: Readonly<Record<TranslationKey, string>> = {
+  ...frA,
+  ...frB,
+  ...frC,
+  ...frVoice,
+  ...frShell,
+  ...frTasks,
+  ...frNotes,
+  ...frBirthdays,
+  ...frWeather,
+  ...frMailUi,
+  ...frUi,
 };

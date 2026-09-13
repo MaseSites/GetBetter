@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { dayKey, meals as mealRepo, useLiveQuery } from '@/db';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -67,7 +68,7 @@ export function MealsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={t('meals.today', { kcal: total, target: DAILY_TARGET })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}

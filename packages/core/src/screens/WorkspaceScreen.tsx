@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Animated, Platform, Pressable, TextInput, View } from 'react-native';
+import { Animated, Platform, Pressable, View } from 'react-native';
 
 import {
   bills as billRepo,
@@ -55,23 +55,19 @@ import {
   useI18n,
   type TranslationKey,
 } from '@/i18n';
-import {
-  DayThread,
-  THREAD_INDENT,
-  type AllDayEntry,
-  type DayEntry,
-} from '@/features/today/DayThread';
+import { DayThread, type AllDayEntry, type DayEntry } from '@/features/today/DayThread';
 import { weatherIcon } from '@/features/weather/api';
 import { useWeather } from '@/features/weather/useWeather';
 import { MODULES, modulesOfApp } from '@/mocks/modules';
+import { moduleName, moduleShort } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { moduleBase, useTheme } from '@/theme';
 import {
-  Avatar,
   Button,
   Card,
   Divider,
+  FloatingButton,
   Header,
   Icon,
   Input,
@@ -80,8 +76,31 @@ import {
   Screen,
   Text,
   useSwipeSteps,
+  type FloatingButtonMenuItem,
   type IconName,
 } from '@/ui';
+import { FLOATING_BUTTON_SIZE } from '@/ui/layout';
+
+/**
+ * Das „+“ unten rechts auf Heute: zwei Tipps zu jedem Anlegen. Die Funktion
+ * oeffnet sich mit ihrem leeren Blatt — nur, wenn diese App sie fuehrt.
+ */
+const CREATE_ACTIONS: readonly {
+  moduleId: string;
+  label: TranslationKey;
+  icon: IconName;
+  href: string;
+}[] = [
+  { moduleId: 'tasks', label: 'shell.create.task', icon: 'checkCircle', href: '/run/tasks?new=1' },
+  { moduleId: 'notes', label: 'shell.create.note', icon: 'note', href: '/run/notes?new=1' },
+  { moduleId: 'mail', label: 'shell.create.mail', icon: 'mail', href: '/run/mail?compose=1' },
+  {
+    moduleId: 'birthdays',
+    label: 'shell.create.birthday',
+    icon: 'gift',
+    href: '/run/birthdays?new=1',
+  },
+];
 
 /**
  * Kein Kachelbrett, sondern eine Arbeitsflaeche: jede Funktion steht mit dem
@@ -332,7 +351,7 @@ export function WorkspaceScreen() {
             <ListItem
               title={note.title || t('notes.untitled')}
               subtitle={note.body.slice(0, 60) || undefined}
-              onPress={() => router.push('/run/notes')}
+              onPress={() => router.push(`/run/notes?note=${encodeURIComponent(note.id)}`)}
             />
           </View>
         ))
@@ -493,7 +512,10 @@ export function WorkspaceScreen() {
             <ListItem
               title={row.name}
               icon="gift"
-              subtitle={t('contacts.turns', { age: next.age })}
+              // Ohne bekanntes Geburtsjahr gibt es kein Alter.
+              {...(row.birthYearKnown === false
+                ? {}
+                : { subtitle: t('contacts.turns', { age: next.age }) })}
               right={
                 <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
                   {relativeDay(t, language, next.day)}
@@ -761,7 +783,7 @@ export function WorkspaceScreen() {
 
   /** Name und Symbol einer Funktion — auch einer, die eine andere App fuehrt. */
   const moduleOf = (id: string) => MODULES.find((module) => module.id === id);
-  const nameOf = (id: string) => moduleOf(id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(t, id);
   const iconOf = (id: string): IconName => moduleOf(id)?.icon ?? 'circle';
   const owns = (id: string) => mine.some((module) => module.id === id);
 
@@ -892,6 +914,14 @@ export function WorkspaceScreen() {
   // Geburtstage gehoeren der Funktion Geburtstage, wo es sie gibt, sonst den Kontakten.
   const birthdayModule = owns('birthdays') ? 'birthdays' : owns('contacts') ? 'contacts' : null;
 
+  /** Ein Tipp auf einen Geburtstag oeffnet die Person selbst, wo es die Funktion gibt. */
+  const openPerson = (contactId: string) =>
+    router.push(
+      birthdayModule === 'birthdays'
+        ? `/run/birthdays?person=${encodeURIComponent(contactId)}`
+        : `/run/${birthdayModule ?? 'contacts'}`,
+    );
+
   if (isToday && birthdayModule) {
     // Wer heute feiert, steht oben in der Ganztags-Zeile.
     for (const { row, next } of birthdays.filter((entry) => entry.next.days > 0).slice(0, 2)) {
@@ -900,9 +930,12 @@ export function WorkspaceScreen() {
         moduleId: birthdayModule,
         icon: 'gift',
         title: row.name,
-        meta: `${t('contacts.turns', { age: next.age })} · ${relativeDay(t, language, next.day)}`,
+        meta:
+          row.birthYearKnown === false
+            ? relativeDay(t, language, next.day)
+            : `${t('contacts.turns', { age: next.age })} · ${relativeDay(t, language, next.day)}`,
         tag: nameOf(birthdayModule),
-        onPress: () => router.push(`/run/${birthdayModule}`),
+        onPress: () => openPerson(row.id),
       });
     }
   }
@@ -914,10 +947,13 @@ export function WorkspaceScreen() {
           .filter((entry) => entry.next.day === shownDay)
           .map(({ row, next }): AllDayEntry => ({
             key: `birthday-today-${row.id}`,
-            title: t('birthdays.event', { name: row.name, age: next.age }),
+            title:
+              row.birthYearKnown === false
+                ? t('birthdays.eventNoAge', { name: row.name })
+                : t('birthdays.event', { name: row.name, age: next.age }),
             icon: 'gift',
             color: moduleBase(theme, birthdayModule),
-            onPress: () => router.push(`/run/${birthdayModule}`),
+            onPress: () => openPerson(row.id),
           }))
       : []),
     ...(allDayList.data ?? []).map((event): AllDayEntry => ({
@@ -957,192 +993,135 @@ export function WorkspaceScreen() {
     });
   }
 
-  return (
-    <Screen
-      // Nur Datum und Gruss — die Uebersicht darunter sagt selbst, was ansteht.
-      header={
-        <Header
-          large
-          overline={formatLongDate(language, new Date().toISOString())}
-          {...(main && weather.forecast
-            ? {
-                overlineAction: {
-                  icon: weatherIcon(weather.forecast.current.code),
-                  text: t('weather.degrees', { temp: Math.round(weather.forecast.current.temp) }),
-                  label: t('weather.open'),
-                  onPress: () => router.push('/run/weather'),
-                },
-              }
-            : {})}
-          title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
-          right={
-            // Die Glocke gibt es nur in GetBetter — dort liegen die Mitteilungen.
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              {main ? <NotificationBell /> : null}
-              <Avatar name={account.firstName || '?'} size={36} />
-            </View>
-          }
-        />
-      }
-    >
-      {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}
-      {main ? <NewsSection /> : null}
-
-      {/* Wischen blaettert den Tag; die Flaeche folgt dem Finger ein Stueck. */}
-      <Animated.View style={swipe.style} {...swipe.panHandlers}>
-        {isToday ? null : (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: theme.spacing.sm,
-              marginBottom: theme.spacing.xs,
-            }}
-          >
-            <Text variant="label">{relativeDay(t, language, shownDay)}</Text>
-            <Button
-              label={t('day.today')}
-              size="sm"
-              variant="ghost"
-              fullWidth={false}
-              onPress={() => setDayShift(0)}
-            />
-          </View>
-        )}
-        <DayThread entries={thread} allDay={allDay} showNow={isToday} />
-      </Animated.View>
-
-      {main && owns('tasks') ? (
-        <QuickAdd
-          value={draft}
-          onChangeText={setDraft}
-          onSubmit={() => void addTask()}
-          placeholder={t('workspace.addTask')}
-        />
-      ) : null}
-
-      {main ? <QuickAccess /> : null}
-
-      {main ? (
-        <AppFamily />
-      ) : (
-        <>
-          {hasHouseholds() ? (
-            <Section
-              module={{
-                id: 'household',
-                area: 'household',
-                topic: 'supplies',
-                name: t('tabs.household'),
-                short: '',
-                description: '',
-                icon: 'people',
-                priority: 1,
-                permissions: { read: [], write: [] },
-              }}
-              onOpen={() => router.push('/household')}
-            >
-              <Text variant="label" tone={household ? 'default' : 'faint'}>
-                {household ? household.name : t('household.none.title')}
-              </Text>
-            </Section>
-          ) : null}
-
-          {built.map((module) => (
-            <Section
-              key={module.id}
-              module={module}
-              onOpen={() => router.push(`/run/${module.id}`)}
-            >
-              {content(module.id)}
-            </Section>
-          ))}
-
-          {pending.length > 0 ? (
-            <View style={{ gap: theme.spacing.sm }}>
-              <Text variant="section" tone="muted">
-                {t('workspace.pending')}
-              </Text>
-              <Card>
-                {pending.map((module, index) => (
-                  <View key={module.id} style={{ opacity: 0.55 }}>
-                    {index > 0 ? <Divider /> : null}
-                    <ListItem
-                      title={module.name}
-                      subtitle={module.short}
-                      onPress={() => router.push(`/module/${module.id}`)}
-                    />
-                  </View>
-                ))}
-              </Card>
-            </View>
-          ) : null}
-        </>
-      )}
-    </Screen>
-  );
-}
-
-/** Eine Aufgabe eintragen, direkt unter dem Band — eingerueckt wie seine Karten. */
-function QuickAdd({
-  value,
-  onChangeText,
-  onSubmit,
-  placeholder,
-}: {
-  value: string;
-  onChangeText: (value: string) => void;
-  onSubmit: () => void;
-  placeholder: string;
-}) {
-  const theme = useTheme();
+  // Neues legt man ueber das „+“ an, nicht ueber ein zweites Feld unter dem Band.
+  const createMenu: FloatingButtonMenuItem[] = CREATE_ACTIONS.filter((action) =>
+    owns(action.moduleId),
+  ).map((action) => ({
+    key: action.moduleId,
+    label: t(action.label),
+    icon: action.icon,
+    onPress: () => router.push(action.href),
+  }));
+  const hasCreate = main && createMenu.length > 0;
 
   return (
-    <View
-      style={[
-        theme.elevation.card,
-        {
-          marginLeft: THREAD_INDENT,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: theme.spacing.md,
-          paddingHorizontal: theme.spacing.md,
-          minHeight: 50,
-          borderRadius: theme.radii.item,
-          backgroundColor: theme.colors.surface,
-        },
-      ]}
-    >
-      <View
-        style={{
-          width: 21,
-          height: 21,
-          borderRadius: theme.radii.xs,
-          backgroundColor: theme.colors.surfaceMuted,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+    <View style={{ flex: 1 }}>
+      <Screen
+        // Unten Platz lassen, damit der Knopf nichts Letztes verdeckt.
+        contentStyle={
+          hasCreate ? { paddingBottom: FLOATING_BUTTON_SIZE + theme.spacing.xl } : undefined
+        }
+        // Nur Datum und Gruss — die Uebersicht darunter sagt selbst, was ansteht.
+        header={
+          <Header
+            large
+            overline={formatLongDate(language, new Date().toISOString())}
+            {...(main && weather.forecast
+              ? {
+                  overlineAction: {
+                    icon: weatherIcon(weather.forecast.current.code),
+                    text: t('weather.degrees', { temp: Math.round(weather.forecast.current.temp) }),
+                    label: t('weather.open'),
+                    onPress: () => router.push('/run/weather'),
+                  },
+                }
+              : {})}
+            title={t('today.greeting', { name: account.firstName || t('today.greetingFallback') })}
+            // Die Glocke gibt es nur in GetBetter — dort liegen die Mitteilungen. Ein
+            // Profilknopf fehlt bewusst: dafuer gibt es den Tab.
+            {...(main ? { right: <NotificationBell /> } : {})}
+          />
+        }
       >
-        <Icon name="plus" size={14} color={theme.colors.textMuted} />
-      </View>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.textFaint}
-        onSubmitEditing={onSubmit}
-        returnKeyType="done"
-        accessibilityLabel={placeholder}
-        style={{
-          flex: 1,
-          height: 50,
-          fontFamily: theme.fontFamily,
-          fontSize: theme.fontSize.md,
-          color: theme.colors.text,
-          outlineStyle: 'none' as never,
-        }}
-      />
+        {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}
+        {main ? <NewsSection /> : null}
+
+        {/* Wischen blaettert den Tag; die Flaeche folgt dem Finger ein Stueck. */}
+        <Animated.View style={swipe.style} {...swipe.panHandlers}>
+          {isToday ? null : (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: theme.spacing.sm,
+                marginBottom: theme.spacing.xs,
+              }}
+            >
+              <Text variant="label">{relativeDay(t, language, shownDay)}</Text>
+              <Button
+                label={t('day.today')}
+                size="sm"
+                variant="ghost"
+                fullWidth={false}
+                onPress={() => setDayShift(0)}
+              />
+            </View>
+          )}
+          <DayThread entries={thread} allDay={allDay} showNow={isToday} />
+        </Animated.View>
+
+        {main ? <QuickAccess /> : null}
+
+        {main ? (
+          <AppFamily />
+        ) : (
+          <>
+            {hasHouseholds() ? (
+              <Section
+                module={{
+                  id: 'household',
+                  area: 'household',
+                  topic: 'supplies',
+                  icon: 'people',
+                  priority: 1,
+                  permissions: { read: [], write: [] },
+                }}
+                onOpen={() => router.push('/household')}
+              >
+                <Text variant="label" tone={household ? 'default' : 'faint'}>
+                  {household ? household.name : t('household.none.title')}
+                </Text>
+              </Section>
+            ) : null}
+
+            {built.map((module) => (
+              <Section
+                key={module.id}
+                module={module}
+                onOpen={() => router.push(`/run/${module.id}`)}
+              >
+                {content(module.id)}
+              </Section>
+            ))}
+
+            {pending.length > 0 ? (
+              <View style={{ gap: theme.spacing.sm }}>
+                <Text variant="section" tone="muted">
+                  {t('workspace.pending')}
+                </Text>
+                <Card>
+                  {pending.map((module, index) => (
+                    <View key={module.id} style={{ opacity: 0.55 }}>
+                      {index > 0 ? <Divider /> : null}
+                      <ListItem
+                        title={moduleName(t, module.id)}
+                        subtitle={moduleShort(t, module.id)}
+                        onPress={() => router.push(`/module/${module.id}`)}
+                      />
+                    </View>
+                  ))}
+                </Card>
+              </View>
+            ) : null}
+          </>
+        )}
+      </Screen>
+
+      {/* Ausserhalb der Rollflaeche: der Knopf bleibt stehen, waehrend der Tag rollt. */}
+      {hasCreate ? (
+        <FloatingButton label={t('shell.create')} menu={createMenu} aboveTabBar />
+      ) : null}
     </View>
   );
 }
@@ -1157,8 +1136,10 @@ function Section({
   onOpen: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   const theme = useTheme();
   if (!module) return null;
+  const name = moduleName(t, module.id);
 
   return (
     <Card>
@@ -1166,7 +1147,7 @@ function Section({
           auf die Zeilen darunter ab. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={module.name}
+        accessibilityLabel={name}
         onPress={onOpen}
         style={({ pressed }) => ({
           flexDirection: 'row',
@@ -1178,7 +1159,7 @@ function Section({
       >
         <ModuleIcon moduleId={module.id} icon={module.icon} size="sm" />
         <View style={{ flex: 1 }}>
-          <Text variant="title">{module.name}</Text>
+          <Text variant="title">{name}</Text>
         </View>
         <Icon name="forward" size={18} color={theme.colors.textFaint} />
       </Pressable>

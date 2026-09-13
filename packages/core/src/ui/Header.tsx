@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { useTheme } from '@/theme';
 
 import { useHeaderCrumb } from './HeaderCrumb';
 import { Icon, type IconName } from './Icon';
+import { Menu, measureAnchor, type MenuAnchor, type MenuEntry } from './Menu';
 import { Text } from './Text';
 import { usePressScale } from './usePressScale';
 
@@ -31,6 +32,11 @@ export type HeaderProps = {
    */
   overlineAction?: { icon?: IconName; text: string; label: string; onPress: () => void };
   title?: string;
+  /**
+   * Macht den Titel zum Umschalter: daneben steht ein Pfeil, ein Tipp oeffnet
+   * dieses Menue — fuer Listen, Ordner, Postfaecher. Oben links bleibt Zurueck.
+   */
+  titleMenu?: readonly MenuEntry[];
   subtitle?: string;
   showBack?: boolean;
   onBack?: () => void;
@@ -40,7 +46,8 @@ export type HeaderProps = {
   large?: boolean;
   /**
    * Bereichsmarke ohne Zurueck-Knopf — fuer die Startseiten von BetterGym,
-   * BetterFamily und BetterMoney. In Vollansichten kommt sie aus dem Kontext.
+   * BetterFamily und BetterMoney. Vollansichten einer Funktion zeigen keine
+   * Marke mehr: der Titel reicht.
    */
   crumb?: { label: string } | null | undefined;
   children?: ReactNode;
@@ -50,30 +57,36 @@ export type HeaderProps = {
  * Zwei Formen:
  *
  * - **Uebersicht** (Heute, Bereiche, Profil) — Titel links, Knoepfe rechts.
- * - **Vollansicht** (mit Zurueck) — oben eine Zeile mit rundem Zurueck-Knopf
- *   und der Bereichsmarke, darunter gross der Titel. So stehen Gesundheit,
- *   Haushalt, Geld und Kalender im Entwurf.
+ * - **Vollansicht** (mit Zurueck) — oben eine Zeile mit rundem Zurueck-Knopf,
+ *   darunter gross der Titel.
  */
 export function Header({
   overline,
   overlineAction,
   title,
+  titleMenu,
   subtitle,
   showBack = false,
   onBack,
   actions = [],
   right,
   large = false,
-  crumb: crumbProp,
+  crumb,
   children,
 }: HeaderProps) {
   const theme = useTheme();
   const t = useTranslate();
   const insets = useSafeAreaInsets();
-  const contextCrumb = useHeaderCrumb();
-  const crumb = crumbProp ?? contextCrumb;
-  // Mit Marke steht der Bildschirm wie eine Vollansicht: Marke oben, Titel gross.
-  const full = showBack || Boolean(crumb);
+  // Die Funktion setzt ihre Bereichsmarke noch; sie macht daraus eine
+  // Vollansicht, gezeigt wird die Marke aber nicht mehr.
+  const insideModule = Boolean(useHeaderCrumb());
+  const full = showBack || Boolean(crumb) || insideModule;
+
+  const titleNode = useRef<View>(null);
+  const [titleMenuState, setTitleMenuState] = useState<{
+    anchor: MenuAnchor;
+    open: boolean;
+  } | null>(null);
 
   function handleBack() {
     if (onBack) {
@@ -85,6 +98,11 @@ export function Header({
     } else {
       router.replace('/today');
     }
+  }
+
+  async function openTitleMenu() {
+    const anchor = await measureAnchor(titleNode.current);
+    if (anchor) setTitleMenuState({ anchor, open: true });
   }
 
   const buttons =
@@ -102,6 +120,20 @@ export function Header({
         ))}
       </View>
     ) : null;
+
+  const titleText = title ? (
+    <Text
+      variant={large || full ? 'display' : 'title'}
+      numberOfLines={1}
+      style={
+        full && !large
+          ? { fontSize: theme.fontSize.title, lineHeight: theme.lineHeight.title }
+          : undefined
+      }
+    >
+      {title}
+    </Text>
+  ) : null;
 
   return (
     <View
@@ -191,19 +223,26 @@ export function Header({
                 {overline}
               </Text>
             ) : null}
-            {title ? (
-              <Text
-                variant={large || full ? 'display' : 'title'}
-                numberOfLines={1}
-                style={
-                  full && !large
-                    ? { fontSize: theme.fontSize.title, lineHeight: theme.lineHeight.title }
-                    : undefined
-                }
+            {title && titleMenu && titleMenu.length > 0 ? (
+              <Pressable
+                ref={titleNode}
+                accessibilityRole="button"
+                accessibilityLabel={title}
+                accessibilityHint={t('ui.menu.open')}
+                accessibilityState={{ expanded: titleMenuState?.open ?? false }}
+                onPress={() => void openTitleMenu()}
+                style={({ pressed }) => [
+                  styles.row,
+                  styles.titleButton,
+                  { gap: theme.spacing.xs, opacity: pressed ? 0.5 : 1 },
+                ]}
               >
-                {title}
-              </Text>
-            ) : null}
+                <View style={styles.shrink}>{titleText}</View>
+                <Icon name="down" size={20} color={theme.colors.textMuted} />
+              </Pressable>
+            ) : (
+              titleText
+            )}
             {subtitle ? (
               <Text variant="label" tone="muted" numberOfLines={2}>
                 {subtitle}
@@ -214,6 +253,18 @@ export function Header({
         </View>
       ) : null}
       {children}
+
+      {titleMenu && titleMenu.length > 0 ? (
+        <Menu
+          visible={titleMenuState?.open ?? false}
+          anchor={titleMenuState?.anchor ?? null}
+          items={titleMenu}
+          accessibilityLabel={title}
+          onClose={() =>
+            setTitleMenuState((current) => (current ? { ...current, open: false } : null))
+          }
+        />
+      ) : null}
     </View>
   );
 }
@@ -266,8 +317,10 @@ function RoundButton({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
+  shrink: { flexShrink: 1, minWidth: 0 },
   titles: { flex: 1, gap: 3 },
   overlineRow: { alignSelf: 'flex-start' },
+  titleButton: { alignSelf: 'flex-start', maxWidth: '100%' },
   actions: { flexDirection: 'row', alignItems: 'center' },
   round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });

@@ -15,7 +15,8 @@ import { events as eventRepo } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
 import { daysUntil, relativeDay } from '@/features/shared/days';
 import { formatShortDate, formatTime, useI18n, type TranslationKey } from '@/i18n';
-import { MODULES, modulesOfApp } from '@/mocks/modules';
+import { modulesOfApp } from '@/mocks/modules';
+import { moduleName } from '@/mocks/moduleText';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Divider, DueTag, EmptyRow, LineRow, ListCard, SectionHead, TickRow } from '@/ui';
@@ -51,7 +52,10 @@ export function FamilySections() {
     () => plantRepo.list(account.id, householdId),
     [account.id, householdId],
   );
-  const petList = useLiveQuery(() => petRepo.list(account.id, householdId), [account.id, householdId]);
+  const petList = useLiveQuery(
+    () => petRepo.list(account.id, householdId),
+    [account.id, householdId],
+  );
   const petEventList = useLiveQuery(
     () => petRepo.events(account.id, householdId),
     [account.id, householdId],
@@ -62,7 +66,7 @@ export function FamilySections() {
   );
 
   const owned = new Set(modulesOfApp().map((module) => module.id));
-  const nameOf = (id: string) => MODULES.find((module) => module.id === id)?.name ?? id;
+  const nameOf = (id: string) => moduleName(t, id);
   const open = (id: string) => () => router.push(`/run/${id}`);
 
   const events = upcoming.data ?? [];
@@ -89,7 +93,11 @@ export function FamilySections() {
       });
     }
     if (vehicle.vignetteYear === null || vehicle.vignetteYear < new Date().getFullYear()) {
-      lines.push({ key: `${vehicle.id}-v`, title: `${vehicle.name} · ${t('vehicles.vignette')}`, day: null });
+      lines.push({
+        key: `${vehicle.id}-v`,
+        title: `${vehicle.name} · ${t('vehicles.vignette')}`,
+        day: null,
+      });
     }
     return lines;
   });
@@ -157,7 +165,9 @@ export function FamilySections() {
         undefined,
         petEvents.length === 0 ? (
           <EmptyRow
-            text={pets.length === 0 ? t('pets.empty.title') : pets.map((pet) => pet.name).join(' · ')}
+            text={
+              pets.length === 0 ? t('pets.empty.title') : pets.map((pet) => pet.name).join(' · ')
+            }
             onPress={open('pets')}
           />
         ) : (
@@ -166,7 +176,9 @@ export function FamilySections() {
               {index > 0 ? <Divider /> : null}
               <LineRow
                 title={`${pets.find((pet) => pet.id === event.petId)?.name ?? ''} · ${t(`pets.event.${event.kind}` as TranslationKey)}`}
-                trailing={<DueTag text={relativeDay(t, language, event.day)} now={event.day === today} />}
+                trailing={
+                  <DueTag text={relativeDay(t, language, event.day)} now={event.day === today} />
+                }
                 onPress={open('pets')}
               />
             </View>
@@ -190,7 +202,9 @@ export function FamilySections() {
                 title={line.title}
                 trailing={
                   <DueTag
-                    text={line.day ? relativeDay(t, language, line.day) : t('vehicles.vignetteMissing')}
+                    text={
+                      line.day ? relativeDay(t, language, line.day) : t('vehicles.vignetteMissing')
+                    }
                     late
                   />
                 }

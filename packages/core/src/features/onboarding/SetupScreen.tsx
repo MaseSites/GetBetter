@@ -1,8 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { currentApp } from '@/app/identity';
+import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
+import { VoicePicker } from '@/features/assistant/VoicePicker';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
+import { useNarration } from '@/features/intro/narration';
+import { NarrationButton } from '@/features/intro/NarrationButton';
 import { SpeechBubble } from '@/features/intro/SpeechBubble';
 import { Tutorial } from '@/features/intro/Tutorial';
 import { useReducedMotion } from '@/features/intro/useReducedMotion';
@@ -24,16 +28,29 @@ const useNativeDriver = Platform.OS !== 'web';
 
 /**
  * Das Einrichten nach dem Registrieren, als Gespraech mit dem Avatar: oben er
- * und seine Blase, darunter, was man dazu eingibt. Jeder Schritt laesst sich
+ * und seine Blase, darunter, was man dazu eingibt. Er sagt jeden Schritt auch
+ * laut — darum waehlt man zuerst seine Stimme. Jeder Schritt laesst sich
  * wischen — nach links weiter, nach rechts zurueck — und oben zurueckgehen.
  * Zum Schluss geht es ins Tutorial oder direkt in die App.
  */
 export function SetupScreen() {
   const t = useTranslate();
   const theme = useTheme();
-  const { account, signOut, completeOnboarding, setAssistantName } = useApp();
+  const { account, signOut, completeOnboarding, setAssistantName, setAssistantVoice } = useApp();
   const draft = useOnboarding();
-  const [steps] = useState(() => setupSteps(Boolean(account?.firstName.trim())));
+  const voices = useSpeechVoices();
+  // Ob er schon einen Vornamen hat, steht beim Betreten fest; welche Stimmen es
+  // gibt, reicht der Browser erst nach — darum nur das Zweite von aussen.
+  const [hadFirstName] = useState(() => Boolean(account?.firstName.trim()));
+  const canPickVoice = voices.length > 1;
+  const liveSteps = useMemo(
+    () => setupSteps(hadFirstName, canPickVoice),
+    [hadFirstName, canPickVoice],
+  );
+  // Sobald man einmal weiter ist, stehen die Schritte fest: kaeme die Stimme
+  // danach noch vorne dazu, rutschte der laufende Schritt um eins.
+  const [fixedSteps, setFixedSteps] = useState<readonly SetupStep[] | null>(null);
+  const steps = fixedSteps ?? liveSteps;
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [busy, setBusy] = useState(false);
@@ -43,6 +60,25 @@ export function SetupScreen() {
   const firstName = draft.firstName.trim();
   const assistant = draft.assistantName.trim();
   const canGo = canLeave(step, draft);
+  const voiceUri = account?.assistantVoice;
+
+  const bubble: Record<SetupStep, string> = {
+    voice: t('intro.setup.voice.bubble'),
+    // Kam die Stimme zuerst, ist das Konto schon begruesst.
+    name:
+      steps[0] === 'name' ? t('intro.setup.name.bubble') : t('intro.setup.name.bubbleAfterVoice'),
+    assistant: assistant
+      ? t('intro.setup.assistant.bubbleNamed', { name: firstName, assistant })
+      : t('intro.setup.assistant.bubble', { name: firstName }),
+    style: t('intro.setup.style.bubble', { assistant }),
+    ready: t('intro.setup.ready.bubble', { name: firstName }),
+  };
+  // Laut gesagt wird der Satz beim Betreten — nicht der, der beim Tippen mitwaechst.
+  const said =
+    step === 'assistant' ? t('intro.setup.assistant.bubble', { name: firstName }) : bubble[step];
+
+  // Waehrend des Tutorials redet er hier nicht dazwischen.
+  const narration = useNarration(step, touring ? '' : said);
 
   async function go(to: 1 | -1) {
     if (busy) return;
@@ -61,6 +97,7 @@ export function SetupScreen() {
         setBusy(false);
       }
     }
+    if (!fixedSteps) setFixedSteps(steps);
     setDirection(to);
     setIndex(target);
   }
@@ -79,15 +116,6 @@ export function SetupScreen() {
   const swipe = useSwipeSteps((to) => void go(to));
 
   if (touring) return <Tutorial onDone={() => void finish()} />;
-
-  const bubble: Record<SetupStep, string> = {
-    name: t('intro.setup.name.bubble'),
-    assistant: assistant
-      ? t('intro.setup.assistant.bubbleNamed', { name: firstName, assistant })
-      : t('intro.setup.assistant.bubble', { name: firstName }),
-    style: t('intro.setup.style.bubble', { assistant }),
-    ready: t('intro.setup.ready.bubble', { name: firstName }),
-  };
 
   const footer =
     step === 'ready' ? (
@@ -123,6 +151,8 @@ export function SetupScreen() {
             <View style={styles.grow}>
               <SpeechBubble text={bubble[step]} tail="left" typeKey={step} />
             </View>
+            {/* Wer ihn nicht hoeren will, schaltet ihn stumm — die Blase bleibt. */}
+            <NarrationButton narration={narration} />
           </View>
         </StepHeader>
       }
@@ -131,6 +161,13 @@ export function SetupScreen() {
       {/* Nach links weiter, nach rechts zurueck; senkrecht rollt die Seite wie immer. */}
       <Animated.View style={[styles.grow, swipe.style]} {...swipe.panHandlers}>
         <StepPane key={step} direction={direction}>
+          {step === 'voice' ? (
+            <VoicePicker
+              name={assistant}
+              value={voiceUri}
+              onChange={(uri) => void setAssistantVoice(uri)}
+            />
+          ) : null}
           {step === 'name' ? (
             <Input
               label={t('intro.setup.name.label')}

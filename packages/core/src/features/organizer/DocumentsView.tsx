@@ -11,6 +11,7 @@ import {
 import { DayPicker } from '@/features/shared/DayPicker';
 import { daysUntil, relativeDay } from '@/features/shared/days';
 import { useI18n, type TranslationKey } from '@/i18n';
+import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -107,7 +108,7 @@ export function DocumentsView({ module }: { module: ModuleDefinition }) {
     <Screen
       header={
         <Header
-          title={module.name}
+          title={moduleName(t, module.id)}
           subtitle={subtitle}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}

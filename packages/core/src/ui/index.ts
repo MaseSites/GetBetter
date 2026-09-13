@@ -43,6 +43,20 @@ export { Text } from './Text';
 export { usePressScale } from './usePressScale';
 export { useSwipeSteps } from './useSwipeSteps';
 export { Wheel, WheelFrame } from './Wheel';
+export { ContextMenu } from './ContextMenu';
+export { isMenuDivider, Menu, measureAnchor } from './Menu';
+export { AfterClose, Overlay, useOverlayBounds } from './Overlay';
+export { ListSeparator, PlainList, PlainRow, SectionHeader } from './PlainList';
+export { UNDO_DURATION_MS, UndoProvider, useUndo } from './UndoToast';
+export { useReducedMotion } from './useReducedMotion';
+export {
+  FLOATING_BUTTON_SIZE,
+  HIT_TARGET,
+  LONG_PRESS_MS,
+  ROW_LEADING_WIDTH,
+  ROW_MIN_HEIGHT,
+  TAB_BAR_HEIGHT,
+} from './layout';
 
 export type { AddBarProps } from './AddBar';
 export type { AppIconProps } from './AppIcon';
@@ -54,7 +68,20 @@ export type { CheckboxProps } from './Checkbox';
 export type { ChipProps } from './Chip';
 export type { DividerProps } from './Divider';
 export type { EmptyStateProps } from './EmptyState';
-export type { FloatingButtonProps } from './FloatingButton';
+export type { FloatingButtonMenuItem, FloatingButtonProps } from './FloatingButton';
+export type { ContextMenuProps } from './ContextMenu';
+export type { MenuAnchor, MenuDivider, MenuEntry, MenuItem, MenuProps } from './Menu';
+export type { Rect } from './menuPlacement';
+export type { OverlayProps } from './Overlay';
+export type {
+  ListSeparatorProps,
+  PlainListProps,
+  PlainRowProps,
+  SectionHeaderProps,
+} from './PlainList';
+export type { UndoApi, UndoOptions } from './UndoToast';
+export type { SheetDetent } from './Sheet';
+export type { SwipeAction, SwipeActionTone } from './SwipeRow';
 export type { HeaderAction, HeaderProps } from './Header';
 export type { HeaderCrumbValue } from './HeaderCrumb';
 export type { IconName, IconProps } from './Icon';
