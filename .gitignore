@@ -43,6 +43,11 @@ yarn-error.*
 # Kontodienst: die Konten liegen lokal, nicht im Repo
 services/api/data/
 
+# Rohdateien der Icon-Erzeugung (~375 MB). Im Repo liegen nur die Vorlagen
+# unter design/icons/apps und /modules; die App nutzt packages/core/src/assets.
+design/icons/production/
+design/icons/tests/
+
 # Lokale Werkzeug-Ablagen (Agenten, Vektorspeicher) — gehoeren nicht ins Repo
 .claude-flow/
 .swarm/

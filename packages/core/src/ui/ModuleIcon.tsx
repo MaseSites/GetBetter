@@ -21,12 +21,12 @@ const GLYPH: Record<ModuleIconSize, number> = { sm: 15, md: 22, lg: 30, xl: 40 }
 const RADIUS: Record<ModuleIconSize, number> = { sm: 8, md: 12, lg: 16, xl: 22 };
 
 /**
- * Das Logo einer Funktion — ein echtes Bild, erzeugt von `scripts/icons.js`:
- * abgerundetes Quadrat mit Farbverlauf, Lichtbogen, weisses Symbol. In
- * Schwarzweiss die graue Fassung.
+ * Das Bild einer Funktion. Die Produktions-Assets sind freigestellte,
+ * frontale Motive mit transparentem Rand; im Monochrom-Preset wird automatisch
+ * die graue Fassung verwendet.
  *
- * Gibt es zu einer Id kein Bild, zeichnet das Bauteil dieselbe Form selbst,
- * damit nie ein Loch entsteht.
+ * Gibt es zu einer Id kein Bild, zeichnet das Bauteil eine zurückhaltende
+ * Fallback-Fläche, damit nie ein Loch entsteht.
  */
 export function ModuleIcon({ moduleId, icon, size = 'md' }: ModuleIconProps) {
   const theme = useTheme();

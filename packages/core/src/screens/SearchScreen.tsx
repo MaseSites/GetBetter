@@ -11,8 +11,8 @@ import { useI18n, type TranslationKey } from '@/i18n';
 import { modulesOfApp } from '@/mocks/modules';
 import { moduleName } from '@/mocks/moduleText';
 import { useAccount } from '@/state/AppContext';
-import { moduleBase, useTheme } from '@/theme';
-import { Header, Icon, PlainList, PlainRow, Screen, SectionHeader, Text } from '@/ui';
+import { useTheme } from '@/theme';
+import { Header, Icon, ModuleIcon, PlainList, PlainRow, Screen, SectionHeader, Text } from '@/ui';
 
 const GROUP_LABELS: Readonly<Record<SearchGroup, TranslationKey>> = {
   tasks: 'search.group.tasks',
@@ -72,9 +72,7 @@ export function SearchScreen() {
       key={entry.key}
       title={entry.title}
       subtitle={entry.item.subtitle}
-      leading={
-        <Icon name={entry.item.icon} size={20} color={moduleBase(theme, entry.item.moduleId)} />
-      }
+      leading={<ModuleIcon moduleId={entry.item.moduleId} icon={entry.item.icon} size="sm" />}
       onPress={() => open(entry)}
     />
   );

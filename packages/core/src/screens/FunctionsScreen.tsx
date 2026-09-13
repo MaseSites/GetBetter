@@ -27,7 +27,7 @@ import { moduleName, moduleShort } from '@/mocks/moduleText';
 import { TOPICS, type ModuleDefinition, type Topic } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { EmptyState, Header, Icon, Screen, Segmented, Text, usePressScale } from '@/ui';
+import { EmptyState, Header, Icon, ModuleIcon, Screen, Segmented, Text, usePressScale } from '@/ui';
 
 /** Was rechts in einer Zeile steht: ein Wert, laut oder still. */
 type RowValue = { text: string; quiet?: boolean };
@@ -389,7 +389,7 @@ function Row({
         },
       ]}
     >
-      <Icon name={module.icon} size={18} color={theme.colors.textMuted} />
+      <ModuleIcon moduleId={module.id} icon={module.icon} size="sm" />
       <View style={styles.text}>
         <Text
           variant="label"

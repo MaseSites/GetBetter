@@ -12,21 +12,28 @@
     },
     {
       "name": "getbetter-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "web"
-      ],
+      "url": "http://localhost:8081",
       "port": 8081
     },
     {
-      "name": "accounts",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "server"
-      ],
-      "port": 8090
+      "name": "family-web",
+      "url": "http://localhost:8082",
+      "port": 8082
+    },
+    {
+      "name": "gym-web",
+      "url": "http://localhost:8083",
+      "port": 8083
+    },
+    {
+      "name": "ai-web",
+      "url": "http://localhost:8084",
+      "port": 8084
+    },
+    {
+      "name": "money-web",
+      "url": "http://localhost:8085",
+      "port": 8085
     },
     {
       "name": "design-preview",
@@ -39,62 +46,6 @@
         "design/canvas/preview"
       ],
       "port": 8123
-    },
-    {
-      "name": "family-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "web",
-        "-w",
-        "apps/betterfamily",
-        "--",
-        "--port",
-        "8082"
-      ],
-      "port": 8082
-    },
-    {
-      "name": "gym-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "web",
-        "-w",
-        "apps/bettergym",
-        "--",
-        "--port",
-        "8083"
-      ],
-      "port": 8083
-    },
-    {
-      "name": "ai-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "web",
-        "-w",
-        "apps/betterai",
-        "--",
-        "--port",
-        "8084"
-      ],
-      "port": 8084
-    },
-    {
-      "name": "money-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "web",
-        "-w",
-        "apps/bettermoney",
-        "--",
-        "--port",
-        "8085"
-      ],
-      "port": 8085
     }
   ]
 }

@@ -20,16 +20,13 @@ import { QuickAccessSheet } from './QuickAccessSheet';
 import { StarButton } from './StarButton';
 import { appNameOf, useFavorites, useQuickAccess, type QuickEntry } from './useFavorites';
 
-/** Eine Karte. Der Rastabstand ist genau eine Kartenbreite — die Seitenkarten sind kleiner. */
+/** Ein Platz. Der Rastabstand ist genau eine Objektbreite — die Seitenobjekte sind kleiner. */
 const CARD_WIDTH = 108;
 const CARD_HEIGHT = 130;
 const SPAN = CARD_WIDTH;
-/** Wie tief der Raum ist: kleiner heisst staerker verzerrt. */
-const PERSPECTIVE = 520;
-/** So gross wie ein Logo in `lg` — damit die „+“-Karte gleich gebaut ist. */
+/** Das Plus bleibt bewusst kompakter als die frei schwebenden Bilder. */
 const PLUS_BOX = 64;
 const PLUS_GLYPH = 30;
-const DASH_WIDTH = 1.5;
 /** Im Browser gibt es kein Einrasten; so lange nach dem letzten Ruck rastet das Band ein. */
 const SETTLE_MS = 120;
 
@@ -40,16 +37,16 @@ const SETTLE_MS = 120;
  */
 const DEPTH = [3, 2, 1, 0, -1, -2, -3] as const;
 /**
- * Die Karten stehen auf einem Ring, den man von aussen sieht: jede dreht ihre
- * **Aussenkante** nach hinten, nicht nach vorn. Ein Schritt sind 24 Grad auf
- * einem Ring mit Radius 200 — daraus fallen Drehung, Versatz und Groesse.
- * `translateZ` kennt React Native nicht, die Tiefe macht darum die Groesse.
+ * Die Bilder stehen auf einem Ring, behalten aber wie Plakatwaende stets den
+ * direkten Blick zum Betrachter. `translateZ` kennt React Native nicht, die
+ * Tiefe entsteht darum aus Versatz, Groesse, Hoehe und Deckkraft.
  */
-const ROTATE = ['72deg', '48deg', '24deg', '0deg', '-24deg', '-48deg', '-72deg'];
 const SCALE = [0.72, 0.84, 0.94, 1, 0.94, 0.84, 0.72];
 /** `R · sin(Winkel)` minus dem, was die Rollfläche schon verschoben hat. */
 const SHIFT = [-134, -67, -27, 0, 27, 67, 134];
 const OPACITY = [0.3, 0.6, 0.9, 1, 0.9, 0.6, 0.3];
+/** Das mittlere Bild schwebt am hoechsten, entfernte sinken sanft zurueck. */
+const LIFT = [12, 7, 3, 0, 3, 7, 12];
 
 const useNativeDriver = Platform.OS !== 'web';
 
@@ -201,15 +198,8 @@ function CoverSlot({
     return {
       opacity: numbers(OPACITY),
       transform: [
-        { perspective: PERSPECTIVE },
         { translateX: numbers(SHIFT) },
-        {
-          rotateY: scrollX.interpolate({
-            inputRange,
-            outputRange: ROTATE,
-            extrapolate: 'clamp',
-          }),
-        },
+        { translateY: numbers(LIFT) },
         { scale: numbers(SCALE) },
       ],
     };
@@ -243,17 +233,13 @@ function FavoriteCard({
       onLongPress={onEdit}
       style={({ pressed }) => [
         styles.card,
-        theme.elevation.card,
         {
-          borderRadius: theme.radii.lg,
-          backgroundColor: theme.colors.surface,
-          padding: theme.spacing.md,
-          gap: theme.spacing.sm,
-          opacity: pressed ? 0.85 : 1,
+          gap: theme.spacing.xs,
+          opacity: pressed ? 0.72 : 1,
         },
       ]}
     >
-      <ModuleIcon moduleId={entry.module.id} icon={entry.module.icon} size="lg" />
+      <ModuleIcon moduleId={entry.module.id} icon={entry.module.icon} size="xl" />
       <View style={styles.cardText}>
         <Text
           variant="label"
@@ -273,7 +259,7 @@ function FavoriteCard({
   );
 }
 
-/** Die letzte Karte: gestrichelt, ein Plus, „Hinzufuegen“. */
+/** Das letzte Objekt: ein kompaktes Plus mit „Hinzufuegen“. */
 function AddCard({ onPress }: { onPress: () => void }) {
   const { t } = useI18n();
   const theme = useTheme();
@@ -286,14 +272,7 @@ function AddCard({ onPress }: { onPress: () => void }) {
       style={({ pressed }) => [
         styles.card,
         {
-          borderRadius: theme.radii.lg,
-          borderWidth: DASH_WIDTH,
-          borderStyle: 'dashed',
-          borderColor: theme.colors.borderStrong,
-          // Durchscheinend: auf dem Hintergrundbild waere sie sonst kaum zu sehen.
-          backgroundColor: `${theme.colors.surface}B3`,
-          padding: theme.spacing.md,
-          gap: theme.spacing.sm,
+          gap: theme.spacing.xs,
           opacity: pressed ? 0.6 : 1,
         },
       ]}
