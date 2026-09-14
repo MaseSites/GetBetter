@@ -12,6 +12,7 @@ import type { IconName } from '@/ui';
 import { addDays, dateOfKey } from './days';
 import { formatTaskDay } from './format';
 import type { MetaPart } from './meta';
+import type { PostponeKind } from './postpone';
 import { weekdaysOf } from './recurrence';
 import { dayBeforeOffset, type SchedulePreset } from './schedule';
 
@@ -118,6 +119,23 @@ export const PRESET_ICONS: Record<SchedulePreset, IconName> = {
 
 export function presetLabel(t: Translate, preset: SchedulePreset): string {
   return t(PRESET_LABELS[preset]);
+}
+
+const POSTPONE_LABELS: Record<PostponeKind, TranslationKey> = {
+  today: 'tasks.postpone.today',
+  tomorrow: 'tasks.postpone.tomorrow',
+  nextWeek: 'tasks.postpone.nextWeek',
+};
+
+/** Wie im Menue „Planen“: Morgen die Sonne, Nächste Woche der Kalender. */
+export const POSTPONE_ICONS: Record<PostponeKind, IconName> = {
+  today: 'alarm',
+  tomorrow: PRESET_ICONS.tomorrow,
+  nextWeek: PRESET_ICONS.nextWeek,
+};
+
+export function postponeLabel(t: Translate, kind: PostponeKind): string {
+  return t(POSTPONE_LABELS[kind]);
 }
 
 /** Der sichtbare Text eines Teils der Metazeile; Symbole haben keinen. */

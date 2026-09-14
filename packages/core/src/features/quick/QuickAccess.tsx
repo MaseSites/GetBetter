@@ -17,8 +17,7 @@ import { useTheme } from '@/theme';
 import { Icon, ModuleIcon, SectionHead, Text, usePhoneFrame } from '@/ui';
 
 import { QuickAccessSheet } from './QuickAccessSheet';
-import { StarButton } from './StarButton';
-import { appNameOf, useFavorites, useQuickAccess, type QuickEntry } from './useFavorites';
+import { appNameOf, useQuickAccess, type QuickEntry } from './useFavorites';
 
 /** Ein Platz. Der Rastabstand ist genau eine Objektbreite — die Seitenobjekte sind kleiner. */
 const CARD_WIDTH = 108;
@@ -100,9 +99,8 @@ class CoverFlowMotion {
 export function QuickAccess() {
   const { t } = useI18n();
   const theme = useTheme();
-  // Zwei Listen: das Karussell zeigt den Schnellzugriff, der Stern die Favoriten.
+  // Das Karussell zeigt den Schnellzugriff; Favoriten setzt man in „Bereiche“.
   const quick = useQuickAccess();
-  const favorites = useFavorites();
   const [motion] = useState(() => new CoverFlowMotion());
   const scrollRef = useRef<ScrollView>(null);
   const frame = usePhoneFrame();
@@ -152,23 +150,12 @@ export function QuickAccess() {
         >
           {entries.map((entry, index) => (
             <CoverSlot key={entry.key} index={index} scrollX={motion.scrollX}>
-              <View>
-                <FavoriteCard
-                  entry={entry}
-                  foreign={entry.appId !== quick.currentAppId}
-                  onOpen={() => quick.open(entry.appId, entry.module.id)}
-                  onEdit={openSheet}
-                />
-                {/* Der Stern gehoert den Favoriten. Er sitzt neben der Karte,
-                    nie darin — ein Knopf im Knopf waere im Browser ungueltig. */}
-                <View style={styles.star}>
-                  <StarButton
-                    active={favorites.isFavorite(entry.appId, entry.module.id)}
-                    name={moduleName(t, entry.module.id)}
-                    onPress={() => favorites.toggle(entry.appId, entry.module.id)}
-                  />
-                </View>
-              </View>
+              <FavoriteCard
+                entry={entry}
+                foreign={entry.appId !== quick.currentAppId}
+                onOpen={() => quick.open(entry.appId, entry.module.id)}
+                onEdit={openSheet}
+              />
             </CoverSlot>
           ))}
           <CoverSlot index={entries.length} scrollX={motion.scrollX}>
@@ -303,7 +290,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardText: { alignSelf: 'stretch', alignItems: 'center', gap: 1 },
-  // Der Stern liegt in der oberen Ecke der Karte, ohne ihre Hoehe zu aendern.
-  star: { position: 'absolute', top: 0, right: 0 },
   plus: { width: PLUS_BOX, height: PLUS_BOX, alignItems: 'center', justifyContent: 'center' },
 });

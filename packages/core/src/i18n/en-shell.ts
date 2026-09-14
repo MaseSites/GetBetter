@@ -3,10 +3,10 @@ import type { TranslationKey } from './de';
 /** Englisch: die App-Hülle (Heute, Suche, Navigation) (de-shell.ts). Teil von `en`. */
 export const enShell = {
   'shell.create': 'Create new',
+  'shell.create.event': 'Event',
   'shell.create.task': 'Task',
   'shell.create.note': 'Note',
   'shell.create.mail': 'Email',
-  'shell.create.birthday': 'Birthday',
 
   'search.best': 'Top hit',
   'search.group.tasks': 'Tasks',

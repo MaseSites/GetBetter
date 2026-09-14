@@ -1,10 +1,12 @@
 import type { TranslationKey } from './de';
 import { enA } from './en-a';
+import { enAvatar } from './en-avatar';
 import { enB } from './en-b';
 import { enBirthdays } from './en-birthdays';
 import { enC } from './en-c';
 import { enMailUi } from './en-mailui';
 import { enNotes } from './en-notes';
+import { enPlan } from './en-plan';
 import { enShell } from './en-shell';
 import { enTasks } from './en-tasks';
 import { enUi } from './en-ui';
@@ -17,6 +19,7 @@ export const en: Readonly<Record<TranslationKey, string>> = {
   ...enB,
   ...enC,
   ...enVoice,
+  ...enAvatar,
   ...enShell,
   ...enTasks,
   ...enNotes,
@@ -24,4 +27,5 @@ export const en: Readonly<Record<TranslationKey, string>> = {
   ...enWeather,
   ...enMailUi,
   ...enUi,
+  ...enPlan,
 };

@@ -11,6 +11,7 @@ import {
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { onReadOnlyAttempt } from '@/app/viewMode';
 import { useTranslate } from '@/i18n';
 import { useTheme, type Theme } from '@/theme';
 
@@ -76,19 +77,37 @@ class ToastIds {
  * Einmal in der Huelle (`RootShell`), um alle Bildschirme herum. Die Meldung
  * steht unten mittig — ueber der Tab-Leiste und ueber dem Knopf unten rechts,
  * nie darauf.
+ *
+ * `readOnlyMessage` (nur beim Ansehen aus dem Admin): jede Meldung wird zu
+ * diesem Satz, ohne Rückgängig — „Gelöscht“ stimmte ja nicht. Und jeder
+ * Versuch zu schreiben zeigt ihn auch.
  */
-export function UndoProvider({ children }: { children: ReactNode }) {
+export function UndoProvider({
+  children,
+  readOnlyMessage,
+}: {
+  children: ReactNode;
+  readOnlyMessage?: string | undefined;
+}) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [floatingButtons, setFloatingButtons] = useState(0);
   const [ids] = useState(() => new ToastIds());
 
   const api = useMemo<UndoApi>(
     () => ({
-      show: (options) => setToast({ ...options, id: ids.next() }),
+      show: (options) =>
+        setToast(
+          readOnlyMessage ? { message: readOnlyMessage, id: ids.next() } : { ...options, id: ids.next() },
+        ),
       hide: () => setToast(null),
     }),
-    [ids],
+    [ids, readOnlyMessage],
   );
+
+  useEffect(() => {
+    if (!readOnlyMessage) return undefined;
+    return onReadOnlyAttempt(() => setToast({ message: readOnlyMessage, id: ids.next() }));
+  }, [ids, readOnlyMessage]);
 
   const reserve = useCallback(() => {
     setFloatingButtons((count) => count + 1);

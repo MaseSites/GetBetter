@@ -118,7 +118,7 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
                       height: Math.max(6, ((row.value - min) / span) * BAR_HEIGHT * 0.8 + 6),
                       borderRadius: theme.radii.sm,
                       backgroundColor:
-                        row.id === latest?.id ? theme.colors.accent : theme.colors.surfaceMuted,
+                        row.id === latest?.id ? theme.colors.accentMark : theme.colors.surfaceMuted,
                     }}
                   />
                 ))}

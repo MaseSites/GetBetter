@@ -56,6 +56,10 @@ export const frTasks = {
   'tasks.plan.pick': 'Choisir une date …',
   'tasks.plan.sheetTitle': 'Choisir une date',
 
+  'tasks.postpone.today': 'Aujourd’hui',
+  'tasks.postpone.tomorrow': 'Demain',
+  'tasks.postpone.nextWeek': 'Semaine prochaine',
+
   'tasks.priority.none': 'Aucune',
   'tasks.priority.low': 'Basse',
   'tasks.priority.medium': 'Moyenne',
@@ -80,6 +84,7 @@ export const frTasks = {
   'tasks.toast.deleted': 'Tâche supprimée',
   'tasks.toast.deletedMany': '{count} tâches supprimées',
   'tasks.toast.planned': 'Planifiée : {date}',
+  'tasks.toast.postponed': 'Reportée : {date}',
   'tasks.toast.unplanned': 'Date retirée',
   'tasks.toast.moved': 'Déplacée vers {name}',
   'tasks.toast.movedOut': 'Retirée du projet',

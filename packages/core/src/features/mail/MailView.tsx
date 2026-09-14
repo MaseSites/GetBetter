@@ -109,7 +109,17 @@ export function MailView(_: { module: ModuleDefinition }) {
   const account = useAccount();
   const params = useLocalSearchParams<{ compose?: string; message?: string }>();
 
-  const [level, setLevel] = useState<'inbox' | 'mailboxes'>('inbox');
+  const [pendingMessage, setPendingMessage] = useState<string | null>(
+    typeof params.message === 'string' && params.message.length > 0 ? params.message : null,
+  );
+  // Man kommt in der Uebersicht aller Postfaecher an, nicht in einem davon —
+  // ausser ein Link zeigt auf eine Nachricht: dann fuehrt Zurueck in den Posteingang.
+  const [level, setLevel] = useState<'inbox' | 'mailboxes'>(() =>
+    pendingMessage ? 'inbox' : 'mailboxes',
+  );
+  // Zugeklappte Postfaecher in der Uebersicht. Hier statt dort, damit sie
+  // zugeklappt bleiben, wenn man in einen Ordner geht und zurueckkommt.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const [place, setPlace] = useState<MailPlace>(UNIFIED_INBOX);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<MailListFilter | null>(null);
@@ -117,9 +127,6 @@ export function MailView(_: { module: ModuleDefinition }) {
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [reading, setReading] = useState<string | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(
-    typeof params.message === 'string' && params.message.length > 0 ? params.message : null,
-  );
   const [panel, setPanel] = useState<Panel>({ kind: 'none' });
   const [attachment, setAttachment] = useState<{ message: MailMessage; index: number } | null>(
     null,
@@ -422,12 +429,22 @@ export function MailView(_: { module: ModuleDefinition }) {
         onReload={() => void sync.syncNow()}
       />
     );
-  } else if (level === 'mailboxes') {
+  } else if (level === 'mailboxes' && !(loaded && mailboxes.length === 0)) {
+    // Ohne verbundenes Postfach gibt es nichts zu ueberblicken — dann gleich die Einrichtung.
     draftBottom = insets.bottom + theme.spacing.lg;
     screen = (
       <MailboxesScreen
         mailboxes={mailboxes}
         messages={messages}
+        collapsed={collapsed}
+        onToggle={(id) =>
+          setCollapsed((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
         onOpen={(next) => {
           setPlace(next);
           setFilter(null);

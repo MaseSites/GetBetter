@@ -129,7 +129,7 @@ export type LegendItem = { key: string; label: string; kind: SegmentKind };
 
 function kindColor(theme: Theme, kind: SegmentKind, legend: boolean): string {
   if (kind === 'ink') return theme.colors.text;
-  if (kind === 'signal') return theme.colors.accent;
+  if (kind === 'signal') return theme.colors.accentMark;
   return legend ? theme.colors.borderStrong : theme.colors.border;
 }
 

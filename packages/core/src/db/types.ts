@@ -1,3 +1,5 @@
+import type { AvatarStyle } from '../features/avatar/style';
+
 /** Jede Zeile hat eine id. Zeitpunkte sind ISO-Strings. */
 export type Row = { id: string };
 
@@ -38,6 +40,11 @@ export type Account = Row & {
    */
   assistantVoice?: string;
   /**
+   * Wie sein Avatar aussieht: Figur, Farbe, Augen, Zubehoer. Aeltere Konten
+   * haben keinen — dann gilt `DEFAULT_AVATAR`. Immer ueber `normalizeAvatar` lesen.
+   */
+  assistantAvatar?: AvatarStyle;
+  /**
    * Der Hintergrund: fehlt er oder steht er auf `app`, zeigt jede App ihr eigenes
    * Bild; sonst ein Schluessel aus `BACKDROPS` oder `upload:<id>` fuer ein eigenes.
    */
@@ -49,6 +56,15 @@ export type Account = Row & {
    * Favoriten: was man oft braucht, ist nicht dasselbe wie was man mag.
    */
   quickAccess?: readonly string[];
+  /** Im Admin gesperrt: Anmelden geht nicht mehr, eine offene Sitzung sieht nur die Sperre. */
+  disabled?: boolean;
+  /** Im Admin weggenommene Apps (`AppId`). Fehlt es, sind alle freigeschaltet. */
+  blockedApps?: readonly string[];
+  /**
+   * Apps mit Abo (`AppId`) — bis es den Kauf im Store gibt, setzt sie nur der
+   * Admin. Ohne Abo gilt ein kleines Gratis-Kontingent fuer die KI.
+   */
+  paidApps?: readonly string[];
   createdAt: string;
 };
 

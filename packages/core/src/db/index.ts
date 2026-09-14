@@ -10,6 +10,8 @@ export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, routines, workoutSets, workouts } from './gym';
 export { meds, moods, sleepMinutes, sleeps, vitals } from './health';
 export { chatMessages, chatTitleOf, chats } from './chats';
+export { ai } from './ai';
+export type { AiApp, AiReply, AiRequest, AiStatus, AiTier, AiTurn } from './ai';
 export { mail } from './mail';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';

@@ -1,4 +1,5 @@
-import { callService, serviceUrl } from '@/db/service';
+import { currentApp } from '@/app/identity';
+import { callService, serviceUrl, type ServiceCall } from '@/db/service';
 import type { Language } from '@/i18n';
 
 /**
@@ -21,23 +22,41 @@ export type CloudVoice = {
   languages: readonly string[];
 };
 
+/** Warum dieses Konto in dieser App keine Stimmen von ElevenLabs bekommt. */
+export type CloudBlock = 'plan_required' | 'budget_exhausted';
+
 export type CloudState = {
-  /** Ob der Dienst einen Schluessel hat. */
+  /** Ob der Dienst einen Schluessel hat — und dieses Konto sie benutzen darf. */
   configured: boolean;
   /** Was zuletzt schiefging (`auth_failed`, `quota_exceeded` …) — `null`, wenn alles lief. */
   problem: string | null;
   voices: readonly CloudVoice[];
+  /** Ohne Abo oder mit aufgebrauchtem Kontingent: dann spricht der Browser, und das steht da. */
+  blocked: CloudBlock | null;
 };
+
+type SpeechStatus = {
+  configured: boolean;
+  lastError: string | null;
+  /** Ein Dienst von vorher kennt das Feld nicht — dann gilt: erlaubt. */
+  allowed?: boolean;
+  reason?: string | null;
+};
+
+const blockOf = (reason: string | null | undefined): CloudBlock =>
+  reason === 'budget_exhausted' ? 'budget_exhausted' : 'plan_required';
 
 /** So lange darf es dauern, bis der erste Ton kommt. Danach spricht der Browser. */
 const START_MS = 12_000;
 /** Laenger redet er in einem Satz nie. */
 const LONGEST_MS = 90_000;
 
-let state: CloudState = { configured: false, problem: null, voices: [] };
+let state: CloudState = { configured: false, problem: null, voices: [], blocked: null };
 let loadedFor: Language | null = null;
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
+/** Wer gerade angemeldet ist — damit der Dienst den Verbrauch dem Konto zuschreibt. */
+let speaker: string | null = null;
 
 function update(next: Partial<CloudState>) {
   state = { ...state, ...next };
@@ -56,19 +75,42 @@ export function onCloudChange(listener: () => void): () => void {
 }
 
 /**
- * Fragt den Dienst, ob er Stimmen hat, und laedt sie fuer diese Sprache. Mehrfach
- * aufgerufen, fragt er nur einmal; `force` fragt neu, etwa beim Oeffnen der Auswahl.
+ * Das angemeldete Konto, oder `null` vor dem Anmelden. Setzt `AppProvider`.
+ * Ob es Stimmen von ElevenLabs bekommt, haengt am Abo — also neu fragen.
+ */
+export function setSpeaker(accountId: string | null) {
+  if (speaker === accountId) return;
+  speaker = accountId;
+  const language = loadedFor;
+  loadedFor = null;
+  if (language !== null) void loadCloudVoices(language, true);
+}
+
+/** `/v1/speech/status` fuer dieses Konto in dieser App. */
+function statusPath(): string {
+  const query = new URLSearchParams({ app: currentApp().id });
+  if (speaker) query.set('accountId', speaker);
+  return `/v1/speech/status?${query.toString()}`;
+}
+
+/**
+ * Fragt den Dienst, ob er Stimmen hat und dieses Konto sie benutzen darf, und
+ * laedt sie fuer diese Sprache. Mehrfach aufgerufen, fragt er nur einmal;
+ * `force` fragt neu, etwa beim Oeffnen der Auswahl.
  */
 export function loadCloudVoices(language: Language, force = false): Promise<void> {
   if (!force && loadedFor === language) return loading ?? Promise.resolve();
   loadedFor = language;
   loading = (async () => {
-    const status = await callService<{ configured: boolean; lastError: string | null }>(
-      '/v1/speech/status',
-    );
+    const status = await callService<SpeechStatus>(statusPath());
     // Ein Dienst ohne diese Route (noch nicht neu gestartet) hat eben keine Stimmen.
     if (!status.ok || !status.data.configured) {
-      update({ configured: false, problem: null, voices: [] });
+      update({ configured: false, problem: null, voices: [], blocked: null });
+      return;
+    }
+    // Ohne Abo (oder aufgebraucht) wie „nicht eingerichtet“ — nur mit einem Satz dazu.
+    if (status.data.allowed === false) {
+      update({ configured: false, problem: null, voices: [], blocked: blockOf(status.data.reason) });
       return;
     }
     const listed = await callService<{ voices: CloudVoice[] }>(
@@ -76,8 +118,8 @@ export function loadCloudVoices(language: Language, force = false): Promise<void
     );
     update(
       listed.ok
-        ? { configured: true, problem: status.data.lastError, voices: listed.data.voices }
-        : { configured: true, problem: listed.error, voices: [] },
+        ? { configured: true, problem: status.data.lastError, voices: listed.data.voices, blocked: null }
+        : { configured: true, problem: listed.error, voices: [], blocked: null },
     );
   })();
   return loading;
@@ -108,6 +150,8 @@ type AudioLike = {
 
 type AudioClass = new (src: string) => AudioLike;
 
+type Prepared = ServiceCall<{ url: string }>;
+
 /** Spielt einen Satz von ElevenLabs ab. Einer nach dem anderen. */
 export class CloudPlayer {
   private audio: AudioLike | null = null;
@@ -116,6 +160,51 @@ export class CloudPlayer {
 
   /** `onDone(true)` heisst gesagt, `onDone(false)` heisst: hat nicht geklappt. */
   play(text: string, voiceId: string, language: Language, onDone: (spoken: boolean) => void) {
+    this.start(
+      () =>
+        callService<{ url: string }>('/v1/speech', {
+          method: 'POST',
+          body: { text, voice: voiceId, language, accountId: speaker, app: currentApp().id },
+        }),
+      language,
+      onDone,
+    );
+  }
+
+  /**
+   * Die Probe beim Aussuchen: den Satz waehlt der Dienst, je Sprache einen ohne
+   * Namen. So entsteht sie je Stimme nur einmal und kostet danach niemanden etwas.
+   */
+  playSample(voiceId: string, language: Language, onDone: (spoken: boolean) => void) {
+    this.start(
+      () =>
+        callService<{ url: string }>('/v1/speech/sample', {
+          method: 'POST',
+          body: { voice: voiceId, language, accountId: speaker, app: currentApp().id },
+        }),
+      language,
+      onDone,
+    );
+  }
+
+  /** Sofort still. Der laufende Satz meldet sich nicht mehr. */
+  stop() {
+    this.turn += 1;
+    this.clearWatch();
+    const audio = this.audio;
+    this.audio = null;
+    if (!audio) return;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.onplaying = null;
+    audio.pause();
+  }
+
+  private start(
+    prepare: () => Promise<Prepared>,
+    language: Language,
+    onDone: (spoken: boolean) => void,
+  ) {
     this.stop();
     const turn = this.turn;
     const AudioElement = (globalThis as { Audio?: AudioClass }).Audio;
@@ -135,10 +224,7 @@ export class CloudPlayer {
     };
 
     this.watch = setTimeout(() => finish(false), START_MS);
-    void callService<{ url: string }>('/v1/speech', {
-      method: 'POST',
-      body: { text, voice: voiceId, language },
-    }).then((prepared) => {
+    void prepare().then((prepared) => {
       if (turn !== this.turn || finished) return;
       if (!prepared.ok) {
         finish(false);
@@ -154,19 +240,6 @@ export class CloudPlayer {
       audio.onerror = () => finish(false);
       audio.play().catch(() => finish(false));
     });
-  }
-
-  /** Sofort still. Der laufende Satz meldet sich nicht mehr. */
-  stop() {
-    this.turn += 1;
-    this.clearWatch();
-    const audio = this.audio;
-    this.audio = null;
-    if (!audio) return;
-    audio.onended = null;
-    audio.onerror = null;
-    audio.onplaying = null;
-    audio.pause();
   }
 
   private clearWatch() {

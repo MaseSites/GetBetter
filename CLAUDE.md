@@ -126,6 +126,9 @@ Stand nichts überschreibt.
 | `POST /v1/mail/drafts` · `DELETE …/:id`             | Entwurf sichern oder ersetzen / löschen                          |
 | `GET /v1/speech/status` · `GET /v1/speech/voices`   | Stimmen von ElevenLabs: eingerichtet? welche?                    |
 | `POST /v1/speech` · `GET /v1/speech/<id>.mp3`       | einen Satz sprechen lassen, das Audio kommt als Strom            |
+| `POST /v1/speech/sample`                            | Probe einer Stimme: fester Satz, einmal erzeugt, dann gratis     |
+| `GET /v1/ai/budget?accountId=&app=`                 | KI-Kontingent dieses Kontos in dieser App, diesen Monat          |
+| `POST /v1/view/redeem`                              | Ticket aus dem Admin einlösen („App ansehen“), genau einmal      |
 
 `db/service.ts` ist der Draht dorthin (`serviceUrl()`, im Bau über
 `EXPO_PUBLIC_API_URL` übersteuerbar), `auth/accounts.ts` die Schicht darüber.
@@ -136,6 +139,14 @@ App dasselbe Konto meint.
 Die Sammlung `appAccess` merkt sich, in welcher App ein Konto schon einmal war
 (`appAccess.markSeen`). Darauf beruht in GetBetter der Unterschied zwischen
 „freigeschaltet“ und „Installieren“.
+
+**Gesperrt und weggenommen** entscheidet der Admin, nicht die App: am Konto
+stehen `disabled` (ganzes Konto) und `blockedApps` (einzelne `AppId`s).
+`accessOf` (`app/access.ts`, getestet) liest beides; `RootShell` zeigt dann
+statt der App „Dein Konto ist gesperrt“ bzw. „Nicht freigeschaltet“ mit
+**Abmelden**. Die Änderung kommt mit dem nächsten Abgleich an, ohne Neustart.
+Ein gesperrtes Konto kann sich nicht mehr anmelden (`account_disabled`).
+Ebenso nur vom Admin: `paidApps`, die Apps mit Abo (siehe „Abo und Kontingent“).
 
 **Drei Sammlungen gehören dem Dienst:** `notifications`, `mailAccounts` und
 `mailMessages`. Die Apps lesen sie wie alles andere, schreiben aber nur über die
@@ -153,6 +164,89 @@ Der Dienst ist für die Entwicklung gedacht: kein HTTPS, keine Zugriffstoken,
 keine Ratenbegrenzung (siehe `services/api/README.md`). Vor einer echten
 Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
 
+## Admin (nur auf diesem Rechner)
+
+**http://127.0.0.1:8091** — läuft im selben Prozess wie der Dienst
+(`services/api/admin/server.js`), startet also mit `npm run all`; nach
+Änderungen am Dienst neu starten. `BETTER_ADMIN_PORT=0` schaltet ihn ab.
+
+- **Übersicht:** Konten, aktive der letzten 7/30 Tage, Nutzer je App, Einträge
+  je Funktion, KI-Anfragen und -Kosten der letzten 30 Tage, Anteil der
+  günstigen Stufe (Ziel 80 %), die Stimmen (Sätze, Credits, gesparte Credits,
+  Credits des Monats gegen das Kontingent), Speicher.
+- **Verbrauch je Konto:** in der Liste „Verbrauch 30 Tage“ („12’340 Tokens ·
+  1’230 Credits“), im Konto eine Tabelle für die letzten 30 Tage und gesamt —
+  KI: Anfragen, Tokens ein/aus/zusammen, CHF; Stimme: Sätze, davon aus dem
+  Zwischenspeicher, erzeugte Zeichen, Credits, davon Proben, gesparte Credits
+  (`usage` an `/api/accounts` und `/api/accounts/:id`).
+- **Konten:** Spitzname, Benutzername, Sprache und Passwort ändern; das Konto
+  sperren (`disabled`). Gleich daneben je App eine Zeile: Zugang
+  (erlaubt/gesperrt, `blockedApps`), Abo (an/aus, `paidApps`) und der Verbrauch
+  dieses Monats als Balken gegen das Budget, dazu ein Abzeichen Gratis/Abo; in
+  der Liste die Spalte „Abo“. Alle drei Felder setzt **nur** der Admin —
+  `PUT /v1/db/accounts` behält die gespeicherten Werte, `PATCH
+  /v1/accounts/:id` übergeht sie. Die App merkt es beim nächsten Abgleich.
+- **Marge:** Übersicht (laufender Monat) und Kosten (gewählter Monat): je App
+  Nettoeinnahmen (Abos × Preis ÷ 1.081 × 0.85), KI, Stimme, davon Gratis-Konten,
+  Marge in CHF und %, negativ rot; gesamt auch mit den Fixkosten (was die
+  Mindestgebühr von Safe Swiss Cloud über dem Verbrauch kostet,
+  `BETTER_SPEECH_MONTHLY_FIXED_USD`). Abos zählen nach heutigem Stand, auch für
+  frühere Monate (`admin/billing.js`, getestet).
+- **App ansehen:** Der Knopf im Konto öffnet ein kleines Fenster (390 × 780)
+  mit der App dieses Kontos und seinen Daten — Umschalter für die fünf Apps
+  (Standard: die erste, in der das Konto schon war), Neu laden, Schliessen,
+  „Nur ansehen – es wird nichts geändert“. Jedes Laden holt ein **Einmal-Ticket**
+  (`POST /api/accounts/:id/view`, 32 Zufallsbytes, 60 s, nur im Speicher:
+  `services/api/viewTickets.js`); die App lädt `http://localhost:<port>/?view=…`,
+  löst es mit `POST /v1/view/redeem` ein und nimmt `?view=` aus der Adresse.
+  Danach ist sie **nur lesend** (`packages/core/src/app/viewMode.ts`, getestet):
+  das Konto lebt nur im Arbeitsspeicher (keine Sitzung in AsyncStorage, die
+  eigene Anmeldung in anderen Tabs bleibt unberührt), kein `appAccess`, kein
+  Intro, Einrichten oder Vorlesen, kein Mikrofon, `accessOf` gilt nicht. Zentral
+  gesperrt: der Speicher ändert und schreibt nichts (`store.ts`), `callService`
+  schickt nur GET und das Einlösen (sonst `read_only`), Aufträge an andere Apps
+  gehen nicht los; jeder Versuch zeigt „Nur ansehen“ statt „Gelöscht ·
+  Rückgängig“. Jede Anfrage trägt `X-Better-View: 1`, und der Dienst lehnt damit
+  alles ausser GET/HEAD mit `403 read_only` ab. Der Abgleich alle vier Sekunden
+  läuft weiter. Oben steht „Ansicht von @name · nur lesen“; ein abgelaufenes
+  Ticket zeigt „Diese Ansicht ist abgelaufen“. Die CSP des Admins erlaubt
+  `frame-src` genau für localhost:8081–8085. Im Verlauf `admin.viewed { app }`.
+  **Keine echte Anmeldung, nur für die Entwicklung.**
+- **Konto löschen** (`DELETE /api/accounts/:id` mit `{ confirm: <E-Mail> }`,
+  Regeln in `admin/deletion.js`, getestet): das Konto und alle privaten Zeilen
+  samt ihren Kindern, eigene Kalender, Freigaben, Mitteilungen, Postfächer
+  (über `mail.removeAccount`) und Bilder, auf die nichts mehr zeigt. Was mit
+  einem Haushalt geteilt ist, in dem noch jemand zugesagt hat, bleibt; ohne
+  andere Mitglieder geht der Haushalt mit, sonst übernimmt das älteste Mitglied
+  die Verwaltung. Vorher landet eine Sicherung ohne Salt und Hash in
+  `data/deleted-accounts/<id>-<zeit>.json`. Die entfernten Ids merkt sich
+  `db.json` unter `deleted` (nie an die Apps); `PUT /v1/db/:collection` lässt
+  sie weg, damit eine App mit altem Stand nichts zurückschreibt. Registriert
+  sich dieselbe Adresse neu (gleiche Id), gilt das nicht mehr. Eine offene
+  Sitzung meldet sich beim nächsten Abgleich ab (`AppContext`, nur bei
+  `not_found`, nie offline).
+- **Verlauf** (`services/api/activity.js`, `<datenordner>/activity.jsonl`):
+  Konto angelegt, angemeldet, Anmeldung gescheitert oder gesperrt, Profil
+  geändert, je Sammlung neu/geändert/gelöscht (`collection.changed`, ohne
+  Inhalte), Admin-Änderungen — dazu jeder KI-Aufruf aus `ai-usage.jsonl`.
+  Ämtli haben keinen Besitzer und erscheinen dort nicht.
+- **Kosten:** je App, je Konto, je Stufe und je Tag aus `ai-usage.jsonl`
+  (Tokens × Preis je Modell in `ai/usage.js`), dazu die Mindestgebühr von
+  Safe Swiss Cloud (CHF 95 im Monat, `BETTER_AI_MONTHLY_MINIMUM_CHF`). Dazu die
+  Stimmen aus `speech-usage.jsonl` in Credits — je Konto, je App, davon Proben,
+  gesparte Credits — gegen das Kontingent (`BETTER_SPEECH_MONTHLY_CREDITS`,
+  Standard 10’000 wie der Gratis-Plan), und der Zwischenspeicher: Sätze,
+  Grösse, Wiedergaben und die zehn meistgespielten — nur Art, Zeichen und
+  Hits, nie der Wortlaut und nie eine Id.
+
+Die Seite selbst ist schlichtes HTML/JS ohne Fremdbibliothek
+(`services/api/admin/public/`), mit `?demo=1` auch ohne Dienst.
+
+**Sicherheit:** nur an 127.0.0.1 gebunden, der `Host` muss `127.0.0.1:<port>`
+oder `localhost:<port>` sein, jede ändernde Anfrage braucht dieselbe `Origin`
+und JSON, strenge CSP, keine CORS-Kopfzeilen. Eine Anmeldung gibt es nicht —
+wer an diesem Rechner sitzt, kann alles. Nur für die Entwicklung.
+
 ## Aufträge zwischen den Apps
 
 Neben der gemeinsamen Datenbank gibt es **Aufträge per Tiefenlink**
@@ -168,6 +262,56 @@ auf ihrer Route `befehl/[command]` auf, trägt sie ein und sagt, was daraus
 wurde. Es wirkt nur, wenn die andere App auf demselben Gerät installiert ist;
 im Browser gibt es keine Schemata, dort nimmt die Brücke `localhost:<port>`.
 
+## Abo und Kontingent
+
+Damit KI und Stimmen nie mehr kosten, als ein Konto einbringt, hat jedes Konto
+**je App und Kalendermonat in Zürich** ein Budget (`services/api/billing/`,
+getestet; `2026-09-30T22:30Z` zählt schon zum Oktober).
+
+| App          | Abo im Monat | Budget     |
+| ------------ | ------------ | ---------- |
+| BetterAi     | 8.–          | 4.72 CHF   |
+| BetterGym    | 5.–          | 2.95 CHF   |
+| BetterFamily | 3.–          | 1.77 CHF   |
+| GetBetter    | 1.–          | 0.59 CHF   |
+| BetterMoney  | noch keins   | nur Gratis |
+
+- **Formel:** `preis / 1.081 (MwSt) × 0.85 (Store) × 0.75` — dem Betreiber
+  bleiben mindestens 25 % der Nettoeinnahmen. **Ohne Abo** 0.10 CHF je App,
+  nur die günstige Stufe (ein Bild → `403 plan_required`), keine Stimmen von
+  ElevenLabs.
+- **Wer zahlt:** `paidApps` am Konto. Bis es den Kauf im Store gibt, setzt es
+  **nur der Admin**; `planOf` (`billing/plans.js`) ist die eine Stelle, die
+  später ein Kaufbeleg füttert.
+- **Gezählt** nach `app` in `ai-usage.jsonl` (`costChf`) und
+  `speech-usage.jsonl` (Credits × `BETTER_SPEECH_USD_PER_1K_CHARS` / 1000 ×
+  `BETTER_USD_CHF`, bewusst zu hoch; aus dem Zwischenspeicher 0). Das
+  Kassenbuch (`billing/ledger.js`) baut sich nach einem Neustart aus den
+  Protokollen und wächst dann im Speicher mit.
+- **Durchgesetzt im Dienst, vor jedem bezahlten Aufruf.** KI: ohne Rest `402
+  budget_exhausted` (mit `plan`, `resetsOn`, `priceChf`); sonst kürzt er
+  `max_tokens` (samt Denkzuschlag), bis der schlimmste Fall passt — unter 150
+  Tokens auch `402` — und **reserviert** den Betrag vor dem Aufruf, damit
+  parallele Anfragen nicht überziehen. Stimmen: ohne Abo (oder ohne Konto)
+  `403 plan_required`, mit Abo neue Sätze nur im Budget (`402`), aus dem
+  Zwischenspeicher immer. `GET /v1/speech/status?accountId=&app=` sagt der App
+  `allowed`, `GET /v1/ai/budget` den Stand.
+- **In der App:** Assistent und BetterAi sagen ehrlich „Dein KI-Kontingent für
+  diesen Monat ist aufgebraucht. Am 1. Oktober geht es weiter.“ oder „Dein
+  Gratis-Kontingent ist aufgebraucht. Mit dem Abo (CHF 8 im Monat) geht es
+  weiter.“ (`aiFailureText` in `aiTurns.ts`, getestet) — **keinen Kaufknopf**.
+  Ohne Abo sind nur Browser-Stimmen wählbar, mit „Echte Stimmen gibt es mit dem
+  Abo.“ In den Einstellungen (Gruppe App, in allen Apps) „KI diesen Monat“:
+  Gratis oder Abo, genutzt in Prozent mit Balken, darunter wann es wieder voll
+  ist — nie Franken.
+- **Stellschrauben:** `BETTER_PRICE_<APP>_CHF`, `BETTER_VAT`,
+  `BETTER_STORE_FEE`, `BETTER_USER_SHARE`, `BETTER_TRIAL_BUDGET_CHF`,
+  `BETTER_SPEECH_USD_PER_1K_CHARS`, `BETTER_USD_CHF`,
+  `BETTER_SPEECH_MONTHLY_FIXED_USD`. Nach Änderungen den Dienst neu starten.
+- Die **Fixkosten** (Mindestgebühr Safe Swiss Cloud CHF 95, Plan von
+  ElevenLabs) deckt kein einzelnes Budget — dafür braucht es genug zahlende
+  Konten. Die Marge im Admin zeigt, ob es reicht.
+
 ## Die zwei KI-Oberflächen
 
 |       | Assistent (Tab in GetBetter)                                      | BetterAi                                  |
@@ -178,8 +322,40 @@ im Browser gibt es keine Schemata, dort nimmt die Brücke `localhost:<port>`.
 
 Beide folgen dem Aussehen des Kontos wie jeder andere Bildschirm — eine eigene
 dunkle Fläche gibt es nicht mehr. Der Assistent hat keinen Kopfbereich: in der Mitte der Avatar und „Wie kann ich
-dich unterstützen?“, unten das Feld. Hinter beiden steckt noch kein Modell — was
-nicht als Auftrag erkannt wird, beantwortet er einmal ehrlich.
+dich unterstützen?“, unten das Feld.
+
+**Die Antworten kommen von der KI im Dienst** (`POST /v1/ai/reply`,
+`db/ai.ts`), Anbieter ist **Safe Swiss Cloud** („Private AI“, alles in der
+Schweiz). Ein Router im Dienst wählt ohne eigenen KI-Aufruf die günstigste
+Stufe, die die Frage kann (cheap · chat · reasoning · vision), begrenzt die
+Länge und liefert im Gespräch per Stimme zusätzlich einen kurzen `voice_text`
+zum Vorlesen:
+
+- **Assistent** (`AssistantView`): Was `route()` als Auftrag erkennt, geht wie
+  bisher an die andere App; alles andere fragt die KI mit den letzten zwölf
+  Zügen (`turnsFor` in `features/assistant/aiTurns.ts`, getestet). Im
+  **Gespräch** wird `voice_text` vorgelesen, geschrieben steht die ganze
+  Antwort.
+- **BetterAi** (`AiChatView`): ein gespeichertes Gespräch, dessen letzte
+  Nachricht noch unbeantwortet ist, beantwortet sich selbst — so wartet ein
+  frisch aus der Liste angefangenes Gespräch mit der Denkanzeige, statt eine
+  feste Antwort zu bekommen. „Denkt nach“ ergibt sich dort aus der Liste, nicht
+  aus einem Zustand im Effekt.
+- **Ohne eingerichtete KI** (`not_configured`, oder ein alter Dienst ohne die
+  Route) bleibt es beim ehrlichen Satz von vorher; nicht erreichbar, zu viel
+  los und gescheitert haben je einen eigenen Satz (`aiFailureKey`).
+
+**Einrichten:** Schlüssel in `SAFESWISSCLOUD_API_KEY` oder
+`services/api/data/safeswisscloud.key`, die eigene Adresse von Safe Swiss Cloud
+(`https://…/v1`) in `SAFESWISSCLOUD_API_URL` oder
+`services/api/data/safeswisscloud.url` — beides wird bei jeder Anfrage neu
+gelesen, nie ins Git. Die Weiche steht in `services/api/ai/router.js`
+(getestet), die Modelle je Stufe (`gemma4-31b`, `gpt-oss-120b`,
+`deepseek-v4-flash`, Vision `gemma4-31b`) lassen sich mit
+`BETTER_AI_MODEL_CHEAP|CHAT|REASONING|VISION` tauschen. Denkende Modelle
+bekommen 1024 Tokens Zuschlag, damit das Nachdenken die Antwort nicht
+auffrisst. Jeder Aufruf landet ohne Inhalt in `data/ai-usage.jsonl` (Stufe,
+Modell, Tokens, CHF) — daraus rechnet der Admin die Kosten.
 
 **Mit ihm reden** (`features/assistant/speech.ts`, `useVoice.ts`,
 `VoiceControls.tsx`): **Sprechen** legt das Gesagte ins Feld — nicht direkt
@@ -199,12 +375,42 @@ gelesen. Die App fragt `/v1/speech/status` und `/v1/speech/voices`
 (`features/assistant/cloudVoice.ts`); ist ElevenLabs eingerichtet, stehen nur
 noch dessen Stimmen zur Wahl (`assistantVoice` = `eleven:<voice_id>`), und
 alle sprechen damit: Avatar, Gespräch, Probe. Ein Satz geht als
-`POST /v1/speech` an den Dienst, das Audio kommt als `GET …/<id>.mp3` im Strom
-und landet in `data/speech-cache/` — derselbe Satz kostet nur einmal Guthaben.
-Scheitert es (Schlüssel falsch, Guthaben leer, kein Netz), spricht der
-Browser, und die Auswahl sagt, warum. Modell: `eleven_multilingual_v2`,
-tauschbar mit `BETTER_SPEECH_MODEL`. Der Gratis-Plan reicht für etwa 40–80
-Sätze im Monat und erlaubt keine kommerzielle Nutzung.
+`POST /v1/speech` an den Dienst — mit `accountId` und `app` (`setSpeaker` in
+`cloudVoice.ts`, gesetzt von `AppContext`; vor dem Anmelden `null`) —, das
+Audio kommt als `GET …/<id>.mp3?play=<ticket>` im Strom. Scheitert es
+(Schlüssel falsch, Guthaben leer, kein Netz), spricht der Browser, und die
+Auswahl sagt, warum. Modell: `eleven_multilingual_v2`, tauschbar mit
+`BETTER_SPEECH_MODEL`. Der Gratis-Plan hat 10’000 Credits im Monat (ein Credit
+je Zeichen, Flash und Turbo einen halben) und erlaubt keine kommerzielle
+Nutzung.
+
+- **Zwischenspeicher** (`services/api/speech/cache.js`, getestet): fertiges
+  Audio liegt in `data/speech-cache/`, derselbe Satz mit derselben Stimme kostet
+  nur einmal. Der Schlüssel vereinheitlicht Leerraum, typografische
+  Anführungszeichen, Apostrophe und Striche — „3 Bananen hinzugefügt.“ mit
+  und ohne Leerzeichen am Ende ist dieselbe Datei; Gross/klein und Satzzeichen
+  zählen, gesprochen wird das Original. `index.json` zählt je Datei die Hits;
+  wird es zu voll (`BETTER_SPEECH_CACHE_FILES`, Standard 2000, und
+  `BETTER_SPEECH_CACHE_MB`, Standard 200), fallen zuerst die mit den wenigsten
+  Hits, bei Gleichstand die am längsten nicht gespielten, nie der eben
+  erzeugte. So bleiben häufige Bestätigungen wie „BetterFamily übernimmt das:
+  „2 Bananen“ ist unterwegs.“ (`assistant.handedOver`, ein fester Satz ohne
+  Zeit oder Zufall) und werden nur noch abgespielt. Fehlt der Index oder ist er
+  kaputt, entsteht er neu aus den Dateien.
+- **Proben** (`POST /v1/speech/sample { voice, language, accountId?, app? }`):
+  den Satz wählt der Dienst — je Sprache ein fester ohne Namen („Hallo, so
+  klinge ich.“); ein mitgeschickter Text zählt nicht. Eine Probe entsteht, wenn
+  irgendwer die Stimme zum ersten Mal anhört, und liegt dann in
+  `speech-cache/samples/`, das nie aufgeräumt wird — für alle anderen gratis.
+  Vorab erzeugt wird nichts. Auch die Stimme des Browsers sagt diesen Satz
+  (`assistant.voice.sampleAnon`, `Voice.saySample`, `VoicePicker` in den
+  Einstellungen und beim Einrichten) — keine Probe nennt den Namen.
+- **Verbrauch** (`services/api/speech/usage.js`): jede Wiedergabe mit Ticket
+  und jede Erzeugung wird eine Zeile in `data/speech-usage.jsonl` — `{ at,
+  accountId, app, purpose: speech|sample, model, voiceId, characters, credits,
+  cached, ok, error }`, nie der Text. Aus dem Speicher `cached: true, credits:
+  0`; ein zweites Holen mit demselben Ticket zählt nicht. Daraus rechnet der
+  Admin die Credits je Konto.
 
 **Stimmen des Browsers** (`features/assistant/voices.ts`, getestet): natürliche zuerst
 („Natural“, „Enhanced“, „Premium“ — Edge und Safari), dann Stimmen aus dem Netz
@@ -271,7 +477,10 @@ Die Startseite zeigt die Liste, die letzten Rezepte, was heute zu giessen ist
 - `MonthView` — Raster mit Kästchen: jeder Tag zeigt seine Termine als farbige
   Streifen, `+N` wenn mehr da sind. Ein Tag antippen führt in seine Tagesansicht.
 - `TimeGrid` — Zeitraster für Tag und Woche, mit Überlappung nebeneinander
-  und einer Linie für die aktuelle Uhrzeit
+  und einer Linie für die aktuelle Uhrzeit. Ganztägiges steht darüber als
+  farbiger Balken über die ganze Breite seines Tages, ohne Punkt, mit weisser
+  Schrift (`AllDayRow` in `CalendarView.tsx`); mehrere stehen untereinander,
+  nie nebeneinander, und in der Woche genau über ihrer Spalte.
 - `EventEditor` — Titel, ganztägig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
   Die Zielkalender werden angehakt, **mehrere sind erlaubt**. Der Knopf zum
   Anlegen ist der kleine `FloatingButton` unten rechts.
@@ -332,7 +541,12 @@ einem Monat, dahinter ein Feld für alles andere.
   - **Zeile**: Kreis, „!!“ vor dem Titel, Metazeile nur mit dem, was da ist
     (Zeit · ↻ · Erinnerung · 2/5 · Projekt · Tags).
   - **Abhaken**: Der Kreis hakt nach 1,2 s ab, mit Rückgängig. Nach rechts
-    wischen heisst erledigt, nach links Planen oder Löschen.
+    wischen heisst erledigt, nach links **Morgen** · Planen · Löschen.
+  - **Verschieben** (`postpone.ts`, getestet): „Morgen“ im Wisch schiebt mit
+    einem Tipp auf morgen, die Uhrzeit bleibt, mit „Verschoben: Morgen ·
+    Rückgängig“. Der lange Druck hat die Gruppe Heute (nur überfällig) ·
+    Morgen · Nächste Woche (nächster Montag) · Datum wählen …. Gerechnet wird
+    ab dem echten Heute; bei wiederkehrenden ändert sich nur diese Frist.
   - **Langer Druck**: öffnet das Kontextmenü; Ziehen sortiert um (`order`).
   - **Schnelleingabe**: „+“ öffnet sie über der Tastatur. Die Satz-Erkennung
     (`parse.ts`, getestet) versteht „morgen 14 Uhr“, „jeden Montag“, „!!“,
@@ -374,15 +588,18 @@ einem Monat, dahinter ein Feld für alles andere.
 - **Geburtstage** (`features/birthdays/`):
   - **Demnächst**, sortiert nach Tagen bis zum Geburtstag:
     - eine grosse Karte nur für heute (Nachricht, Anrufen);
-    - „Diese Woche“ mit grossen Zeilen und der Geschenkidee;
+    - „Diese Woche“ mit grossen Zeilen;
     - „Dieser Monat“ und „Später“.
-  - **Anlegen** im Blatt: Vorschläge aus den Kontakten, Räder für Tag und
-    Monat, das Jahr ist freiwillig.
-  - **Person** als eigener Bildschirm: Countdown, Geschenkideen (`gifts`;
-    abgehakt heisst verschenkt, mit Jahr), Erinnerungen
-    (`birthdayReminders`, `close`), Notiz.
-  - **Noch nicht**: Erinnerungen und der Import aus Kontakten brauchen
-    `expo-notifications` bzw. `expo-contacts`.
+  - **Anlegen** im Blatt: Vorschläge aus den Kontakten, Räder für Tag, Monat
+    und Jahr. Das Jahr ist freiwillig: ganz unten auf dem Jahresrad steht „—“
+    für ohne Jahr, vorgewählt, gleich unter dem laufenden Jahr.
+  - **Person** als eigener Bildschirm, bewusst kurz: Bild, Name, „wird 45 am
+    Samstag, 19. September“ (ohne Jahr nur das Datum) und gross die Tage bis
+    dahin; „Bearbeiten“ oben rechts öffnet das Blatt (Datum, Geburtstag
+    entfernen). Keine Telefonnummer, Notiz, Geschenkideen oder Erinnerungen —
+    die Felder `gifts` und `birthdayReminders` bleiben in den Daten, aber ohne
+    Oberfläche.
+  - **Noch nicht**: der Import aus Kontakten braucht `expo-contacts`.
   - **Links**: `/run/birthdays?new=1`, `?person=<id>`.
 - **Wetter** (`features/weather/`), über Open-Meteo ohne Schlüssel:
   - **Orte**: bis 20 (`weatherPlaces`; `weatherPlace` ist immer der erste),
@@ -404,10 +621,12 @@ einem Monat, dahinter ein Feld für alles andere.
 Es gibt keine eigene Sammlung: ein Geburtstag ist `ContactRow.birthday`. Die
 Funktion Geburtstage, die Kontakte und der Kalender lesen dieselbe Zeile.
 
-- **Eintragen** geht in den Geburtstagen und im Kalender: beim Anlegen im
-  privaten Kalender wählt man oben „Termin“ oder „Geburtstag“
-  (`EventEditor` → `BirthdayForm`). Beides legt einen Kontakt an oder setzt
-  dessen Datum.
+- **Eintragen** geht in den Geburtstagen und im Kalender: das „+“ im privaten
+  Kalender fragt zuerst „Termin“ oder „Geburtstag“ und öffnet dann nur dieses
+  Blatt (`EventEditor` bzw. `BirthdayEditor`), nie beides in einem. Ein
+  Geburtstag legt einen Kontakt an oder setzt dessen Datum.
+- **Mit Jahr** steht überall „Max wird 45“ (`birthdays.event`), ohne Jahr
+  „Max hat Geburtstag“ (`birthdays.eventNoAge`).
 - **Im Kalender** stehen Geburtstage jedes Jahr als ganztägiger Eintrag in
   Rosa („Anna wird 36“) — gedacht, nicht gespeichert (`birthdaysBetween` in
   `features/birthdays/birthdays.ts`, Ids `birthday:<kontakt>:<tag>`). Ein Tipp
@@ -420,11 +639,25 @@ Funktion Geburtstage, die Kontakte und der Kalender lesen dieselbe Zeile.
 - Wer am 29. Februar geboren ist, feiert in anderen Jahren am 1. März.
 
 Die Startseite zeigt je Funktion das Nächste: was bald abläuft, die Haken von
-heute (antippbar), die nächste Reise, die nächsten Geburtstage. **Ganztägiges**
-— Termine ohne Uhrzeit und wer heute Geburtstag hat — steht als eigene Zeile
-ganz oben am Tagesband (`AllDayLane` in `features/today/DayThread.tsx`, Daten
-aus `events.listAllDay`), wie die Ganztags-Leiste im Kalender; die drei Plätze
-im Band gehören dann den Terminen mit Uhrzeit.
+heute (antippbar), die nächste Reise, wer heute oder morgen feiert. **Ganztägiges**
+— Termine ohne Uhrzeit und wer heute Geburtstag hat — steht ganz oben am
+Tagesband als **eine Karte mit einer Zeile je Eintrag** (`AllDayLane` in
+`features/today/DayThread.tsx`, Daten aus `events.listAllDay`): Farbstreifen
+oder Geschenk, Titel, rechts woher. Untereinander, nie als Pillen nebeneinander;
+ab vier Einträgen stehen zwei da und „2 weitere“ klappt den Rest auf. Die drei
+Plätze im Band gehören dann den Terminen mit Uhrzeit.
+
+Ein **Geburtstag steht nur an seinem Tag im Band** — oben in der
+Ganztags-Karte oder unten unter „Morgen“, nie Tage im Voraus (dafür gibt es
+die Funktion Geburtstage). Geschenk und „Max wird 45“ (bis zwei Zeilen; ohne
+Jahr „Max hat Geburtstag“, `birthdayTitle` in `WorkspaceScreen.tsx`). Kein Kurzwort
+rechts, und bei Terminen auch kein „Kalender“ — Symbol und Uhrzeit sagen es.
+
+**Ganz unten im Band** endet der Tag mit einem leicht roten Strich, darunter
+der nächste Tag („Morgen“) mit höchstens zwei Einträgen — wer feiert,
+Ganztägiges, dann nach Uhrzeit —, die immer blasser werden (`NextDayPeek`).
+Das Verblassen ist gewollt und die eine Ausnahme von der Kontrast-Regel: eine
+Vorschau, kein Inhalt. Ein Tipp blättert zu diesem Tag.
 
 ## BetterGym
 
@@ -489,8 +722,9 @@ Profilknopf, dafür gibt es den Tab
 (`features/notifications/NewsSection.tsx`), dann der Tagesstrahl und zuunterst
 der **Schnellzugriff** — ein 3D-Karussell der Favoriten mit einer „+“-Karte am
 Ende (`features/quick/QuickAccess.tsx`). Unten rechts steht ein „+“
-(`FloatingButton` mit Menü): Aufgabe, Notiz, E-Mail, Geburtstag. Es öffnet die
-Funktion direkt beim Anlegen (`/run/tasks?new=1` …). Ein eigenes Eingabefeld
+(`FloatingButton` mit Menü), von oben nach unten: Termin, Aufgabe, Notiz,
+E-Mail. Es öffnet die Funktion direkt beim Anlegen (`/run/calendar?new=1`,
+`/run/tasks?new=1` …). Ein eigenes Eingabefeld
 für Aufgaben gibt es auf der Startseite nicht mehr.
 
 **Der Tagesstrahl lässt sich wischen**: nach links kommt morgen, nach rechts
@@ -582,9 +816,9 @@ wie was man mag:
 Beide sind Listen von `appId:moduleId` in der gewählten Reihenfolge, beide
 gehen durch dieselben reinen Helfer (`favorites.ts`, getestet) und denselben
 Haken (`useFavorites()` bzw. `useQuickAccess()` in `useFavorites.ts`). Eine
-Karte ins Karussell zu legen macht daraus **keinen** Favoriten — darum trägt
-jede Karte oben rechts ihren eigenen Stern, und im „+“-Blatt steht ein Haken
-statt eines Sterns.
+Karte ins Karussell zu legen macht daraus **keinen** Favoriten. Die Karten im
+Karussell tragen **keinen Stern** — Favoriten setzt man in „Bereiche“ —, und
+im „+“-Blatt steht ein Haken statt eines Sterns.
 
 Das „+“ im Karussell zeigt auch die Funktionen **anderer** Better-Apps, aber
 nur solcher, in denen das Konto schon angemeldet war (`appAccess.appsOf`). Eine
@@ -664,7 +898,8 @@ links wischen löscht, bei E-Mails die E-Mail selbst. Leer: „Keine Neuigkeiten
 ## E-Mail (`features/mail/`, `db/mail.ts`, `services/api/mail/`)
 
 Beliebig viele Postfächer, wahlweise einzeln oder alle zusammen. Verbunden wird
-mit Adresse und Passwort über IMAP/SMTP; der Dienst erkennt den Anbieter
+mit Adresse und Passwort über IMAP/SMTP — die Maske fragt nur diese zwei ab,
+keine Server, Ports, Benutzernamen oder Anzeigenamen; der Dienst erkennt den Anbieter
 (`mail/providers.js`), prüft die Anmeldung live und legt das Passwort
 **verschlüsselt** ab (AES-256-GCM, Schlüssel `<datenordner>/mail.key`, Tresor
 `mail-vault.json` — nie in `db.json`, nie in einer Antwort).
@@ -718,6 +953,10 @@ Entwürfe gewöhnliche Zeilen mit `folderRole: 'drafts'`.
 Die Oberfläche (`features/mail/`, verdrahtet in `MailView.tsx`), Vorbild Gmail
 und Apple Mail:
 
+- **Einstieg:** Wer E-Mail öffnet, landet in der **Postfächer-Übersicht**
+  (Alle Posteingänge, je Postfach die Ordner), nicht in einem Posteingang.
+  Ohne verbundenes Postfach kommt gleich die Einrichtung; `?message=<id>`
+  öffnet die Unterhaltung, Zurück führt dann in den Posteingang.
 - **Posteingang:**
   - Sammel-Posteingang, chronologisch, gebündelt nach `threadId`
     (`threads.ts`).
@@ -736,7 +975,10 @@ und Apple Mail:
     und verschiebt sie zurück.
   - Langer Druck öffnet das Kontextmenü, auf Android die Auswahl.
 - **Postfächer:** Alle Posteingänge, je Postfach die Ordner mit Zahlen, darunter
-  „Postfächer verwalten“.
+  „Postfächer verwalten“. Über den Ordnern steht die Adresse klein geschrieben
+  mit einem Klappsymbol direkt daneben; ein Tipp klappt die Ordner dieses
+  Postfachs auf oder zu (`MailboxToggle`). Der Zustand liegt in `MailView`,
+  damit er beim Hin und Zurück aus einem Ordner bleibt.
 - **Unterhaltung** (Vollbild):
   - ˄ ˅ springen zur nächsten Unterhaltung; jede Nachricht hat Kopf und
     „an mich ▾“, ab vier Nachrichten sind die mittleren gebündelt.
@@ -808,6 +1050,25 @@ reduzierter Bewegung wird er nur eingeblendet. Farben aus dem Theme.
 2 im Ziel. Zusammensetzen läuft 0 → 1, Zerfallen 1 → 2 — dieselbe Zahl in zwei
 Richtungen. `gazeOnly` lässt nur den Blick wandern, ohne den Körper zu bewegen.
 
+**Den Avatar wählt man selbst** (`features/avatar/`, am Konto
+`assistantAvatar` = `{ kind, color, eyes, accessory }`):
+
+- **Figur:** Roboter (Vorgabe), Knuddel, Katze, Eule, Geist — je Figur eine
+  Datei in `kinds/`, alle aus denselben Stücken, damit Zusammensetzen, Drehen,
+  Blinzeln und Zerfallen überall gleich laufen.
+- **Farbe:** „Wie die App“ (folgt dem Akzent) und sieben feste Töne; jede geht
+  durch die Kontrast-Helfer (`tones.ts`, getestet über alle Modi, Akzente und
+  Voreinstellungen). In Schwarzweiss ist jede Farbe Tinte.
+- **Augen** (rund, fröhlich, müde, funkelnd) und **Accessoire** (keins,
+  Antenne, Hut, Brille, Schleife; die Antenne nicht bei Katze und Eule).
+- **Wo:** Einstellungen → Assistent → „Avatar“ (Blatt mit grosser Vorschau,
+  speichert bei jedem Tipp) und beim Einrichten der Schritt nach dem Namen.
+  Vor dem Anmelden steht immer der Roboter.
+- **Prüfung:** `normalizeAvatar` liest tolerant; der Dienst
+  (`services/api/avatar.js`) nimmt nur genau diese vier Felder mit bekannten
+  Werten, sonst `400 avatar_invalid`. Die erlaubten Werte stehen doppelt, ein
+  Test merkt, wenn sie auseinanderlaufen.
+
 Im **leeren Assistenten** steht er über dem Gespräch
 (`features/assistant/AssistantAvatar.tsx`) und schaut umher; sobald man etwas
 abschickt, zerfällt er wellenförmig und fliegt in die eigene Nachricht. Bei
@@ -842,8 +1103,8 @@ Stimme des Browsers, mit Konto `assistantVoice`.
   (`SetupScreen.tsx`), das er auch laut spricht. Darum zuerst seine **Stimme** (`assistantVoice`, ein `voiceURI` aus
   `speechSynthesis` — der Schritt fällt weg, wo es nichts zu wählen gibt), dann
   der **Spitzname** (`firstName` — nur, wie die App dich anspricht, nicht der
-  Benutzername), der **Name des Assistenten** (`assistantName`),
-  Personalisieren (Modus, Akzent, Voreinstellung, Hintergrund), „Kennst du dich
+  Benutzername), der **Name des Assistenten** (`assistantName`), sein
+  **Avatar** (Figur und Farbe), Personalisieren (Modus, Akzent, Voreinstellung, Hintergrund), „Kennst du dich
   schon aus?“ — dann `completeOnboarding`. Sobald man einmal weiter ist, stehen
   die Schritte fest, auch wenn der Browser die Stimmen erst später nachreicht.
   Die anderen Apps laufen beim Registrieren wie beim Einloggen. Alles davon
@@ -862,7 +1123,7 @@ als Weiterleitung dorthin — zwei Oberflächen fürs selbe wären zwei Wahrheit
 | ------------ | -------------------------------------------------------------------------------- |
 | Konto        | Spitzname, Benutzername, E-Mail (fest), Sprache, Mitglied seit                   |
 | Darstellung  | Modus, Voreinstellung, Akzentfarbe, Hintergrund                                   |
-| Assistent    | sein Name (`assistantName`) und seine Stimme, in BetterAi ausgeblendet          |
+| Assistent    | sein Name (`assistantName`), seine Stimme und sein Avatar, in BetterAi ausgeblendet |
 | Haushalt     | nur in BetterFamily: der aktive Haushalt und Beitreten                            |
 | App          | Version und Abmelden                                                              |
 
@@ -892,7 +1153,12 @@ Die drei Regler des Aussehens liegen am Konto und gelten damit in allen Apps:
 | Hintergrund    | App-Bild, eines aus `BACKDROPS` oder ein eigenes (`upload:<id>`)     |
 
 `ui/Screen.tsx` nimmt den Hintergrund vom Konto — in allen Apps gleich —, mit
-einem Verlauf in der Papierfarbe darüber, damit Text lesbar bleibt. Ein eigenes
+einem Verlauf in der Papierfarbe darüber, damit Text lesbar bleibt. Wie viel
+Papier es sein muss, ist **gemessen**, nicht geschätzt (`theme/backdrops.ts`:
+`veil` je Bild, `APP_BACKDROP_VEILS`, `MISMATCH_VEIL`, `UPLOAD_VEIL`, fünf
+Stufen von oben nach unten): an den schlechtesten 2 % der Bildpunkte jeder
+Höhe erreicht `textMuted` 4.5:1 und `textFaint` 3:1 — überall, weil der Inhalt
+über das stehende Bild rollt. Wer ein Bild tauscht, misst neu. Ein eigenes
 Bild wird im Browser per Canvas auf 1280 px verkleinert und an `/v1/uploads`
 geschickt; am Handy fehlt dafür noch `expo-image-picker`
 (`features/personalize/pickImage.ts` sagt das ehrlich).
@@ -922,6 +1188,21 @@ EXPO_PUBLIC_API_URL=https://api.example.ch eas build --profile production
 
 - **Keine rohen Zahlen.** Abstand, Schriftgrösse, Farbe und Radius kommen aus
   `useTheme()`.
+- **Genug Kontrast, in jeder Kombination.** Schrift mindestens 4.5:1, Ringe,
+  Punkte, Balken und Umrandungen 3:1 — über hell/dunkel, alle Akzente und alle
+  Voreinstellungen, dazu Bereichs- und Terminfarben. `theme/contrast.test.ts`
+  rechnet jede Kombination durch; `ensureContrast` und `readableOn` aus
+  `@/theme` ziehen neue Farben nach.
+  - `accent` ist nur **Fläche**, mit `textOnAccent` darauf.
+  - Zeigt die Farbe allein etwas an (heute, gewählt, erledigt, Fortschritt,
+    Schalter, ungelesen), gilt `accentMark` — beim hellen Signalgrün ein
+    kräftigeres Grün, sonst der Akzent selbst.
+  - Schrift in Akzentfarbe auf Papier ist `accentStrong` (`tone="accent"`).
+  - Auf `inverse` steht nur `onInverse`.
+  - Umrandungen von Bedienelementen (Kreis, Häkchen) sind `textFaint`, nicht
+    `borderStrong`.
+  - Wo nur Farbe unterscheidet, kommt eine Form dazu, etwa der Punkt unter
+    „heute“ im Wochenstreifen.
 - **Kein Text im Code.** Jeder sichtbare String geht durch `t('key')` — auch
   Name, Kurztext und Beschreibung einer Funktion (`module.<id>.name` in
   `i18n/de-modules.ts`, gelesen über `moduleName(t, id)` aus

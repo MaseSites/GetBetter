@@ -3,10 +3,10 @@ import type { TranslationKey } from './de';
 /** Italienisch: die App-Hülle (Heute, Suche, Navigation) (de-shell.ts). Teil von `it`. */
 export const itShell = {
   'shell.create': 'Crea',
+  'shell.create.event': 'Appuntamento',
   'shell.create.task': 'Attività',
   'shell.create.note': 'Nota',
   'shell.create.mail': 'E-mail',
-  'shell.create.birthday': 'Compleanno',
 
   'search.best': 'Risultato migliore',
   'search.group.tasks': 'Attività',

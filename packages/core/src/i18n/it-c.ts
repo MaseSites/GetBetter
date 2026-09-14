@@ -34,8 +34,7 @@ export const itC = {
   'assistant.voice.tier.basic': 'semplice',
   'assistant.voice.pick.a11y': 'Scegli e ascolta la voce {voice}',
   'assistant.voice.pick.a11y.speaking': 'Voce {voice}, sta parlando',
-  'assistant.voice.sample': 'Ciao, sono {name}. Ecco la mia voce.',
-  'assistant.voice.sampleAnon': 'Ciao, ecco la mia voce.',
+  'assistant.voice.sampleAnon': 'Ciao, ecco come suono.',
 
   // Anmelden
   'auth.start.note': 'Un solo account vale in tutte le app Better.',
@@ -84,8 +83,6 @@ export const itC = {
   'intro.setup.assistant.hint': 'Con questo nome mi trovi in tutte le app Better.',
   'intro.setup.voice.bubble':
     'Il tuo account è pronto. D’ora in poi ti parlo — scegli che voce devo avere. Tocca una voce e mi senti.',
-  'intro.setup.style.bubble':
-    'Bene, mi chiamo {assistant}. Ora l’aspetto — ogni modifica vale subito.',
   'intro.setup.style.mode': 'Chiaro o scuro',
   'intro.setup.style.mode.light': 'Chiaro',
   'intro.setup.style.mode.dark': 'Scuro',
@@ -270,18 +267,6 @@ export const itC = {
   'mail.add.passwordPlaceholder': 'Password della casella di posta',
   'mail.add.showPassword': 'Mostra password',
   'mail.add.hidePassword': 'Nascondi password',
-  'mail.add.displayName': 'Nome visualizzato',
-  'mail.add.displayNamePlaceholder': 'Così ti vedono i destinatari',
-  'mail.add.advanced': 'Avanzate',
-  'mail.add.imap': 'In arrivo (IMAP)',
-  'mail.add.smtp': 'In uscita (SMTP)',
-  'mail.add.host': 'Server',
-  'mail.add.imapHostPlaceholder': 'imap.esempio.ch',
-  'mail.add.smtpHostPlaceholder': 'smtp.esempio.ch',
-  'mail.add.port': 'Porta',
-  'mail.add.ssl': 'SSL',
-  'mail.add.username': 'Nome utente',
-  'mail.add.usernamePlaceholder': 'Di solito l’indirizzo e-mail',
   'mail.add.connect': 'Collega',
   'mail.add.detecting': 'Riconosco il provider …',
   'mail.add.provider': 'Provider: {name}',
@@ -293,7 +278,6 @@ export const itC = {
     '{name} lo consente solo con l’accesso Microsoft — qui non funziona ancora.',
   'mail.add.error.email': 'Inserisci un indirizzo e-mail valido.',
   'mail.add.error.password': 'Inserisci la password della casella di posta.',
-  'mail.add.error.port': 'Una porta è un numero da 1 a 65535.',
   'mail.error.badRequest': 'Manca ancora qualcosa. Controlla i dati.',
   'mail.error.alreadyConnected': 'Questa casella di posta è già collegata.',
   'mail.error.authFailed': 'Accesso rifiutato. Indirizzo e password sono corretti?',
@@ -433,8 +417,6 @@ export const itC = {
   'aiChat.starter.cook': 'Cosa potrei cucinare oggi?',
   'aiChat.starter.summarise': 'Riassumimi questo testo',
   'aiChat.starter.ideas': 'Dammi tre idee',
-  'aiChat.cannedReply':
-    'Nel prototipo non rispondo ancora davvero. Qui ci sarebbe la risposta di un’IA normalissima — senza guardare i tuoi appuntamenti, le tue attività o le tue spese.',
 
   // Neues
   'news.title': 'Novità',

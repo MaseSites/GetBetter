@@ -1,4 +1,5 @@
-import type { Palette, ColorScheme, ThemePreset } from './colors';
+import { markOn, type Palette, type ColorScheme, type ThemePreset } from './colors';
+import { MIN_MARK_CONTRAST, ensureContrast, flatten, readableOn } from './contrast';
 
 /**
  * Fuenf Farben, nicht zwoelf.
@@ -132,21 +133,31 @@ export function hueTint(
 
   const tone = AREA_HUES[resolve(hueName)][theme.scheme];
   const [from, to] = tone;
-  const solid = theme.scheme === 'light' ? to : from;
+  // Punkte, Schienen und Symbole heben sich mit 3:1 ab — das helle Markengruen
+  // wird dafuer im Hellen kraeftiger, alle anderen bleiben, wie sie sind.
+  const solid = markOn(theme.colors, theme.scheme === 'light' ? to : from);
 
   if (theme.preset === 'colorful') {
     return {
       gradient: [from, to],
-      foreground: theme.scheme === 'light' ? '#FFFFFF' : '#121410',
+      // Weiss oder Tinte, je nachdem, was auf dem ganzen Verlauf besser traegt.
+      foreground: readableOn([from, to], '#FFFFFF', '#121410'),
       soft: `${from}22`,
       base: solid,
     };
   }
 
   // Ruhig: dieselbe Farbe, nur zurueckgenommen.
+  const gradient: readonly [string, string] =
+    theme.scheme === 'light' ? [`${from}26`, `${to}1A`] : [`${from}33`, `${to}26`];
+  const foreground = gradient.reduce(
+    (current, stop) =>
+      ensureContrast(current, flatten(stop, theme.colors.surface), MIN_MARK_CONTRAST),
+    solid,
+  );
   return {
-    gradient: theme.scheme === 'light' ? [`${from}26`, `${to}1A`] : [`${from}33`, `${to}26`],
-    foreground: solid,
+    gradient,
+    foreground,
     soft: `${from}1A`,
     base: solid,
   };

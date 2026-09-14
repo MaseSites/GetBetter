@@ -13,7 +13,21 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 
-const { dataDir, mailSyncMs } = require('./config.js');
+const { diffCollection, recordActivity } = require('./activity.js');
+const { startAdminServer } = require('./admin/server.js');
+const { createAiService } = require('./ai/service.js');
+const {
+  MIN_PASSWORD_LENGTH,
+  USERNAME_PATTERN,
+  hashPassword,
+  matches,
+  normaliseEmail,
+  normaliseUsername,
+  usernameFor,
+} = require('./auth.js');
+const { isAvatarStyle } = require('./avatar.js');
+const { createBilling } = require('./billing/service.js');
+const { adminPort, dataDir, mailSyncMs } = require('./config.js');
 const { createMailService } = require('./mail/service.js');
 const { createSpeechService } = require('./speech/service.js');
 const {
@@ -22,20 +36,40 @@ const {
   markNotificationRead,
   removeNotificationsByRef,
 } = require('./notifications.js');
-const { SERVER_OWNED, isCollectionName, load, rowsOf, save } = require('./store.js');
+const {
+  SERVER_OWNED,
+  forgetDeleted,
+  isCollectionName,
+  load,
+  rowsOf,
+  save,
+  withoutDeleted,
+} = require('./store.js');
 const { deleteUpload, readUpload, saveUpload } = require('./uploads.js');
+const { viewTickets } = require('./viewTickets.js');
 
 const PORT = Number(process.env.PORT ?? 8090);
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-/** Dieselbe Regel wie in den Apps (`packages/core/src/auth/accounts.ts`). */
-const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,23}$/;
-const MIN_PASSWORD_LENGTH = 8;
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const TOO_LARGE = Symbol('too_large');
 
 /** Was nur der Dienst kennt und niemals herausgibt. */
 const SECRET_FIELDS = ['passwordHash', 'passwordSalt'];
+
+/**
+ * Was nur der Admin aendert: die Apps lesen es, schreiben es aber nie.
+ * `paidApps` setzt spaeter ein Kaufbeleg aus dem Store — bis dahin der Admin.
+ */
+const ADMIN_FIELDS = ['disabled', 'blockedApps', 'paidApps'];
+
+/**
+ * „App ansehen“ im Admin: eine App im Nur-Lesen-Modus schickt diese Kopfzeile
+ * mit. Dann geht nur Lesen — und das Einloesen des Tickets selbst.
+ */
+const VIEW_HEADER = 'x-better-view';
+const READ_METHODS = new Set(['GET', 'HEAD']);
+const REDEEM_PATH = '/v1/view/redeem';
 
 /** Felder eines Profils, die jede App aendern darf. */
 const PROFILE_FIELDS = [
@@ -46,6 +80,7 @@ const PROFILE_FIELDS = [
   'accentKey',
   'themePreset',
   'assistantName',
+  'assistantAvatar',
   'backdrop',
 ];
 
@@ -54,37 +89,7 @@ const PROFILE_TEXT_LIMITS = { assistantName: 60, backdrop: 200 };
 
 const mail = createMailService({ dataDir: dataDir() });
 
-// ------------------------------------------------------------------ Passwoerter
-
-function hashPassword(password, salt) {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(password, salt, 64, (error, key) => {
-      if (error) reject(error);
-      else resolve(key.toString('hex'));
-    });
-  });
-}
-
-function matches(a, b) {
-  const left = Buffer.from(a, 'hex');
-  const right = Buffer.from(b, 'hex');
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
-
 // ------------------------------------------------------------------ Konten
-
-function normaliseEmail(email) {
-  return String(email ?? '')
-    .trim()
-    .toLowerCase();
-}
-
-function normaliseUsername(input) {
-  return String(input ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, '');
-}
 
 /** Dieselbe Regel wie in den Apps: die Kennung kommt aus der E-Mail. */
 function accountIdFor(email) {
@@ -92,21 +97,19 @@ function accountIdFor(email) {
   return `acc_${digest.slice(0, 24)}`;
 }
 
-async function usernameFor(email) {
-  const db = await load();
-  const base = (normaliseEmail(email).split('@')[0] ?? 'nutzer').replace(/[^a-z0-9._-]/g, '');
-  const stem = base.length > 0 ? base : 'nutzer';
-  for (let suffix = 0; suffix < 100; suffix += 1) {
-    const candidate = suffix === 0 ? stem : `${stem}${suffix}`;
-    if (!db.tables.accounts.some((row) => row.username === candidate)) return candidate;
-  }
-  return `nutzer${Date.now()}`;
-}
-
 function withoutSecrets(row) {
   const copy = { ...row };
   for (const field of SECRET_FIELDS) delete copy[field];
   return copy;
+}
+
+/** Ein Ereignis fuer den Admin. Scheitert das Schreiben, laeuft die Anfrage trotzdem. */
+async function track(entry) {
+  try {
+    await recordActivity(dataDir(), entry);
+  } catch (error) {
+    process.stderr.write(`[api] Aktivitaet: ${error?.name ?? 'Error'}\n`);
+  }
 }
 
 /**
@@ -144,10 +147,13 @@ async function register(email, password, username) {
     createdAt: new Date().toISOString(),
   };
   db.tables.accounts = [...db.tables.accounts, row];
+  forgetDeleted(db, row.id);
   await save();
+  await track({ accountId: row.id, kind: 'account.created', detail: {} });
   return { account: withoutSecrets(row) };
 }
 
+/** Eine unbekannte Adresse hinterlaesst keine Spur — nur Konten, die es gibt. */
 async function authenticate(email, password) {
   const db = await load();
   const row = db.tables.accounts.find((entry) => entry.email === normaliseEmail(email));
@@ -155,8 +161,17 @@ async function authenticate(email, password) {
   if (!row.passwordHash || !row.passwordSalt) return { error: 'not_found' };
 
   const attempt = await hashPassword(String(password ?? ''), row.passwordSalt);
-  if (!matches(attempt, row.passwordHash)) return { error: 'wrong_password' };
+  if (!matches(attempt, row.passwordHash)) {
+    await track({ accountId: row.id, kind: 'session.failed', detail: {} });
+    return { error: 'wrong_password' };
+  }
+  // Gesperrt entscheidet der Admin: dann reicht auch das richtige Passwort nicht.
+  if (row.disabled === true) {
+    await track({ accountId: row.id, kind: 'session.blocked', detail: {} });
+    return { error: 'account_disabled' };
+  }
 
+  await track({ accountId: row.id, kind: 'session.created', detail: {} });
   return { account: withoutSecrets(row) };
 }
 
@@ -170,6 +185,10 @@ async function patchProfile(id, changes) {
     if (value !== undefined && (typeof value !== 'string' || value.length > max)) {
       return { status: 400, body: { error: 'bad_request' } };
     }
+  }
+  // Der Avatar ist ein Objekt mit genau vier bekannten Feldern — sonst nichts.
+  if (changes.assistantAvatar !== undefined && !isAvatarStyle(changes.assistantAvatar)) {
+    return { status: 400, body: { error: 'avatar_invalid' } };
   }
 
   // Der Benutzername gilt fuer alle Apps und muss einmalig bleiben — beim
@@ -195,6 +214,7 @@ async function patchProfile(id, changes) {
   const next = { ...row, ...picked };
   db.tables.accounts = db.tables.accounts.map((entry) => (entry.id === id ? next : entry));
   await save();
+  await track({ accountId: id, kind: 'profile.updated', detail: { fields: Object.keys(picked) } });
   return { status: 200, body: { account: withoutSecrets(next) } };
 }
 
@@ -216,8 +236,10 @@ async function snapshot() {
  * Vorgehen wie frueher auf dem Geraet, nur eben gemeinsam.
  *
  * Bei den Konten bleibt die Passwortpruefung stehen: die Apps kennen sie nicht
- * und koennten sie sonst versehentlich loeschen. Mitteilungen und Mail gehoeren
- * dem Dienst und lassen sich so gar nicht ersetzen.
+ * und koennten sie sonst versehentlich loeschen. Ebenso `disabled` und
+ * `blockedApps` — die setzt nur der Admin; was eine App dort mitschickt, zaehlt
+ * nicht. Mitteilungen und Mail gehoeren dem Dienst und lassen sich so gar nicht
+ * ersetzen.
  */
 async function replaceCollection(name, rows) {
   if (!isCollectionName(name)) return { status: 400, body: { error: 'unknown_collection' } };
@@ -225,22 +247,46 @@ async function replaceCollection(name, rows) {
   if (!Array.isArray(rows)) return { status: 400, body: { error: 'bad_request' } };
 
   const db = await load();
+  const previous = rowsOf(db, name);
+  // Was der Admin mit einem Konto geloescht hat, bringt ein alter Stand nicht zurueck.
+  const incomingRows = withoutDeleted(db, name, rows);
   if (name === 'accounts') {
-    const secrets = new Map(rowsOf(db, 'accounts').map((row) => [row.id, row]));
-    db.tables.accounts = rows.map((row) => {
-      const known = secrets.get(row?.id);
+    const stored = new Map(previous.map((row) => [row.id, row]));
+    db.tables.accounts = incomingRows.map((row) => {
+      const known = stored.get(row?.id);
+      const incoming = { ...row };
+      for (const field of ADMIN_FIELDS) delete incoming[field];
       const kept = {};
-      for (const field of SECRET_FIELDS) {
+      for (const field of [...SECRET_FIELDS, ...ADMIN_FIELDS]) {
         if (known?.[field] !== undefined) kept[field] = known[field];
       }
-      return { ...row, ...kept };
+      return { ...incoming, ...kept };
     });
   } else {
-    db.tables[name] = rows;
+    db.tables[name] = incomingRows;
   }
 
   await save();
+  await recordChanges(name, previous, db.tables[name]);
   return { status: 200, body: { revision: db.revision } };
+}
+
+/** Je Konto, dessen Zeilen sich geaendert haben, ein Ereignis mit den Zahlen — nie Inhalte. */
+async function recordChanges(name, before, after) {
+  try {
+    const options = name === 'accounts' ? { owner: (row) => row.id, omit: SECRET_FIELDS } : {};
+    for (const change of diffCollection(before, after, options)) {
+      if (change.accountId === null) continue;
+      const { added, updated, removed } = change;
+      await track({
+        accountId: change.accountId,
+        kind: 'collection.changed',
+        detail: { collection: name, added, updated, removed },
+      });
+    }
+  } catch (error) {
+    process.stderr.write(`[api] Aenderungen von ${name}: ${error?.name ?? 'Error'}\n`);
+  }
 }
 
 // ------------------------------------------------------------------ HTTP
@@ -249,8 +295,24 @@ const CORS = {
   // Die Apps laufen im Browser auf eigenen Ports.
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Better-View',
 };
+
+/** Im Nur-Lesen-Modus ist alles ausser Lesen und dem Einloesen verboten. */
+function refusedInView(req, pathname) {
+  if (req.headers[VIEW_HEADER] !== '1') return false;
+  if (READ_METHODS.has(req.method)) return false;
+  return !(req.method === 'POST' && pathname === REDEEM_PATH);
+}
+
+/** Ein Ticket aus dem Admin einloesen -> das Konto, genau einmal. */
+async function redeemView(body) {
+  const redeemed = viewTickets.redeem(body?.ticket);
+  if (!redeemed) return { status: 404, body: { error: 'not_found' } };
+  const row = (await load()).tables.accounts.find((entry) => entry.id === redeemed.accountId);
+  if (!row) return { status: 404, body: { error: 'not_found' } };
+  return { status: 200, body: { account: withoutSecrets(row), app: redeemed.app } };
+}
 
 function send(res, status, body, extraHeaders = {}) {
   const text = JSON.stringify(body);
@@ -308,12 +370,27 @@ async function serveUpload({ res, params: [id] }) {
 
 const ok = (status, body) => ({ status, body });
 
+// Abo und Kontingent: ein Kassenbuch fuer KI und Stimmen zusammen.
+const billing = createBilling({ dataDir: dataDir() });
+
 // Echt klingende Stimmen. `BETTER_ELEVENLABS_URL` gilt nur fuer 127.0.0.1 (Tests).
 const speech = createSpeechService({
   dataDir: dataDir(),
   cors: CORS,
   baseUrl: process.env.BETTER_ELEVENLABS_URL,
   model: process.env.BETTER_SPEECH_MODEL,
+  cacheFiles: process.env.BETTER_SPEECH_CACHE_FILES,
+  cacheMb: process.env.BETTER_SPEECH_CACHE_MB,
+  billing,
+});
+
+// KI ueber Safe Swiss Cloud. `BETTER_AI_TEST_URL` gilt nur fuer 127.0.0.1 (Tests).
+const ai = createAiService({ dataDir: dataDir(), baseUrl: process.env.BETTER_AI_TEST_URL, billing });
+
+/** `accountId` und `app` aus der Adresse — geprueft wird im Dienst. */
+const speakerQuery = (url) => ({
+  accountId: url.searchParams.get('accountId') ?? undefined,
+  app: url.searchParams.get('app') ?? undefined,
 });
 
 /** `body: true` liest JSON; `raw: true` schreibt die Antwort selbst. */
@@ -355,7 +432,8 @@ const ROUTES = [
     body: true,
     handler: async ({ body }) => {
       const result = await authenticate(body.email, body.password);
-      return ok(result.error ? 401 : 200, result);
+      if (!result.error) return ok(200, result);
+      return ok(result.error === 'account_disabled' ? 403 : 401, result);
     },
   },
   {
@@ -414,8 +492,15 @@ const ROUTES = [
     handler: ({ params: [id] }) => deleteUpload(id),
   },
 
+  // Nur ansehen (Admin)
+  { method: 'POST', path: /^\/v1\/view\/redeem$/, body: true, handler: ({ body }) => redeemView(body) },
+
   // Stimmen
-  { method: 'GET', path: /^\/v1\/speech\/status$/, handler: () => speech.status() },
+  {
+    method: 'GET',
+    path: /^\/v1\/speech\/status$/,
+    handler: ({ url }) => speech.status(speakerQuery(url)),
+  },
   {
     method: 'GET',
     path: /^\/v1\/speech\/voices$/,
@@ -428,11 +513,22 @@ const ROUTES = [
     handler: ({ body }) => speech.prepare(body),
   },
   {
+    method: 'POST',
+    path: /^\/v1\/speech\/sample$/,
+    body: true,
+    handler: ({ body }) => speech.prepareSample(body),
+  },
+  {
     method: 'GET',
     path: /^\/v1\/speech\/([a-f0-9]{32})\.mp3$/,
     raw: true,
-    handler: ({ res, params: [id] }) => speech.serve(res, id),
+    handler: ({ res, params: [id], url }) => speech.serve(res, id, url.searchParams.get('play')),
   },
+
+  // KI
+  { method: 'GET', path: /^\/v1\/ai\/status$/, handler: () => ai.status() },
+  { method: 'GET', path: /^\/v1\/ai\/budget$/, handler: ({ url }) => ai.budget(speakerQuery(url)) },
+  { method: 'POST', path: /^\/v1\/ai\/reply$/, body: true, handler: ({ body }) => ai.reply(body) },
 
   // E-Mail
   {
@@ -527,6 +623,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, {});
 
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+  // Nur ansehen: noch vor jeder Route, damit keine einzige etwas aendert.
+  if (refusedInView(req, url.pathname)) return send(res, 403, { error: 'read_only' });
   try {
     const route = ROUTES.find(
       (entry) => entry.method === req.method && entry.path.test(url.pathname),
@@ -564,6 +662,18 @@ server.on('error', (error) => {
 
 server.listen(PORT, () => {
   process.stdout.write(`Datenbank laeuft auf http://localhost:${PORT}\n`);
+  // Der Admin lauscht nur auf 127.0.0.1; `BETTER_ADMIN_PORT=0` schaltet ihn ab.
+  const admin = adminPort();
+  if (admin !== null) {
+    // `mail` braucht der Admin beim Loeschen eines Kontos: Postfaecher samt Tresor.
+    startAdminServer({
+      port: admin,
+      dataDir: dataDir(),
+      aiStatus: () => ai.status(),
+      speechStatus: () => speech.status(),
+      mail,
+    });
+  }
   mail.startScheduler(mailSyncMs());
   // Mails, die vor einem Neustart noch warteten, gehen jetzt hinaus.
   mail.resumeOutbox().catch((error) => {

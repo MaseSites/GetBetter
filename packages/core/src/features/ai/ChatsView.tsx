@@ -5,7 +5,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { chatMessages as messageRepo, chats as chatRepo, dayKey, useLiveQuery } from '@/db';
 import { relativeDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
-import { AI_CHAT_CANNED_REPLY_KEY, AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
+import { AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { ComposeBar, EmptyState, Header, Screen, SuggestionChip, SwipeRow, Text } from '@/ui';
@@ -37,13 +37,7 @@ export function ChatsView() {
         role: 'user',
         text: firstMessage,
       });
-      // Die Antwort gleich dazu — im Gespraech soll niemand auf sie warten muessen.
-      await messageRepo.add({
-        chatId: created.id,
-        accountId: account.id,
-        role: 'assistant',
-        text: t(AI_CHAT_CANNED_REPLY_KEY),
-      });
+      // Die Antwort holt das Gespraech selbst, sobald es offen ist — mit Denkanzeige.
     }
     router.push(`/chat/${created.id}`);
   }

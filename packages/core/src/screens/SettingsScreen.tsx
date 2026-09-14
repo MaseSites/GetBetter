@@ -7,8 +7,11 @@ import { APPS_WITH_HOUSEHOLD, currentApp } from '@/app/identity';
 import type { UsernameSave } from '@/auth/accounts';
 import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
 import { VoicePicker } from '@/features/assistant/VoicePicker';
+import { AvatarSheet } from '@/features/avatar/AvatarSheet';
+import { useAvatarStyle } from '@/features/avatar/useAvatarStyle';
 import { StylePicker } from '@/features/onboarding/StylePicker';
 import { AccountFieldSheet } from '@/features/personalize/AccountFieldSheet';
+import { AiUsageRow } from '@/features/personalize/AiUsageRow';
 import { BackdropPicker } from '@/features/personalize/BackdropPicker';
 import {
   SettingsGroup,
@@ -16,10 +19,12 @@ import {
   SettingsProfile,
   SettingsRow,
 } from '@/features/personalize/SettingsList';
+import { dateOfDay, useAiBudget } from '@/features/personalize/useAiBudget';
 import { checkUsername, type UsernameCheck } from '@/features/personalize/username';
 import {
   LANGUAGES,
   LANGUAGE_LABEL,
+  formatDayMonth,
   formatMonth,
   useI18n,
   type Language,
@@ -44,7 +49,15 @@ const NO_VERSION = '—';
 
 /** Welches Blatt gerade offen ist. */
 type Sheeted =
-  'nickname' | 'username' | 'assistant' | 'voice' | 'language' | 'style' | 'backdrop' | null;
+  | 'nickname'
+  | 'username'
+  | 'assistant'
+  | 'avatar'
+  | 'voice'
+  | 'language'
+  | 'style'
+  | 'backdrop'
+  | null;
 
 /**
  * Die Einstellungen: oben, wer du bist, darunter je Thema ein Bereich — Konto,
@@ -68,12 +81,15 @@ export function SettingsScreen() {
   } = useApp();
   const [sheet, setSheet] = useState<Sheeted>(null);
   const voices = useSpeechVoices();
+  const avatar = useAvatarStyle();
 
   const app = currentApp();
   const hasHousehold = APPS_WITH_HOUSEHOLD.includes(app.id);
   // BetterAi fuehrt keinen Assistenten, nur das offene KI-Gespraech.
   const hasAssistant = app.id !== 'betterai';
   const version = Constants.expoConfig?.version ?? NO_VERSION;
+  // Das KI-Kontingent dieser App — in allen Apps, auch in BetterAi.
+  const aiBudget = useAiBudget(account?.id ?? null, app.id);
 
   if (!account) return null;
 
@@ -183,6 +199,13 @@ export function SettingsScreen() {
               onPress={() => setSheet('assistant')}
             />
             <SettingsRow
+              icon="happy"
+              label={t('avatar.title')}
+              value={t(`avatar.kind.${avatar.kind}`)}
+              chevron
+              onPress={() => setSheet('avatar')}
+            />
+            <SettingsRow
               icon="mic"
               label={t('settings.voice')}
               value={voiceLabel}
@@ -221,10 +244,20 @@ export function SettingsScreen() {
         </SettingsGroup>
       ) : null}
 
-      <SettingsGroup title={t('settings.app')}>
+      <SettingsGroup
+        title={t('settings.app')}
+        {...(aiBudget
+          ? {
+              hint: t('settings.ai.hint', {
+                date: formatDayMonth(language, dateOfDay(aiBudget.resetsOn)),
+              }),
+            }
+          : {})}
+      >
         <SettingsList>
+          {aiBudget ? <AiUsageRow budget={aiBudget} first /> : null}
           <SettingsRow
-            first
+            first={!aiBudget}
             icon="info"
             label={t('settings.app.version')}
             value={`${app.name} ${version}`}
@@ -279,9 +312,12 @@ export function SettingsScreen() {
         }}
       />
 
+      {hasAssistant ? (
+        <AvatarSheet visible={sheet === 'avatar'} onClose={() => setSheet(null)} />
+      ) : null}
+
       <Sheet visible={sheet === 'voice'} onClose={() => setSheet(null)} title={t('settings.voice')}>
         <VoicePicker
-          name={account.assistantName ?? ''}
           value={account.assistantVoice}
           onChange={(uri) => void setAssistantVoice(uri)}
         />

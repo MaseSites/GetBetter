@@ -124,7 +124,7 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
                 {hideLabel ? null : (
                   <Text
                     variant="caption"
-                    tone="faint"
+                    tone="muted"
                     style={{ fontWeight: theme.fontWeight.semibold }}
                   >
                     {clock(hour * 60)}
@@ -253,10 +253,10 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
               <View
                 style={[
                   styles.nowDot,
-                  { backgroundColor: theme.colors.accent, borderColor: theme.colors.background },
+                  { backgroundColor: theme.colors.accentMark, borderColor: theme.colors.background },
                 ]}
               />
-              <View style={[styles.nowBar, { backgroundColor: theme.colors.accent }]} />
+              <View style={[styles.nowBar, { backgroundColor: theme.colors.accentMark }]} />
             </View>
           </>
         ) : null}

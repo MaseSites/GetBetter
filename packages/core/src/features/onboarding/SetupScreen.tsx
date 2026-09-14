@@ -4,6 +4,9 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { currentApp } from '@/app/identity';
 import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
 import { VoicePicker } from '@/features/assistant/VoicePicker';
+import { AvatarPicker } from '@/features/avatar/AvatarPicker';
+import type { AvatarStyle } from '@/features/avatar/style';
+import { useAvatarStyle } from '@/features/avatar/useAvatarStyle';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
 import { useNarration } from '@/features/intro/narration';
 import { NarrationButton } from '@/features/intro/NarrationButton';
@@ -36,9 +39,20 @@ const useNativeDriver = Platform.OS !== 'web';
 export function SetupScreen() {
   const t = useTranslate();
   const theme = useTheme();
-  const { account, signOut, completeOnboarding, setAssistantName, setAssistantVoice } = useApp();
+  const {
+    account,
+    signOut,
+    completeOnboarding,
+    setAssistantName,
+    setAssistantVoice,
+    setAssistantAvatar,
+  } = useApp();
   const draft = useOnboarding();
   const voices = useSpeechVoices();
+  const savedAvatar = useAvatarStyle();
+  // Er verwandelt sich beim Tippen, nicht erst, wenn die Ablage geantwortet hat.
+  const [avatarDraft, setAvatarDraft] = useState<AvatarStyle | null>(null);
+  const avatar = avatarDraft ?? savedAvatar;
   // Ob er schon einen Vornamen hat, steht beim Betreten fest; welche Stimmen es
   // gibt, reicht der Browser erst nach — darum nur das Zweite von aussen.
   const [hadFirstName] = useState(() => Boolean(account?.firstName.trim()));
@@ -70,7 +84,8 @@ export function SetupScreen() {
     assistant: assistant
       ? t('intro.setup.assistant.bubbleNamed', { name: firstName, assistant })
       : t('intro.setup.assistant.bubble', { name: firstName }),
-    style: t('intro.setup.style.bubble', { assistant }),
+    avatar: t('intro.setup.avatar.bubble', { assistant }),
+    style: t('intro.setup.style.bubbleAfterAvatar'),
     ready: t('intro.setup.ready.bubble', { name: firstName }),
   };
   // Laut gesagt wird der Satz beim Betreten — nicht der, der beim Tippen mitwaechst.
@@ -113,6 +128,11 @@ export function SetupScreen() {
     }
   }
 
+  function changeAvatar(next: AvatarStyle) {
+    setAvatarDraft(next);
+    void setAssistantAvatar(next);
+  }
+
   const swipe = useSwipeSteps((to) => void go(to));
 
   if (touring) return <Tutorial onDone={() => void finish()} />;
@@ -147,7 +167,7 @@ export function SetupScreen() {
         <StepHeader current={index + 1} total={steps.length} onBack={() => void go(-1)}>
           <View style={[styles.talk, { gap: theme.spacing.md, paddingTop: theme.spacing.sm }]}>
             {/* Er kommt vom Registrieren und steht schon — bei jedem Schritt nickt er. */}
-            <ClubAvatar size={AVATAR_SIZE} phase="idle" bounceKey={step} />
+            <ClubAvatar size={AVATAR_SIZE} phase="idle" bounceKey={step} style={avatar} />
             <View style={styles.grow}>
               <SpeechBubble text={bubble[step]} tail="left" typeKey={step} />
             </View>
@@ -163,7 +183,6 @@ export function SetupScreen() {
         <StepPane key={step} direction={direction}>
           {step === 'voice' ? (
             <VoicePicker
-              name={assistant}
               value={voiceUri}
               onChange={(uri) => void setAssistantVoice(uri)}
             />
@@ -191,6 +210,9 @@ export function SetupScreen() {
               returnKeyType="next"
               onSubmitEditing={() => void go(1)}
             />
+          ) : null}
+          {step === 'avatar' ? (
+            <AvatarPicker compact value={avatar} onChange={changeAvatar} />
           ) : null}
           {step === 'style' ? <StylePicker /> : null}
           {step === 'ready' ? <ReadyCard /> : null}

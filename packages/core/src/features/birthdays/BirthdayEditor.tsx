@@ -8,7 +8,6 @@ import { parseDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
 import {
-  Button,
   HIT_TARGET,
   Icon,
   PlainList,
@@ -25,7 +24,6 @@ import { DangerAction } from './DangerAction';
 import { formatDayMonthLong, formatLongDay, monthName } from './format';
 import { AVATAR, PersonAvatar } from './PersonAvatar';
 import { SheetHeader } from './SheetHeader';
-import { SwitchRow } from './SwitchRow';
 import { useBirthdayActions } from './useBirthdayActions';
 
 export type BirthdayDraft = {
@@ -37,6 +35,12 @@ export type BirthdayDraft = {
 
 /** So weit zurueck reicht das Jahresrad. */
 const FIRST_YEAR = 1900;
+/**
+ * Der Platz „ohne Jahr“ ganz unten auf dem Jahresrad — gleich unter dem
+ * laufenden Jahr, damit die naechsten Jahre nur ein Stueck weit weg sind.
+ */
+const NO_YEAR = 0;
+const NO_YEAR_LABEL = '—';
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 const WHEEL_WIDTH = { day: 72, month: 136, year: 88 } as const;
 
@@ -148,8 +152,13 @@ function useBirthdayForm(draft: BirthdayDraft, accountId: string) {
     date,
     setDay: (value: number) => setDate((current) => ({ ...current, day: value })),
     setMonth: (value: number) => setDate((current) => ({ ...current, month: value })),
-    setYear: (value: number) => setDate((current) => ({ ...current, year: value })),
-    setYearKnown: (value: boolean) => setDate((current) => ({ ...current, yearKnown: value })),
+    // „—“ heisst ohne Jahr; jede andere Zahl ist ein bekanntes Jahr.
+    setYear: (value: number) =>
+      setDate((current) =>
+        value === NO_YEAR
+          ? { ...current, yearKnown: false }
+          : { ...current, yearKnown: true, year: value },
+      ),
     year,
     day,
     dayCount,
@@ -168,7 +177,10 @@ function BirthdayFields({ form }: { form: FormApi }) {
   const theme = useTheme();
 
   const thisYear = new Date().getFullYear();
-  const years = Array.from({ length: thisYear - FIRST_YEAR + 1 }, (_, index) => FIRST_YEAR + index);
+  const years = [
+    ...Array.from({ length: thisYear - FIRST_YEAR + 1 }, (_, index) => FIRST_YEAR + index),
+    NO_YEAR,
+  ];
   const days = Array.from({ length: form.dayCount }, (_, index) => index + 1);
 
   const preview = previewOf(form.date.month, form.day, form.year);
@@ -261,22 +273,16 @@ function BirthdayFields({ form }: { form: FormApi }) {
             width={WHEEL_WIDTH.month}
             loop
           />
-          {form.date.yearKnown ? (
-            <Wheel
-              values={years}
-              value={form.date.year}
-              onChange={form.setYear}
-              label={t('birthdays.year')}
-              format={String}
-              width={WHEEL_WIDTH.year}
-            />
-          ) : null}
+          {/* Das Jahr steht immer da, gleich neben Tag und Monat — „—“ heisst ohne. */}
+          <Wheel
+            values={years}
+            value={form.date.yearKnown ? form.date.year : NO_YEAR}
+            onChange={form.setYear}
+            label={t('birthdays.year')}
+            format={(value) => (value === NO_YEAR ? NO_YEAR_LABEL : String(value))}
+            width={WHEEL_WIDTH.year}
+          />
         </WheelFrame>
-        <SwitchRow
-          label={t('birthdays.form.yearKnown')}
-          value={form.date.yearKnown}
-          onChange={form.setYearKnown}
-        />
         <Text variant="label" tone="muted" align="center">
           {previewText}
         </Text>
@@ -320,43 +326,6 @@ function PhotoButton({ form }: { form: FormApi }) {
     >
       {face}
     </Pressable>
-  );
-}
-
-/** Im Kalender unter „Geburtstag“: dieselbe Eingabe, mit „Sichern“ unten. */
-export function BirthdayForm({
-  draft,
-  accountId,
-  onDone,
-}: {
-  draft: BirthdayDraft;
-  accountId: string;
-  onDone: () => void;
-}) {
-  const { t } = useI18n();
-  const theme = useTheme();
-  const form = useBirthdayForm(draft, accountId);
-
-  async function save() {
-    if (await form.save()) onDone();
-  }
-
-  return (
-    <View
-      style={{
-        gap: theme.spacing.lg,
-        paddingTop: theme.spacing.sm,
-        paddingBottom: theme.spacing.lg,
-      }}
-    >
-      <BirthdayFields form={form} />
-      <Button
-        label={t('birthdays.form.save')}
-        icon="check"
-        disabled={!form.canSave}
-        onPress={() => void save()}
-      />
-    </View>
   );
 }
 

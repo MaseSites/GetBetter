@@ -19,6 +19,11 @@ module.exports = [
     },
   },
   {
+    // Die Seite des Admins laeuft im Browser als ES-Modul (<script type="module">).
+    files: ['services/api/admin/public/**/*.js'],
+    languageOptions: { sourceType: 'module' },
+  },
+  {
     // Die Test-Haken sind ES-Module unter Node.
     files: ['scripts/**/*.mjs'],
     languageOptions: {

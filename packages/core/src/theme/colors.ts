@@ -1,3 +1,5 @@
+import { MIN_MARK_CONTRAST, ensureContrast } from './contrast';
+
 /**
  * Warme Neutraltoene plus genau eine Farbe, die etwas bedeutet.
  *
@@ -6,7 +8,8 @@
  * neben den anderen sofort anders wirkt, bevor ein einzelnes Element auffaellt.
  *
  * Was am Ende zu sehen ist, haengt an drei Reglern: hell/dunkel, Akzentfarbe
- * und Voreinstellung.
+ * und Voreinstellung. `contrast.test.ts` prueft jede Kombination: Schrift
+ * mindestens 4.5:1, Ringe, Punkte und Balken mindestens 3:1.
  */
 const grey = {
   g0: '#FFFFFF',
@@ -19,8 +22,8 @@ const grey = {
   /** Linie kraeftig, hell. */
   g300: '#D2CEC2',
   g400: '#B4B1A6',
-  /** Schrift zart, hell — geprueft auf 4.8:1 gegen Papier. */
-  g500: '#6E7064',
+  /** Schrift zart, hell — 4.5:1 auch auf der vertieften Flaeche. */
+  g500: '#6C6E62',
   /** Schrift ruhig, hell. */
   g600: '#55574C',
   /** Linie kraeftig, dunkel. */
@@ -37,8 +40,8 @@ const grey = {
 const inkDark = {
   text: '#F2F1E9',
   muted: '#A3A698',
-  /** Geprueft auf 5.5:1 gegen dunkles Papier. */
-  faint: '#8A8D7E',
+  /** 4.5:1 auch auf der vertieften dunklen Flaeche. */
+  faint: '#939688',
 } as const;
 
 /**
@@ -120,10 +123,18 @@ export type Palette = {
   /** Umgekehrtes Papier — der Grund fuer die eine Haupthandlung je Bildschirm. */
   inverse: string;
   onInverse: string;
+  /** Die Akzentfarbe als Flaeche, mit `textOnAccent` darauf. */
   accent: string;
   /** Derselbe Ton, aber lesbar als Schrift auf Papier. */
   accentStrong: string;
   accentSoft: string;
+  /**
+   * Der Akzent als Ring, Punkt, Balken oder Rand — ueberall dort, wo die Farbe
+   * allein etwas anzeigt (heute, gewaehlt, erledigt). Hebt sich mit mindestens
+   * 3:1 von Papier, Karte und vertiefter Flaeche ab; beim hellen Signalgruen
+   * ist das ein kraeftigeres Gruen, bei allen anderen der Akzent selbst.
+   */
+  accentMark: string;
   danger: string;
   dangerSoft: string;
   overlay: string;
@@ -133,43 +144,55 @@ export type Palette = {
 
 export type ColorScheme = 'light' | 'dark';
 
-const base: Record<ColorScheme, Omit<Palette, 'accent' | 'accentStrong' | 'accentSoft' | 'textOnAccent'>> =
-  {
-    light: {
-      background: grey.g50,
-      surface: grey.g0,
-      surfaceMuted: grey.g100,
-      border: grey.g200,
-      borderStrong: grey.g300,
-      text: '#14150F',
-      textMuted: grey.g600,
-      textFaint: grey.g500,
-      inverse: '#14150F',
-      onInverse: grey.g50,
-      danger: '#A8392C',
-      dangerSoft: '#F7E7E4',
-      overlay: 'rgba(20, 21, 15, 0.42)',
-      disabledBackground: grey.g100,
-      disabledText: grey.g400,
-    },
-    dark: {
-      background: grey.g900,
-      surface: grey.g800,
-      surfaceMuted: grey.g750,
-      border: grey.g750,
-      borderStrong: grey.g700,
-      text: inkDark.text,
-      textMuted: inkDark.muted,
-      textFaint: inkDark.faint,
-      inverse: inkDark.text,
-      onInverse: grey.g900,
-      danger: '#E8908A',
-      dangerSoft: '#3A211D',
-      overlay: 'rgba(0, 0, 0, 0.6)',
-      disabledBackground: grey.g750,
-      disabledText: '#5C6053',
-    },
-  };
+type Ground = Omit<Palette, 'accent' | 'accentStrong' | 'accentSoft' | 'accentMark' | 'textOnAccent'>;
+
+const base: Record<ColorScheme, Ground> = {
+  light: {
+    background: grey.g50,
+    surface: grey.g0,
+    surfaceMuted: grey.g100,
+    border: grey.g200,
+    borderStrong: grey.g300,
+    text: '#14150F',
+    textMuted: grey.g600,
+    textFaint: grey.g500,
+    inverse: '#14150F',
+    onInverse: grey.g50,
+    danger: '#A8392C',
+    dangerSoft: '#F7E7E4',
+    overlay: 'rgba(20, 21, 15, 0.42)',
+    disabledBackground: grey.g100,
+    disabledText: grey.g400,
+  },
+  dark: {
+    background: grey.g900,
+    surface: grey.g800,
+    surfaceMuted: grey.g750,
+    border: grey.g750,
+    borderStrong: grey.g700,
+    text: inkDark.text,
+    textMuted: inkDark.muted,
+    textFaint: inkDark.faint,
+    inverse: inkDark.text,
+    onInverse: grey.g900,
+    danger: '#E8908A',
+    dangerSoft: '#3A211D',
+    overlay: 'rgba(0, 0, 0, 0.6)',
+    disabledBackground: grey.g750,
+    disabledText: '#5C6053',
+  },
+};
+
+/**
+ * Eine Farbe, die sich auf jeder Flaeche des Grunds mit 3:1 abhebt. Wer das
+ * schon schafft, bleibt unveraendert.
+ */
+export function markOn(ground: Pick<Palette, 'background' | 'surface' | 'surfaceMuted'>, color: string) {
+  return [ground.surfaceMuted, ground.background, ground.surface].reduce(
+    (current, surface) => ensureContrast(current, surface, MIN_MARK_CONTRAST),
+    color,
+  );
+}
 
 export function createPalette(
   scheme: ColorScheme,
@@ -180,12 +203,14 @@ export function createPalette(
 
   // Schwarzweiss kennt keine Akzentfarbe — dort ist der Akzent die Schrift.
   if (preset === 'mono') {
+    const ink = scheme === 'light' ? '#14150F' : inkDark.text;
     return {
       ...ground,
       textOnAccent: scheme === 'light' ? grey.g0 : grey.g900,
-      accent: scheme === 'light' ? '#14150F' : inkDark.text,
+      accent: ink,
       accentStrong: scheme === 'light' ? grey.g700 : grey.g0,
       accentSoft: scheme === 'light' ? grey.g100 : grey.g750,
+      accentMark: ink,
       danger: scheme === 'light' ? grey.g600 : grey.g300,
       dangerSoft: scheme === 'light' ? grey.g100 : grey.g750,
     };
@@ -197,6 +222,7 @@ export function createPalette(
     accent: tone.base,
     accentStrong: tone.strong,
     accentSoft: tone.soft,
+    accentMark: markOn(ground, tone.base),
     textOnAccent: tone.on,
   };
 }

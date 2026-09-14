@@ -79,7 +79,11 @@ function DayRow({ day, isToday, showRule, span, currentTemp, zone, onPress }: Da
       <View style={[styles.iconCell, { width: WEATHER_METRICS.weekIconWidth }]}>
         <Icon name={weatherIcon(day.code)} size={20} color={theme.colors.text} />
         {day.rain >= RAIN_WORTH_SHOWING ? (
-          <Text variant="caption" tone="accent" numberOfLines={1}>
+          <Text
+            variant="caption"
+            numberOfLines={1}
+            style={{ fontWeight: theme.fontWeight.semibold }}
+          >
             {t('weather.percent', { percent: Math.round(day.rain) })}
           </Text>
         ) : null}

@@ -4,6 +4,7 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { PillButton } from '@/features/auth/PillButton';
 import { SocialButton } from '@/features/auth/SocialButton';
+import { DEFAULT_AVATAR } from '@/features/avatar/style';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
 import { useNarration } from '@/features/intro/narration';
 import { NarrationButton } from '@/features/intro/NarrationButton';
@@ -124,7 +125,12 @@ export function StartScreen() {
       }
     >
       <View style={[styles.stage, { gap: theme.spacing.xl }]}>
-        <ClubAvatar size={avatarSize} phase="assemble" onAssembled={handleAssembled} />
+        <ClubAvatar
+          size={avatarSize}
+          phase="assemble"
+          style={DEFAULT_AVATAR}
+          onAssembled={handleAssembled}
+        />
         <View
           style={[
             styles.say,

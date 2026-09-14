@@ -127,6 +127,4 @@ export const deModules = {
   'aiChat.starter.cook': 'Was könnte ich heute kochen?',
   'aiChat.starter.summarise': 'Fass mir diesen Text zusammen',
   'aiChat.starter.ideas': 'Gib mir drei Ideen',
-  'aiChat.cannedReply':
-    'Im Prototyp antworte ich noch nicht wirklich. Hier stünde die Antwort einer ganz normalen KI — ohne Blick auf deine Termine, Aufgaben oder Ausgaben.',
 } as const;

@@ -39,8 +39,6 @@ export const deIntro = {
   'intro.setup.assistant.hint': 'Unter diesem Namen findest du mich in allen Better-Apps.',
   'intro.setup.voice.bubble':
     'Dein Konto steht. Ab jetzt rede ich mit dir — such dir aus, wie ich klingen soll. Tipp eine Stimme an, dann hörst du mich.',
-  'intro.setup.style.bubble':
-    'Gut, ich heisse {assistant}. Nun zum Aussehen — jede Änderung wirkt sofort.',
   'intro.setup.style.mode': 'Hell oder dunkel',
   'intro.setup.style.mode.light': 'Hell',
   'intro.setup.style.mode.dark': 'Dunkel',

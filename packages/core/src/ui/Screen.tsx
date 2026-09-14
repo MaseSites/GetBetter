@@ -14,8 +14,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { currentApp, type AppId } from '@/app/identity';
 import { useApp } from '@/state/AppContext';
-import { useTheme, type ColorScheme } from '@/theme';
-import { resolveBackdrop, type ResolvedBackdrop } from '@/theme/backdrops';
+import { useTheme } from '@/theme';
+import {
+  APP_BACKDROP_VEILS,
+  VEIL_STOPS,
+  resolveBackdrop,
+  veilOf,
+  type ResolvedBackdrop,
+  type Veil,
+} from '@/theme/backdrops';
 
 export type ScreenProps = {
   children: ReactNode;
@@ -134,34 +141,9 @@ function AppBackdrop({
         accessibilityIgnoresInvertColors
         style={[styles.backdropImage, { opacity }]}
       />
+      <PaperVeil veil={APP_BACKDROP_VEILS[appId][theme.scheme]} paper={theme.colors.background} />
     </View>
   );
-}
-
-/**
- * Wie viel Papier ueber einem gewaehlten Bild liegt: oben, in der Mitte und
- * unten. Oben am meisten — dort stehen Titel und Abschnittsnamen direkt auf dem
- * Bild; unten tragen Karten und Leiste die Schrift ohnehin.
- *
- * - Passt das Bild zum Modus (helles Bild im hellen Modus), bleibt viel davon.
- * - Passt es nicht, deckt das Papier fast zu — sonst stuende dunkle Schrift auf
- *   dunklem Grund.
- * - Eigene Bilder kennt die App nicht; sie bekommen immer mehr Papier.
- */
-const VEILS = {
-  match: [0.8, 0.5, 0.22],
-  mismatch: [0.9, 0.82, 0.74],
-  upload: [0.86, 0.66, 0.42],
-} as const;
-
-const VEIL_STOPS = [0, 0.45, 1] as const;
-
-function veilOf(
-  backdrop: Exclude<ResolvedBackdrop, { kind: 'app' }>,
-  scheme: ColorScheme,
-): readonly [number, number, number] {
-  if (backdrop.kind === 'upload') return VEILS.upload;
-  return backdrop.tone === scheme ? VEILS.match : VEILS.mismatch;
 }
 
 /** Deckkraft als zwei Hex-Ziffern, fuer `#RRGGBBAA`. */
@@ -172,11 +154,25 @@ function alphaHex(alpha: number): string {
     .toUpperCase();
 }
 
+/**
+ * Das Papier ueber einem Bild, als Verlauf in fuenf Stufen. Wie viel es je
+ * Hoehe sein muss, damit Schrift lesbar bleibt, steht in `theme/backdrops.ts`.
+ */
+function PaperVeil({ veil, paper }: { veil: Veil; paper: string }) {
+  if (veil.every((alpha) => alpha === 0)) return null;
+  const tone = (alpha: number) => `${paper}${alphaHex(alpha)}`;
+  return (
+    <LinearGradient
+      colors={[tone(veil[0]), tone(veil[1]), tone(veil[2]), tone(veil[3]), tone(veil[4])]}
+      locations={VEIL_STOPS}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
 /** Ein gewaehlter Hintergrund fuellt den ganzen Bildschirm, mit Papier darueber. */
 function ChosenBackdrop({ backdrop }: { backdrop: Exclude<ResolvedBackdrop, { kind: 'app' }> }) {
   const theme = useTheme();
-  const paper = theme.colors.background;
-  const [top, middle, bottom] = veilOf(backdrop, theme.scheme);
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.nonInteractive]}>
@@ -186,15 +182,7 @@ function ChosenBackdrop({ backdrop }: { backdrop: Exclude<ResolvedBackdrop, { ki
         accessibilityIgnoresInvertColors
         style={styles.backdropImage}
       />
-      <LinearGradient
-        colors={[
-          `${paper}${alphaHex(top)}`,
-          `${paper}${alphaHex(middle)}`,
-          `${paper}${alphaHex(bottom)}`,
-        ]}
-        locations={VEIL_STOPS}
-        style={StyleSheet.absoluteFill}
-      />
+      <PaperVeil veil={veilOf(backdrop, theme.scheme)} paper={theme.colors.background} />
     </View>
   );
 }

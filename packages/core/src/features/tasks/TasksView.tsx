@@ -288,9 +288,17 @@ export function TasksView(_props: { module: ModuleDefinition }) {
 
   const clearSelection = () => setSelection(null);
 
-  function planTasks(list: readonly TaskRow[], anchor: AnchorFn, after?: () => void) {
+  function pickDate(list: readonly TaskRow[], after?: () => void) {
     const single = list.length === 1 ? list[0] : undefined;
-    const apply = (target: Schedule | ((task: TaskRow) => Schedule)) =>
+    openDate({
+      day: single ? dueDayOf(single) : null,
+      time: single?.dueTime ?? null,
+      onApply: (schedule) => void actions.schedule(list, schedule).then(after),
+    });
+  }
+
+  function planTasks(list: readonly TaskRow[], anchor: AnchorFn, after?: () => void) {
+    const apply = (target: (task: TaskRow) => Schedule) =>
       void actions.schedule(list, target).then(after);
     openMenuAt(anchor, [
       ...SCHEDULE_PRESETS.map((preset) => ({
@@ -303,12 +311,7 @@ export function TasksView(_props: { module: ModuleDefinition }) {
         key: 'pick',
         label: t('tasks.plan.pick'),
         icon: 'calendar',
-        onPress: () =>
-          openDate({
-            day: single ? dueDayOf(single) : null,
-            time: single?.dueTime ?? null,
-            onApply: (schedule) => apply(schedule),
-          }),
+        onPress: () => pickDate(list, after),
       },
     ]);
   }
@@ -403,13 +406,17 @@ export function TasksView(_props: { module: ModuleDefinition }) {
       setSelection(new Set([task.id]));
     },
     plan: (list, anchor) => planTasks(list, anchor),
+    postpone: (task, kind) => void actions.postpone([task], kind),
+    pickDate: (list) => pickDate(list),
     prioritize: prioritizeTasks,
     move: (list, anchor) => moveTasks(list, anchor),
     duplicate: (task) => void actions.duplicate(task),
     remove: (task) => void actions.remove(task),
     reorder: (ids) => void taskRepo.reorder(ids),
     setDragging,
-    openMenu,
+    // Das Kontextmenue einer Zeile ist in Gruppen geteilt und bleibt ein Menue —
+    // wie bei Zeilen ohne Umordnen, wo `ContextMenu` es selbst oeffnet.
+    openMenu: (anchor, items) => setMenu({ anchor, items, open: true }),
     addWith: (defaults) => openQuickAdd(defaults),
   };
 

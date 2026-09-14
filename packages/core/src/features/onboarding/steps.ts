@@ -8,12 +8,13 @@
  *                 dich anredet (nur, wenn das Konto noch keinen hat). Der
  *                 Benutzername steht schon seit dem Registrieren fest.
  * - `assistant` — „Mein Name ist …“: man gibt dem Assistenten seinen Namen
+ * - `avatar`    — er stellt sich vor und verwandelt sich: Figur und Farbe
  * - `style`     — hell oder dunkel, Akzentfarbe, Voreinstellung, Hintergrund
  * - `ready`     — kennst du dich schon aus? Tutorial oder direkt rein
  *
  * Reine Rechnung ohne React, damit sie unter Node getestet werden kann.
  */
-export type SetupStep = 'name' | 'assistant' | 'voice' | 'style' | 'ready';
+export type SetupStep = 'name' | 'assistant' | 'avatar' | 'voice' | 'style' | 'ready';
 
 export type SetupDraft = { firstName: string; assistantName: string };
 
@@ -24,7 +25,8 @@ export type SetupDraft = { firstName: string; assistantName: string };
 export function setupSteps(hasFirstName: boolean, canPickVoice: boolean): readonly SetupStep[] {
   const voice: readonly SetupStep[] = canPickVoice ? ['voice'] : [];
   const name: readonly SetupStep[] = hasFirstName ? [] : ['name'];
-  return [...voice, ...name, 'assistant', 'style', 'ready'];
+  // Kaum hat er einen Namen, zeigt er sich — und man darf ihn gleich umgestalten.
+  return [...voice, ...name, 'assistant', 'avatar', 'style', 'ready'];
 }
 
 /** Ob man von diesem Schritt weiter darf: Namen brauchen mindestens ein Zeichen. */

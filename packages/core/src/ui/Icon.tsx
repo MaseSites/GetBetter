@@ -106,6 +106,7 @@ export const ICONS = {
   format: 'text-outline',
   tag: 'pricetag-outline',
   select: 'checkmark-done-outline',
+  happy: 'happy-outline',
 } as const satisfies Record<string, IonName>;
 
 export type IconName = keyof typeof ICONS;

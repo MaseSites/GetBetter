@@ -11,12 +11,15 @@ const os = require('node:os');
 const path = require('node:path');
 const { after, before, describe, test } = require('node:test');
 
+const { hashPassword } = require('../auth.js');
 const { parseMessage } = require('../mail/mime.js');
 const { encodeQuotedPrintable } = require('../mail/smtp.js');
 const { createFakeImap, createFakeSmtp } = require('./fakes.js');
 
 const SERVER = path.join(__dirname, '..', 'server.js');
 const MAIL_PASSWORD = 'Mail-Passwort-ÄÖÜ';
+/** Ein Konto, das der Admin gesperrt hat — liegt schon vor dem Start in der Datenbank. */
+const LOCKED = { id: 'acc_locked', email: 'gesperrt@test.ch', password: 'passwort-gesperrt' };
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64',
@@ -156,7 +159,11 @@ function isFree(port) {
 }
 
 async function freePort() {
-  for (let port = 18090 + (process.pid % 700); port < 19900; port += 1) {
+  return freePortAfter(18089 + (process.pid % 700));
+}
+
+async function freePortAfter(taken) {
+  for (let port = taken + 1; port < 19900; port += 1) {
     if (await isFree(port)) return port;
   }
   throw new Error('kein freier Port');
@@ -187,6 +194,7 @@ const mailRaw = ({ from, subject, text, id }) =>
 describe('service endpoints', () => {
   let child;
   let base;
+  let adminPort;
   let dataDir;
   let imap;
   let smtp;
@@ -195,12 +203,12 @@ describe('service endpoints', () => {
   let accountA;
   let accountB;
 
-  const call = async (method, route, body) => {
+  const call = async (method, route, body, headers = {}) => {
     const response = await fetch(`${base}${route}`, {
       method,
       ...(body === undefined
-        ? {}
-        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+        ? { headers }
+        : { headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }),
     });
     const type = response.headers.get('content-type') ?? '';
     const data = type.includes('json')
@@ -208,10 +216,46 @@ describe('service endpoints', () => {
       : Buffer.from(await response.arrayBuffer());
     return { status: response.status, data, headers: response.headers };
   };
+  /** Der Admin im selben Prozess — mit der Origin, die er verlangt. */
+  const adminCall = async (method, route, body) => {
+    const origin = `http://127.0.0.1:${adminPort}`;
+    const response = await fetch(`${origin}${route}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, data: await response.json() };
+  };
   const tables = async () => (await call('GET', '/v1/db')).data.tables;
+  const activityText = () => fs.readFile(path.join(dataDir, 'activity.jsonl'), 'utf8');
+  const activityLines = async () =>
+    (await activityText())
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
 
   before(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'better-api-'));
+    const lockedSalt = 'salz-gesperrt';
+    const locked = {
+      id: LOCKED.id,
+      email: LOCKED.email,
+      username: 'gesperrt',
+      firstName: '',
+      language: 'de',
+      onboarded: false,
+      selectedAreas: [],
+      householdId: null,
+      passwordSalt: lockedSalt,
+      passwordHash: await hashPassword(LOCKED.password, lockedSalt),
+      disabled: true,
+      blockedApps: ['bettergym'],
+      createdAt: '2026-09-01T00:00:00.000Z',
+    };
+    await fs.writeFile(
+      path.join(dataDir, 'db.json'),
+      JSON.stringify({ revision: 0, tables: { accounts: [locked] } }),
+    );
     imap = createFakeImap({ username: 'user@example.ch', password: MAIL_PASSWORD });
     smtp = createFakeSmtp({ username: 'user@example.ch', password: MAIL_PASSWORD });
     imapPort = await imap.listen();
@@ -219,6 +263,8 @@ describe('service endpoints', () => {
 
     const port = await freePort();
     base = `http://127.0.0.1:${port}`;
+    // Der Admin laeuft im selben Prozess: „App ansehen“ stellt dort Tickets aus, der Dienst loest sie ein.
+    adminPort = await freePortAfter(port);
     child = spawn(process.execPath, [SERVER], {
       env: {
         ...process.env,
@@ -226,6 +272,17 @@ describe('service endpoints', () => {
         BETTER_DATA_DIR: dataDir,
         BETTER_MAIL_SYNC_MS: '0',
         BETTER_MAIL_ALLOW_PLAIN: '1',
+        BETTER_ADMIN_PORT: String(adminPort),
+        BETTER_TRIAL_BUDGET_CHF: '',
+        BETTER_PRICE_GETBETTER_CHF: '',
+        // Die KI bleibt unkonfiguriert, auch wenn der Rechner einen Schluessel kennt.
+        SAFESWISSCLOUD_API_KEY: '',
+        SAFESWISSCLOUD_API_URL: '',
+        BETTER_AI_TEST_URL: '',
+        BETTER_AI_MODEL_CHEAP: '',
+        BETTER_AI_MODEL_CHAT: '',
+        BETTER_AI_MODEL_REASONING: '',
+        BETTER_AI_MODEL_VISION: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -289,6 +346,40 @@ describe('service endpoints', () => {
       400,
     );
     assert.equal((await call('PATCH', '/v1/accounts/acc_fehlt', { firstName: 'x' })).status, 404);
+  });
+
+  test('stores a valid assistantAvatar and refuses anything else', async () => {
+    const owl = { kind: 'owl', color: 'sun', eyes: 'sparkle', accessory: 'glasses' };
+    const saved = await call('PATCH', `/v1/accounts/${accountA.id}`, { assistantAvatar: owl });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.data.account.assistantAvatar, owl);
+    assert.deepEqual((await call('GET', `/v1/accounts/${accountA.id}`)).data.account.assistantAvatar, owl);
+
+    const refused = [
+      'owl',
+      null,
+      [],
+      { kind: 'owl', color: 'sun', eyes: 'sparkle' },
+      { ...owl, kind: 'dragon' },
+      { ...owl, color: '#FF0000' },
+      { ...owl, eyes: 'laser' },
+      { ...owl, accessory: 'crown' },
+      // Die Eule traegt keine Antenne.
+      { ...owl, accessory: 'antenna' },
+      { ...owl, extra: 'x' },
+    ];
+    for (const assistantAvatar of refused) {
+      const result = await call('PATCH', `/v1/accounts/${accountA.id}`, {
+        assistantAvatar,
+        firstName: 'Nicht gespeichert',
+      });
+      assert.equal(result.status, 400, JSON.stringify(assistantAvatar));
+      assert.deepEqual(result.data, { error: 'avatar_invalid' });
+    }
+    // Abgewiesen heisst: auch nichts anderes aus derselben Anfrage wurde geschrieben.
+    const read = (await call('GET', `/v1/accounts/${accountA.id}`)).data.account;
+    assert.deepEqual(read.assistantAvatar, owl);
+    assert.notEqual(read.firstName, 'Nicht gespeichert');
   });
 
   test('creates, reads, removes notifications', async () => {
@@ -410,6 +501,250 @@ describe('service endpoints', () => {
 
     assert.deepEqual((await call('DELETE', created.data.url)).data, { ok: true });
     assert.equal((await call('GET', created.data.url)).status, 404);
+  });
+
+  test('AI: status without configuration, 400 on bad bodies, 503 without key', async () => {
+    const status = await call('GET', '/v1/ai/status');
+    assert.equal(status.status, 200);
+    assert.deepEqual(status.data, {
+      provider: 'safeswisscloud',
+      configured: false,
+      models: {
+        cheap_model: 'gemma4-31b',
+        chat_model: 'gpt-oss-120b',
+        reasoning_model: 'deepseek-v4-flash',
+        vision_model: 'gemma4-31b',
+      },
+      lastError: null,
+    });
+
+    const valid = {
+      accountId: accountA.id,
+      app: 'getbetter',
+      messages: [{ role: 'user', text: 'Trag Milch ein' }],
+    };
+    for (const body of [{}, { ...valid, app: 'nope' }, { ...valid, messages: [] }]) {
+      const result = await call('POST', '/v1/ai/reply', body);
+      assert.deepEqual([result.status, result.data], [400, { error: 'bad_request' }]);
+    }
+    const unknown = await call('POST', '/v1/ai/reply', { ...valid, accountId: 'acc_fehlt' });
+    assert.deepEqual([unknown.status, unknown.data], [404, { error: 'account_not_found' }]);
+
+    const unconfigured = await call('POST', '/v1/ai/reply', valid);
+    assert.deepEqual([unconfigured.status, unconfigured.data], [503, { error: 'not_configured' }]);
+
+    const usage = await fs.readFile(path.join(dataDir, 'ai-usage.jsonl'), 'utf8');
+    assert.equal(usage.trim().split('\n').length, 5);
+    assert.equal(usage.includes('Milch'), false);
+  });
+
+  test('refuses a disabled account at login and records it without secrets', async () => {
+    const wrong = await call('POST', '/v1/sessions', {
+      email: LOCKED.email,
+      password: 'falsch-falsch',
+    });
+    assert.deepEqual([wrong.status, wrong.data], [401, { error: 'wrong_password' }]);
+    const blocked = await call('POST', '/v1/sessions', {
+      email: LOCKED.email,
+      password: LOCKED.password,
+    });
+    assert.deepEqual([blocked.status, blocked.data], [403, { error: 'account_disabled' }]);
+    const unknown = await call('POST', '/v1/sessions', {
+      email: 'niemand@test.ch',
+      password: LOCKED.password,
+    });
+    assert.equal(unknown.status, 401);
+
+    const kinds = (await activityLines())
+      .filter((line) => line.accountId === LOCKED.id)
+      .map((line) => line.kind);
+    assert.deepEqual(kinds.slice(-2), ['session.failed', 'session.blocked']);
+    const raw = await activityText();
+    for (const secret of ['niemand@test.ch', LOCKED.password, 'falsch-falsch', 'passwordHash']) {
+      assert.equal(raw.includes(secret), false, secret);
+    }
+
+    // Die Apps lesen die Sperre, heben sie ueber ihr Profil aber nicht auf.
+    const patched = await call('PATCH', `/v1/accounts/${LOCKED.id}`, {
+      disabled: false,
+      blockedApps: [],
+      firstName: 'Gesperrt',
+    });
+    assert.equal(patched.status, 200);
+    assert.deepEqual(
+      [patched.data.account.disabled, patched.data.account.blockedApps],
+      [true, ['bettergym']],
+    );
+    const read = (await call('GET', `/v1/accounts/${LOCKED.id}`)).data.account;
+    assert.deepEqual(
+      [read.firstName, read.disabled, read.blockedApps, read.passwordHash],
+      ['Gesperrt', true, ['bettergym'], undefined],
+    );
+    const profile = (await activityLines()).at(-1);
+    assert.deepEqual([profile.kind, profile.detail], ['profile.updated', { fields: ['firstName'] }]);
+  });
+
+  test('PUT /v1/db/accounts keeps disabled and blockedApps as the admin set them', async () => {
+    const original = (await tables()).accounts;
+    const locked = original.find((row) => row.id === LOCKED.id);
+    assert.deepEqual([locked.disabled, locked.blockedApps], [true, ['bettergym']]);
+    const start = (await activityLines()).length;
+
+    const tampered = [
+      ...original.map((row) => {
+        if (row.id === LOCKED.id) return { ...row, disabled: false, blockedApps: [] };
+        if (row.id === accountA.id) return { ...row, disabled: true, blockedApps: ['getbetter'] };
+        return row;
+      }),
+      { id: 'acc_neu', email: 'neu@test.ch', username: 'neu', disabled: true, blockedApps: ['betterai'] },
+    ];
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: tampered })).status, 200);
+
+    const stored = (await tables()).accounts;
+    const rowOf = (id) => stored.find((row) => row.id === id);
+    assert.deepEqual([rowOf(LOCKED.id).disabled, rowOf(LOCKED.id).blockedApps], [true, ['bettergym']]);
+    assert.deepEqual([rowOf(accountA.id).disabled, rowOf(accountA.id).blockedApps], [undefined, undefined]);
+    assert.equal(Object.hasOwn(rowOf('acc_neu'), 'disabled'), false);
+    assert.equal(Object.hasOwn(rowOf('acc_neu'), 'blockedApps'), false);
+
+    // Nur das neue Konto zaehlt als Aenderung: gleiche Zeilen mit behaltenen Feldern nicht.
+    const changes = (await activityLines())
+      .slice(start)
+      .filter((line) => line.kind === 'collection.changed');
+    assert.deepEqual(
+      changes.map((line) => [line.accountId, line.detail]),
+      [['acc_neu', { collection: 'accounts', added: 1, updated: 0, removed: 0 }]],
+    );
+
+    // Passwoerter bleiben ebenso: Anna meldet sich an, das gesperrte Konto weiterhin nicht.
+    const anna = await call('POST', '/v1/sessions', { email: 'anna@test.ch', password: 'passwort123' });
+    assert.equal(anna.status, 200);
+    const again = await call('POST', '/v1/sessions', {
+      email: LOCKED.email,
+      password: LOCKED.password,
+    });
+    assert.equal(again.status, 403);
+
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: original })).status, 200);
+    assert.equal((await tables()).accounts.some((row) => row.id === 'acc_neu'), false);
+  });
+
+  test('paidApps is admin-only: PUT and PATCH from an app never set or clear it', async () => {
+    const original = (await tables()).accounts;
+    const tampered = original.map((row) => {
+      if (row.id === accountA.id) return { ...row, paidApps: ['betterai', 'bettergym'] };
+      return row;
+    });
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: tampered })).status, 200);
+    assert.equal(Object.hasOwn((await tables()).accounts.find((row) => row.id === accountA.id), 'paidApps'), false);
+
+    const patched = await call('PATCH', `/v1/accounts/${accountA.id}`, { paidApps: ['betterai'], firstName: 'Anna' });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.data.account.paidApps, undefined);
+
+    // Der Admin setzt es — danach behalten PUT und PATCH, was er gesetzt hat.
+    const admin = await adminCall('PATCH', `/api/accounts/${accountA.id}`, { paidApps: ['betterai'] });
+    assert.deepEqual([admin.status, admin.data.account.paidApps], [200, ['betterai']]);
+    const current = (await tables()).accounts;
+    const cleared = current.map((row) => (row.id === accountA.id ? { ...row, paidApps: [] } : row));
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: cleared })).status, 200);
+    await call('PATCH', `/v1/accounts/${accountA.id}`, { paidApps: [] });
+    assert.deepEqual((await call('GET', `/v1/accounts/${accountA.id}`)).data.account.paidApps, ['betterai']);
+
+    const budget = await call('GET', `/v1/ai/budget?accountId=${accountA.id}&app=betterai`);
+    assert.equal(budget.status, 200);
+    assert.deepEqual(
+      [budget.data.plan, budget.data.budgetChf, budget.data.spentChf, budget.data.remainingShare, budget.data.priceChf],
+      ['paid', 4.717853, 0, 1, 8],
+    );
+    assert.match(budget.data.resetsOn, /^\d{4}-\d{2}-01$/);
+    const trial = await call('GET', `/v1/ai/budget?accountId=${accountA.id}&app=getbetter`);
+    assert.deepEqual([trial.data.plan, trial.data.budgetChf], ['trial', 0.1]);
+    assert.equal((await call('GET', '/v1/ai/budget?accountId=acc_fehlt&app=getbetter')).status, 404);
+    assert.equal((await call('GET', `/v1/ai/budget?accountId=${accountA.id}&app=nope`)).status, 400);
+
+    const speech = await call('GET', `/v1/speech/status?accountId=${accountA.id}&app=getbetter`);
+    assert.deepEqual([speech.data.allowed, speech.data.plan, speech.data.reason], [false, 'trial', 'plan_required']);
+  });
+
+  test('App ansehen: ticket from the admin, redeemed once, then read-only', async () => {
+    const view = await adminCall('POST', `/api/accounts/${accountB.id}/view`, { app: 'bettergym' });
+    assert.equal(view.status, 200);
+    const url = new URL(view.data.url);
+    assert.equal(url.origin, 'http://localhost:8083');
+    const ticket = url.searchParams.get('view');
+    assert.match(ticket, /^[a-f0-9]{64}$/);
+
+    const options = await fetch(`${base}/v1/db`, { method: 'OPTIONS' });
+    assert.match(options.headers.get('access-control-allow-headers') ?? '', /X-Better-View/i);
+
+    const viewing = { 'X-Better-View': '1' };
+    const redeemed = await call('POST', '/v1/view/redeem', { ticket }, viewing);
+    assert.equal(redeemed.status, 200);
+    assert.deepEqual([redeemed.data.account.id, redeemed.data.app], [accountB.id, 'bettergym']);
+    assert.equal(redeemed.data.account.passwordHash, undefined);
+    assert.equal(redeemed.data.account.passwordSalt, undefined);
+    const again = await call('POST', '/v1/view/redeem', { ticket });
+    assert.deepEqual([again.status, again.data], [404, { error: 'not_found' }]);
+    assert.equal((await call('POST', '/v1/view/redeem', { ticket: 'kaputt' })).status, 404);
+
+    const revision = (await call('GET', '/v1/revision')).data.revision;
+    const writes = [
+      ['PUT', '/v1/db/tasks', { rows: [] }],
+      ['PATCH', `/v1/accounts/${accountB.id}`, { firstName: 'Nie' }],
+      ['POST', '/v1/notifications', { accountId: accountB.id, kind: 'system', title: 'x', body: '', ref: {}, app: 'getbetter' }],
+      ['POST', '/v1/notifications/n_x/read', {}],
+      ['DELETE', '/v1/notifications/n_x', undefined],
+      ['POST', '/v1/uploads', { accountId: accountB.id, dataUrl: 'data:image/png;base64,AA==' }],
+      ['POST', '/v1/ai/reply', { accountId: accountB.id, app: 'getbetter', messages: [{ role: 'user', text: 'x' }] }],
+      ['POST', '/v1/speech', { text: 'x', voice: 'VoiceGerman001', language: 'de' }],
+      ['POST', '/v1/speech/sample', { voice: 'VoiceGerman001', language: 'de' }],
+      ['POST', '/v1/mail/messages/mm_x/seen', { seen: true }],
+      ['POST', '/v1/mail/send', { mailAccountId: 'mac_x', to: ['a@b.ch'], subject: '', text: '' }],
+      ['POST', '/v1/mail/drafts', {}],
+      ['POST', '/v1/accounts', { email: 'view@test.ch', password: 'passwort123' }],
+    ];
+    for (const [method, route, body] of writes) {
+      const refused = await call(method, route, body, viewing);
+      assert.deepEqual([refused.status, refused.data], [403, { error: 'read_only' }], `${method} ${route}`);
+    }
+    assert.equal((await call('GET', '/v1/revision', undefined, viewing)).data.revision, revision);
+    assert.equal((await call('GET', '/v1/db', undefined, viewing)).status, 200);
+    assert.equal((await call('GET', `/v1/accounts/${accountB.id}`, undefined, viewing)).status, 200);
+
+    const unknownApp = await adminCall('POST', `/api/accounts/${accountB.id}/view`, { app: 'betterx' });
+    assert.equal(unknownApp.status, 400);
+    const unknownAccount = await adminCall('POST', '/api/accounts/acc_fehlt/view', { app: 'getbetter' });
+    assert.equal(unknownAccount.status, 404);
+    const lines = (await activityLines()).filter((line) => line.kind === 'admin.viewed');
+    assert.deepEqual(lines.map((line) => [line.accountId, line.detail]), [[accountB.id, { app: 'bettergym' }]]);
+  });
+
+  test('a PUT records collection.changed per owner, without row contents', async () => {
+    const original = (await tables()).tasks;
+    const start = (await activityLines()).length;
+    const ownRow = { id: 'ta1', accountId: accountA.id, title: 'Geheimer Titel' };
+    const first = [...original, ownRow, { id: 'tb1', accountId: accountB.id, title: 'Ben' }];
+    const second = [...original, { ...ownRow, title: 'Geheimer Titel 2' }];
+    assert.equal((await call('PUT', '/v1/db/tasks', { rows: first })).status, 200);
+    assert.equal((await call('PUT', '/v1/db/tasks', { rows: second })).status, 200);
+    // Nichts geaendert heisst: kein Ereignis.
+    assert.equal((await call('PUT', '/v1/db/tasks', { rows: second })).status, 200);
+
+    const changes = (await activityLines())
+      .slice(start)
+      .filter((line) => line.kind === 'collection.changed')
+      .map((line) => [line.accountId, line.detail]);
+    const detail = (added, updated, removed) => ({ collection: 'tasks', added, updated, removed });
+    assert.deepEqual(changes, [
+      [accountA.id, detail(1, 0, 0)],
+      [accountB.id, detail(1, 0, 0)],
+      [accountA.id, detail(0, 1, 0)],
+      [accountB.id, detail(0, 0, 1)],
+    ]);
+    assert.equal((await activityText()).includes('Geheimer Titel'), false);
+
+    assert.equal((await call('PUT', '/v1/db/tasks', { rows: original })).status, 200);
   });
 
   describe('mail', () => {

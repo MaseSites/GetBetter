@@ -262,7 +262,7 @@ export function BlockView({ block, number, handlers, finding, hits, autoFocus }:
             <RNText
               key={`${index}-${segment.mark}`}
               style={{
-                color: theme.colors.text,
+                color: segment.mark === 'current' ? theme.colors.textOnAccent : theme.colors.text,
                 backgroundColor:
                   segment.mark === 'current' ? theme.colors.accent : theme.colors.accentSoft,
               }}

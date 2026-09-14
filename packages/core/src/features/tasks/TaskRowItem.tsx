@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 
 import type { TaskRow } from '@/db';
-import { priorityOf } from '@/db/taskFields';
+import { dueDayOf, priorityOf } from '@/db/taskFields';
 import { useI18n } from '@/i18n';
 import { useTheme, type Theme } from '@/theme';
 import {
@@ -18,7 +18,8 @@ import {
   type SwipeAction,
 } from '@/ui';
 
-import { metaA11y, PRIORITY_MARKS, priorityPhrase } from './labels';
+import { metaA11y, POSTPONE_ICONS, postponeLabel, PRIORITY_MARKS, priorityPhrase } from './labels';
+import { postponeKindsFor } from './postpone';
 import type { ReorderBinding } from './ReorderList';
 import { useTaskList, type RowMode } from './TaskListContext';
 import { TaskMeta } from './TaskMeta';
@@ -41,7 +42,7 @@ export type TaskRowItemProps = {
 
 /**
  * Eine Aufgabe: Kreis links, „!!“ und Titel, darunter die Metazeile, rechts
- * nichts. Wisch nach rechts erledigt, nach links Planen · Löschen.
+ * nichts. Wisch nach rechts erledigt, nach links Morgen · Planen · Löschen.
  */
 export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
   const env = useTaskList();
@@ -68,6 +69,33 @@ export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
 
   const press = () => (selecting ? env.toggleSelect(task) : env.open(task));
 
+  // Offenes laesst sich direkt verschieben; Erledigtes behaelt „Planen …“.
+  const dateItems: MenuEntry[] = task.done
+    ? [
+        {
+          key: 'plan',
+          label: t('tasks.action.planMore'),
+          icon: 'calendar',
+          onPress: () => env.plan([task], anchor),
+        },
+      ]
+    : [
+        { key: 'postponeStart', divider: true },
+        ...postponeKindsFor(dueDayOf(task), env.today).map((kind): MenuEntry => ({
+          key: `postpone-${kind}`,
+          label: postponeLabel(t, kind),
+          icon: POSTPONE_ICONS[kind],
+          onPress: () => env.postpone(task, kind),
+        })),
+        {
+          key: 'pick',
+          label: t('tasks.plan.pick'),
+          icon: 'more',
+          onPress: () => env.pickDate([task]),
+        },
+        { key: 'postponeEnd', divider: true },
+      ];
+
   const items: MenuEntry[] = selecting
     ? []
     : [
@@ -77,12 +105,7 @@ export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
           icon: 'check',
           onPress: () => env.toggleDone(task),
         },
-        {
-          key: 'plan',
-          label: t('tasks.action.planMore'),
-          icon: 'calendar',
-          onPress: () => env.plan([task], anchor),
-        },
+        ...dateItems,
         {
           key: 'priority',
           label: t('tasks.action.priorityMore'),
@@ -145,6 +168,16 @@ export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
     tone: 'default',
     onPress: () => env.plan([task], anchor),
   };
+  const tomorrowAction: SwipeAction = {
+    key: 'postponeTomorrow',
+    label: postponeLabel(t, 'tomorrow'),
+    icon: POSTPONE_ICONS.tomorrow,
+    tone: 'accent',
+    onPress: () => env.postpone(task, 'tomorrow'),
+  };
+  const trailing = task.done
+    ? [planAction, deleteAction]
+    : [tomorrowAction, planAction, deleteAction];
 
   function handleLongPress(event: GestureResponderEvent) {
     if (!reorder || selecting) return;
@@ -183,7 +216,7 @@ export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
           styles.circle,
           {
             borderRadius: theme.radii.pill,
-            borderColor: checked ? theme.colors.accent : theme.colors.borderStrong,
+            borderColor: checked ? theme.colors.accentMark : theme.colors.textFaint,
             backgroundColor: checked ? theme.colors.accent : 'transparent',
           },
         ]}
@@ -263,9 +296,7 @@ export function TaskRowItem({ task, mode, reorder }: TaskRowItemProps) {
     <View ref={node} collapsable={false}>
       <SwipeRow
         backgroundColor={reorder?.lifted ? theme.colors.surface : theme.colors.background}
-        {...(selecting
-          ? {}
-          : { leading, trailing: [planAction, deleteAction], trailingFull: deleteAction })}
+        {...(selecting ? {} : { leading, trailing, trailingFull: deleteAction })}
       >
         <View
           style={[

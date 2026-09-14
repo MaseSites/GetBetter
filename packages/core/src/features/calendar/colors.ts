@@ -2,17 +2,22 @@ import type { TranslationKey } from '@/i18n';
 
 /**
  * Die Farben, die ein Termin haben kann. Bewusst gedeckt, damit sie neben
- * dem ruhigen Rest der App nicht schreien, und dunkel genug fuer weisse Schrift.
+ * dem ruhigen Rest der App nicht schreien. Jede traegt weisse Schrift mit
+ * 4.5:1 und hebt sich als Streifen auch auf dunklem Papier mit 3:1 ab —
+ * dafuer ist nur ein schmales Helligkeitsband frei (`contrast.test.ts`).
  */
 export const EVENT_COLORS = {
-  sage: '#3F6E5A',
+  sage: '#45725F',
   blue: '#3B6EA5',
-  violet: '#6B5B95',
+  violet: '#6F6098',
   rose: '#A0526A',
-  amber: '#A9762F',
+  amber: '#9A6B2B',
   teal: '#2E7D7B',
-  slate: '#5A6472',
+  slate: '#616A78',
 } as const;
+
+/** Schrift auf einer Terminfarbe — jede traegt sie mit 4.5:1 (`contrast.test.ts`). */
+export const EVENT_TEXT_COLOR = '#FFFFFF';
 
 export type EventColorKey = keyof typeof EVENT_COLORS;
 

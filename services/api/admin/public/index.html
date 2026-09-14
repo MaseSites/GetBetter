@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de-CH">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <title>Better Admin</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="app.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <button type="button" class="skip-link" id="skip-link">Zum Inhalt springen</button>
+
+    <header class="topbar">
+      <div class="topbar__inner">
+        <a class="brand" href="#/overview">
+          <span class="brand__name">Better</span>
+          <span class="brand__tag">Admin</span>
+        </a>
+        <nav class="nav" aria-label="Hauptnavigation">
+          <a class="nav__link" href="#/overview" data-route="overview">Übersicht</a>
+          <a class="nav__link" href="#/accounts" data-route="accounts">Konten</a>
+          <a class="nav__link" href="#/activity" data-route="activity">Verlauf</a>
+          <a class="nav__link" href="#/costs" data-route="costs">Kosten</a>
+        </nav>
+        <span class="topbar__env" id="env-badge">nur lokal · 127.0.0.1</span>
+      </div>
+    </header>
+
+    <main class="main" id="main" tabindex="-1">
+      <noscript>
+        <p class="notice notice--error">Dieses Dashboard braucht JavaScript.</p>
+      </noscript>
+    </main>
+
+    <div class="toasts">
+      <div id="status-region" role="status" aria-live="polite"></div>
+      <div id="alert-region" role="alert" aria-live="assertive"></div>
+    </div>
+  </body>
+</html>

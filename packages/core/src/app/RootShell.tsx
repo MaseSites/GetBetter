@@ -4,14 +4,17 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { currentApp } from '@/app/identity';
 import { IntroLayer } from '@/features/intro/IntroLayer';
 import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { EmptyState, Loading, PhoneFrame, Screen, UndoProvider } from '@/ui';
 
+import { accessOf } from './access';
 import { EdgeSwipeBack } from './EdgeSwipeBack';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ViewBanner } from './ViewBanner';
 import { applyWebChrome, setWebBackground } from './webChrome';
 import { enableDragScroll } from './webDragScroll';
 
@@ -29,7 +32,9 @@ export type RootShellProps = {
 
 /** Schickt in den Auth-Stack, ins Onboarding oder in die Tabs. */
 function RouteGuard({ home, hasOnboarding }: Required<RootShellProps>) {
-  const { account, hydrated } = useApp();
+  const { account, hydrated, view } = useApp();
+  // Beim Ansehen aus dem Admin gibt es kein Einrichten: die App zeigt sich, wie sie ist.
+  const viewing = view.active;
   const segments = useSegments();
   const router = useRouter();
 
@@ -46,13 +51,13 @@ function RouteGuard({ home, hasOnboarding }: Required<RootShellProps>) {
       return;
     }
 
-    if (hasOnboarding && !account.onboarded) {
+    if (hasOnboarding && !account.onboarded && !viewing) {
       if (!inOnboarding) router.replace('/welcome');
       return;
     }
 
     if (inAuth || inOnboarding) router.replace(home);
-  }, [hydrated, account, group, router, home, hasOnboarding]);
+  }, [hydrated, account, group, router, home, hasOnboarding, viewing]);
 
   return null;
 }
@@ -66,7 +71,10 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   useEffect(() => setWebBackground(ground), [ground]);
 
   const t = useTranslate();
-  const { hydrated, offline, retry } = useApp();
+  const { account, hydrated, offline, retry, signOut, view } = useApp();
+  const app = currentApp();
+  // Der Admin darf auch eine gesperrte App ansehen.
+  const access = account && !view.active ? accessOf(account, app.id) : 'ok';
 
   // Ohne die gemeinsame Datenbank gibt es nichts zu zeigen — und vor allem
   // nichts zu schreiben, das spaeter die richtigen Daten ueberschreibt.
@@ -91,11 +99,40 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
     );
   }
 
+  // Nur ansehen, aber das Ticket galt nicht: ehrlich sagen — nie ins Konto, das auf dem Geraet gemerkt ist.
+  if (view.active && !account) {
+    return (
+      <Screen scroll={false} contentStyle={{ flex: 1, justifyContent: 'center' }}>
+        <EmptyState title={t('view.expired.title')} body={t('view.expired.body')} />
+      </Screen>
+    );
+  }
+
+  // Im Admin gesperrt oder die App weggenommen: statt der App ein ehrlicher Satz.
+  // Die Aenderung kommt mit dem naechsten Abgleich an, ohne Neustart.
+  if (access !== 'ok') {
+    return (
+      <Screen scroll={false} contentStyle={{ flex: 1, justifyContent: 'center' }}>
+        <EmptyState
+          title={t(access === 'disabled' ? 'access.disabled.title' : 'access.blocked.title')}
+          body={
+            access === 'disabled'
+              ? t('access.disabled.body')
+              : t('access.blocked.body', { app: app.name })
+          }
+          actionLabel={t('access.signOut')}
+          onAction={() => void signOut()}
+        />
+      </Screen>
+    );
+  }
+
   return (
     <>
       <RouteGuard home={home} hasOnboarding={hasOnboarding} />
       {/* „Gelöscht · Rückgängig“ steht über allen Bildschirmen, einmal für die ganze App. */}
-      <UndoProvider>
+      <UndoProvider readOnlyMessage={view.active ? t('view.readOnly') : undefined}>
+        {view.active ? <ViewBanner username={view.username} /> : null}
         {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
         <IntroLayer hasOnboarding={hasOnboarding}>
           <EdgeSwipeBack>

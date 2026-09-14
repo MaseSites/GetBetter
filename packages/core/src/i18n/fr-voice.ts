@@ -15,4 +15,7 @@ export const frVoice = {
     'Ton crédit ElevenLabs est épuisé. En attendant, c’est le navigateur qui parle.',
   'assistant.cloud.failed':
     'ElevenLabs ne répond pas pour le moment. En attendant, c’est le navigateur qui parle.',
+  'assistant.ai.offline': 'Je n’arrive pas à joindre le service pour l’instant. Réessaie dans un moment.',
+  'assistant.ai.busy': 'C’est chargé en ce moment. Redemande-moi dans une minute.',
+  'assistant.ai.failed': 'Ça n’a pas marché. Réessaie.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

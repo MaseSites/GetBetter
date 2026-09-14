@@ -114,7 +114,7 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
                   void alarmRepo.setEnabled(alarm.id, value);
                 }}
                 accessibilityLabel={t('alarm.enabledLabel', { time: alarm.time })}
-                trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
+                trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
                 thumbColor={theme.colors.surface}
               />
             </View>

@@ -325,7 +325,7 @@ function TripDetail({
                       <Icon
                         name={item.packed ? 'checkCircle' : 'circle'}
                         size={24}
-                        color={item.packed ? theme.colors.accent : theme.colors.borderStrong}
+                        color={item.packed ? theme.colors.accentMark : theme.colors.textFaint}
                       />
                     </Pressable>
                     <View style={{ flex: 1 }}>

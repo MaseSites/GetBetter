@@ -56,6 +56,10 @@ export const enTasks = {
   'tasks.plan.pick': 'Pick a date …',
   'tasks.plan.sheetTitle': 'Pick a date',
 
+  'tasks.postpone.today': 'Today',
+  'tasks.postpone.tomorrow': 'Tomorrow',
+  'tasks.postpone.nextWeek': 'Next week',
+
   'tasks.priority.none': 'None',
   'tasks.priority.low': 'Low',
   'tasks.priority.medium': 'Medium',
@@ -80,6 +84,7 @@ export const enTasks = {
   'tasks.toast.deleted': 'Task deleted',
   'tasks.toast.deletedMany': '{count} tasks deleted',
   'tasks.toast.planned': 'Scheduled: {date}',
+  'tasks.toast.postponed': 'Postponed: {date}',
   'tasks.toast.unplanned': 'Date removed',
   'tasks.toast.moved': 'Moved to {name}',
   'tasks.toast.movedOut': 'Removed from project',

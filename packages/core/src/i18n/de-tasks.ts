@@ -54,6 +54,10 @@ export const deTasks = {
   'tasks.plan.pick': 'Datum wählen …',
   'tasks.plan.sheetTitle': 'Datum wählen',
 
+  'tasks.postpone.today': 'Heute',
+  'tasks.postpone.tomorrow': 'Morgen',
+  'tasks.postpone.nextWeek': 'Nächste Woche',
+
   'tasks.priority.none': 'Keine',
   'tasks.priority.low': 'Niedrig',
   'tasks.priority.medium': 'Mittel',
@@ -78,6 +82,7 @@ export const deTasks = {
   'tasks.toast.deleted': 'Aufgabe gelöscht',
   'tasks.toast.deletedMany': '{count} Aufgaben gelöscht',
   'tasks.toast.planned': 'Geplant: {date}',
+  'tasks.toast.postponed': 'Verschoben: {date}',
   'tasks.toast.unplanned': 'Datum entfernt',
   'tasks.toast.moved': 'Verschoben nach {name}',
   'tasks.toast.movedOut': 'Aus dem Projekt genommen',

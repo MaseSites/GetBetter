@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { DEFAULT_AVATAR } from '@/features/avatar/style';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
 import { useNarration } from '@/features/intro/narration';
 import { NarrationButton } from '@/features/intro/NarrationButton';
@@ -69,7 +70,8 @@ export function AuthShell({
     >
       {bubble ? (
         <View style={[styles.talk, { gap: theme.spacing.md }]}>
-          <ClubAvatar size={AVATAR_SIZE} phase="idle" />
+          {/* Vor dem Anmelden gibt es noch keinen eigenen Avatar — der Club-Roboter begruesst. */}
+          <ClubAvatar size={AVATAR_SIZE} phase="idle" style={DEFAULT_AVATAR} />
           <View style={styles.bubble}>
             <SpeechBubble text={bubble} tail="left" />
           </View>

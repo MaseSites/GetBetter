@@ -2,14 +2,13 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
-import { chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
+import { currentApp } from '@/app/identity';
+import { isViewing, reportReadOnly } from '@/app/viewMode';
+import { ai, chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
+import { aiFailureOf, aiFailureText, turnsFor } from '@/features/assistant/aiTurns';
 import { Message } from '@/features/assistant/AssistantView';
-import { useTranslate } from '@/i18n';
-import {
-  AI_CHAT_CANNED_REPLY_KEY,
-  AI_CHAT_REPLY_DELAY_MS,
-  AI_CHAT_STARTER_KEYS,
-} from '@/mocks/aiChat';
+import { useI18n } from '@/i18n';
+import { AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
 import { moduleName } from '@/mocks/moduleText';
 import type { AssistantMessage, ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -26,12 +25,26 @@ export type AiChatViewProps = {
 };
 
 /**
+ * Jede Frage bekommt genau eine Antwort — auch wenn die Liste neu laedt, waehrend
+ * die KI noch schreibt.
+ */
+class Answered {
+  private readonly ids = new Set<string>();
+
+  claim(id: string): boolean {
+    if (this.ids.has(id)) return false;
+    this.ids.add(id);
+    return true;
+  }
+}
+
+/**
  * Das Modul "KI-Chat": ein offenes Gespraech, ohne Zugriff auf die Module.
  * Bewusst schlichter als der Assistent — keine Modul-Marken, keine Bestaetigung —,
- * aber mit demselben Feld.
+ * aber mit demselben Feld. Die Antwort kommt von der KI im Dienst.
  */
 export function AiChatView({ module, chatId }: AiChatViewProps) {
-  const t = useTranslate();
+  const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
@@ -39,8 +52,8 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
   const [local, setLocal] = useState<readonly AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [answered] = useState(() => new Answered());
   const scrollRef = useRef<ScrollView>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(0);
 
   const stored = useLiveQuery(
@@ -55,13 +68,6 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     ? (stored.data ?? []).map((row) => ({ id: row.id, role: row.role, text: row.text }))
     : local;
 
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
   function scrollDown() {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   }
@@ -75,15 +81,54 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     scrollDown();
   }
 
-  function ask(text: string) {
-    if (text.length === 0 || thinking) return;
-    setDraft('');
-    void append('user', text);
+  /** Die Antwort der KI — oder ein ehrlicher Satz, wenn keine kommt. */
+  async function fetchReply(history: readonly AssistantMessage[], question: string) {
+    const result = await ai.reply({
+      accountId: account.id,
+      app: currentApp().id,
+      messages: turnsFor(history, question),
+    });
+    return result.ok ? result.data.response : aiFailureText(t, language, aiFailureOf(result));
+  }
+
+  // Ein gespeichertes Gespraech, dessen letzte Nachricht noch keine Antwort hat —
+  // etwa frisch aus der Liste angefangen —, beantwortet sich selbst. Solange
+  // denkt er nach; das ergibt sich aus der Liste, ohne eigenen Zustand.
+  const lastStored = chatId ? stored.data?.[stored.data.length - 1] : undefined;
+  const awaiting = lastStored?.role === 'user';
+  const busy = thinking || awaiting;
+
+  useEffect(() => {
+    if (!chatId || !lastStored || lastStored.role !== 'user') return;
+    if (!answered.claim(lastStored.id)) return;
+    const history = (stored.data ?? [])
+      .slice(0, -1)
+      .map((row) => ({ id: row.id, role: row.role, text: row.text }));
+    void fetchReply(history, lastStored.text).then((text) =>
+      messageRepo.add({ chatId, accountId: account.id, role: 'assistant', text }),
+    );
+  });
+
+  /** Ohne Speicher (die Funktion in GetBetter) antwortet das Gespraech gleich hier. */
+  async function respondLocally(history: readonly AssistantMessage[], question: string) {
     setThinking(true);
-    timer.current = setTimeout(() => {
-      setThinking(false);
-      void append('assistant', t(AI_CHAT_CANNED_REPLY_KEY));
-    }, AI_CHAT_REPLY_DELAY_MS);
+    const text = await fetchReply(history, question);
+    setThinking(false);
+    await append('assistant', text);
+  }
+
+  function ask(text: string) {
+    if (text.length === 0 || busy) return;
+    // Nur ansehen: keine Frage, die nie gespeichert wird.
+    if (isViewing()) {
+      reportReadOnly();
+      return;
+    }
+    setDraft('');
+    const history = messages;
+    void append('user', text);
+    // Gespeichert antwortet der Effekt oben, sobald die Frage in der Liste steht.
+    if (!chatId) void respondLocally(history, text);
   }
 
   async function removeChat() {
@@ -94,7 +139,7 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
   }
 
   const title = chatId ? chat.data?.title || t('chats.untitled') : moduleName(t, module.id);
-  const empty = messages.length === 0 && !thinking;
+  const empty = messages.length === 0 && !busy;
 
   return (
     <Screen
@@ -134,7 +179,7 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
                 <SuggestionChip
                   key={key}
                   label={t(key)}
-                  disabled={thinking}
+                  disabled={busy}
                   onPress={() => ask(t(key))}
                 />
               ))}
@@ -146,7 +191,7 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
             onSubmit={() => ask(draft.trim())}
             placeholder={t('aiChat.placeholder')}
             sendLabel={t('assistant.send')}
-            busy={thinking}
+            busy={busy}
           />
         </View>
       }
@@ -172,7 +217,7 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
           <Message key={message.id} message={message} />
         ))}
 
-        {thinking ? <Loading label={t('assistant.thinking')} compact /> : null}
+        {busy ? <Loading label={t('assistant.thinking')} compact /> : null}
       </ScrollView>
     </Screen>
   );

@@ -108,7 +108,7 @@ function RepeatEditor({
               accessibilityLabel={t('tasks.repeat.fromCompletion')}
               value={repeat.fromCompletion}
               onValueChange={(fromCompletion) => onChange({ ...repeat, fromCompletion })}
-              trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
+              trackColor={{ true: theme.colors.accentMark, false: theme.colors.border }}
               thumbColor={theme.colors.surface}
             />
           </View>

@@ -140,7 +140,7 @@ function DetailBody({
               styles.circle,
               {
                 borderRadius: theme.radii.pill,
-                borderColor: task.done ? theme.colors.accent : theme.colors.borderStrong,
+                borderColor: task.done ? theme.colors.accentMark : theme.colors.textFaint,
                 backgroundColor: task.done ? theme.colors.accent : 'transparent',
               },
             ]}

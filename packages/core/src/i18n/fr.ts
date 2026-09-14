@@ -1,10 +1,12 @@
 import type { TranslationKey } from './de';
 import { frA } from './fr-a';
+import { frAvatar } from './fr-avatar';
 import { frB } from './fr-b';
 import { frBirthdays } from './fr-birthdays';
 import { frC } from './fr-c';
 import { frMailUi } from './fr-mailui';
 import { frNotes } from './fr-notes';
+import { frPlan } from './fr-plan';
 import { frShell } from './fr-shell';
 import { frTasks } from './fr-tasks';
 import { frUi } from './fr-ui';
@@ -17,6 +19,7 @@ export const fr: Readonly<Record<TranslationKey, string>> = {
   ...frB,
   ...frC,
   ...frVoice,
+  ...frAvatar,
   ...frShell,
   ...frTasks,
   ...frNotes,
@@ -24,4 +27,5 @@ export const fr: Readonly<Record<TranslationKey, string>> = {
   ...frWeather,
   ...frMailUi,
   ...frUi,
+  ...frPlan,
 };

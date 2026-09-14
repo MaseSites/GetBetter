@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { APPS, hasHouseholds } from '@/app/identity';
 import {
@@ -28,6 +28,7 @@ import {
   Button,
   Card,
   FloatingButton,
+  type FloatingButtonMenuItem,
   Header,
   Icon,
   Screen,
@@ -36,7 +37,7 @@ import {
   useSwipeSteps,
 } from '@/ui';
 
-import { eventColor, EVENT_COLORS, type EventColorKey } from './colors';
+import { eventColor, EVENT_COLORS, EVENT_TEXT_COLOR, type EventColorKey } from './colors';
 import {
   addDays,
   addMonths,
@@ -96,7 +97,11 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const [shownPeople, setShownPeople] = useState<readonly CalendarSource[]>([]);
   const [askMessage, setAskMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
-  const [draft, setDraft] = useState<EventDraft | null>(null);
+  // Vertrag fuer andere Bildschirme: `?new=1` oeffnet gleich einen neuen Termin fuer heute.
+  const params = useLocalSearchParams<{ new?: string }>();
+  const [draft, setDraft] = useState<EventDraft | null>(() =>
+    params.new === '1' ? { day: startOfDay(new Date()) } : null,
+  );
   const [birthday, setBirthday] = useState<BirthdayDraft | null>(null);
 
   // Sichtbarer Zeitraum je Ansicht — grosszuegig, damit Raender mitkommen.
@@ -467,7 +472,30 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         )}
       </Animated.View>
 
-      <FloatingButton label={t('calendar.add')} onPress={() => setDraft({ day: anchor })} />
+      {/* Im privaten Kalender fragt das „+“ zuerst, was es wird — und oeffnet
+          dann nur dieses Blatt. Ohne Geburtstage legt es gleich einen Termin an. */}
+      <FloatingButton
+        label={t('calendar.add')}
+        onPress={() => setDraft({ day: anchor })}
+        {...(showBirthdays
+          ? {
+              menu: [
+                {
+                  key: 'event',
+                  label: t('calendar.kind.event'),
+                  icon: 'calendar',
+                  onPress: () => setDraft({ day: anchor }),
+                },
+                {
+                  key: 'birthday',
+                  label: t('calendar.kind.birthday'),
+                  icon: 'gift',
+                  onPress: () => setBirthday({ day: anchor }),
+                },
+              ] satisfies FloatingButtonMenuItem[],
+            }
+          : {})}
+      />
 
       <EventEditor draft={draft} accountId={account.id} onClose={() => setDraft(null)} />
 
@@ -614,7 +642,9 @@ function WeekStrip({
                 fontSize: theme.fontSize.micro,
                 lineHeight: theme.lineHeight.micro,
                 letterSpacing: theme.tracking.label,
-                color: selected ? theme.colors.accent : theme.colors.textFaint,
+                // Auf der umgekehrten Flaeche traegt nur `onInverse` — ein Akzent
+                // darauf verschwindet im Dunkeln und in Schwarzweiss ganz.
+                color: selected ? theme.colors.onInverse : theme.colors.textMuted,
               }}
             >
               {new Intl.DateTimeFormat('de-CH', { weekday: 'short' }).format(day).slice(0, 2)}
@@ -633,6 +663,19 @@ function WeekStrip({
             >
               {day.getDate()}
             </Text>
+            {/* Heute auch als Form, nicht nur als Farbe; der Platz bleibt immer frei. */}
+            <View
+              style={[
+                styles.todayDot,
+                {
+                  backgroundColor: today
+                    ? selected
+                      ? theme.colors.onInverse
+                      : theme.colors.accentMark
+                    : 'transparent',
+                },
+              ]}
+            />
           </Pressable>
         );
       })}
@@ -651,47 +694,60 @@ function AllDayRow({
 }) {
   const theme = useTheme();
   const { t } = useI18n();
+  const single = days.length === 1;
 
-  const allDay = events.filter(
-    (event) => event.allDay && days.some((day) => isSameDay(new Date(event.startsAt), day)),
-  );
-  if (allDay.length === 0) return null;
+  const onDay = (day: Date) =>
+    events.filter((event) => event.allDay && isSameDay(new Date(event.startsAt), day));
+  if (!days.some((day) => onDay(day).length > 0)) return null;
 
+  // Ganztaegiges als Balken ueber die ganze Breite seines Tages, ohne Punkt:
+  // die Farbe ist die Flaeche. Eingerueckt wie die Spalten von `TimeGrid`, damit
+  // in der Woche jeder Balken genau ueber seinem Tag steht.
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.allDay}
-      contentContainerStyle={{
-        gap: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.edge,
-        paddingBottom: theme.spacing.sm,
-      }}
+    <View
+      style={[
+        styles.allDay,
+        {
+          paddingLeft: GUTTER_WIDTH + theme.spacing.xs,
+          paddingRight: single ? theme.spacing.edge : 0,
+          paddingBottom: theme.spacing.sm,
+        },
+      ]}
     >
-      {allDay.map((event) => (
-        <Pressable
-          key={event.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${event.title} — ${t('today.allDay')}`}
-          onPress={() => onPressEvent(event)}
-          style={[
-            styles.allDayChip,
-            theme.elevation.card,
-            {
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radii.sm,
-              gap: theme.spacing.sm,
-              paddingHorizontal: theme.spacing.md,
-            },
-          ]}
+      {days.map((day) => (
+        <View
+          key={day.toISOString()}
+          style={[styles.allDayColumn, { gap: theme.spacing.xs, paddingHorizontal: single ? 0 : 1 }]}
         >
-          <View style={[styles.allDayDot, { backgroundColor: eventColor(event.color) }]} />
-          <Text variant="label" numberOfLines={1} style={{ fontWeight: theme.fontWeight.semibold }}>
-            {event.title}
-          </Text>
-        </Pressable>
+          {onDay(day).map((event) => (
+            <Pressable
+              key={event.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${event.title} — ${t('today.allDay')}`}
+              onPress={() => onPressEvent(event)}
+              style={({ pressed }) => [
+                styles.allDayBar,
+                single ? null : styles.allDayBarCompact,
+                {
+                  backgroundColor: eventColor(event.color),
+                  borderRadius: theme.radii.sm,
+                  paddingHorizontal: single ? theme.spacing.md : theme.spacing.xs,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Text
+                variant={single ? 'label' : 'caption'}
+                numberOfLines={1}
+                style={{ color: EVENT_TEXT_COLOR, fontWeight: theme.fontWeight.semibold }}
+              >
+                {event.title}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -705,7 +761,9 @@ const styles = StyleSheet.create({
   stepButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   strip: { flexDirection: 'row' },
   stripCell: { flex: 1, alignItems: 'center', minHeight: 54 },
-  allDay: { flexGrow: 0 },
-  allDayChip: { flexDirection: 'row', alignItems: 'center', minHeight: 32, maxWidth: 200 },
-  allDayDot: { width: 8, height: 8, borderRadius: 999 },
+  todayDot: { width: 4, height: 4, borderRadius: 2 },
+  allDay: { flexDirection: 'row' },
+  allDayColumn: { flex: 1, minWidth: 0 },
+  allDayBar: { justifyContent: 'center', minHeight: 32 },
+  allDayBarCompact: { minHeight: 24 },
 });

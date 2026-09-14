@@ -2,6 +2,7 @@ import { useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { isViewing, reportReadOnly } from '@/app/viewMode';
 import { useI18n, type Language } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 
@@ -238,11 +239,12 @@ export function useVoice({ onDictate, onTurn }: VoiceHandlers): Voicing {
 
   useEffect(() => () => session.release(), [session]);
 
+  // Nur ansehen (Admin): kein Mikrofon — die Knoepfe sagen das, statt „kann nicht zuhoeren“.
   return {
     ...state,
     available: canListen(),
-    dictate: () => session.dictate(),
-    talk: () => session.talk(),
+    dictate: () => (isViewing() ? reportReadOnly() : session.dictate()),
+    talk: () => (isViewing() ? reportReadOnly() : session.talk()),
     clear: () => session.clear(),
   };
 }

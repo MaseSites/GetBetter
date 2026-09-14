@@ -1,10 +1,10 @@
 /** Texte fuer die App-Hülle (Heute, Suche, Navigation). Teil von `de` — die Schluessel landen dort per Spread. */
 export const deShell = {
   'shell.create': 'Neu anlegen',
+  'shell.create.event': 'Termin',
   'shell.create.task': 'Aufgabe',
   'shell.create.note': 'Notiz',
   'shell.create.mail': 'E-Mail',
-  'shell.create.birthday': 'Geburtstag',
 
   'search.best': 'Bester Treffer',
   'search.group.tasks': 'Aufgaben',

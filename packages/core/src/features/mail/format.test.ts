@@ -19,7 +19,6 @@ import {
   mailErrorKey,
   matchesQuery,
   parseAddressList,
-  parsePort,
   quoteText,
   replyDraft,
   replySubject,
@@ -147,14 +146,6 @@ test('erkennt eine E-Mail-Adresse', () => {
   assert.ok(!isEmailAddress('jonas@beispiel'));
   assert.ok(!isEmailAddress('jonas beispiel.ch'));
   assert.ok(!isEmailAddress(''));
-});
-
-test('liest einen Port: leer, gueltig oder falsch', () => {
-  assert.equal(parsePort(''), undefined);
-  assert.equal(parsePort(' 993 '), 993);
-  assert.equal(parsePort('0'), null);
-  assert.equal(parsePort('70000'), null);
-  assert.equal(parsePort('99a'), null);
 });
 
 test('zeigt heute die Uhrzeit, danach gestern, Wochentag, Datum', () => {

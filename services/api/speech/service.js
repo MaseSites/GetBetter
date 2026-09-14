@@ -7,16 +7,33 @@
  * tauscht, muss den Dienst dafuer nicht neu starten.
  *
  * Ablauf: `POST /v1/speech` merkt sich Text, Stimme und Sprache und gibt eine
- * Adresse zurueck; `GET /v1/speech/<id>.mp3` holt das Audio bei ElevenLabs und
- * reicht es weiter, waehrend es noch ankommt — so beginnt der Lautsprecher,
- * bevor der ganze Satz gerechnet ist. Der Text steht dabei nie in einer Adresse.
+ * Adresse mit einem Einmal-Ticket zurueck (`/v1/speech/<id>.mp3?play=<ticket>`);
+ * `GET` darauf holt das Audio bei ElevenLabs und reicht es weiter, waehrend es
+ * noch ankommt — so beginnt der Lautsprecher, bevor der ganze Satz gerechnet
+ * ist. Der Text steht dabei nie in einer Adresse. `POST /v1/speech/sample` ist
+ * die Probe beim Aussuchen: den Satz waehlt der Dienst, je Sprache einen festen
+ * ohne Namen — einmal erzeugt, danach fuer alle gratis.
  *
- * Fertiges Audio liegt in `<datenordner>/speech-cache/`: derselbe Satz mit
- * derselben Stimme kostet nur einmal Guthaben.
+ * Fertiges Audio kommt in den Zwischenspeicher (`cache.js`): derselbe Satz mit
+ * derselben Stimme kostet nur einmal Guthaben, oft gesagte bleiben am
+ * laengsten, Proben immer. Jede Wiedergabe mit Ticket und jede Erzeugung wird
+ * eine Zeile in `speech-usage.jsonl` (`usage.js`) — ohne Text.
+ *
+ * Abo und Kontingent (`billing/`): ohne Abo fuer diese App gibt es keine
+ * Stimmen von ElevenLabs (`403 plan_required`), auch nicht aus dem
+ * Zwischenspeicher — dann spricht der Browser. Mit Abo kostet ein Satz aus dem
+ * Speicher nichts und geht immer; ein neuer nur, solange er ins Budget passt
+ * (`402 budget_exhausted`). Der Betrag wird beim Ticket reserviert und nach
+ * der Wiedergabe mit der echten Zeile verrechnet.
  */
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+
+const { speechChfOf } = require('../billing/costs.js');
+const { accountInStore, createBilling } = require('../billing/service.js');
+const { cacheIdOf, createSpeechCache } = require('./cache.js');
+const { creditsPerCharacter, recordSpeechUsage } = require('./usage.js');
 
 const PRODUCTION_BASE = 'https://api.elevenlabs.io';
 /** Nur fuer Tests: ein nachgebauter Dienst auf dem eigenen Rechner. */
@@ -28,16 +45,32 @@ const LANGUAGE_CODE_MODELS = /^(eleven_flash_v2_5|eleven_turbo_v2_5|eleven_v3)/;
 const MODEL_PATTERN = /^[a-z0-9_]{3,64}$/;
 const OUTPUT_FORMAT = 'mp3_44100_128';
 const LANGUAGES = new Set(['de', 'fr', 'it', 'en']);
+const APPS = new Set(['getbetter', 'betterfamily', 'bettergym', 'betterai', 'bettermoney']);
 const VOICE_ID = /^[A-Za-z0-9]{8,64}$/;
 const SPEECH_ID = /^[a-f0-9]{32}$/;
+const PLAY_BYTES = 12;
+const PLAY_ID = /^[a-f0-9]{24}$/;
 const MAX_TEXT = 1000;
+const MAX_ACCOUNT_ID = 100;
 const TIMEOUT_MS = 60_000;
 const VOICES_TTL_MS = 10 * 60_000;
 const MAX_VOICE_PAGES = 3;
 const JOB_TTL_MS = 5 * 60_000;
+/** So lange haelt ein Ticket seinen Betrag fest: bis es verfaellt, plus eine ganze Erzeugung. */
+const HOLD_MS = JOB_TTL_MS + TIMEOUT_MS;
 const MAX_JOBS = 500;
-const MAX_CACHED_FILES = 400;
 const LABEL_LENGTH = 60;
+
+/**
+ * Die Probe beim Aussuchen: ein fester Satz je Sprache, nie mit Namen. Dieselben
+ * Saetze stehen in `assistant.voice.sampleAnon` fuer die Stimme des Browsers.
+ */
+const SAMPLE_TEXT = Object.freeze({
+  de: 'Hallo, so klinge ich.',
+  en: 'Hi, this is how I sound.',
+  fr: 'Salut, voici ma voix.',
+  it: 'Ciao, ecco come suono.',
+});
 
 const reply = (status, body) => ({ status, body });
 
@@ -93,12 +126,62 @@ function sortFor(voices, language) {
   });
 }
 
-function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {}) {
+const charactersOf = (text) => Array.from(text).length;
+
+/** Wer spricht: ein Konto (eine Angabe, keine Anmeldung) und eine der fuenf Apps — sonst null. */
+function speakerOf(input) {
+  const accountId = input?.accountId;
+  return {
+    accountId:
+      typeof accountId === 'string' && accountId.length > 0 && accountId.length <= MAX_ACCOUNT_ID
+        ? accountId
+        : null,
+    app: APPS.has(input?.app) ? input.app : null,
+  };
+}
+
+/** Hoechstens `MAX_JOBS` Eintraege; abgelaufene fallen zuerst weg. */
+function remember(map, key, value) {
+  const now = Date.now();
+  for (const [known, entry] of map) if (entry.expires < now) map.delete(known);
+  if (map.size >= MAX_JOBS) map.delete(map.keys().next().value);
+  map.set(key, { ...value, expires: now + JOB_TTL_MS });
+}
+
+/** Protokoll und Index duerfen scheitern — das Audio laeuft trotzdem. */
+async function quietly(what, task) {
+  try {
+    await task();
+  } catch (error) {
+    process.stderr.write(`[speech] ${what}: ${error?.code ?? error?.name ?? 'Error'}\n`);
+  }
+}
+
+/**
+ * `record` (ein Eintrag -> Promise), `cacheBytes`, `findAccount` und `billing`
+ * nur fuer Tests; `cacheFiles` und `cacheMb` kommen aus
+ * `BETTER_SPEECH_CACHE_FILES|MB`. `billing` teilt der Dienst mit der KI.
+ */
+function createSpeechService({
+  dataDir,
+  cors = {},
+  baseUrl,
+  model,
+  readKey,
+  record,
+  cacheFiles,
+  cacheMb,
+  cacheBytes,
+  findAccount = accountInStore,
+  billing = createBilling({ dataDir, findAccount }),
+} = {}) {
   const base = typeof baseUrl === 'string' && TEST_BASE.test(baseUrl) ? baseUrl : PRODUCTION_BASE;
   const modelId = typeof model === 'string' && MODEL_PATTERN.test(model) ? model : DEFAULT_MODEL;
-  const cacheDir = path.join(dataDir, 'speech-cache');
+  const cache = createSpeechCache({ dataDir, maxFiles: cacheFiles, maxMb: cacheMb, maxBytes: cacheBytes });
   const keyFile = path.join(dataDir, 'elevenlabs.key');
+  const write = record ?? ((entry) => recordSpeechUsage(dataDir, entry));
   const jobs = new Map();
+  const plays = new Map();
   const inflight = new Map();
   let voiceCache = null;
   let lastError = null;
@@ -119,6 +202,44 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
   const fingerprintOf = (apiKey) =>
     crypto.createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
 
+  /** Eine Zeile ins Protokoll und ins Kassenbuch — auch wenn das Schreiben scheitert. */
+  async function log(entry) {
+    const full = { model: modelId, ...entry };
+    let line = null;
+    await quietly('Verbrauch', async () => {
+      line = await write(full);
+    });
+    const billed = !full.cached && (full.billed ?? full.ok) === true;
+    const fallback = { ...full, credits: billed ? full.characters * creditsPerCharacter(modelId) : 0 };
+    billing.ledger.addSpeech(line && typeof line === 'object' ? line : fallback);
+  }
+
+  /** Was ein neuer Satz bei ElevenLabs hoechstens kostet, in CHF. */
+  const sentenceChf = (text) => speechChfOf(charactersOf(text) * creditsPerCharacter(modelId), billing.speech());
+
+  /**
+   * Darf dieses Konto diesen Satz hoeren? -> `{ holdId }` (null aus dem
+   * Speicher) oder `{ refused }` mit fertiger Antwort. Ohne Abo nie; mit Abo aus
+   * dem Speicher immer, neu nur, solange er ins Budget passt.
+   */
+  async function admit(input, id, text) {
+    const { accountId, app } = speakerOf(input);
+    const account = accountId !== null && app !== null ? await findAccount(accountId) : null;
+    const cached = await cache.has(id);
+    await billing.ledger.ready();
+    // Ab hier ohne await: pruefen und reservieren in einem Zug.
+    const standing = billing.standingOf(account, app);
+    if (!account || standing.plan !== 'paid') {
+      return { refused: reply(403, billing.refusalOf('plan_required', standing)) };
+    }
+    if (cached) return { holdId: null };
+    const chf = sentenceChf(text);
+    if (chf > standing.remainingChf) {
+      return { refused: reply(402, billing.refusalOf('budget_exhausted', standing)) };
+    }
+    return { holdId: billing.ledger.hold(account.id, app, chf, HOLD_MS) };
+  }
+
   function sendJson(res, status, body) {
     const text = JSON.stringify(body);
     res.writeHead(status, {
@@ -138,12 +259,26 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
     ...extra,
   });
 
-  async function status() {
+  /**
+   * `allowed`: ob dieses Konto in dieser App Stimmen von ElevenLabs bekommt.
+   * `reason` sagt warum nicht (`plan_required`, `budget_exhausted`) — ohne
+   * Konto (vor dem Anmelden) gilt Gratis, also der Browser.
+   */
+  async function status(query = {}) {
     const configured = (await key()) !== null;
+    const { accountId, app } = speakerOf(query);
+    const account = accountId !== null && app !== null ? await findAccount(accountId) : null;
+    await billing.ledger.ready();
+    const standing = billing.standingOf(account, app);
+    const paid = Boolean(account) && standing.plan === 'paid';
+    const reason = !paid ? 'plan_required' : standing.remainingChf > 0 ? null : 'budget_exhausted';
     return reply(200, {
       provider: 'elevenlabs',
       configured,
       lastError: configured ? lastError : null,
+      allowed: configured && reason === null,
+      plan: standing.plan,
+      reason,
     });
   }
 
@@ -194,11 +329,24 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
     return reply(200, { voices: sortFor(voiceCache.voices, wanted) });
   }
 
-  function remember(id, job) {
-    const now = Date.now();
-    for (const [known, entry] of jobs) if (entry.expires < now) jobs.delete(known);
-    if (jobs.size >= MAX_JOBS) jobs.delete(jobs.keys().next().value);
-    jobs.set(id, { ...job, expires: now + JOB_TTL_MS });
+  /**
+   * Prueft das Kontingent, merkt sich den Auftrag und gibt die Adresse mit
+   * einem frischen Einmal-Ticket zurueck. Das Ticket haelt die Reservierung.
+   */
+  async function ticketFor(id, job, input) {
+    const admitted = await admit(input, id, job.text);
+    if (admitted.refused) return admitted.refused;
+    remember(jobs, id, job);
+    const ticket = crypto.randomBytes(PLAY_BYTES).toString('hex');
+    remember(plays, ticket, {
+      id,
+      purpose: job.purpose,
+      voiceId: job.voice,
+      characters: charactersOf(job.text),
+      holdId: admitted.holdId,
+      ...speakerOf(input),
+    });
+    return reply(201, { id, url: `/v1/speech/${id}.mp3?play=${ticket}` });
   }
 
   async function prepare(input) {
@@ -214,45 +362,32 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
     if (!valid) return reply(400, { error: 'bad_request' });
     if ((await key()) === null) return reply(503, { error: 'not_configured' });
 
-    const id = crypto
-      .createHash('sha256')
-      .update([modelId, voice, language, text].join(' '))
-      .digest('hex')
-      .slice(0, 32);
-    remember(id, { text, voice, language });
-    return reply(201, { id, url: `/v1/speech/${id}.mp3` });
+    const id = cacheIdOf({ model: modelId, voice, language, text });
+    return ticketFor(id, { text, voice, language, purpose: 'speech' }, input);
   }
 
-  async function sendCached(res, file) {
-    let bytes;
-    try {
-      bytes = await fs.readFile(file);
-    } catch {
-      return false;
-    }
-    res.writeHead(200, audioHeaders({ 'Content-Length': bytes.length }));
-    res.end(bytes);
-    return true;
+  /** Die Probe: den Satz waehlt der Dienst — ein mitgeschickter Text zaehlt nicht. */
+  async function prepareSample(input) {
+    const voice = input?.voice;
+    if (typeof voice !== 'string' || !VOICE_ID.test(voice)) return reply(400, { error: 'bad_request' });
+    const language = LANGUAGES.has(input?.language) ? input.language : 'de';
+    if ((await key()) === null) return reply(503, { error: 'not_configured' });
+
+    const text = SAMPLE_TEXT[language];
+    const id = cacheIdOf({ model: modelId, voice, language, text, purpose: 'sample' });
+    return ticketFor(id, { text, voice, language, purpose: 'sample' }, input);
   }
 
-  async function prune() {
-    const names = (await fs.readdir(cacheDir)).filter((name) => name.endsWith('.mp3'));
-    if (names.length <= MAX_CACHED_FILES) return;
-    const dated = await Promise.all(
-      names.map(async (name) => ({
-        name,
-        at: (await fs.stat(path.join(cacheDir, name))).mtimeMs,
-      })),
-    );
-    dated.sort((a, b) => a.at - b.at);
-    await Promise.all(
-      dated
-        .slice(0, names.length - MAX_CACHED_FILES)
-        .map(({ name }) => fs.rm(path.join(cacheDir, name), { force: true })),
-    );
+  /** Ein Ticket gilt einmal und nur fuer seinen Satz. */
+  function takePlay(ticket, id) {
+    if (typeof ticket !== 'string' || !PLAY_ID.test(ticket)) return null;
+    const play = plays.get(ticket);
+    plays.delete(ticket);
+    return play && play.id === id && play.expires >= Date.now() ? play : null;
   }
 
-  async function synthesize(res, apiKey, job, file) {
+  /** `{ ok, billed, error }` — `billed`, sobald ElevenLabs Audio geliefert hat. */
+  async function synthesize(res, apiKey, id, job) {
     const url = new URL(`/v1/text-to-speech/${job.voice}/stream`, base);
     url.searchParams.set('output_format', OUTPUT_FORMAT);
     const body = {
@@ -271,26 +406,31 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
       });
     } catch {
       lastError = 'unreachable';
-      return sendJson(res, 502, { error: 'unreachable' });
+      sendJson(res, 502, { error: 'unreachable' });
+      return { ok: false, billed: false, error: 'unreachable' };
     }
     if (!response.ok || !response.body) {
       const error = upstreamError(response.status, await detailOf(response));
       lastError = error;
-      return sendJson(res, 502, { error });
+      sendJson(res, 502, { error });
+      return { ok: false, billed: false, error };
     }
     lastError = null;
 
     res.writeHead(200, audioHeaders());
-    await fs.mkdir(cacheDir, { recursive: true });
+    const file = cache.fileOf(id, job.purpose);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     const partial = `${file}.${crypto.randomBytes(4).toString('hex')}.part`;
     const handle = await fs.open(partial, 'w');
+    let bytes = 0;
     let complete = false;
     try {
       for await (const chunk of response.body) {
-        const bytes = Buffer.from(chunk);
-        await handle.write(bytes);
+        const data = Buffer.from(chunk);
+        await handle.write(data);
+        bytes += data.length;
         // Wer nicht mehr zuhoert, bekommt nichts — gespeichert wird trotzdem.
-        if (!res.destroyed) res.write(bytes);
+        if (!res.destroyed) res.write(data);
       }
       complete = true;
     } catch {
@@ -299,38 +439,85 @@ function createSpeechService({ dataDir, cors = {}, baseUrl, model, readKey } = {
       await handle.close();
     }
     res.end();
-    if (complete) {
-      await fs.rename(partial, file);
-      await prune();
-    } else {
+    if (!complete) {
       await fs.rm(partial, { force: true });
+      return { ok: false, billed: true, error: 'interrupted' };
+    }
+    await fs.rename(partial, file);
+    await quietly('Zwischenspeicher', () =>
+      cache.store(id, { purpose: job.purpose, characters: charactersOf(job.text), bytes }),
+    );
+    return { ok: true, billed: true, error: null };
+  }
+
+  /**
+   * Liefert das Audio. Nur eine Wiedergabe mit gueltigem Ticket zaehlt als Hit
+   * und kommt ins Protokoll — ein zweites Holen desselben Audios nicht. Erzeugt
+   * wird nur mit gueltigem Ticket: nur das hat das Kontingent geprueft.
+   */
+  async function serve(res, id, ticket) {
+    if (!SPEECH_ID.test(String(id))) return sendJson(res, 404, { error: 'not_found' });
+    const play = takePlay(ticket, id);
+    try {
+      return await deliver(res, id, play);
+    } finally {
+      // Gebucht ist jetzt die echte Zeile — die Reservierung faellt weg.
+      if (play?.holdId) billing.ledger.release(play.holdId);
     }
   }
 
-  async function serve(res, id) {
-    if (!SPEECH_ID.test(String(id))) return sendJson(res, 404, { error: 'not_found' });
-    const file = path.join(cacheDir, `${id}.mp3`);
+  async function deliver(res, id, play) {
     // Laeuft derselbe Satz schon, wird er danach aus dem Speicher geholt.
     const running = inflight.get(id);
     if (running) await running.catch(() => undefined);
-    if (await sendCached(res, file)) return undefined;
+
+    const cached = await cache.read(id);
+    if (cached) {
+      res.writeHead(200, audioHeaders({ 'Content-Length': cached.bytes.length }));
+      res.end(cached.bytes);
+      if (play) {
+        await quietly('Zwischenspeicher', () => cache.hit(id, { characters: play.characters }));
+        await log({
+          accountId: play.accountId,
+          app: play.app,
+          purpose: play.purpose,
+          voiceId: play.voiceId,
+          characters: play.characters,
+          cached: true,
+          ok: true,
+        });
+      }
+      return undefined;
+    }
 
     const job = jobs.get(id);
-    if (!job || job.expires < Date.now()) return sendJson(res, 404, { error: 'not_found' });
+    if (!play || !job || job.expires < Date.now()) return sendJson(res, 404, { error: 'not_found' });
     const apiKey = await key();
     if (!apiKey) return sendJson(res, 503, { error: 'not_configured' });
 
-    const done = synthesize(res, apiKey, job, file);
+    const done = synthesize(res, apiKey, id, job);
     inflight.set(id, done);
+    let outcome;
     try {
-      await done;
+      outcome = await done;
     } finally {
       inflight.delete(id);
     }
+    await log({
+      accountId: play.accountId,
+      app: play.app,
+      purpose: job.purpose,
+      voiceId: job.voice,
+      characters: charactersOf(job.text),
+      cached: false,
+      ok: outcome.ok,
+      billed: outcome.billed,
+      error: outcome.error,
+    });
     return undefined;
   }
 
-  return { status, voices, prepare, serve };
+  return { status, voices, prepare, prepareSample, serve };
 }
 
-module.exports = { MAX_TEXT, createSpeechService, upstreamError };
+module.exports = { MAX_TEXT, SAMPLE_TEXT, createSpeechService, upstreamError };

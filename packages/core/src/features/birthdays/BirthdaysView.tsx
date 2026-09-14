@@ -43,8 +43,8 @@ function single(value: string | string[] | undefined): string | null {
 }
 
 /** Der Weg zu einer Person: ein eigener Bildschirm auf dem Stapel, zurueck mit dem Randwisch. */
-export function birthdayPersonHref(contactId: string, withGift = false): string {
-  return `/run/birthdays?person=${encodeURIComponent(contactId)}${withGift ? '&gift=1' : ''}`;
+export function birthdayPersonHref(contactId: string): string {
+  return `/run/birthdays?person=${encodeURIComponent(contactId)}`;
 }
 
 /**
@@ -52,14 +52,10 @@ export function birthdayPersonHref(contactId: string, withGift = false): string 
  * zum Anlegen, `?person=<Kontakt-Id>` die Seite einer Person.
  */
 export function BirthdaysView({ module }: { module: ModuleDefinition }) {
-  const params = useLocalSearchParams<{ new?: string; person?: string; gift?: string }>();
+  const params = useLocalSearchParams<{ new?: string; person?: string }>();
   const person = single(params.person);
 
-  if (person) {
-    return (
-      <PersonScreen key={person} contactId={person} startWithGift={single(params.gift) === '1'} />
-    );
-  }
+  if (person) return <PersonScreen key={person} contactId={person} />;
   return <BirthdayList module={module} startAdding={single(params.new) === '1'} />;
 }
 
@@ -96,7 +92,6 @@ function BirthdayList({ module, startAdding }: { module: ModuleDefinition; start
       entry,
       contact,
       onOpen: () => openPerson(entry.person.id),
-      onAddGift: () => router.push(birthdayPersonHref(entry.person.id, true)),
       onEdit: () => {
         if (contact) setEditing({ contact });
       },

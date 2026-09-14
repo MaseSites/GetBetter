@@ -1,5 +1,6 @@
 import { deAssistant } from './de-assistant';
 import { deAuth } from './de-auth';
+import { deAvatar } from './de-avatar';
 import { deBirthdays } from './de-birthdays';
 import { deExtra } from './de-extra';
 import { deIntro } from './de-intro';
@@ -9,6 +10,7 @@ import { deModules } from './de-modules';
 import { deNews } from './de-news';
 import { deNotes } from './de-notes';
 import { dePersonalize } from './de-personalize';
+import { dePlan } from './de-plan';
 import { deQuick } from './de-quick';
 import { deSettings } from './de-settings';
 import { deShell } from './de-shell';
@@ -26,6 +28,7 @@ export const de = {
   ...deNews,
   ...deIntro,
   ...dePersonalize,
+  ...deAvatar,
   ...deAuth,
   ...deSettings,
   ...deAssistant,
@@ -39,6 +42,7 @@ export const de = {
   ...deWeather,
   ...deMailUi,
   ...deUi,
+  ...dePlan,
 
   'app.tagline': 'Alles, was dein Alltag braucht — an einem Ort.',
   'apps.getbetter.tagline':
@@ -83,6 +87,12 @@ export const de = {
   'auth.error.passwordTooShort': 'Das Passwort braucht mindestens acht Zeichen.',
   'auth.error.notFound': 'Für diese E-Mail gibt es kein Konto.',
   'auth.error.wrongPassword': 'Das Passwort stimmt nicht.',
+  'auth.error.accountDisabled': 'Dieses Konto ist gesperrt. Melde dich bei uns, wenn das ein Fehler ist.',
+  'access.disabled.title': 'Dein Konto ist gesperrt',
+  'access.disabled.body': 'Du kannst die Better-Apps gerade nicht benutzen. Melde dich bei uns, wenn das ein Fehler ist.',
+  'access.blocked.title': 'Nicht freigeschaltet',
+  'access.blocked.body': '{app} ist für dein Konto nicht freigeschaltet. Die anderen Better-Apps kannst du weiter benutzen.',
+  'access.signOut': 'Abmelden',
 
   'onboarding.areas.title': 'Was ist dir wichtig?',
   'onboarding.areas.subtitle':
@@ -548,7 +558,6 @@ export const de = {
   'workspace.addTask': 'Aufgabe eintragen',
   'workspace.pending': 'Kommt noch',
   'today.thread.title': 'Heute',
-  'today.thread.empty': 'Heute keine Einträge',
   'today.thread.emptyDay': 'Keine Einträge',
   'today.thread.untimed': 'Ohne feste Zeit',
   'modules.sheet.details': 'Was das kann',
@@ -658,48 +667,21 @@ export const de = {
   'alarm.dayLong.sa': 'Samstag',
   'alarm.dayLong.so': 'Sonntag',
   'birthdays.add': 'Geburtstag hinzufügen',
-  'birthdays.edit': 'Geburtstag',
   'birthdays.name': 'Name',
-  'birthdays.namePlaceholder': 'Vorname und Name',
-  'birthdays.date': 'Geburtstag',
   'birthdays.day': 'Tag',
   'birthdays.month': 'Monat',
   'birthdays.year': 'Jahr',
-  'birthdays.preview': 'Wird {age} am {date}',
   'birthdays.previewBorn': 'Kommt dieses Jahr zur Welt',
-  'birthdays.note': 'Notiz',
-  'birthdays.notePlaceholder': 'Geschenkidee, Lieblingsblumen …',
-  'birthdays.remove': 'Geburtstag löschen',
-  'birthdays.error.name': 'Ohne Namen geht es nicht.',
   'birthdays.search': 'Name suchen',
-  'birthdays.rangeLabel': 'Zeitraum',
-  'birthdays.range.today': 'Heute',
-  'birthdays.range.week': 'Woche',
-  'birthdays.range.month': 'Monat',
-  'birthdays.range.year': 'Jahr',
-  'birthdays.todayLabel': 'Hat heute Geburtstag',
-  'birthdays.years': 'Jahre',
-  'birthdays.age': '{age} J.',
-  'birthdays.turns': 'wird {age}',
-  'birthdays.congratulate': 'Gratulieren',
   'birthdays.call': 'Anrufen',
-  'birthdays.details': 'Bearbeiten',
   'birthdays.wish': 'Alles Gute zum Geburtstag, {name}!',
-  'birthdays.none.title': 'Heute hat niemand Geburtstag',
-  'birthdays.none.next': 'Als Nächstes: {name}, {when}',
-  'birthdays.upcoming': 'Demnächst',
-  'birthdays.emptyRange': 'In diesem Zeitraum hat niemand Geburtstag.',
-  'birthdays.showAll': 'Alle zeigen',
-  'birthdays.count': '{count} Geburtstage',
-  'birthdays.count.one': '1 Geburtstag',
   'birthdays.empty.title': 'Noch keine Geburtstage',
-  'birthdays.empty.body': 'Trag sie hier oder im Kalender ein — sie stehen dann an beiden Orten.',
   'birthdays.event': '{name} wird {age}',
-  'calendar.kind.label': 'Art des Eintrags',
-  'calendar.newEntry': 'Neuer Eintrag',
   'calendar.kind.event': 'Termin',
   'calendar.kind.birthday': 'Geburtstag',
   'today.allDayLane': 'Heute ganztägig',
+  'today.allDayMore': '{count} weitere',
+  'today.allDayLess': 'Weniger',
   'weather.open': 'Wetter öffnen',
   'weather.degrees': '{temp}°',
   'weather.now': 'Jetzt',

@@ -46,6 +46,12 @@ export const frA = {
   'auth.error.passwordTooShort': 'Le mot de passe doit contenir au moins huit caractères.',
   'auth.error.notFound': 'Aucun compte pour cet e-mail.',
   'auth.error.wrongPassword': 'Le mot de passe est incorrect.',
+  'auth.error.accountDisabled': 'Ce compte est bloqué. Contacte-nous si c’est une erreur.',
+  'access.disabled.title': 'Ton compte est bloqué',
+  'access.disabled.body': 'Tu ne peux pas utiliser les apps Better pour le moment. Contacte-nous si c’est une erreur.',
+  'access.blocked.title': 'Non activée',
+  'access.blocked.body': '{app} n’est pas activée pour ton compte. Tu peux continuer à utiliser les autres apps Better.',
+  'access.signOut': 'Se déconnecter',
 
   'onboarding.areas.title': 'Qu’est-ce qui compte pour toi ?',
   'onboarding.areas.subtitle':
@@ -509,7 +515,6 @@ export const frA = {
   'workspace.addTask': 'Ajouter une tâche',
   'workspace.pending': 'Bientôt',
   'today.thread.title': 'Aujourd’hui',
-  'today.thread.empty': 'Aucune entrée aujourd’hui',
   'today.thread.emptyDay': 'Aucune entrée',
   'today.thread.untimed': 'Sans heure fixe',
   'modules.sheet.details': 'Ce que ça fait',

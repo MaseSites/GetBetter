@@ -15,4 +15,7 @@ export const enVoice = {
     'Your ElevenLabs credits are used up. Until there’s enough again, the browser speaks.',
   'assistant.cloud.failed':
     'ElevenLabs isn’t responding right now. Until then, the browser speaks.',
+  'assistant.ai.offline': 'I can’t reach the service right now. Try again in a moment.',
+  'assistant.ai.busy': 'It’s busy right now. Ask me again in a minute.',
+  'assistant.ai.failed': 'That didn’t work just now. Please try again.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

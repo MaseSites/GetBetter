@@ -4,7 +4,7 @@
  * Ohne das muesste man sechs Fenster oeffnen — und wer eine App vergisst,
  * klickt in GetBetter auf eine Karte und landet im Leeren.
  */
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -68,9 +68,24 @@ const children = SERVICES.map(({ name, command, args }) => {
   return child;
 });
 
+/**
+ * Unter Windows laeuft jeder Dienst in einer cmd.exe (`shell: true`). `kill()`
+ * beendet nur diese Huelle — der Dienst dahinter lebte weiter, hielte seinen
+ * Port, und der naechste Start gaebe sofort auf. Darum den ganzen Baum.
+ */
+function stopChild(child) {
+  if (child.exitCode !== null || child.pid === undefined) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
+}
+
 function stopAll() {
+  if (stopping) return;
   stopping = true;
-  for (const child of children) child.kill();
+  for (const child of children) stopChild(child);
 }
 
 process.on('SIGINT', () => {
@@ -88,6 +103,7 @@ process.stdout.write(
     'BetterAi     http://localhost:8084',
     'BetterMoney  http://localhost:8085',
     'Datenbank    http://localhost:8090',
+    'Admin        http://127.0.0.1:8091',
     '',
   ].join('\n'),
 );

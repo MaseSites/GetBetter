@@ -91,15 +91,16 @@ const CREATE_ACTIONS: readonly {
   icon: IconName;
   href: string;
 }[] = [
+  // Von oben nach unten, wie das Menue sie zeigt.
+  {
+    moduleId: 'calendar',
+    label: 'shell.create.event',
+    icon: 'calendar',
+    href: '/run/calendar?new=1',
+  },
   { moduleId: 'tasks', label: 'shell.create.task', icon: 'checkCircle', href: '/run/tasks?new=1' },
   { moduleId: 'notes', label: 'shell.create.note', icon: 'note', href: '/run/notes?new=1' },
   { moduleId: 'mail', label: 'shell.create.mail', icon: 'mail', href: '/run/mail?compose=1' },
-  {
-    moduleId: 'birthdays',
-    label: 'shell.create.birthday',
-    icon: 'gift',
-    href: '/run/birthdays?new=1',
-  },
 ];
 
 /**
@@ -202,6 +203,17 @@ export function WorkspaceScreen() {
   const dayEventList = useLiveQuery(
     () => eventRepo.listDay(access, dayFrom, dayTo, { timedOnly: true }),
     [access.accountId, access.householdIds, access.calendarIds, dayFrom, dayTo],
+  );
+  // Der naechste Tag blinzelt ganz unten ins Band — nur, was dann wirklich ist.
+  const nextDay = shiftDay(1, parseDay(shownDay));
+  const nextTo = parseDay(shiftDay(1, parseDay(nextDay))).toISOString();
+  const nextAllDayList = useLiveQuery(
+    () => eventRepo.listAllDay(access, dayTo, nextTo),
+    [access.accountId, access.householdIds, access.calendarIds, dayTo, nextTo],
+  );
+  const nextEventList = useLiveQuery(
+    () => eventRepo.listDay(access, dayTo, nextTo, { timedOnly: true }),
+    [access.accountId, access.householdIds, access.calendarIds, dayTo, nextTo],
   );
   const alarmList = useLiveQuery(() => alarmRepo.list(account.id), [account.id]);
 
@@ -510,12 +522,13 @@ export function WorkspaceScreen() {
           <View key={row.id}>
             {index > 0 ? <Divider /> : null}
             <ListItem
-              title={row.name}
+              // „Max wird 45“ — ohne bekanntes Geburtsjahr nur „Max hat Geburtstag“.
+              title={
+                row.birthYearKnown === false
+                  ? t('birthdays.eventNoAge', { name: row.name })
+                  : t('birthdays.event', { name: row.name, age: next.age })
+              }
               icon="gift"
-              // Ohne bekanntes Geburtsjahr gibt es kein Alter.
-              {...(row.birthYearKnown === false
-                ? {}
-                : { subtitle: t('contacts.turns', { age: next.age }) })}
               right={
                 <Text variant="label" tone={next.days === 0 ? 'accent' : 'muted'}>
                   {relativeDay(t, language, next.day)}
@@ -845,8 +858,8 @@ export function WorkspaceScreen() {
       moduleId: 'calendar',
       icon: iconOf('calendar'),
       at: event.startsAt,
+      // Ohne „Kalender“ rechts: Uhrzeit und Symbol sagen schon, was es ist.
       title: event.title,
-      tag: nameOf('calendar'),
       onPress: () => router.push('/run/calendar'),
     });
   }
@@ -922,38 +935,26 @@ export function WorkspaceScreen() {
         : `/run/${birthdayModule ?? 'contacts'}`,
     );
 
-  if (isToday && birthdayModule) {
-    // Wer heute feiert, steht oben in der Ganztags-Zeile.
-    for (const { row, next } of birthdays.filter((entry) => entry.next.days > 0).slice(0, 2)) {
-      thread.push({
-        key: `birthday-${row.id}`,
-        moduleId: birthdayModule,
-        icon: 'gift',
-        title: row.name,
-        meta:
-          row.birthYearKnown === false
-            ? relativeDay(t, language, next.day)
-            : `${t('contacts.turns', { age: next.age })} · ${relativeDay(t, language, next.day)}`,
-        tag: nameOf(birthdayModule),
-        onPress: () => openPerson(row.id),
-      });
-    }
-  }
+  /**
+   * Ein Geburtstag steht nur an seinem Tag im Band: oben in der Ganztags-Karte
+   * oder unten unter „Morgen“ — nie Tage im Voraus. Geschenk, „Max hat
+   * Geburtstag“, darunter „wird 38“; der Tag steht schon darueber.
+   */
+  const birthdayTitle = ({ row, next }: (typeof birthdays)[number]) =>
+    row.birthYearKnown === false
+      ? t('birthdays.eventNoAge', { name: row.name })
+      : t('birthdays.event', { name: row.name, age: next.age });
 
-  /** Die Zeile ueber dem Band: wer an diesem Tag feiert, dann ganztaegige Termine. */
+  /** Die Karte ueber dem Band: wer an diesem Tag feiert, dann ganztaegige Termine. */
   const allDay: AllDayEntry[] = [
     ...(birthdayModule
       ? birthdays
           .filter((entry) => entry.next.day === shownDay)
-          .map(({ row, next }): AllDayEntry => ({
-            key: `birthday-today-${row.id}`,
-            title:
-              row.birthYearKnown === false
-                ? t('birthdays.eventNoAge', { name: row.name })
-                : t('birthdays.event', { name: row.name, age: next.age }),
-            icon: 'gift',
+          .map((entry): AllDayEntry => ({
+            key: `birthday-today-${entry.row.id}`,
+            title: birthdayTitle(entry),            icon: 'gift',
             color: moduleBase(theme, birthdayModule),
-            onPress: () => openPerson(row.id),
+            onPress: () => openPerson(entry.row.id),
           }))
       : []),
     ...(allDayList.data ?? []).map((event): AllDayEntry => ({
@@ -962,6 +963,39 @@ export function WorkspaceScreen() {
       color: eventColor(event.color),
       onPress: owns('calendar') ? () => router.push('/run/calendar') : undefined,
     })),
+  ];
+
+  /**
+   * Der naechste Tag ganz unten, verblassend: wer feiert, Ganztaegiges, dann
+   * nach Uhrzeit. Ohne eigene Knoepfe — ein Tipp blaettert zum Tag.
+   */
+  const nextEntries: DayEntry[] = [
+    ...(birthdayModule
+      ? birthdays
+          .filter((entry) => entry.next.day === nextDay)
+          .map((entry): DayEntry => ({
+            key: `next-birthday-${entry.row.id}`,
+            moduleId: birthdayModule,
+            icon: 'gift',
+            title: birthdayTitle(entry),          }))
+      : []),
+    ...(nextAllDayList.data ?? []).map(
+      (event): DayEntry => ({
+        key: `next-allday-${event.id}`,
+        moduleId: 'calendar',
+        icon: iconOf('calendar'),
+        title: event.title,
+      }),
+    ),
+    ...(nextEventList.data ?? []).map(
+      (event): DayEntry => ({
+        key: `next-event-${event.id}`,
+        moduleId: 'calendar',
+        icon: iconOf('calendar'),
+        at: event.startsAt,
+        title: event.title,
+      }),
+    ),
   ];
 
   if (isToday && owns('travel') && nextTrip) {
@@ -1058,7 +1092,16 @@ export function WorkspaceScreen() {
               />
             </View>
           )}
-          <DayThread entries={thread} allDay={allDay} showNow={isToday} />
+          <DayThread
+            entries={thread}
+            allDay={allDay}
+            showNow={isToday}
+            next={{
+              label: relativeDay(t, language, nextDay),
+              entries: nextEntries,
+              onPress: () => stepDay(1),
+            }}
+          />
         </Animated.View>
 
         {main ? <QuickAccess /> : null}

@@ -71,6 +71,7 @@ describe('registering with a username', () => {
         PORT: String(port),
         BETTER_DATA_DIR: dataDir,
         BETTER_MAIL_SYNC_MS: '0',
+        BETTER_ADMIN_PORT: '0',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

@@ -12,6 +12,7 @@ import { useUndo } from '@/ui';
 
 import { formatTaskDay } from './format';
 import { dayLabel } from './labels';
+import { postponeSchedule, postponeTarget, type PostponeKind } from './postpone';
 import { nextDueDay } from './recurrence';
 import { schedulePatch, type Schedule } from './schedule';
 
@@ -116,25 +117,50 @@ export function useTaskActions() {
     });
   }
 
+  async function reschedule(
+    tasks: readonly TaskRow[],
+    targetOf: (task: TaskRow) => Schedule,
+    messageOf: (day: string | null) => string,
+  ) {
+    const first = tasks[0];
+    if (!first) return;
+    const snapshots = tasks.map(snapshotOf);
+    await Promise.all(
+      tasks.map((task) => taskRepo.update(task.id, schedulePatch(task, targetOf(task)))),
+    );
+    undo.show({
+      message: messageOf(targetOf(first).day),
+      onUndo: () => void restoreSnapshots(snapshots),
+    });
+  }
+
   /** `target` fuer alle gleich, oder je Aufgabe — so behaelt „Morgen“ jede eigene Uhrzeit. */
   async function schedule(
     tasks: readonly TaskRow[],
     target: Schedule | ((task: TaskRow) => Schedule),
   ) {
-    const first = tasks[0];
-    if (!first) return;
-    const targetOf = (task: TaskRow) => (typeof target === 'function' ? target(task) : target);
-    const snapshots = tasks.map(snapshotOf);
-    await Promise.all(
-      tasks.map((task) => taskRepo.update(task.id, schedulePatch(task, targetOf(task)))),
+    await reschedule(
+      tasks,
+      (task) => (typeof target === 'function' ? target(task) : target),
+      (day) =>
+        day
+          ? t('tasks.toast.planned', { date: dayLabel(t, language, day, dayKey()) })
+          : t('tasks.toast.unplanned'),
     );
-    const day = targetOf(first).day;
-    undo.show({
-      message: day
-        ? t('tasks.toast.planned', { date: dayLabel(t, language, day, dayKey()) })
-        : t('tasks.toast.unplanned'),
-      onUndo: () => void restoreSnapshots(snapshots),
-    });
+  }
+
+  /**
+   * Verschieben ab dem echten Heute. Uhrzeit und Wiederholung bleiben — es
+   * wandert nur diese eine Frist.
+   */
+  async function postpone(tasks: readonly TaskRow[], kind: PostponeKind) {
+    const today = dayKey();
+    const day = postponeTarget(kind, today);
+    await reschedule(
+      tasks,
+      (task) => postponeSchedule(kind, today, task.dueTime ?? null),
+      () => t('tasks.toast.postponed', { date: dayLabel(t, language, day, today) }),
+    );
   }
 
   async function setPriority(tasks: readonly TaskRow[], priority: TaskPriority) {
@@ -181,6 +207,7 @@ export function useTaskActions() {
     remove: (task: TaskRow) => removeMany([task]),
     removeMany,
     schedule,
+    postpone,
     setPriority,
     moveTo,
     duplicate,

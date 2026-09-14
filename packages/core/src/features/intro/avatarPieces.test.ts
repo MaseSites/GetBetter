@@ -1,31 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { AVATAR_CANVAS, AVATAR_PIECES, arrivalDelay, mixHex, scatterOf } from './avatarPieces';
-
-test('der Avatar besteht aus 30 bis 50 Stuecken mit eigener Id', () => {
-  assert.ok(AVATAR_PIECES.length >= 30 && AVATAR_PIECES.length <= 50);
-  const ids = new Set(AVATAR_PIECES.map((piece) => piece.id));
-  assert.equal(ids.size, AVATAR_PIECES.length);
-});
-
-test('jedes Stueck sitzt am Ende auf der Leinwand', () => {
-  for (const piece of AVATAR_PIECES) {
-    assert.ok(piece.x >= 0 && piece.y >= 0, piece.id);
-    assert.ok(piece.x + piece.width <= AVATAR_CANVAS, piece.id);
-    assert.ok(piece.y + piece.height <= AVATAR_CANVAS, piece.id);
-    assert.ok(piece.wave >= 0 && piece.wave <= 1, piece.id);
-  }
-});
+import { arrivalDelay, mixHex, scatterOf } from './avatarPieces';
 
 test('die Startpunkte sind bei jedem Aufruf gleich und liegen ausserhalb des Kopfs', () => {
-  AVATAR_PIECES.forEach((_, index) => {
+  for (let index = 0; index < 50; index += 1) {
     const first = scatterOf(index);
     assert.deepEqual(scatterOf(index), first);
     const distance = Math.hypot(first.dx, first.dy);
     assert.ok(distance >= 57 && distance <= 104, `Stueck ${index}: ${distance}`);
     assert.ok(first.scale > 0 && first.scale < 1);
-  });
+  }
 });
 
 test('die Verzoegerung haelt die Gesamtdauer ein', () => {

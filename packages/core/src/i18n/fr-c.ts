@@ -37,8 +37,7 @@ export const frC = {
   'assistant.voice.tier.basic': 'simple',
   'assistant.voice.pick.a11y': 'Choisir et écouter la voix {voice}',
   'assistant.voice.pick.a11y.speaking': 'Voix {voice}, en train de parler',
-  'assistant.voice.sample': 'Salut, je suis {name}. Voici ma voix.',
-  'assistant.voice.sampleAnon': 'Bonjour, voici ma voix.',
+  'assistant.voice.sampleAnon': 'Salut, voici ma voix.',
 
   // Anmelden
   'auth.start.note': 'Un seul compte pour toutes les apps Better.',
@@ -90,8 +89,6 @@ export const frC = {
   'intro.setup.assistant.hint': 'Tu me trouves sous ce nom dans toutes les apps Better.',
   'intro.setup.voice.bubble':
     'Ton compte est prêt. Désormais, je te parle — choisis la voix que tu préfères. Touche une voix, et tu m’entends.',
-  'intro.setup.style.bubble':
-    'Parfait, je m’appelle {assistant}. Passons à l’apparence — chaque changement s’applique tout de suite.',
   'intro.setup.style.mode': 'Clair ou sombre',
   'intro.setup.style.mode.light': 'Clair',
   'intro.setup.style.mode.dark': 'Sombre',
@@ -276,18 +273,6 @@ export const frC = {
   'mail.add.passwordPlaceholder': 'Mot de passe de la boîte mail',
   'mail.add.showPassword': 'Afficher le mot de passe',
   'mail.add.hidePassword': 'Masquer le mot de passe',
-  'mail.add.displayName': 'Nom affiché',
-  'mail.add.displayNamePlaceholder': 'Ce que voient les destinataires',
-  'mail.add.advanced': 'Avancé',
-  'mail.add.imap': 'Réception (IMAP)',
-  'mail.add.smtp': 'Envoi (SMTP)',
-  'mail.add.host': 'Serveur',
-  'mail.add.imapHostPlaceholder': 'imap.exemple.ch',
-  'mail.add.smtpHostPlaceholder': 'smtp.exemple.ch',
-  'mail.add.port': 'Port',
-  'mail.add.ssl': 'SSL',
-  'mail.add.username': 'Nom d’utilisateur',
-  'mail.add.usernamePlaceholder': 'Généralement l’adresse e-mail',
   'mail.add.connect': 'Connecter',
   'mail.add.detecting': 'Détection du fournisseur…',
   'mail.add.provider': 'Fournisseur : {name}',
@@ -299,7 +284,6 @@ export const frC = {
     '{name} n’autorise cela qu’avec une connexion Microsoft — pas encore possible ici.',
   'mail.add.error.email': 'Saisis une adresse e-mail valide.',
   'mail.add.error.password': 'Saisis le mot de passe de la boîte mail.',
-  'mail.add.error.port': 'Un port est un nombre de 1 à 65535.',
   'mail.error.badRequest': 'Il manque encore quelque chose. Vérifie les informations.',
   'mail.error.alreadyConnected': 'Cette boîte mail est déjà connectée.',
   'mail.error.authFailed': 'Connexion refusée. L’adresse et le mot de passe sont-ils corrects ?',
@@ -438,8 +422,6 @@ export const frC = {
   'aiChat.starter.cook': 'Qu’est-ce que je pourrais cuisiner aujourd’hui ?',
   'aiChat.starter.summarise': 'Résume-moi ce texte',
   'aiChat.starter.ideas': 'Donne-moi trois idées',
-  'aiChat.cannedReply':
-    'Dans ce prototype, je ne réponds pas encore vraiment. Ici s’afficherait la réponse d’une IA tout à fait normale — sans accès à tes rendez-vous, tâches ou dépenses.',
 
   // Neues
   'news.title': 'Quoi de neuf',

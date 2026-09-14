@@ -1,6 +1,9 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { allowedInView, reportReadOnly, viewHeaders } from '@/app/viewMode';
+import type { AvatarStyle } from '@/features/avatar/style';
+
 /**
  * Der Draht zur gemeinsamen Datenbank (`services/api`). Dort liegen die
  * Profile und die Daten aller Better-Apps — deshalb gilt dieselbe Anmeldung
@@ -34,6 +37,8 @@ export type RemoteAccount = {
   themeMode?: string;
   accentKey?: string;
   themePreset?: string;
+  /** Wie es der Dienst gespeichert hat — gelesen wird ueber `normalizeAvatar`. */
+  assistantAvatar?: unknown;
   createdAt: string;
 };
 
@@ -45,25 +50,40 @@ export type ServiceError =
   | 'password_too_short'
   | 'not_found'
   | 'wrong_password'
+  /** Im Admin gesperrt — Anmelden geht nicht mehr. */
+  | 'account_disabled'
   | 'offline';
 
 export type ServiceResult =
   { ok: true; account: RemoteAccount } | { ok: false; error: ServiceError };
 
+/**
+ * Die Kopfzeilen und der Koerper einer Anfrage. Im Nur-Lesen-Modus („App
+ * ansehen“) traegt jede Anfrage `X-Better-View: 1` — dann lehnt der Dienst
+ * jede Aenderung selbst ab.
+ */
+function requestInit(method: string, body: unknown): RequestInit {
+  const json: Record<string, string> = body === undefined ? {} : { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { ...viewHeaders(), ...json };
+  return {
+    method,
+    headers,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  };
+}
+
 async function call(
   path: string,
   init?: { method: string; body?: unknown },
 ): Promise<ServiceResult> {
+  const method = init?.method ?? 'GET';
+  // Nur ansehen: Anmelden, Registrieren, Profil — nichts davon geht hinaus.
+  if (!allowedInView(method, path)) {
+    reportReadOnly();
+    return { ok: false, error: 'offline' };
+  }
   try {
-    const response = await fetch(`${serviceUrl()}${path}`, {
-      method: init?.method ?? 'GET',
-      ...(init?.body === undefined
-        ? {}
-        : {
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(init.body),
-          }),
-    });
+    const response = await fetch(`${serviceUrl()}${path}`, requestInit(method, init?.body));
     const data: unknown = await response.json();
     const payload = data as { account?: RemoteAccount; error?: ServiceError };
     if (payload.account) return { ok: true, account: payload.account };
@@ -107,34 +127,39 @@ export function pushProfile(
     accentKey?: string;
     themePreset?: string;
     assistantName?: string;
+    assistantAvatar?: AvatarStyle;
     backdrop?: string;
   },
 ): Promise<ServiceResult> {
   return call(`/v1/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes });
 }
 
-export type ServiceCall<T> = { ok: true; data: T } | { ok: false; error: string };
+/** Ein Fehler traegt in `details` die ganze Antwort — etwa Plan und Datum beim Kontingent. */
+export type ServiceCall<T> = { ok: true; data: T } | { ok: false; error: string; details?: unknown };
 
 /**
  * Fuer alle Schnittstellen jenseits der Konten: Mitteilungen, E-Mail, Bilder.
  * Die Antwort kommt als Ganzes zurueck; ein Fehler traegt den Schluessel des
  * Dienstes (`auth_failed`, `not_found` …) oder `offline`, wenn er nicht antwortet.
  * Wer danach neue Daten braucht, ruft `refresh()` aus dem Speicher.
+ *
+ * Im Nur-Lesen-Modus geht nur GET hinaus (und das Einloesen des Tickets): alles
+ * andere endet hier mit `read_only`, bevor etwas gesendet wird.
  */
 export async function callService<T>(
   path: string,
   init?: { method: 'GET' | 'POST' | 'DELETE' | 'PATCH'; body?: unknown },
 ): Promise<ServiceCall<T>> {
+  const method = init?.method ?? 'GET';
+  if (!allowedInView(method, path)) {
+    reportReadOnly();
+    return { ok: false, error: 'read_only' };
+  }
   try {
-    const response = await fetch(`${serviceUrl()}${path}`, {
-      method: init?.method ?? 'GET',
-      ...(init?.body === undefined
-        ? {}
-        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }),
-    });
+    const response = await fetch(`${serviceUrl()}${path}`, requestInit(method, init?.body));
     const data = (await response.json()) as T & { error?: string };
     if (!response.ok || typeof data.error === 'string') {
-      return { ok: false, error: data.error ?? `http_${response.status}` };
+      return { ok: false, error: data.error ?? `http_${response.status}`, details: data };
     }
     return { ok: true, data };
   } catch {
@@ -144,7 +169,7 @@ export async function callService<T>(
 
 export async function isReachable(): Promise<boolean> {
   try {
-    const response = await fetch(`${serviceUrl()}/v1/health`);
+    const response = await fetch(`${serviceUrl()}/v1/health`, { headers: viewHeaders() });
     return response.ok;
   } catch {
     return false;

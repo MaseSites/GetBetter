@@ -144,7 +144,11 @@ function HourColumn({
       />
       <View style={{ height: theme.lineHeight.xs }}>
         {column.rain >= RAIN_WORTH_SHOWING ? (
-          <Text variant="caption" tone="accent" numberOfLines={1}>
+          <Text
+            variant="caption"
+            numberOfLines={1}
+            style={{ fontWeight: theme.fontWeight.semibold }}
+          >
             {t('weather.percent', { percent: Math.round(column.rain) })}
           </Text>
         ) : null}

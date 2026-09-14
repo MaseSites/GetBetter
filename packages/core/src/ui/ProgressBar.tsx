@@ -30,7 +30,7 @@ export function ProgressBar({ share, warn = false }: ProgressBarProps) {
         style={{
           width: `${width * 100}%`,
           height: '100%',
-          backgroundColor: warn ? theme.colors.danger : theme.colors.accent,
+          backgroundColor: warn ? theme.colors.danger : theme.colors.accentMark,
         }}
       />
     </View>

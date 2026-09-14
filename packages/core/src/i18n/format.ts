@@ -84,6 +84,24 @@ export function formatMoney(language: Language, value: number, currency = 'CHF')
   }).format(value);
 }
 
+/** Ein Preis: "CHF 8" fuer ganze Franken, sonst "CHF 4.50". */
+export function formatPrice(language: Language, value: number, currency = 'CHF'): string {
+  const whole = Number.isInteger(value);
+  return new Intl.NumberFormat(localeFor(language), {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+/** Ein Anteil als Prozent: "12 %". */
+export function formatPercent(language: Language, share: number): string {
+  return new Intl.NumberFormat(localeFor(language), { style: 'percent', maximumFractionDigits: 0 }).format(
+    share,
+  );
+}
+
 /** Verbindet eine Liste sprachrichtig: "a, b und c". */
 export function formatList(language: Language, items: readonly string[]): string {
   if (items.length === 0) return '';

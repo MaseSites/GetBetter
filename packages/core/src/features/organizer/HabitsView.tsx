@@ -238,7 +238,7 @@ function HabitCard({
                     opacity: future ? 0.35 : pressed ? 0.6 : 1,
                     backgroundColor: ticked ? theme.colors.accent : theme.colors.surfaceMuted,
                     borderWidth: isToday && !ticked ? 2 : 0,
-                    borderColor: theme.colors.accent,
+                    borderColor: theme.colors.accentMark,
                   })}
                 >
                   {ticked ? (

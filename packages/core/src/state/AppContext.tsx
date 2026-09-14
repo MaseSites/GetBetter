@@ -6,9 +6,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 
 import {
   changeUsername,
@@ -32,7 +33,23 @@ import {
   type WeatherPlace,
 } from '@/db';
 import { currentApp } from '@/app/identity';
+import {
+  REDEEM_PATH,
+  beginViewing,
+  isViewing,
+  onViewChange,
+  viewFailed,
+  viewState,
+  viewTicketOf,
+  viewingAccount,
+  withoutViewParam,
+  type ViewState,
+} from '@/app/viewMode';
 import { appAccess } from '@/db/appAccess';
+import { subscribeDataChanged } from '@/db/events';
+import { callService, fetchAccount, type RemoteAccount } from '@/db/service';
+import { setSpeaker } from '@/features/assistant/cloudVoice';
+import { normalizeAvatar, type AvatarStyle } from '@/features/avatar/style';
 import { placesOf, withPlaceFirst } from '@/features/weather/places';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
@@ -50,9 +67,45 @@ import {
 
 const SESSION_KEY = 'better-life/session/v1';
 
+/** Das Ticket aus `?view=…` — nur im Browser, wo der Admin die App einbettet. */
+function viewTicketFromLocation(): string | null {
+  if (Platform.OS !== 'web') return null;
+  const location = (globalThis as { location?: { search?: string } }).location;
+  return viewTicketOf(location?.search);
+}
+
+type HistoryScope = {
+  location?: { href: string };
+  history?: { state: unknown; replaceState: (state: unknown, unused: string, url: string) => void };
+};
+
+/** Das Ticket verschwindet aus der Adresse — es gilt ohnehin nur einmal. */
+function forgetViewTicket(): void {
+  const scope = globalThis as HistoryScope;
+  if (!scope.location || !scope.history) return;
+  scope.history.replaceState(scope.history.state, '', withoutViewParam(scope.location.href));
+}
+
+/**
+ * Das Konto hinter einem Ticket aus dem Admin, oder null. Es lebt nur im
+ * Arbeitsspeicher: keine Sitzung auf dem Geraet, kein `appAccess`.
+ */
+async function redeemView(ticket: string | null): Promise<Account | null> {
+  if (!ticket) return null;
+  const result = await callService<{ account: RemoteAccount }>(REDEEM_PATH, {
+    method: 'POST',
+    body: { ticket },
+  });
+  forgetViewTicket();
+  if (!result.ok) return null;
+  return (await findAccount(result.data.account.id)) ?? null;
+}
+
 export type AppContextValue = {
   /** Das angemeldete Konto, oder null. */
   account: Account | null;
+  /** „App ansehen“ aus dem Admin: nur lesen, das Konto nur im Arbeitsspeicher. */
+  view: ViewState;
   /** Der Haushalt des Kontos, oder null. */
   household: HouseholdRow | null;
   /** Rolle im Haushalt. Verwalter duerfen aendern. */
@@ -96,6 +149,8 @@ export type AppContextValue = {
   setAssistantName: (name: string) => Promise<void>;
   /** Mit welcher Stimme er spricht (`voiceURI`); leer heisst: die erste passende. */
   setAssistantVoice: (voiceUri: string) => Promise<void>;
+  /** Wie sein Avatar aussieht — gilt in allen Apps. */
+  setAssistantAvatar: (style: AvatarStyle) => Promise<void>;
   /** Der Spitzname, mit dem die App dich anspricht. */
   setFirstName: (name: string) => Promise<void>;
   /**
@@ -142,16 +197,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<HouseholdRole | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [offline, setOffline] = useState(false);
+  const view = useSyncExternalStore(onViewChange, viewState, viewState);
   const systemScheme = useColorScheme();
   // Eigene Konstante, sonst haengt der ganze Kontext an jedem Rendern.
   const appearance = useMemo(() => appearanceOf(account), [account]);
   const colorScheme: ColorScheme =
     appearance.mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance.mode;
 
+  // Die Stimmen von ElevenLabs zaehlen fuer das angemeldete Konto (im Admin je Konto).
+  const speakerId = account?.id ?? null;
+  useEffect(() => {
+    setSpeaker(speakerId);
+  }, [speakerId]);
+
   // Sitzung wiederherstellen: Datenbank laden, dann das gemerkte Konto holen.
   const hydrate = useCallback(async () => {
     setHydrated(false);
     setOffline(false);
+    const ticket = viewTicketFromLocation();
+    // Nur ansehen: ab sofort, noch vor der ersten Anfrage — so geht nie etwas hinaus.
+    if (ticket) beginViewing();
     try {
       await ready();
     } catch {
@@ -161,6 +226,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      if (isViewing()) {
+        // Nie das eigene, gemerkte Konto: entweder das angesehene oder keines.
+        const viewed = await redeemView(ticket);
+        if (!viewed) {
+          viewFailed();
+          return;
+        }
+        viewingAccount(viewed.username);
+        setAccount(viewed);
+        const [hh, memberRole] = await loadHousehold(viewed);
+        setHousehold(hh);
+        setRole(memberRole);
+        return;
+      }
       const id = await AsyncStorage.getItem(SESSION_KEY);
       if (id) {
         const found = await findAccount(id);
@@ -188,6 +267,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [hydrate]);
 
   const remember = useCallback(async (next: Account) => {
+    // Nur ansehen: kein anderes Konto uebernehmen, nichts auf dem Geraet merken.
+    if (isViewing()) return;
     setAccount(next);
     // Damit GetBetter weiss, welche Apps freigeschaltet sind.
     void appAccess.markSeen(next.id, currentApp().id);
@@ -232,12 +313,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    await flush();
-    await AsyncStorage.removeItem(SESSION_KEY);
+    // Beim Ansehen gehoert die Sitzung auf dem Geraet jemand anderem — sie bleibt, wie sie ist.
+    if (!isViewing()) {
+      await flush();
+      await AsyncStorage.removeItem(SESSION_KEY);
+    }
     setAccount(null);
     setHousehold(null);
     setRole(null);
   }, []);
+
+  // Im Admin geloescht: nach dem naechsten Abgleich fehlt die eigene Zeile.
+  // Abgemeldet wird erst, wenn der Dienst selbst „gibt es nicht“ sagt — ein
+  // Aussetzer im Netz meldet nie ab. Ohne `flush`: was noch aussteht, gehoert
+  // einem Konto, das es nicht mehr gibt.
+  useEffect(() => {
+    // Beim Ansehen nie an die Sitzung auf dem Geraet: sie ist nicht die des angesehenen Kontos.
+    if (!account || view.active) return;
+    const accountId = account.id;
+    let active = true;
+    let checking = false;
+    const check = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        if (await db.accounts.find(accountId)) return;
+        const remote = await fetchAccount(accountId);
+        if (!active || remote.ok || remote.error !== 'not_found') return;
+        await AsyncStorage.removeItem(SESSION_KEY);
+        setAccount(null);
+        setHousehold(null);
+        setRole(null);
+      } catch {
+        // Beim naechsten Abgleich nochmal.
+      } finally {
+        checking = false;
+      }
+    };
+    const unsubscribe = subscribeDataChanged(() => void check());
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [account, view.active]);
 
   const completeOnboarding = useCallback<AppContextValue['completeOnboarding']>(
     async ({ firstName, areas }) => {
@@ -320,6 +438,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (voiceUri) => {
       if (!account) return;
       const updated = await updateAccount(account.id, { assistantVoice: voiceUri });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
+  const setAssistantAvatar = useCallback<AppContextValue['setAssistantAvatar']>(
+    async (style) => {
+      if (!account) return;
+      // Nur, was gueltig ist — der Dienst wiese alles andere ohnehin ab.
+      const updated = await updateAccount(account.id, { assistantAvatar: normalizeAvatar(style) });
       if (updated) setAccount(updated);
     },
     [account],
@@ -420,6 +548,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppContextValue>(
     () => ({
       account,
+      view,
       household,
       role,
       hydrated,
@@ -441,6 +570,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setQuickAccess,
       setAssistantName,
       setAssistantVoice,
+      setAssistantAvatar,
       setFirstName,
       setUsername,
       setBackdrop,
@@ -452,6 +582,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     [
       account,
+      view,
       hydrated,
       offline,
       hydrate,
@@ -471,6 +602,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setQuickAccess,
       setAssistantName,
       setAssistantVoice,
+      setAssistantAvatar,
       setFirstName,
       setUsername,
       setBackdrop,

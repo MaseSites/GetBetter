@@ -65,7 +65,7 @@ export function DetailSubtasks({
                   styles.circle,
                   {
                     borderRadius: theme.radii.pill,
-                    borderColor: subtask.done ? theme.colors.accent : theme.colors.borderStrong,
+                    borderColor: subtask.done ? theme.colors.accentMark : theme.colors.textFaint,
                     backgroundColor: subtask.done ? theme.colors.accent : 'transparent',
                   },
                 ]}

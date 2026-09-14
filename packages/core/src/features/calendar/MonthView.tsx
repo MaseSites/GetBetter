@@ -103,7 +103,8 @@ export function MonthView({ month, selected, events, onOpenDay }: MonthViewProps
                           ? theme.colors.onInverse
                           : inMonth
                             ? theme.colors.text
-                            : theme.colors.textFaint,
+                            : // Ohne Karte steht die Zahl direkt auf dem Hintergrundbild.
+                              theme.colors.textMuted,
                       }}
                     >
                       {day.getDate()}

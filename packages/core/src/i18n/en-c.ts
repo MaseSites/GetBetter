@@ -35,8 +35,7 @@ export const enC = {
   'assistant.voice.tier.basic': 'basic',
   'assistant.voice.pick.a11y': 'Choose and hear the voice {voice}',
   'assistant.voice.pick.a11y.speaking': 'Voice {voice}, speaking now',
-  'assistant.voice.sample': 'Hi, I’m {name}. This is how I sound.',
-  'assistant.voice.sampleAnon': 'Hello, this is how I sound.',
+  'assistant.voice.sampleAnon': 'Hi, this is how I sound.',
 
   // Anmelden
   'auth.start.note': 'One account works in all Better apps.',
@@ -86,8 +85,6 @@ export const enC = {
   'intro.setup.assistant.hint': 'You’ll find me under this name in all Better apps.',
   'intro.setup.voice.bubble':
     'Your account is ready. From now on, I’ll talk to you — choose how I should sound. Tap a voice and you’ll hear me.',
-  'intro.setup.style.bubble':
-    'Great, my name is {assistant}. Now for the look — every change takes effect straight away.',
   'intro.setup.style.mode': 'Light or dark',
   'intro.setup.style.mode.light': 'Light',
   'intro.setup.style.mode.dark': 'Dark',
@@ -271,18 +268,6 @@ export const enC = {
   'mail.add.passwordPlaceholder': 'Mailbox password',
   'mail.add.showPassword': 'Show password',
   'mail.add.hidePassword': 'Hide password',
-  'mail.add.displayName': 'Display name',
-  'mail.add.displayNamePlaceholder': 'How recipients see you',
-  'mail.add.advanced': 'Advanced',
-  'mail.add.imap': 'Incoming (IMAP)',
-  'mail.add.smtp': 'Outgoing (SMTP)',
-  'mail.add.host': 'Server',
-  'mail.add.imapHostPlaceholder': 'imap.example.com',
-  'mail.add.smtpHostPlaceholder': 'smtp.example.com',
-  'mail.add.port': 'Port',
-  'mail.add.ssl': 'SSL',
-  'mail.add.username': 'Username',
-  'mail.add.usernamePlaceholder': 'Usually the email address',
   'mail.add.connect': 'Connect',
   'mail.add.detecting': 'Detecting provider…',
   'mail.add.provider': 'Provider: {name}',
@@ -294,7 +279,6 @@ export const enC = {
     '{name} only allows this with a Microsoft sign-in — that doesn’t work here yet.',
   'mail.add.error.email': 'Please enter a valid email address.',
   'mail.add.error.password': 'Please enter the mailbox password.',
-  'mail.add.error.port': 'A port is a number from 1 to 65535.',
   'mail.error.badRequest': 'Something’s still missing. Check your details.',
   'mail.error.alreadyConnected': 'This mailbox is already connected.',
   'mail.error.authFailed': 'Sign-in rejected. Are the address and password correct?',
@@ -428,8 +412,6 @@ export const enC = {
   'aiChat.starter.cook': 'What could I cook today?',
   'aiChat.starter.summarise': 'Summarise this text for me',
   'aiChat.starter.ideas': 'Give me three ideas',
-  'aiChat.cannedReply':
-    'In the prototype, I don’t really answer yet. This is where a regular AI’s reply would go — without looking at your events, tasks or expenses.',
 
   // Neues
   'news.title': 'What’s new',

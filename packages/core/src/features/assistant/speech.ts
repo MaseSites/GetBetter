@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 
+import { isViewing } from '@/app/viewMode';
 import type { Language } from '@/i18n';
 
 import { CloudPlayer, cloudVoiceFor, loadCloudVoices } from './cloudVoice';
@@ -83,14 +84,14 @@ function recogniserClass(): RecogniserClass | null {
   return found.SpeechRecognition ?? found.webkitSpeechRecognition ?? null;
 }
 
-/** Ob hier ueberhaupt jemand zuhoeren kann. */
+/** Ob hier ueberhaupt jemand zuhoeren kann. Im Nur-Lesen-Modus nie: kein Mikrofon. */
 export function canListen(): boolean {
-  return recogniserClass() !== null;
+  return recogniserClass() !== null && !isViewing();
 }
 
 /** Ob hier vorgelesen werden kann. Fehlt das, bleibt die Antwort trotzdem lesbar. */
 export function canSpeak(): boolean {
-  if (Platform.OS !== 'web') return false;
+  if (Platform.OS !== 'web' || isViewing()) return false;
   const found = scope();
   return found.speechSynthesis !== undefined && found.SpeechSynthesisUtterance !== undefined;
 }
@@ -259,7 +260,7 @@ export class Voice {
 
   listen(turn: ListenTurn) {
     const Klass = recogniserClass();
-    if (!Klass) {
+    if (!Klass || isViewing()) {
       turn.onDone('', 'unavailable');
       return;
     }
@@ -372,7 +373,8 @@ export class Voice {
   say(text: string, onDone: () => void) {
     this.silence();
     const clean = text.trim();
-    if (clean.length === 0) {
+    // Nur ansehen: er redet nicht — weder Erzaehler noch Gespraech noch Probe.
+    if (clean.length === 0 || isViewing()) {
       onDone();
       return;
     }
@@ -387,6 +389,28 @@ export class Voice {
       return;
     }
     this.sayInBrowser(clean, onDone);
+  }
+
+  /**
+   * Die Probe beim Aussuchen einer Stimme. Bei ElevenLabs spricht der Dienst
+   * einen festen Satz ohne Namen — einmal erzeugt, danach fuer alle gratis. Der
+   * Browser liest `fallback`, denselben Satz aus `assistant.voice.sampleAnon`.
+   */
+  saySample(fallback: string, onDone: () => void) {
+    this.silence();
+    if (isViewing()) {
+      onDone();
+      return;
+    }
+    const cloudVoice = cloudVoiceFor(this.voiceUri);
+    if (!cloudVoice) {
+      this.say(fallback, onDone);
+      return;
+    }
+    this.cloud.playSample(cloudVoice, this.language, (spoken) => {
+      if (spoken) onDone();
+      else this.sayInBrowser(fallback.trim(), onDone);
+    });
   }
 
   private sayInBrowser(clean: string, onDone: () => void) {

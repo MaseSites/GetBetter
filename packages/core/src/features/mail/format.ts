@@ -10,7 +10,6 @@ const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 /** Bis eine Woche zurueck steht der Wochentag, danach das Datum. */
 const WEEK_DAYS = 7;
-const MAX_PORT = 65_535;
 const KILOBYTE = 1024;
 /** Eine Stelle nach dem Komma reicht bei Megabyte. */
 const ONE_DECIMAL = 10;
@@ -107,18 +106,6 @@ export function parseAddressList(input: string): string[] {
 
 export function isEmailAddress(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
-}
-
-/**
- * Ein Port aus einem Feld: leer heisst „nicht gesetzt“ (`undefined`), eine
- * gueltige Zahl kommt als Zahl, alles andere als `null`.
- */
-export function parsePort(value: string): number | null | undefined {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return undefined;
-  if (!/^\d+$/.test(trimmed)) return null;
-  const port = Number(trimmed);
-  return port >= 1 && port <= MAX_PORT ? port : null;
 }
 
 export type ListDateKind = 'time' | 'yesterday' | 'weekday' | 'date' | 'none';

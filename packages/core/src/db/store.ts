@@ -1,3 +1,4 @@
+import { reportReadOnly, viewHeaders, writesAllowed } from '../app/viewMode';
 import { notifyDataChanged } from './events';
 import { serviceUrl } from './service';
 import { COLLECTION_NAMES, type CollectionName, type Row, type Schema } from './types';
@@ -89,7 +90,7 @@ function emptyTables(): Tables {
 type Snapshot = { revision: number; tables: Partial<Tables> };
 
 async function fetchSnapshot(): Promise<Snapshot> {
-  const response = await fetch(`${serviceUrl()}/v1/db`);
+  const response = await fetch(`${serviceUrl()}/v1/db`, { headers: viewHeaders() });
   if (!response.ok) throw new DatabaseUnreachable();
   return (await response.json()) as Snapshot;
 }
@@ -128,7 +129,7 @@ async function load(): Promise<Tables> {
 async function poll(): Promise<void> {
   if (!loaded || dirty.size > 0) return;
   try {
-    const response = await fetch(`${serviceUrl()}/v1/revision`);
+    const response = await fetch(`${serviceUrl()}/v1/revision`, { headers: viewHeaders() });
     if (!response.ok) return;
     const { revision: latest } = (await response.json()) as { revision: number };
     if (latest === revision) return;
@@ -152,8 +153,12 @@ function scheduleFlush(): void {
   }, 60);
 }
 
-/** Schreibt die veraenderten Sammlungen zurueck. */
+/** Schreibt die veraenderten Sammlungen zurueck — nie im Nur-Lesen-Modus. */
 export async function flush(): Promise<void> {
+  if (!writesAllowed()) {
+    dirty.clear();
+    return;
+  }
   if (!tables || !loaded || dirty.size === 0) return;
   const pending = [...dirty];
   dirty.clear();
@@ -187,6 +192,16 @@ export type Query<T> = {
   sort?: (a: T, b: T) => number;
   limit?: number;
 };
+
+/**
+ * Im Nur-Lesen-Modus aendert keine Sammlung ihre Abschrift — so zeigt die
+ * Oberflaeche nie etwas, das es nicht gibt, und nichts wird zurueckgeschrieben.
+ */
+function refused(): boolean {
+  if (writesAllowed()) return false;
+  reportReadOnly();
+  return true;
+}
 
 /** Eine Sammlung. Gelesen wird aus der Abschrift, geschrieben in die Datenbank. */
 export class Collection<K extends CollectionName> {
@@ -222,6 +237,7 @@ export class Collection<K extends CollectionName> {
 
   async insert(row: Schema[K]): Promise<Schema[K]> {
     const rows = await this.rows();
+    if (refused()) return row;
     rows.push(row);
     markDirty(this.name);
     return row;
@@ -232,6 +248,7 @@ export class Collection<K extends CollectionName> {
     const index = rows.findIndex((row) => row.id === id);
     const existing = rows[index];
     if (index < 0 || !existing) return undefined;
+    if (refused()) return undefined;
     const next = { ...existing, ...patch } as Schema[K];
     rows[index] = next;
     markDirty(this.name);
@@ -242,12 +259,15 @@ export class Collection<K extends CollectionName> {
     const rows = await this.rows();
     const index = rows.findIndex((row) => row.id === id);
     if (index < 0) return;
+    if (refused()) return;
     rows.splice(index, 1);
     markDirty(this.name);
   }
 
   async removeWhere(where: (row: Schema[K]) => boolean): Promise<number> {
     const rows = await this.rows();
+    if (!rows.some(where)) return 0;
+    if (refused()) return 0;
     let removed = 0;
     for (let i = rows.length - 1; i >= 0; i -= 1) {
       const row = rows[i];

@@ -104,6 +104,13 @@ export {
 };
 export type { AccentKey, ColorScheme, Palette, ThemePreset, Elevation, ElevationLevel };
 export {
+  MIN_MARK_CONTRAST,
+  MIN_TEXT_CONTRAST,
+  contrastRatio,
+  ensureContrast,
+  readableOn,
+} from './contrast';
+export {
   hueTint,
   moduleTint,
   moduleSoft,

@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import { notifyDataChanged } from '@/db/events';
 import { db } from '@/db/store';
 import type { Account } from '@/db/types';
+import { normalizeAvatar } from '@/features/avatar/style';
 
 import {
   authenticate,
@@ -73,6 +74,10 @@ async function mirror(remote: RemoteAccount): Promise<Account> {
     ...(remote.themeMode ? { themeMode: remote.themeMode as Account['themeMode'] } : {}),
     ...(remote.accentKey ? { accentKey: remote.accentKey } : {}),
     ...(remote.themePreset ? { themePreset: remote.themePreset } : {}),
+    // Was der Dienst kennt, gilt; Kaputtes wird beim Lesen zum Standard.
+    ...(remote.assistantAvatar !== undefined
+      ? { assistantAvatar: normalizeAvatar(remote.assistantAvatar) }
+      : {}),
   };
 
   if (existing) {
@@ -209,6 +214,7 @@ export async function updateAccount(
     ...(patch.accentKey !== undefined ? { accentKey: patch.accentKey } : {}),
     ...(patch.themePreset !== undefined ? { themePreset: patch.themePreset } : {}),
     ...(patch.assistantName !== undefined ? { assistantName: patch.assistantName } : {}),
+    ...(patch.assistantAvatar !== undefined ? { assistantAvatar: patch.assistantAvatar } : {}),
     ...(patch.backdrop !== undefined ? { backdrop: patch.backdrop } : {}),
   };
   if (Object.keys(shared).length > 0) void pushProfile(id, shared);

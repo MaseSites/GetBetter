@@ -228,7 +228,7 @@ export function HealthHomeScreen() {
                     height,
                     borderRadius: theme.radii.xs,
                     backgroundColor: isToday
-                      ? theme.colors.accent
+                      ? theme.colors.accentMark
                       : day.minutes === 0
                         ? theme.colors.border
                         : theme.colors.text,

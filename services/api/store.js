@@ -69,7 +69,26 @@ let writing = null;
 function emptyDatabase() {
   const tables = {};
   for (const name of COLLECTIONS) tables[name] = [];
-  return { revision: 0, tables };
+  return { revision: 0, tables, deleted: {} };
+}
+
+const isPlainObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** `{ konto: { sammlung: [id] } }` aus der Datei — was nicht passt, faellt weg. */
+function readDeleted(value) {
+  if (!isPlainObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, byCollection]) => isPlainObject(byCollection))
+      .map(([accountId, byCollection]) => [
+        accountId,
+        Object.fromEntries(
+          Object.entries(byCollection)
+            .filter(([, ids]) => Array.isArray(ids))
+            .map(([name, ids]) => [name, ids.filter((id) => typeof id === 'string')]),
+        ),
+      ]),
+  );
 }
 
 async function load() {
@@ -91,6 +110,7 @@ async function load() {
         next.tables[name] = rows;
       }
     }
+    next.deleted = readDeleted(parsed.deleted);
     data = next;
   } catch {
     data = emptyDatabase();
@@ -121,6 +141,31 @@ function newId(prefix) {
   return `${prefix}_${Date.now().toString(36)}${crypto.randomBytes(6).toString('hex')}`;
 }
 
+/**
+ * Was beim Loeschen eines Kontos wegfiel (`{ sammlung: [id] }`). Die Apps sehen
+ * es nie; `withoutDeleted` haelt es beim PUT draussen.
+ */
+function rememberDeleted(db, accountId, remove) {
+  const byCollection = Object.fromEntries(Object.entries(remove).map(([name, ids]) => [name, [...ids]]));
+  db.deleted = { ...(db.deleted ?? {}), [accountId]: byCollection };
+}
+
+/**
+ * Konten-Ids kommen aus der E-Mail: wer sich mit derselben Adresse neu
+ * registriert, bekommt dieselbe Id — dann gilt das Alte nicht mehr.
+ */
+function forgetDeleted(db, accountId) {
+  if (!db.deleted?.[accountId]) return;
+  db.deleted = Object.fromEntries(Object.entries(db.deleted).filter(([id]) => id !== accountId));
+}
+
+/** Die Zeilen ohne jene, die mit einem geloeschten Konto weggefallen sind. */
+function withoutDeleted(db, name, rows) {
+  const gone = new Set(Object.values(db.deleted ?? {}).flatMap((byCollection) => byCollection[name] ?? []));
+  if (gone.size === 0) return rows;
+  return rows.filter((row) => !(isPlainObject(row) && gone.has(row.id)));
+}
+
 module.exports = {
   COLLECTIONS,
   SERVER_OWNED,
@@ -129,4 +174,7 @@ module.exports = {
   save,
   rowsOf,
   newId,
+  rememberDeleted,
+  forgetDeleted,
+  withoutDeleted,
 };

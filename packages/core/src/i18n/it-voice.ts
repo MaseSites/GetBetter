@@ -14,4 +14,7 @@ export const itVoice = {
   'assistant.cloud.quota_exceeded':
     'Il credito ElevenLabs è esaurito. Finché non basta di nuovo, parla il browser.',
   'assistant.cloud.failed': 'ElevenLabs al momento non risponde. Nel frattempo parla il browser.',
+  'assistant.ai.offline': 'Al momento non riesco a raggiungere il servizio. Riprova tra poco.',
+  'assistant.ai.busy': 'C’è molto traffico adesso. Chiedimelo di nuovo tra un minuto.',
+  'assistant.ai.failed': 'Non ha funzionato. Riprova.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

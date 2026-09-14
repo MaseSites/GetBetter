@@ -39,6 +39,11 @@ export const deAssistant = {
   'assistant.voice.tier.basic': 'einfach',
   'assistant.voice.pick.a11y': 'Stimme {voice} wählen und anhören',
   'assistant.voice.pick.a11y.speaking': 'Stimme {voice}, spricht gerade',
-  'assistant.voice.sample': 'Hi, ich bin {name}. So klinge ich.',
+  // Die Probe beim Aussuchen einer Stimme — nie mit Namen, derselbe Satz wie im Dienst.
   'assistant.voice.sampleAnon': 'Hallo, so klinge ich.',
+
+  // Wenn die KI keine Antwort liefert
+  'assistant.ai.offline': 'Gerade erreiche ich den Dienst nicht. Versuch es gleich nochmal.',
+  'assistant.ai.busy': 'Gerade ist viel los. Frag mich in einer Minute nochmal.',
+  'assistant.ai.failed': 'Das hat gerade nicht geklappt. Versuch es nochmal.',
 } as const;

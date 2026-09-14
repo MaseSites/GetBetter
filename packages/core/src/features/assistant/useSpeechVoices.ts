@@ -10,12 +10,14 @@ import {
   type CloudVoice,
 } from './cloudVoice';
 import { listVoices, onVoicesChanged, type SpeechVoice } from './speech';
+import { labelOf } from './voices';
 
 function fromCloud(voice: CloudVoice, language: Language): SpeechVoice {
   return {
     uri: `${CLOUD_PREFIX}${voice.id}`,
     name: voice.name,
-    label: voice.name,
+    // „Sarah“ statt „Sarah - Mature, Reassuring, Confident“ — wie bei den Browser-Stimmen.
+    label: labelOf(voice.name),
     tag: language,
     local: false,
     tier: 'natural',

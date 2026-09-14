@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { useI18n, useTranslate, type Language, type TranslationKey } from '@/i18n';
+import { useI18n, useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Icon, Text, usePressScale } from '@/ui';
 
@@ -27,6 +27,8 @@ const GENDER_LABEL: Readonly<Record<string, TranslationKey>> = {
 
 /** Was zu ElevenLabs dazugesagt werden muss — oder nichts, wenn alles laeuft. */
 function cloudNote(cloud: CloudState): TranslationKey | null {
+  if (cloud.blocked === 'plan_required') return 'assistant.cloud.planRequired';
+  if (cloud.blocked === 'budget_exhausted') return 'assistant.cloud.budgetExhausted';
   if (!cloud.configured) return 'assistant.cloud.missing';
   if (cloud.problem === 'auth_failed') return 'assistant.cloud.auth_failed';
   if (cloud.problem === 'quota_exceeded') return 'assistant.cloud.quota_exceeded';
@@ -35,20 +37,7 @@ function cloudNote(cloud: CloudState): TranslationKey | null {
   return null;
 }
 
-/** Das Land zur Stimme, in der Sprache des Kontos — „Schweiz“ statt „de-CH“. */
-function regionOf(tag: string, language: Language): string {
-  const region = tag.replace('_', '-').split('-')[1];
-  if (!region) return tag;
-  try {
-    return new Intl.DisplayNames([language], { type: 'region' }).of(region.toUpperCase()) ?? tag;
-  } catch {
-    return tag;
-  }
-}
-
 export type VoicePickerProps = {
-  /** Sein Name — damit stellt er sich beim Anhoeren vor. */
-  name?: string | undefined;
   /** Der gewaehlte `voiceURI`. Fehlt er, spricht die beste Stimme. */
   value?: string | undefined;
   /** Eine Stimme wurde gewaehlt. Sie wird beim Antippen gleich vorgelesen. */
@@ -64,7 +53,7 @@ export type VoicePickerProps = {
  * Sprachausgabe, oder wenn es nur eine einzige Stimme gibt), steht statt einer
  * halbleeren Liste ein Satz, der das sagt.
  */
-export function VoicePicker({ name = '', value, onChange }: VoicePickerProps) {
+export function VoicePicker({ value, onChange }: VoicePickerProps) {
   const t = useTranslate();
   const theme = useTheme();
   const { language } = useI18n();
@@ -110,19 +99,21 @@ export function VoicePicker({ name = '', value, onChange }: VoicePickerProps) {
   const chosen = voices.some((voice) => voice.uri === value) ? value : undefined;
   const current = chosen ?? voices[0]?.uri;
 
-  function detailOf(voice: SpeechVoice): string {
+  /** Hoechstens ein Wort unter dem Namen: „Männlich“ bei ElevenLabs, „Natürlich“ im Browser. */
+  function detailOf(voice: SpeechVoice): string | null {
     if (voice.provider === 'cloud') {
       const gender = voice.gender ? GENDER_LABEL[voice.gender.toLowerCase()] : undefined;
-      return gender ? `${t(gender)} · ElevenLabs` : 'ElevenLabs';
+      return gender ? t(gender) : null;
     }
-    return `${regionOf(voice.tag, language)} · ${t(TIER_LABEL[voice.tier])}`;
+    return t(TIER_LABEL[voice.tier]);
   }
 
   function play(voice: SpeechVoice) {
     onChange(voice.uri);
     setSpeaking(voice.uri);
     player.setVoice(voice.uri);
-    player.say(name ? t('assistant.voice.sample', { name }) : t('assistant.voice.sampleAnon'), () =>
+    // Ein fester Satz ohne Namen: bei ElevenLabs einmal erzeugt, danach fuer alle gratis.
+    player.saySample(t('assistant.voice.sampleAnon'), () =>
       setSpeaking((now) => (now === voice.uri ? null : now)),
     );
   }
@@ -154,7 +145,7 @@ export function VoicePicker({ name = '', value, onChange }: VoicePickerProps) {
 
 type VoiceRowProps = {
   voice: SpeechVoice;
-  detail: string;
+  detail: string | null;
   selected: boolean;
   speaking: boolean;
   onPress: () => void;
@@ -200,9 +191,11 @@ function VoiceRow({ voice, detail, selected, speaking, onPress }: VoiceRowProps)
           <Text variant="label" numberOfLines={1}>
             {voice.label}
           </Text>
-          <Text variant="caption" tone="faint" numberOfLines={1}>
-            {detail}
-          </Text>
+          {detail ? (
+            <Text variant="caption" tone="faint" numberOfLines={1}>
+              {detail}
+            </Text>
+          ) : null}
         </View>
         {selected ? (
           <Icon name="check" size={theme.fontSize.md} color={theme.colors.accentStrong} />

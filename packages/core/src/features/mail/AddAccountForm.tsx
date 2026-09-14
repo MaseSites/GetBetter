@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import {
   mail,
@@ -11,29 +11,21 @@ import {
 import type { MailAccountRow } from '@/db/types';
 import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Badge, Button, Chip, Icon, IconButton, Input, Text } from '@/ui';
+import { Badge, Button, Icon, IconButton, Input, Text } from '@/ui';
 
-import { isEmailAddress, mailErrorKey, parsePort } from './format';
+import { isEmailAddress, mailErrorKey } from './format';
 import { MAIL_NOTE_KEYS, PROVIDER_LABEL_KEYS, type MailProviderChoice } from './providers';
 
 /** So lange nach dem letzten Tippen, bis der Anbieter nachgeschlagen wird. */
 const PROVIDER_DELAY_MS = 450;
 /** Hoehe eines Eingabefelds — dieselbe wie in `ui/Input`. */
 const FIELD_HEIGHT = 48;
-/** Die ueblichen Ports, solange der Anbieter noch nicht bekannt ist. */
-const DEFAULT_IMAP_PORT = 993;
-const DEFAULT_SMTP_PORT = 465;
 
-type FieldError = 'email' | 'password' | 'port';
+type FieldError = 'email' | 'password';
 type FormError = FieldError | MailError;
 
-/** Leer heisst: der Dienst nimmt, was er zum Anbieter weiss. */
-type ServerFields = { host: string; port: string; secure: boolean | null };
-
-const EMPTY_SERVER: ServerFields = { host: '', port: '', secure: null };
-
 function isFieldError(error: FormError | null): error is FieldError {
-  return error === 'email' || error === 'password' || error === 'port';
+  return error === 'email' || error === 'password';
 }
 
 export type AddAccountFormProps = {
@@ -48,10 +40,10 @@ export type AddAccountFormProps = {
 };
 
 /**
- * Ein Postfach verbinden: Adresse, Passwort, optional Anzeigename und die
- * Server. Beim Tippen der Adresse schlaegt der Dienst den Anbieter nach und
- * sagt, was er braucht. Das Passwort geht nur an den Dienst und verschwindet
- * nach dem Verbinden aus dem Zustand.
+ * Ein Postfach verbinden: nur Adresse und Passwort. Server, Ports und
+ * Benutzername kennt der Dienst zum Anbieter selbst — beim Tippen der Adresse
+ * schlaegt er ihn nach und sagt, was er braucht. Das Passwort geht nur an den
+ * Dienst und verschwindet nach dem Verbinden aus dem Zustand.
  */
 export function AddAccountForm({
   accountId,
@@ -65,11 +57,6 @@ export function AddAccountForm({
 
   const [email, setEmail] = useState(initialEmail ?? '');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [advanced, setAdvanced] = useState(false);
-  const [username, setUsername] = useState('');
-  const [imap, setImap] = useState<ServerFields>(EMPTY_SERVER);
-  const [smtp, setSmtp] = useState<ServerFields>(EMPTY_SERVER);
   const [lookup, setLookup] = useState<{
     email: string;
     result: MailResult<MailProviderInfo>;
@@ -113,31 +100,8 @@ export function AddAccountForm({
       setError('password');
       return;
     }
-    const imapPort = parsePort(imap.port);
-    const smtpPort = parsePort(smtp.port);
-    if (imapPort === null || smtpPort === null) {
-      setAdvanced(true);
-      setError('port');
-      return;
-    }
 
-    const name = displayName.trim();
-    const login = username.trim();
-    const imapHost = imap.host.trim();
-    const smtpHost = smtp.host.trim();
-    const input: MailConnectInput = {
-      accountId,
-      email: address,
-      password,
-      ...(name.length > 0 ? { displayName: name } : {}),
-      ...(login.length > 0 ? { username: login } : {}),
-      ...(imapHost.length > 0 ? { imapHost } : {}),
-      ...(imapPort !== undefined ? { imapPort } : {}),
-      ...(imap.secure !== null ? { imapSecure: imap.secure } : {}),
-      ...(smtpHost.length > 0 ? { smtpHost } : {}),
-      ...(smtpPort !== undefined ? { smtpPort } : {}),
-      ...(smtp.secure !== null ? { smtpSecure: smtp.secure } : {}),
-    };
+    const input: MailConnectInput = { accountId, email: address, password };
 
     setBusy(true);
     setError(null);
@@ -220,69 +184,6 @@ export function AddAccountForm({
         onSubmit={() => void submit()}
         {...(error === 'password' ? { error: t('mail.add.error.password') } : {})}
       />
-
-      <Input
-        label={t('mail.add.displayName')}
-        placeholder={t('mail.add.displayNamePlaceholder')}
-        hint={t('common.optional')}
-        value={displayName}
-        onChangeText={setDisplayName}
-        autoCapitalize="words"
-        editable={!busy}
-      />
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('mail.add.advanced')}
-        accessibilityState={{ expanded: advanced }}
-        onPress={() => setAdvanced((open) => !open)}
-        style={({ pressed }) => [
-          styles.row,
-          { gap: theme.spacing.xs, paddingVertical: theme.spacing.xs, opacity: pressed ? 0.5 : 1 },
-        ]}
-      >
-        <Icon name={advanced ? 'down' : 'forward'} size={16} color={theme.colors.textMuted} />
-        <Text variant="label" tone="muted">
-          {t('mail.add.advanced')}
-        </Text>
-      </Pressable>
-
-      {advanced ? (
-        <View style={{ gap: theme.spacing.lg }}>
-          <ServerSection
-            title={t('mail.add.imap')}
-            fields={imap}
-            onChange={(patch) => setImap((previous) => ({ ...previous, ...patch }))}
-            hostPlaceholder={provider?.imapHost ?? t('mail.add.imapHostPlaceholder')}
-            portPlaceholder={String(provider?.imapPort ?? DEFAULT_IMAP_PORT)}
-            secureDefault={provider?.imapSecure ?? true}
-            editable={!busy}
-          />
-          <ServerSection
-            title={t('mail.add.smtp')}
-            fields={smtp}
-            onChange={(patch) => setSmtp((previous) => ({ ...previous, ...patch }))}
-            hostPlaceholder={provider?.smtpHost ?? t('mail.add.smtpHostPlaceholder')}
-            portPlaceholder={String(provider?.smtpPort ?? DEFAULT_SMTP_PORT)}
-            secureDefault={provider?.smtpSecure ?? true}
-            editable={!busy}
-          />
-          {error === 'port' ? (
-            <Text variant="caption" tone="danger">
-              {t('mail.add.error.port')}
-            </Text>
-          ) : null}
-          <Input
-            label={t('mail.add.username')}
-            placeholder={t('mail.add.usernamePlaceholder')}
-            hint={t('common.optional')}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            editable={!busy}
-          />
-        </View>
-      ) : null}
 
       {error && !isFieldError(error) ? (
         <Text variant="label" tone="danger">
@@ -385,74 +286,7 @@ function PasswordField({ value, onChangeText, editable, onSubmit, error }: Passw
   );
 }
 
-type ServerSectionProps = {
-  title: string;
-  fields: ServerFields;
-  onChange: (patch: Partial<ServerFields>) => void;
-  hostPlaceholder: string;
-  portPlaceholder: string;
-  secureDefault: boolean;
-  editable: boolean;
-};
-
-/** Server, Port und SSL fuer den Eingang oder den Ausgang. */
-function ServerSection({
-  title,
-  fields,
-  onChange,
-  hostPlaceholder,
-  portPlaceholder,
-  secureDefault,
-  editable,
-}: ServerSectionProps) {
-  const { t } = useI18n();
-  const theme = useTheme();
-  const secure = fields.secure ?? secureDefault;
-
-  return (
-    <View style={{ gap: theme.spacing.sm }}>
-      <Text variant="section" tone="muted">
-        {title}
-      </Text>
-      <Input
-        label={t('mail.add.host')}
-        placeholder={hostPlaceholder}
-        value={fields.host}
-        onChangeText={(host) => onChange({ host })}
-        keyboardType="url"
-        autoCapitalize="none"
-        editable={editable}
-      />
-      <View style={[styles.row, styles.bottom, { gap: theme.spacing.md }]}>
-        <View style={styles.grow}>
-          <Input
-            label={t('mail.add.port')}
-            placeholder={portPlaceholder}
-            value={fields.port}
-            onChangeText={(port) => onChange({ port })}
-            keyboardType="number-pad"
-            autoCapitalize="none"
-            editable={editable}
-          />
-        </View>
-        <View style={styles.chipSlot}>
-          <Chip
-            label={t('mail.add.ssl')}
-            selected={secure}
-            disabled={!editable}
-            onPress={() => onChange({ secure: !secure })}
-          />
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
-  bottom: { alignItems: 'flex-end' },
-  grow: { flex: 1 },
-  chipSlot: { height: FIELD_HEIGHT, justifyContent: 'center' },
   field: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, minHeight: FIELD_HEIGHT },
   input: {
     flex: 1,

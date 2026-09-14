@@ -223,7 +223,7 @@ export function AlarmEditor({ visible, accountId, alarm, onClose }: AlarmEditorP
               value={snooze}
               onValueChange={setSnooze}
               accessibilityLabel={t('alarm.snooze')}
-              trackColor={{ true: theme.colors.accent, false: theme.colors.borderStrong }}
+              trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
               thumbColor={theme.colors.surface}
             />
           </Row>

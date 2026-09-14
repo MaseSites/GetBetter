@@ -108,7 +108,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
             <Icon
               name={item.done ? 'checkCircle' : 'circle'}
               size={24}
-              color={item.done ? theme.colors.accent : theme.colors.borderStrong}
+              color={item.done ? theme.colors.accentMark : theme.colors.textFaint}
             />
           </Pressable>
           <View style={{ flex: 1 }}>

@@ -17,6 +17,7 @@ export const ERROR_KEY: Record<FormError, TranslationKey> = {
   password_mismatch: 'auth.error.passwordMismatch',
   not_found: 'auth.error.notFound',
   wrong_password: 'auth.error.wrongPassword',
+  account_disabled: 'auth.error.accountDisabled',
   offline: 'auth.error.offline',
 };
 

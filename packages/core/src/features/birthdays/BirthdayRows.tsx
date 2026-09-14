@@ -6,7 +6,6 @@ import { useTheme } from '@/theme';
 import {
   ContextMenu,
   HIT_TARGET,
-  Icon,
   SwipeRow,
   Text,
   type MenuEntry,
@@ -16,7 +15,6 @@ import {
 
 import type { UpcomingBirthday } from './birthdays';
 import { compactLine, weekLine } from './format';
-import { firstOpenGift } from './gifts';
 import { AVATAR, PersonAvatar } from './PersonAvatar';
 import { canMessage, useBirthdayActions } from './useBirthdayActions';
 
@@ -28,13 +26,12 @@ export type BirthdayRowProps = {
   entry: UpcomingBirthday;
   contact: ContactRow | undefined;
   onOpen: () => void;
-  onAddGift: () => void;
   onEdit: () => void;
   onRemove: () => void;
 };
 
-/** Langer Druck: Nachricht, Anrufen, Geschenkidee, Bearbeiten, Geburtstag entfernen. */
-function useRowMenu({ entry, contact, onAddGift, onEdit, onRemove }: BirthdayRowProps) {
+/** Langer Druck: Nachricht, Anrufen, Bearbeiten, Geburtstag entfernen. */
+function useRowMenu({ entry, contact, onEdit, onRemove }: BirthdayRowProps) {
   const { t } = useI18n();
   const actions = useBirthdayActions();
   const phone = contact?.phone ?? null;
@@ -54,7 +51,6 @@ function useRowMenu({ entry, contact, onAddGift, onEdit, onRemove }: BirthdayRow
   const entries: (MenuEntry | null)[] = [
     message,
     call,
-    { key: 'gift', label: t('birthdays.addGift'), icon: 'gift', onPress: onAddGift },
     { key: 'edit', label: t('birthdays.editAction'), icon: 'note', onPress: onEdit },
     { key: 'divider', divider: true },
     {
@@ -80,7 +76,7 @@ function useRemoveAction(onRemove: () => void): SwipeAction {
   };
 }
 
-/** Diese Woche: Bild 48, Name, „wird 36 · Sa., 20. Sept.“, die erste offene Idee; rechts die Tage. */
+/** Diese Woche: Bild 48, Name, „wird 36 · Sa., 20. Sept.“; rechts die Tage. */
 export function WeekRow(props: BirthdayRowProps) {
   const { t, language } = useI18n();
   const theme = useTheme();
@@ -88,7 +84,6 @@ export function WeekRow(props: BirthdayRowProps) {
   const remove = useRemoveAction(props.onRemove);
   const { entry, contact } = props;
 
-  const gift = firstOpenGift(contact?.gifts);
   const line = weekLine(t, language, entry);
   const when = entry.days === 1 ? t('day.tomorrow') : t('birthdays.inDays', { days: entry.days });
 
@@ -115,14 +110,6 @@ export function WeekRow(props: BirthdayRowProps) {
           <Text variant="label" tone="muted" numberOfLines={1}>
             {line}
           </Text>
-          {gift ? (
-            <View style={[styles.row, { gap: theme.spacing.xs }]}>
-              <Icon name="gift" size={14} color={theme.colors.textFaint} />
-              <Text variant="caption" tone="faint" numberOfLines={1} style={styles.shrink}>
-                {gift.text}
-              </Text>
-            </View>
-          ) : null}
         </View>
         {entry.days === 1 ? (
           <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
@@ -191,6 +178,5 @@ export function CompactRow(props: BirthdayRowProps) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   text: { flex: 1, gap: 2 },
-  shrink: { flexShrink: 1 },
   count: { alignItems: 'center', minWidth: HIT_TARGET },
 });

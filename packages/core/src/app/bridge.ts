@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { APPS, appOfModule, type AppId } from './identity';
+import { isViewing, reportReadOnly } from './viewMode';
 
 /**
  * Wie GetBetter den anderen Better-Apps etwas auftraegt.
@@ -63,8 +64,12 @@ export function commandUrl({ app, command, params }: AppCommand): string {
   return `${APPS[app].scheme}://${path}`;
 }
 
-/** Schickt den Auftrag los. `false` heisst: die App ist nicht da. */
+/** Schickt den Auftrag los. `false` heisst: die App ist nicht da — oder es wird nur angesehen. */
 export async function sendCommand(command: AppCommand): Promise<boolean> {
+  if (isViewing()) {
+    reportReadOnly();
+    return false;
+  }
   const url = commandUrl(command);
   try {
     if (Platform.OS !== 'web' && !(await Linking.canOpenURL(url))) return false;

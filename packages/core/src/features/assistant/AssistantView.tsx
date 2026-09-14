@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTranslate } from '@/i18n';
+import { useI18n } from '@/i18n';
 import { sendCommand } from '@/app/bridge';
-import { APPS } from '@/app/identity';
-import { ASSISTANT_REPLY_DELAY_MS } from '@/mocks/assistant';
+import { APPS, currentApp } from '@/app/identity';
+import { isViewing, reportReadOnly } from '@/app/viewMode';
+import { ai } from '@/db';
 import type { AssistantMessage } from '@/mocks/types';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { ComposeBar, Loading, Screen, SuggestionChip, Text } from '@/ui';
 
+import { aiFailureOf, aiFailureText, turnsFor } from './aiTurns';
 import { AssistantAvatar } from './AssistantAvatar';
 import { route } from './route';
 import { useVoice } from './useVoice';
@@ -22,6 +24,9 @@ import { VoiceControls } from './VoiceControls';
  */
 type AvatarState = 'here' | 'leaving' | 'gone';
 
+/** Eine Antwort: was dasteht und was er im Gespraech vorliest. */
+type Reply = { text: string; spoken: string };
+
 /** Beispiele, die wirklich ankommen — beide erkennt `route()` als Auftrag. */
 const SUGGESTIONS = ['assistant.chip.shopping', 'assistant.chip.chore'] as const;
 
@@ -31,7 +36,7 @@ const SUGGESTIONS = ['assistant.chip.shopping', 'assistant.chip.chore'] as const
  * helfen soll; unten liegt das Feld als Pille, der Senden-Knopf in Signalgruen.
  */
 export function AssistantView() {
-  const t = useTranslate();
+  const { t, language } = useI18n();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { account } = useApp();
@@ -42,7 +47,6 @@ export function AssistantView() {
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Fortlaufend statt Zeitstempel: stabile, eindeutige Schluessel.
   const nextId = useRef(0);
   // Eine Frage nach der anderen — auch wenn sie aus dem Gespraech kommt.
@@ -55,7 +59,6 @@ export function AssistantView() {
   useEffect(
     () => () => {
       alive.current = false;
-      if (timer.current) clearTimeout(timer.current);
     },
     [],
   );
@@ -65,52 +68,68 @@ export function AssistantView() {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   }
 
-  /** Warten, aber abbrechbar: beim Verlassen loest das Versprechen nie aus. */
-  function pause(): Promise<void> {
-    return new Promise((resolve) => {
-      timer.current = setTimeout(resolve, ASSISTANT_REPLY_DELAY_MS);
-    });
-  }
-
-  /** Die Antwort auf einen Satz. Hinter ihr steckt noch kein Modell. */
-  async function answerTo(text: string): Promise<string> {
-    // Was in eine andere Better-App gehoert, wird dorthin geschickt.
-    const routed = route(text);
-    if (!routed) {
-      await pause();
-      return t('assistant.reply');
-    }
-
-    const target = APPS[routed.command.app].name;
-    const sent = await sendCommand(routed.command);
-    return sent
-      ? t('assistant.handedOver', { app: target, subject: routed.subject })
-      : t('assistant.notInstalled', { app: target });
+  /** Ein Satz, der zugleich dasteht und vorgelesen wird. */
+  function said(text: string): Reply {
+    return { text, spoken: text };
   }
 
   /**
-   * Fragen und antworten. Gibt die Antwort zurueck, damit das Gespraech sie
-   * vorlesen kann — geschrieben steht sie ohnehin schon da.
+   * Die Antwort auf einen Satz. Was in eine andere Better-App gehoert, geht
+   * dorthin; alles andere beantwortet die KI im Dienst — mit dem guenstigsten
+   * Modell, das die Frage kann, und im Gespraech kurz und sprechbar.
    */
-  async function ask(text: string): Promise<string | null> {
+  async function answerTo(text: string, voice: boolean): Promise<Reply> {
+    const routed = route(text);
+    if (routed) {
+      const target = APPS[routed.command.app].name;
+      const sent = await sendCommand(routed.command);
+      return said(
+        sent
+          ? t('assistant.handedOver', { app: target, subject: routed.subject })
+          : t('assistant.notInstalled', { app: target }),
+      );
+    }
+
+    if (!account) return said(t('assistant.reply'));
+    const result = await ai.reply({
+      accountId: account.id,
+      app: currentApp().id,
+      messages: turnsFor(messages, text),
+      voice,
+    });
+    if (!result.ok) return said(aiFailureText(t, language, aiFailureOf(result)));
+    return { text: result.data.response, spoken: result.data.voice_text ?? result.data.response };
+  }
+
+  /**
+   * Fragen und antworten. Gibt zurueck, was vorgelesen werden soll — geschrieben
+   * steht die Antwort ohnehin schon da.
+   */
+  async function ask(text: string, voice = false): Promise<string | null> {
     if (text.length === 0 || asking.current) return null;
+    // Nur ansehen: keine Frage im Gespraech, die es nie gab.
+    if (isViewing()) {
+      reportReadOnly();
+      return null;
+    }
     asking.current = true;
     setDraft('');
     append({ id: `u-${(nextId.current += 1)}`, role: 'user', text });
     setThinking(true);
 
-    const reply = await answerTo(text);
+    const reply = await answerTo(text, voice);
     if (!alive.current) return null;
     asking.current = false;
     setThinking(false);
-    append({ id: `a-${(nextId.current += 1)}`, role: 'assistant', text: reply });
-    return reply;
+    append({ id: `a-${(nextId.current += 1)}`, role: 'assistant', text: reply.text });
+    return reply.spoken;
   }
 
   const voicing = useVoice({
     // Eine einzelne Sprachnachricht landet im Feld — so kann man sie noch aendern.
     onDictate: setDraft,
-    onTurn: ask,
+    // Im Gespraech antwortet er kuerzer und liest den Sprechtext vor.
+    onTurn: (text) => ask(text, true),
   });
   const talking = voicing.mode === 'talk';
 

@@ -4,6 +4,7 @@ import type { TaskRow } from '@/db';
 import type { MenuAnchor, MenuEntry } from '@/ui';
 
 import type { MetaOptions, MetaPart } from './meta';
+import type { PostponeKind } from './postpone';
 import type { QuickAddDefaults } from './quickAdd';
 
 /** Misst die Zeile erst, wenn ein Menue wirklich aufgeht — nie beim Rendern. */
@@ -28,6 +29,10 @@ export type TaskListEnv = {
   toggleSelect: (task: TaskRow) => void;
   startSelection: (task: TaskRow) => void;
   plan: (tasks: readonly TaskRow[], anchor: AnchorFn) => void;
+  /** Ein Tipp: neuer Tag ab heute, mit „Rückgängig“. */
+  postpone: (task: TaskRow, kind: PostponeKind) => void;
+  /** „Datum wählen …“: das Blatt mit Tag und Uhrzeit. */
+  pickDate: (tasks: readonly TaskRow[]) => void;
   prioritize: (tasks: readonly TaskRow[], anchor: AnchorFn) => void;
   move: (tasks: readonly TaskRow[], anchor: AnchorFn) => void;
   duplicate: (task: TaskRow) => void;

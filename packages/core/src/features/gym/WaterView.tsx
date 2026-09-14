@@ -67,7 +67,7 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
               style={{
                 width: `${share * 100}%`,
                 height: '100%',
-                backgroundColor: theme.colors.accent,
+                backgroundColor: theme.colors.accentMark,
               }}
             />
           </View>

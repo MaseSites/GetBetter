@@ -318,7 +318,7 @@ function RowBody({
                   width: DOT_SIZE,
                   height: DOT_SIZE,
                   borderRadius: theme.radii.pill,
-                  backgroundColor: theme.colors.accent,
+                  backgroundColor: theme.colors.accentMark,
                 }}
               />
             ) : null}
