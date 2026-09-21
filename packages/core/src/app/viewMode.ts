@@ -57,6 +57,14 @@ export function allowedInView(method: string | undefined, path: string): boolean
   return verb === 'POST' && path.split('?')[0] === REDEEM_PATH;
 }
 
+/**
+ * Ob eine Anfrage an den Dienst jetzt abgewiesen wird: nur im Nur-Lesen-Modus
+ * und nur, wenn sie etwas aendern wuerde. Sonst geht alles hinaus.
+ */
+export function refusesCall(method: string | undefined, path: string): boolean {
+  return state.active && !allowedInView(method, path);
+}
+
 /** Ob gerade geschrieben werden darf — der Speicher fragt das vor jedem Aendern. */
 export function writesAllowed(): boolean {
   return !state.active;

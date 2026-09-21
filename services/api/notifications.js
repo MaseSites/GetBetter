@@ -7,7 +7,16 @@
  */
 const { load, newId, rowsOf, save } = require('./store.js');
 
-const KINDS = new Set(['calendarShare', 'calendarInvite', 'householdInvite', 'mail', 'system']);
+const KINDS = new Set([
+  'calendarShare',
+  'calendarInvite',
+  'householdInvite',
+  'mail',
+  'system',
+  // Abo freigeschaltet oder abgelehnt — legt der Admin an.
+  'planApproved',
+  'planDeclined',
+]);
 const MAX_TITLE = 300;
 const MAX_BODY = 2000;
 const MAX_REF_ENTRIES = 20;

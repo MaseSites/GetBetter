@@ -2,8 +2,11 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { BackdropPicker } from '@/features/personalize/BackdropPicker';
+import { ModeTiles } from '@/features/personalize/ModeTiles';
+import { LockBadge, PlanHint } from '@/features/plan/PlanLock';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useTranslate } from '@/i18n';
-import { useApp, type Appearance } from '@/state/AppContext';
+import { useApp } from '@/state/AppContext';
 import {
   ACCENTS,
   ACCENT_KEYS,
@@ -14,9 +17,8 @@ import {
   type AccentKey,
   type ThemePreset,
 } from '@/theme';
-import { Icon, Segmented, Text } from '@/ui';
+import { Icon, Text } from '@/ui';
 
-const MODES: readonly Appearance['mode'][] = ['light', 'dark', 'system'];
 /** Drei Bereichsfarben zeigen, wie viel Farbe eine Voreinstellung zulaesst. */
 const PREVIEW_HUES = ['organisation', 'health', 'money'] as const;
 /** Alle acht Farben in einer Reihe, auch auf einem schmalen Telefon. */
@@ -24,33 +26,43 @@ const SWATCH = 32;
 const PREVIEW_DOT = 14;
 const MONO_DIM = 0.4;
 
+export type StylePickerProps = {
+  /**
+   * Ohne Abo: was ein Tipp auf Farbe, Voreinstellung oder Hintergrund tut.
+   * Standard ist das Abo-Fenster; aus einem Blatt heraus schliesst der
+   * Aufrufer erst sein Blatt.
+   */
+  onLocked?: () => void;
+};
+
 /**
  * Personalisieren mit dem Avatar: Modus, Akzentfarbe, Voreinstellung und der
  * Hintergrund. Alles wirkt sofort — auch auf den Avatar oben.
+ *
+ * Ohne Abo bleibt nur hell oder dunkel frei. Der Rest zeigt den Standard mit
+ * einem Schloss; ein Tipp darauf oeffnet das Abo.
  */
-export function StylePicker() {
+export function StylePicker({ onLocked }: StylePickerProps = {}) {
   const t = useTranslate();
   const theme = useTheme();
-  const { appearance, setAppearance } = useApp();
+  const { appearance, setAppearance, personal } = useApp();
+  const plan = usePlanSheet();
+  const locked = !personal.canPersonalize;
+  const unlock = onLocked ?? plan.open;
   const mono = appearance.preset === 'mono';
 
   return (
     <View style={{ gap: theme.spacing.xl }}>
       <Section title={t('intro.setup.style.mode')}>
-        <Segmented
-          accessibilityLabel={t('intro.setup.style.mode')}
-          value={appearance.mode}
-          onChange={(mode) => void setAppearance({ mode })}
-          options={MODES.map((mode) => ({
-            value: mode,
-            label: t(`intro.setup.style.mode.${mode}`),
-          }))}
-        />
+        <ModeTiles />
       </Section>
+
+      {locked ? <PlanHint onPress={unlock} /> : null}
 
       <Section
         title={t('intro.setup.style.accent')}
         hint={mono ? t('intro.setup.style.accentMono') : undefined}
+        locked={locked}
       >
         <View style={[styles.swatches, { opacity: mono ? MONO_DIM : 1 }]}>
           {ACCENT_KEYS.map((key) => (
@@ -58,40 +70,53 @@ export function StylePicker() {
               key={key}
               accent={key}
               selected={appearance.accent === key}
-              onPress={() => void setAppearance({ accent: key })}
+              onPress={() => (locked ? unlock() : void setAppearance({ accent: key }))}
             />
           ))}
         </View>
       </Section>
 
-      <Section title={t('intro.setup.style.preset')}>
+      <Section title={t('intro.setup.style.preset')} locked={locked}>
         <View style={{ gap: theme.spacing.sm }}>
           {THEME_PRESETS.map((preset) => (
             <PresetRow
               key={preset}
               preset={preset}
               selected={appearance.preset === preset}
-              onPress={() => void setAppearance({ preset })}
+              onPress={() => (locked ? unlock() : void setAppearance({ preset }))}
             />
           ))}
         </View>
       </Section>
 
-      <Section title={t('intro.setup.style.backdrop')}>
-        <BackdropPicker />
+      <Section title={t('intro.setup.style.backdrop')} locked={locked}>
+        <BackdropPicker onLocked={unlock} />
       </Section>
     </View>
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+function Section({
+  title,
+  hint,
+  locked = false,
+  children,
+}: {
+  title: string;
+  hint?: string | undefined;
+  locked?: boolean;
+  children: ReactNode;
+}) {
   const theme = useTheme();
   return (
     <View style={{ gap: theme.spacing.md }}>
       <View style={{ gap: theme.spacing.xs }}>
-        <Text variant="section" tone="muted">
-          {title}
-        </Text>
+        <View style={[styles.row, { gap: theme.spacing.sm }]}>
+          <Text variant="section" tone="muted">
+            {title}
+          </Text>
+          {locked ? <LockBadge /> : null}
+        </View>
         {hint ? (
           <Text variant="caption" tone="faint">
             {hint}

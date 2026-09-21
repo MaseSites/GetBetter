@@ -972,6 +972,121 @@ describe('admin server', () => {
       assert.equal(raw.includes(match[1]), false, 'das Ticket steht nie im Verlauf');
     });
 
+    test('plan requests: approve and decline with a notification, the Abo switch settles them', async () => {
+      const db = await load();
+      const pending = (id, app, createdAt, accountId = 'acc_cleo') => ({
+        id,
+        accountId,
+        app,
+        status: 'pending',
+        createdAt,
+        decidedAt: null,
+      });
+      db.tables.planRequests = [
+        pending('plr_ai', 'betterai', ago(HOUR)),
+        pending('plr_gb', 'getbetter', ago(2 * HOUR)),
+        pending('plr_gym', 'bettergym', ago(30 * SECOND)),
+        { ...pending('plr_old', 'betterfamily', ago(DAY)), status: 'declined', decidedAt: ago(DAY) },
+        pending('plr_weg', 'getbetter', ago(DAY), 'acc_weg'),
+      ];
+      db.tables.notifications = [];
+      const cleoBefore = db.tables.accounts.find((row) => row.id === 'acc_cleo');
+      assert.deepEqual(cleoBefore.paidApps, []);
+
+      // Die Uebersicht zeigt die offenen, die aelteste zuerst — ohne Konten, die es nicht gibt.
+      const overview = (await get('/api/overview')).data;
+      assert.deepEqual(
+        overview.planRequests.map((row) => [row.id, row.accountId, row.email, row.username, row.app]),
+        [
+          ['plr_gb', 'acc_cleo', 'cleo@test.ch', 'cleo.neu', 'getbetter'],
+          ['plr_ai', 'acc_cleo', 'cleo@test.ch', 'cleo.neu', 'betterai'],
+          ['plr_gym', 'acc_cleo', 'cleo@test.ch', 'cleo.neu', 'bettergym'],
+        ],
+      );
+      const detail = (await get('/api/accounts/acc_cleo')).data.account;
+      assert.deepEqual(detail.planRequests.map((row) => row.app), ['getbetter', 'betterai', 'bettergym']);
+      assert.deepEqual(Object.keys(detail.planRequests[0]).sort(), ['app', 'createdAt', 'id']);
+
+      // Wie jede Aenderung: nur von hier, nur JSON — und ohne weitere Felder.
+      for (const headers of [
+        { 'Content-Type': 'application/json' },
+        { Origin: 'http://evil.example', 'Content-Type': 'application/json' },
+        { Origin: `http://127.0.0.1:${port}`, 'Content-Type': 'text/plain' },
+      ]) {
+        const refused = await request('POST', '/api/plan-requests/plr_gb/approve', { body: {}, headers });
+        assert.deepEqual([refused.status, refused.data], [403, { error: 'forbidden' }], JSON.stringify(headers));
+      }
+      assert.equal((await get('/api/plan-requests/plr_gb/approve')).status, 404);
+      const refusals = [
+        ['/api/plan-requests/plr_gb/approve', { app: 'betterai' }, 400, 'bad_request'],
+        ['/api/plan-requests/plr_gb/cancel', {}, 404, 'unknown_route'],
+        ['/api/plan-requests/plr_fehlt/approve', {}, 404, 'not_found'],
+        ['/api/plan-requests/plr_old/approve', {}, 409, 'already_decided'],
+        ['/api/plan-requests/plr_weg/approve', {}, 404, 'not_found'],
+      ];
+      for (const [route, body, status, error] of refusals) {
+        const result = await send('POST', route, body);
+        assert.deepEqual([result.status, result.data], [status, { error }], route);
+      }
+
+      const approved = await send('POST', '/api/plan-requests/plr_gb/approve', {});
+      assert.equal(approved.status, 200);
+      assert.deepEqual(
+        [approved.data.request.id, approved.data.request.status, approved.data.account.paidApps],
+        ['plr_gb', 'approved', ['getbetter']],
+      );
+      assert.ok(Date.parse(approved.data.request.decidedAt) > Date.now() - 60 * SECOND);
+      assert.deepEqual(approved.data.account.planRequests.map((row) => row.id), ['plr_ai', 'plr_gym']);
+      assert.equal(approved.data.account.billing.find((entry) => entry.app === 'getbetter').plan, 'paid');
+      assert.equal(JSON.stringify(approved.data).includes('password'), false);
+      const twice = await send('POST', '/api/plan-requests/plr_gb/approve', {});
+      assert.deepEqual([twice.status, twice.data], [409, { error: 'already_decided' }]);
+
+      const noticeOf = async (requestId) =>
+        (await load()).tables.notifications.find((row) => row.ref?.requestId === requestId);
+      const approvedNotice = await noticeOf('plr_gb');
+      assert.deepEqual(
+        [approvedNotice.accountId, approvedNotice.kind, approvedNotice.title, approvedNotice.body, approvedNotice.ref, approvedNotice.app, approvedNotice.readAt],
+        ['acc_cleo', 'planApproved', 'GetBetter', '', { app: 'getbetter', requestId: 'plr_gb' }, 'getbetter', null],
+      );
+      let recorded = (await activityLines()).at(-1);
+      assert.deepEqual([recorded.accountId, recorded.kind, recorded.detail], ['acc_cleo', 'admin.planApproved', { app: 'getbetter' }]);
+
+      const declined = await send('POST', '/api/plan-requests/plr_ai/decline', {});
+      assert.deepEqual(
+        [declined.status, declined.data.request.status, declined.data.account.paidApps],
+        [200, 'declined', ['getbetter']],
+      );
+      assert.equal((await noticeOf('plr_ai')).kind, 'planDeclined');
+      recorded = (await activityLines()).at(-1);
+      assert.deepEqual([recorded.kind, recorded.detail], ['admin.planDeclined', { app: 'betterai' }]);
+
+      // Den Abo-Schalter direkt einschalten erledigt die offene Anfrage dieser App.
+      const toggled = await send('PATCH', '/api/accounts/acc_cleo', { paidApps: ['getbetter', 'bettergym'] });
+      assert.equal(toggled.status, 200);
+      assert.deepEqual(toggled.data.account.planRequests, []);
+      const stored = await load();
+      assert.deepEqual(
+        stored.tables.planRequests.map((row) => [row.id, row.status]),
+        [['plr_ai', 'declined'], ['plr_gb', 'approved'], ['plr_gym', 'approved'], ['plr_old', 'declined'], ['plr_weg', 'pending']],
+      );
+      assert.equal((await noticeOf('plr_gym')).kind, 'planApproved');
+      assert.deepEqual(
+        (await activityLines()).slice(-2).map((line) => [line.kind, line.detail]),
+        [
+          ['admin.updated', { fields: ['paidApps'] }],
+          ['admin.planApproved', { app: 'bettergym' }],
+        ],
+      );
+      assert.deepEqual((await get('/api/overview')).data.planRequests, []);
+
+      // Aufraeumen fuer die folgenden Tests.
+      assert.equal((await send('PATCH', '/api/accounts/acc_cleo', { paidApps: [] })).status, 200);
+      const clean = await load();
+      clean.tables.planRequests = [];
+      clean.tables.notifications = [];
+    });
+
     test('unknown routes and methods', async () => {
       assert.equal((await get('/api/nichts')).status, 404);
       assert.equal((await send('DELETE', '/api/accounts', {})).status, 404);

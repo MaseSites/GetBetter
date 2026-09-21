@@ -26,6 +26,9 @@ const {
   usernameFor,
 } = require('./auth.js');
 const { isAvatarStyle } = require('./avatar.js');
+const { keepLockedFields, lockedChangesOf } = require('./billing/entitlement.js');
+const { canPersonalize, planSettings } = require('./billing/plans.js');
+const { createPlanRequests } = require('./billing/requests.js');
 const { createBilling } = require('./billing/service.js');
 const { adminPort, dataDir, mailSyncMs } = require('./config.js');
 const { createMailService } = require('./mail/service.js');
@@ -61,7 +64,7 @@ const SECRET_FIELDS = ['passwordHash', 'passwordSalt'];
  * Was nur der Admin aendert: die Apps lesen es, schreiben es aber nie.
  * `paidApps` setzt spaeter ein Kaufbeleg aus dem Store — bis dahin der Admin.
  */
-const ADMIN_FIELDS = ['disabled', 'blockedApps', 'paidApps'];
+const ADMIN_FIELDS = ['disabled', 'blockedApps', 'paidApps', 'planCancels', 'planTerms'];
 
 /**
  * „App ansehen“ im Admin: eine App im Nur-Lesen-Modus schickt diese Kopfzeile
@@ -190,6 +193,12 @@ async function patchProfile(id, changes) {
   if (changes.assistantAvatar !== undefined && !isAvatarStyle(changes.assistantAvatar)) {
     return { status: 400, body: { error: 'avatar_invalid' } };
   }
+  // Ohne Abo bleibt das Aussehen Standard: hell/dunkel, Name und Sprache gehen
+  // weiter, Farben, Hintergrund und der Assistent nicht. Derselbe Wert nochmal ist keine Aenderung.
+  const locked = lockedChangesOf(row, changes, PROFILE_FIELDS);
+  if (locked.length > 0 && !canPersonalize(row, planSettings())) {
+    return { status: 403, body: { error: 'plan_required', fields: locked } };
+  }
 
   // Der Benutzername gilt fuer alle Apps und muss einmalig bleiben — beim
   // Aendern genauso wie beim Anlegen. Die Maske fragt vorher, das hier gilt.
@@ -238,8 +247,9 @@ async function snapshot() {
  * Bei den Konten bleibt die Passwortpruefung stehen: die Apps kennen sie nicht
  * und koennten sie sonst versehentlich loeschen. Ebenso `disabled` und
  * `blockedApps` — die setzt nur der Admin; was eine App dort mitschickt, zaehlt
- * nicht. Mitteilungen und Mail gehoeren dem Dienst und lassen sich so gar nicht
- * ersetzen.
+ * nicht. Ohne Abo bleiben auch Farben, Hintergrund und der Assistent, wie sie
+ * gespeichert sind (`billing/entitlement.js`). Mitteilungen, Mail und
+ * Abo-Anfragen gehoeren dem Dienst und lassen sich so gar nicht ersetzen.
  */
 async function replaceCollection(name, rows) {
   if (!isCollectionName(name)) return { status: 400, body: { error: 'unknown_collection' } };
@@ -252,6 +262,7 @@ async function replaceCollection(name, rows) {
   const incomingRows = withoutDeleted(db, name, rows);
   if (name === 'accounts') {
     const stored = new Map(previous.map((row) => [row.id, row]));
+    const settings = planSettings();
     db.tables.accounts = incomingRows.map((row) => {
       const known = stored.get(row?.id);
       const incoming = { ...row };
@@ -260,7 +271,7 @@ async function replaceCollection(name, rows) {
       for (const field of [...SECRET_FIELDS, ...ADMIN_FIELDS]) {
         if (known?.[field] !== undefined) kept[field] = known[field];
       }
-      return { ...incoming, ...kept };
+      return keepLockedFields({ ...incoming, ...kept }, known, settings);
     });
   } else {
     db.tables[name] = incomingRows;
@@ -372,6 +383,9 @@ const ok = (status, body) => ({ status, body });
 
 // Abo und Kontingent: ein Kassenbuch fuer KI und Stimmen zusammen.
 const billing = createBilling({ dataDir: dataDir() });
+
+// Abo-Anfragen: die App fragt an, der Admin schaltet frei (bis es den Store gibt).
+const planRequests = createPlanRequests({ dataDir: dataDir() });
 
 // Echt klingende Stimmen. `BETTER_ELEVENLABS_URL` gilt nur fuer 127.0.0.1 (Tests).
 const speech = createSpeechService({
@@ -494,6 +508,27 @@ const ROUTES = [
 
   // Nur ansehen (Admin)
   { method: 'POST', path: /^\/v1\/view\/redeem$/, body: true, handler: ({ body }) => redeemView(body) },
+
+  // Abo
+  { method: 'GET', path: /^\/v1\/plans$/, handler: ({ url }) => planRequests.status(speakerQuery(url)) },
+  {
+    method: 'POST',
+    path: /^\/v1\/plans\/requests$/,
+    body: true,
+    handler: ({ body }) => planRequests.request(body),
+  },
+  {
+    method: 'POST',
+    path: /^\/v1\/plans\/cancel$/,
+    body: true,
+    handler: ({ body }) => planRequests.cancel(body),
+  },
+  {
+    method: 'POST',
+    path: /^\/v1\/plans\/resume$/,
+    body: true,
+    handler: ({ body }) => planRequests.resume(body),
+  },
 
   // Stimmen
   {

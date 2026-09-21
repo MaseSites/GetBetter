@@ -233,6 +233,17 @@ describe('service endpoints', () => {
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line));
+  /** Ein Konto mit Abo (BetterGym) — nur so lassen sich Farben und der Assistent aendern. */
+  let paidAccount = null;
+  const paidAccountOf = async () => {
+    if (paidAccount) return paidAccount;
+    const created = (await call('POST', '/v1/accounts', { email: 'cleo@test.ch', password: 'passwort123' }))
+      .data.account;
+    const granted = await adminCall('PATCH', `/api/accounts/${created.id}`, { paidApps: ['bettergym'] });
+    assert.equal(granted.status, 200);
+    paidAccount = created;
+    return created;
+  };
 
   before(async () => {
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'better-api-'));
@@ -326,34 +337,36 @@ describe('service endpoints', () => {
     assert.deepEqual((await tables()).tasks, [{ id: 't1', title: 'x' }]);
   });
 
-  test('stores assistantName and backdrop on the profile', async () => {
-    const patched = await call('PATCH', `/v1/accounts/${accountA.id}`, {
+  test('stores assistantName and backdrop on the profile (with an abo)', async () => {
+    const cleo = await paidAccountOf();
+    const patched = await call('PATCH', `/v1/accounts/${cleo.id}`, {
       assistantName: 'Luma',
       backdrop: 'upload:upl_0123',
-      firstName: 'Anna',
+      firstName: 'Cleo',
     });
     assert.equal(patched.status, 200);
     assert.equal(patched.data.account.assistantName, 'Luma');
     assert.equal(patched.data.account.backdrop, 'upload:upl_0123');
     assert.equal(patched.data.account.passwordHash, undefined);
 
-    const read = await call('GET', `/v1/accounts/${accountA.id}`);
-    assert.equal(read.data.account.firstName, 'Anna');
+    const read = await call('GET', `/v1/accounts/${cleo.id}`);
+    assert.equal(read.data.account.firstName, 'Cleo');
     assert.equal(read.data.account.assistantName, 'Luma');
 
     assert.equal(
-      (await call('PATCH', `/v1/accounts/${accountA.id}`, { assistantName: 5 })).status,
+      (await call('PATCH', `/v1/accounts/${cleo.id}`, { assistantName: 5 })).status,
       400,
     );
     assert.equal((await call('PATCH', '/v1/accounts/acc_fehlt', { firstName: 'x' })).status, 404);
   });
 
   test('stores a valid assistantAvatar and refuses anything else', async () => {
+    const cleo = await paidAccountOf();
     const owl = { kind: 'owl', color: 'sun', eyes: 'sparkle', accessory: 'glasses' };
-    const saved = await call('PATCH', `/v1/accounts/${accountA.id}`, { assistantAvatar: owl });
+    const saved = await call('PATCH', `/v1/accounts/${cleo.id}`, { assistantAvatar: owl });
     assert.equal(saved.status, 200);
     assert.deepEqual(saved.data.account.assistantAvatar, owl);
-    assert.deepEqual((await call('GET', `/v1/accounts/${accountA.id}`)).data.account.assistantAvatar, owl);
+    assert.deepEqual((await call('GET', `/v1/accounts/${cleo.id}`)).data.account.assistantAvatar, owl);
 
     const refused = [
       'owl',
@@ -369,7 +382,7 @@ describe('service endpoints', () => {
       { ...owl, extra: 'x' },
     ];
     for (const assistantAvatar of refused) {
-      const result = await call('PATCH', `/v1/accounts/${accountA.id}`, {
+      const result = await call('PATCH', `/v1/accounts/${cleo.id}`, {
         assistantAvatar,
         firstName: 'Nicht gespeichert',
       });
@@ -377,7 +390,7 @@ describe('service endpoints', () => {
       assert.deepEqual(result.data, { error: 'avatar_invalid' });
     }
     // Abgewiesen heisst: auch nichts anderes aus derselben Anfrage wurde geschrieben.
-    const read = (await call('GET', `/v1/accounts/${accountA.id}`)).data.account;
+    const read = (await call('GET', `/v1/accounts/${cleo.id}`)).data.account;
     assert.deepEqual(read.assistantAvatar, owl);
     assert.notEqual(read.firstName, 'Nicht gespeichert');
   });
@@ -1351,5 +1364,230 @@ describe('service endpoints', () => {
       );
       assert.equal((await call('DELETE', `/v1/mail/accounts/${mailAccount.id}`)).status, 404);
     });
+  });
+
+  test('plans: status and one abo request per app, approved in the admin', async () => {
+    const dora = (await call('POST', '/v1/accounts', { email: 'dora@test.ch', password: 'passwort123' })).data
+      .account;
+    const statusOf = (app) => call('GET', `/v1/plans?accountId=${dora.id}&app=${app}`);
+    const fresh = await statusOf('getbetter');
+    assert.equal(fresh.status, 200);
+    assert.deepEqual(fresh.data, {
+      app: 'getbetter',
+      priceChf: 1,
+      yearPriceChf: 10,
+      term: 'month',
+      plan: 'trial',
+      canPersonalize: false,
+      request: null,
+      cancelsOn: null,
+      pricedApps: ['getbetter', 'betterfamily', 'bettergym', 'betterai'],
+    });
+    assert.equal((await statusOf('bettermoney')).data.priceChf, null);
+    for (const query of ['', `accountId=${dora.id}`, `accountId=${dora.id}&app=nope`, 'accountId=a%20b&app=getbetter']) {
+      const refused = await call('GET', `/v1/plans?${query}`);
+      assert.deepEqual([refused.status, refused.data], [400, { error: 'bad_request' }], query);
+    }
+    const unknown = await call('GET', '/v1/plans?accountId=acc_fehlt&app=getbetter');
+    assert.deepEqual([unknown.status, unknown.data], [404, { error: 'account_not_found' }]);
+
+    const start = (await activityLines()).length;
+    const created = await call('POST', '/v1/plans/requests', { accountId: dora.id, app: 'getbetter' });
+    assert.equal(created.status, 201);
+    const { request } = created.data;
+    assert.deepEqual(Object.keys(request).sort(), ['app', 'createdAt', 'decidedAt', 'id', 'status', 'term']);
+    assert.deepEqual([request.app, request.status, request.decidedAt], ['getbetter', 'pending', null]);
+    assert.match(request.id, /^plr_/);
+    // Nochmal angefragt: dieselbe Anfrage, keine zweite.
+    const again = await call('POST', '/v1/plans/requests', { accountId: dora.id, app: 'getbetter' });
+    assert.deepEqual([again.status, again.data.request.id], [200, request.id]);
+    assert.equal((await tables()).planRequests.filter((row) => row.accountId === dora.id).length, 1);
+    assert.equal((await statusOf('getbetter')).data.request, 'pending');
+    assert.equal((await statusOf('betterai')).data.request, null);
+    assert.deepEqual(
+      (await activityLines()).slice(start).map((line) => [line.accountId, line.kind, line.detail]),
+      [[dora.id, 'plan.requested', { app: 'getbetter', term: 'month' }]],
+    );
+
+    const refusals = [
+      [{ accountId: dora.id, app: 'bettermoney' }, 400, 'plan_unavailable'],
+      [{ accountId: dora.id, app: 'betterx' }, 400, 'bad_request'],
+      [{ accountId: dora.id }, 400, 'bad_request'],
+      [{ accountId: dora.id, app: 'betterai', status: 'approved' }, 400, 'bad_request'],
+      [{ accountId: 'acc_fehlt', app: 'getbetter' }, 404, 'account_not_found'],
+    ];
+    for (const [body, status, error] of refusals) {
+      const refused = await call('POST', '/v1/plans/requests', body);
+      assert.deepEqual([refused.status, refused.data], [status, { error }], JSON.stringify(body));
+    }
+    // Die Sammlung gehoert dem Dienst, und wer nur ansieht, fragt nichts an.
+    const owned = await call('PUT', '/v1/db/planRequests', { rows: [] });
+    assert.deepEqual([owned.status, owned.data], [403, { error: 'server_owned' }]);
+    const viewing = await call(
+      'POST',
+      '/v1/plans/requests',
+      { accountId: dora.id, app: 'betterai' },
+      { 'X-Better-View': '1' },
+    );
+    assert.deepEqual([viewing.status, viewing.data], [403, { error: 'read_only' }]);
+
+    // Der Admin schaltet frei: Abo aktiv, das Aussehen in allen Apps frei, eine Mitteilung.
+    const approved = await adminCall('POST', `/api/plan-requests/${request.id}/approve`, {});
+    assert.deepEqual(
+      [approved.status, approved.data.request.status, approved.data.account.paidApps],
+      [200, 'approved', ['getbetter']],
+    );
+    const paid = await statusOf('getbetter');
+    assert.deepEqual([paid.data.plan, paid.data.canPersonalize, paid.data.request], ['paid', true, null]);
+    assert.deepEqual([(await statusOf('betterai')).data.plan, (await statusOf('betterai')).data.canPersonalize], ['trial', true]);
+    const notice = (await tables()).notifications.find((row) => row.accountId === dora.id);
+    assert.deepEqual([notice.kind, notice.title, notice.ref], ['planApproved', 'GetBetter', { app: 'getbetter', requestId: request.id }]);
+    const already = await call('POST', '/v1/plans/requests', { accountId: dora.id, app: 'getbetter' });
+    assert.deepEqual([already.status, already.data], [409, { error: 'already_paid' }]);
+    assert.equal((await call('PATCH', `/v1/accounts/${dora.id}`, { accentKey: 'blue' })).status, 200);
+
+    // Das Jahresabo: angefragt mit Laufzeit, freigeschaltet mit Laufzeit.
+    const gym = await call('POST', '/v1/plans/requests', {
+      accountId: dora.id,
+      app: 'bettergym',
+      term: 'year',
+    });
+    assert.deepEqual([gym.status, gym.data.request.term], [201, 'year']);
+    const badTerm = await call('POST', '/v1/plans/requests', {
+      accountId: dora.id,
+      app: 'betterai',
+      term: 'woche',
+    });
+    assert.deepEqual([badTerm.status, badTerm.data], [400, { error: 'bad_request' }]);
+    assert.equal(
+      (await adminCall('POST', `/api/plan-requests/${gym.data.request.id}/approve`, {})).status,
+      200,
+    );
+    const yearly = await statusOf('bettergym');
+    assert.deepEqual([yearly.data.plan, yearly.data.term, yearly.data.yearPriceChf], ['paid', 'year', 50]);
+    const budget = await call('GET', `/v1/ai/budget?accountId=${dora.id}&app=bettergym`);
+    // Zehn Monatspreise fuers Jahr: je Monat bleibt weniger, also auch ein kleineres Budget.
+    assert.ok(budget.data.budgetChf < 2.95 && budget.data.budgetChf > 2.4, String(budget.data.budgetChf));
+
+    // Kuendigen gilt auf Monatsende: bis dahin laeuft alles weiter.
+    const cancelled = await call('POST', '/v1/plans/cancel', { accountId: dora.id, app: 'getbetter' });
+    assert.equal(cancelled.status, 200);
+    assert.equal(cancelled.data.cancelsOn.length, 10);
+    assert.ok(cancelled.data.cancelsOn.endsWith('-01'), cancelled.data.cancelsOn);
+    const stillPaid = await statusOf('getbetter');
+    assert.deepEqual([stillPaid.data.plan, stillPaid.data.cancelsOn], ['paid', cancelled.data.cancelsOn]);
+    // Nochmal gekuendigt bleibt derselbe Stichtag.
+    const twice = await call('POST', '/v1/plans/cancel', { accountId: dora.id, app: 'getbetter' });
+    assert.equal(twice.data.cancelsOn, cancelled.data.cancelsOn);
+
+    // Eine App kann weder Abo noch Kuendigung selbst setzen.
+    const faked = await call('PUT', '/v1/db/accounts', {
+      rows: (await tables()).accounts.map((row) =>
+        row.id === dora.id ? { ...row, paidApps: [], planCancels: { getbetter: '2000-01-01' } } : row,
+      ),
+    });
+    assert.equal(faked.status, 200);
+    const kept = (await tables()).accounts.find((row) => row.id === dora.id);
+    assert.deepEqual(
+      [kept.paidApps, kept.planCancels],
+      [['getbetter', 'bettergym'], { getbetter: cancelled.data.cancelsOn }],
+    );
+
+    // Zurueckgenommen: wieder ein gewoehnliches Abo.
+    const resumed = await call('POST', '/v1/plans/resume', { accountId: dora.id, app: 'getbetter' });
+    assert.deepEqual([resumed.status, resumed.data.cancelsOn], [200, null]);
+    assert.equal((await statusOf('getbetter')).data.cancelsOn, null);
+    // Ohne Abo gibt es nichts zu kuendigen, und wer nur ansieht, kuendigt gar nichts.
+    const notPaid = await call('POST', '/v1/plans/cancel', { accountId: dora.id, app: 'betterai' });
+    assert.deepEqual([notPaid.status, notPaid.data], [409, { error: 'not_paid' }]);
+    const viewingCancel = await call(
+      'POST',
+      '/v1/plans/cancel',
+      { accountId: dora.id, app: 'getbetter' },
+      { 'X-Better-View': '1' },
+    );
+    assert.deepEqual([viewingCancel.status, viewingCancel.data], [403, { error: 'read_only' }]);
+  });
+
+  test('without an abo only light/dark stays free: PATCH refuses the rest, PUT keeps what is stored', async () => {
+    const emil = (await call('POST', '/v1/accounts', { email: 'emil@test.ch', password: 'passwort123' })).data
+      .account;
+    const owl = { kind: 'owl', color: 'sun', eyes: 'sparkle', accessory: 'glasses' };
+    const patch = (body) => call('PATCH', `/v1/accounts/${emil.id}`, body);
+
+    const free = await patch({ themeMode: 'dark', firstName: 'Emil', language: 'fr' });
+    assert.equal(free.status, 200);
+    for (const [field, value] of [
+      ['accentKey', 'blue'],
+      ['themePreset', 'mono'],
+      ['backdrop', 'forest'],
+      ['assistantName', 'Bo'],
+      ['assistantAvatar', owl],
+    ]) {
+      const refused = await patch({ [field]: value, firstName: 'Nicht gespeichert' });
+      assert.deepEqual([refused.status, refused.data], [403, { error: 'plan_required', fields: [field] }], field);
+    }
+    let read = (await call('GET', `/v1/accounts/${emil.id}`)).data.account;
+    assert.deepEqual([read.firstName, read.themeMode, read.language, read.accentKey], ['Emil', 'dark', 'fr', undefined]);
+
+    // Ein Abo irgendeiner App mit Preis schaltet alles frei.
+    assert.equal((await adminCall('PATCH', `/api/accounts/${emil.id}`, { paidApps: ['betterfamily'] })).status, 200);
+    const styled = await patch({
+      accentKey: 'blue',
+      themePreset: 'mono',
+      backdrop: 'forest',
+      assistantName: 'Bo',
+      assistantAvatar: owl,
+    });
+    assert.equal(styled.status, 200);
+
+    // Nur noch BetterMoney (ohne Preis): Gespeichertes bleibt, aendern geht nicht mehr.
+    assert.equal((await adminCall('PATCH', `/api/accounts/${emil.id}`, { paidApps: ['bettermoney'] })).status, 200);
+    // Derselbe Wert nochmal ist keine Aenderung.
+    assert.equal((await patch({ accentKey: 'blue', assistantAvatar: { ...owl }, firstName: 'Emil' })).status, 200);
+    assert.equal((await patch({ accentKey: 'rose' })).status, 403);
+    read = (await call('GET', `/v1/accounts/${emil.id}`)).data.account;
+    assert.deepEqual(
+      [read.accentKey, read.themePreset, read.backdrop, read.assistantName],
+      ['blue', 'mono', 'forest', 'Bo'],
+    );
+
+    // PUT: was eine App ohne Abo schickt, zaehlt nicht — auch keine Stimme; hell/dunkel schon.
+    const original = (await tables()).accounts;
+    const tampered = [
+      ...original.map((row) => {
+        if (row.id !== emil.id) return row;
+        const changed = {
+          ...row,
+          accentKey: 'rose',
+          themePreset: 'colorful',
+          assistantName: 'Fremd',
+          assistantVoice: 'eleven:abc',
+          themeMode: 'light',
+        };
+        delete changed.backdrop;
+        return changed;
+      }),
+      { id: 'acc_frisch', email: 'frisch@test.ch', username: 'frisch', accentKey: 'rose', assistantVoice: 'eleven:abc' },
+    ];
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: tampered })).status, 200);
+    const stored = (await tables()).accounts;
+    const kept = stored.find((row) => row.id === emil.id);
+    assert.deepEqual(
+      [kept.accentKey, kept.themePreset, kept.backdrop, kept.assistantName, kept.themeMode, Object.hasOwn(kept, 'assistantVoice')],
+      ['blue', 'mono', 'forest', 'Bo', 'light', false],
+    );
+    assert.deepEqual(kept.assistantAvatar, owl);
+    const frisch = stored.find((row) => row.id === 'acc_frisch');
+    assert.deepEqual([Object.hasOwn(frisch, 'accentKey'), Object.hasOwn(frisch, 'assistantVoice')], [false, false]);
+
+    // Mit Abo schreibt auch PUT wieder, was die App schickt.
+    assert.equal((await adminCall('PATCH', `/api/accounts/${emil.id}`, { paidApps: ['getbetter'] })).status, 200);
+    const withVoice = (await tables()).accounts
+      .filter((row) => row.id !== 'acc_frisch')
+      .map((row) => (row.id === emil.id ? { ...row, assistantVoice: 'eleven:abc', accentKey: 'rose' } : row));
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows: withVoice })).status, 200);
+    const unlocked = (await tables()).accounts.find((row) => row.id === emil.id);
+    assert.deepEqual([unlocked.assistantVoice, unlocked.accentKey], ['eleven:abc', 'rose']);
   });
 });

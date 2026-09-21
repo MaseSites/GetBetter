@@ -72,10 +72,11 @@ export type Narration = {
  */
 export function useNarration(key: string, text: string): Narration {
   const { language } = useI18n();
-  const { account } = useApp();
+  const { personal } = useApp();
   const current = useSyncExternalStore(subscribe, snapshot, snapshot);
   const [narrator] = useState(() => new Narrator());
-  const voiceUri = account?.assistantVoice;
+  // Ohne Abo die beste Stimme des Browsers.
+  const voiceUri = personal.voice;
   const available = canSpeak();
   const speaks = available && current.allowed && !current.muted && text.length > 0;
 

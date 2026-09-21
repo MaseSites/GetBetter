@@ -9,6 +9,7 @@ import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import {
   Avatar,
   Badge,
@@ -233,6 +234,7 @@ function ChoreComposer({
   const { t } = useI18n();
   const theme = useTheme();
 
+  const celebrate = useCelebrate();
   const [title, setTitle] = useState('');
   const [repeat, setRepeat] = useState<ChoreRepeat>('weekly');
   const [error, setError] = useState<string | null>(null);
@@ -242,6 +244,7 @@ function ChoreComposer({
       setError(t('chores.error.title'));
       return;
     }
+    celebrate('chore');
     await choreRepo.create({ householdId, title, repeat });
     setTitle('');
     setRepeat('weekly');

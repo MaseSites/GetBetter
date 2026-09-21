@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-import { allowedInView, reportReadOnly, viewHeaders } from '@/app/viewMode';
+import { refusesCall, reportReadOnly, viewHeaders } from '@/app/viewMode';
 import type { AvatarStyle } from '@/features/avatar/style';
 
 /**
@@ -78,7 +78,7 @@ async function call(
 ): Promise<ServiceResult> {
   const method = init?.method ?? 'GET';
   // Nur ansehen: Anmelden, Registrieren, Profil — nichts davon geht hinaus.
-  if (!allowedInView(method, path)) {
+  if (refusesCall(method, path)) {
     reportReadOnly();
     return { ok: false, error: 'offline' };
   }
@@ -151,7 +151,7 @@ export async function callService<T>(
   init?: { method: 'GET' | 'POST' | 'DELETE' | 'PATCH'; body?: unknown },
 ): Promise<ServiceCall<T>> {
   const method = init?.method ?? 'GET';
-  if (!allowedInView(method, path)) {
+  if (refusesCall(method, path)) {
     reportReadOnly();
     return { ok: false, error: 'read_only' };
   }

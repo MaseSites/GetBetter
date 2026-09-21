@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { currentApp } from '@/app/identity';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -35,41 +36,58 @@ const UPLOAD_ERRORS: Readonly<Record<UploadError, TranslationKey>> = {
   failed: 'personalize.upload.failed',
 };
 
+export type BackdropPickerProps = {
+  /** Ohne Abo: was ein Tipp auf eine Kachel tut. Standard ist das Abo-Fenster. */
+  onLocked?: () => void;
+};
+
 /**
  * Die Auswahl des Hintergrunds: das Bild der App, die mitgelieferten Bilder
- * und ein eigenes. Liest und schreibt selbst ueber `useApp()`, braucht darum
- * keine Props — so passt sie unter Aussehen wie ins Einrichten.
+ * und ein eigenes. Liest und schreibt selbst ueber `useApp()` — so passt sie
+ * unter Aussehen wie ins Einrichten.
+ *
+ * Ohne Abo gilt das Bild der App; ein Tipp auf eine Kachel oeffnet das Abo.
+ * Ein gespeichertes eigenes Bild bleibt beim Dienst liegen.
  */
-export function BackdropPicker() {
+export function BackdropPicker({ onLocked }: BackdropPickerProps = {}) {
   const t = useTranslate();
   const theme = useTheme();
-  const { account, setBackdrop } = useApp();
+  const { account, personal, setBackdrop } = useApp();
+  const plan = usePlanSheet();
+  const locked = !personal.canPersonalize;
+  const unlock = onLocked ?? plan.open;
   const appId = currentApp().id;
 
   const [width, setWidth] = useState(0);
   /** Was gerade getippt wurde, bis das Konto es bestaetigt. */
   const [chosen, setChosen] = useState<string | null>(null);
   /** Das eigene Bild dieser Sitzung — bleibt waehlbar, auch wenn gerade ein anderes gilt. */
-  const [ownId, setOwnId] = useState(() => uploadIdOf(account?.backdrop));
+  const [ownId, setOwnId] = useState(() => uploadIdOf(personal.backdrop));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TranslationKey | null>(null);
 
-  const resolved = resolveBackdrop(chosen ?? account?.backdrop, appId);
+  const resolved = resolveBackdrop(chosen ?? personal.backdrop, appId);
   const active = resolved.kind === 'preset' ? resolved.key : resolved.kind;
   const ownPreview = resolved.kind === 'upload' ? resolved.id : ownId;
   const picker = canPickImage();
 
   // Wer die Auswahl verlaesst, laesst kein eigenes Bild beim Dienst liegen, das
-  // nirgends mehr gewaehlt ist — es waere sonst unerreichbar.
+  // nirgends mehr gewaehlt ist — es waere sonst unerreichbar. Ohne Abo wird
+  // nichts gewaehlt, also auch nichts weggeraeumt.
   const forgetUnused = useEffectEvent(() => {
-    const kept = uploadIdOf(chosen ?? account?.backdrop);
+    if (locked) return;
+    const kept = uploadIdOf(chosen ?? personal.backdrop);
     if (ownId && ownId !== kept) void removeUpload(ownId);
   });
   useEffect(() => () => forgetUnused(), []);
 
   async function choose(value: string): Promise<boolean> {
     setError(null);
-    if (value === (account?.backdrop ?? APP_BACKDROP)) return true;
+    if (locked) {
+      unlock();
+      return false;
+    }
+    if (value === (personal.backdrop ?? APP_BACKDROP)) return true;
     setChosen(value);
     try {
       await setBackdrop(value);
@@ -84,6 +102,10 @@ export function BackdropPicker() {
 
   async function uploadNew() {
     if (!account) return;
+    if (locked) {
+      unlock();
+      return;
+    }
     setError(null);
     let dataUrl: string | null;
     try {
@@ -119,6 +141,10 @@ export function BackdropPicker() {
 
   function pressOwn() {
     if (busy) return;
+    if (locked) {
+      unlock();
+      return;
+    }
     if (ownPreview && active !== 'upload') {
       void choose(`${UPLOAD_PREFIX}${ownPreview}`);
       return;

@@ -13,6 +13,7 @@
  */
 
 import { createBillingUi } from './billing.js';
+import { createPlanRequestsUi } from './plans.js';
 
 // ===========================================================================
 // Einstellungen
@@ -120,6 +121,9 @@ const KIND_LABELS = {
   'admin.password': 'Admin: Passwort gesetzt',
   'admin.deleted': 'Admin: Konto gelöscht',
   'admin.viewed': 'Admin: App angesehen',
+  'plan.requested': 'Abo angefragt',
+  'admin.planApproved': 'Admin: Abo freigeschaltet',
+  'admin.planDeclined': 'Admin: Abo-Anfrage abgelehnt',
 };
 
 const REASON_TEXT = {
@@ -145,6 +149,8 @@ const ERROR_TEXT = {
   bad_request: 'Der Dienst hat die Anfrage als ungültig abgelehnt.',
   bad_response: 'Der Dienst hat keine lesbare Antwort geschickt.',
   confirm_mismatch: 'Die E-Mail stimmt nicht.',
+  already_decided: 'Über diese Anfrage wurde schon entschieden — lade die Seite neu.',
+  plan_unavailable: 'Für diese App gibt es noch kein Abo.',
 };
 
 // ===========================================================================
@@ -728,8 +734,32 @@ function billingUi() {
       fmtRelative,
       APPS,
       isDemo: Boolean(DEMO_MODE),
+      requestControls: (store, appId) => planRequestsUi().requestControls(store, appId),
     });
   return billingUiInstance;
+}
+
+/** Abo-Anfragen (plans.js): der Block in der Übersicht, die Knöpfe im Konto. */
+let planRequestsUiInstance = null;
+
+function planRequestsUi() {
+  planRequestsUiInstance =
+    planRequestsUiInstance ??
+    createPlanRequestsUi({
+      h,
+      card,
+      toast,
+      errorContent,
+      reportUnexpected,
+      api,
+      appName,
+      displayName,
+      accountHref,
+      asArray,
+      fmtRelative,
+      fmtDateTime,
+    });
+  return planRequestsUiInstance;
 }
 
 function page({ title, subtitle, actions }, ...content) {
@@ -1339,6 +1369,12 @@ function describeEntry(entry) {
       };
     case 'admin.viewed':
       return { icon: '⚙︎', tone: 'admin', text: `App${inApp} im Admin angesehen, nur lesend` };
+    case 'plan.requested':
+      return { icon: '★', tone: 'neutral', text: `Abo${inApp} angefragt` };
+    case 'admin.planApproved':
+      return { icon: '⚙︎', tone: 'admin', text: `Abo${inApp} im Admin freigeschaltet` };
+    case 'admin.planDeclined':
+      return { icon: '⚙︎', tone: 'admin', text: `Abo-Anfrage${inApp} im Admin abgelehnt` };
     default:
       return { icon: '•', tone: 'neutral', text: `Ereignis «${entry.kind ?? 'unbekannt'}»` };
   }
@@ -1635,6 +1671,8 @@ async function renderOverview(ctx) {
       ],
       'kpis',
     ),
+    // Wer auf ein Abo wartet, steht ganz oben — das ist heute der einzige Weg zum Abo.
+    planRequestsUi().requestsCard(data?.planRequests),
     h(
       'section',
       { 'aria-labelledby': 'overview-apps' },
@@ -3112,6 +3150,23 @@ function buildDemoDb() {
     activity.push({ at: iso(now - k * 2 * HOUR_MS - Math.floor(rand() * HOUR_MS)), accountId: account.id, kind, detail: details[kind] });
   }
   accounts.forEach((account) => activity.push({ at: account.createdAt, accountId: account.id, kind: 'account.created', detail: {} }));
+  // Drei offene Abo-Anfragen (Nico, Giulia, ohne Namen) und eine schon abgelehnte.
+  const planRequests = [
+    [2, 'getbetter', 3 * HOUR_MS, 'pending'],
+    [3, 'bettergym', 50 * 60 * 1000, 'pending'],
+    [5, 'betterai', 26 * HOUR_MS, 'pending'],
+    [1, 'betterai', 9 * DAY_MS, 'declined'],
+  ].map(([index, app, ageMs, status], i) => ({
+    id: `plr_demo${i + 1}`,
+    accountId: accounts[index].id,
+    app,
+    status,
+    createdAt: iso(now - ageMs),
+    decidedAt: status === 'pending' ? null : iso(now - ageMs + HOUR_MS),
+  }));
+  planRequests.forEach((request) =>
+    activity.push({ at: request.createdAt, accountId: request.accountId, kind: 'plan.requested', detail: { app: request.app } }),
+  );
   activity.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   const month = monthKeyOf(new Date());
@@ -3124,7 +3179,56 @@ function buildDemoDb() {
     ),
     usage: demoUsage(aiCalls, speechCalls, account.id),
   }));
-  return { accounts: withTotals, counts, aiCalls, speechCalls, activity };
+  return { accounts: withTotals, counts, aiCalls, speechCalls, activity, planRequests };
+}
+
+/** Wie `pendingRequests` im Dienst: offen, mit Konto, die älteste zuerst. */
+function demoPendingRequests(db, accountId) {
+  const byId = new Map(db.accounts.map((a) => [a.id, a]));
+  return asArray(db.planRequests)
+    .filter((r) => r.status === 'pending' && byId.has(r.accountId) && (!accountId || r.accountId === accountId))
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+    .map((r) => {
+      const a = byId.get(r.accountId);
+      return { id: r.id, accountId: r.accountId, email: a.email, username: a.username, firstName: a.firstName, app: r.app, createdAt: r.createdAt };
+    });
+}
+
+/** Ein Konto, wie der Dienst es im Admin zeigt: mit Kontingent und offenen Abo-Anfragen. */
+function demoAccountView(db, account) {
+  return {
+    ...account,
+    billing: demoBilling(db, account),
+    planRequests: demoPendingRequests(db, account.id).map(({ id, app, createdAt }) => ({ id, app, createdAt })),
+  };
+}
+
+/** Freischalten oder ablehnen, wie im Dienst — mit Abo am Konto und Eintrag im Verlauf. */
+function demoDecide(db, id, action, body) {
+  if (body && typeof body === 'object' && Object.keys(body).length > 0) throw new ApiError('bad_request', 400);
+  const request = asArray(db.planRequests).find((r) => r.id === id);
+  if (!request) throw new ApiError('not_found', 404);
+  if (request.status !== 'pending') throw new ApiError('already_decided', 409);
+  const account = db.accounts.find((a) => a.id === request.accountId);
+  if (!account) throw new ApiError('not_found', 404);
+  const approved = action === 'approve';
+  const decidedAt = new Date().toISOString();
+  const paid = asArray(account.paidApps);
+  const next = approved && !paid.includes(request.app) ? { ...account, paidApps: [...paid, request.app] } : account;
+  const decided = { ...request, status: approved ? 'approved' : 'declined', decidedAt };
+  demoDb = {
+    ...db,
+    accounts: db.accounts.map((a) => (a.id === account.id ? next : a)),
+    planRequests: db.planRequests.map((r) => (r.id === id ? decided : r)),
+    activity: [
+      { at: decidedAt, accountId: account.id, kind: approved ? 'admin.planApproved' : 'admin.planDeclined', detail: { app: request.app } },
+      ...db.activity,
+    ],
+  };
+  return {
+    request: { id, app: request.app, status: decided.status, createdAt: request.createdAt, decidedAt },
+    account: demoAccountView(demoDb, next),
+  };
 }
 
 const DEMO_SPEECH_CREDITS = 10000;
@@ -3402,6 +3506,7 @@ function demoOverview(db) {
     },
     speech: demoSpeechOverview(db),
     margin: demoMargin(db, month),
+    planRequests: demoPendingRequests(db),
     storage: { dbBytes: 1834221, uploadsBytes: 12400512 },
   };
 }
@@ -3421,7 +3526,7 @@ function demoActivity(db, params) {
 function demoDetail(db, account) {
   const calls = db.aiCalls.filter((c) => c.accountId === account.id);
   return {
-    account: { ...account, billing: demoBilling(db, account) },
+    account: demoAccountView(db, account),
     counts: db.counts[account.id],
     activity: demoActivity(db, new URLSearchParams({ accountId: account.id, limit: '15' })),
     ai: {
@@ -3474,12 +3579,18 @@ function demoPatch(db, account, body) {
     next.paidApps = asArray(input.paidApps).filter((id) => APP_BY_ID.has(id));
     fields.push('paidApps');
   }
+  // Das Abo direkt eingeschaltet: offene Anfragen fuer diese Apps sind damit erledigt.
+  const added = 'paidApps' in input ? next.paidApps.filter((id) => !asArray(account.paidApps).includes(id)) : [];
+  const decidedAt = new Date().toISOString();
   demoDb = {
     ...db,
     accounts: db.accounts.map((a) => (a.id === account.id ? next : a)),
-    activity: [{ at: new Date().toISOString(), accountId: account.id, kind: 'admin.updated', detail: { fields } }, ...db.activity],
+    planRequests: asArray(db.planRequests).map((r) =>
+      r.accountId === account.id && r.status === 'pending' && added.includes(r.app) ? { ...r, status: 'approved', decidedAt } : r,
+    ),
+    activity: [{ at: decidedAt, accountId: account.id, kind: 'admin.updated', detail: { fields } }, ...db.activity],
   };
-  return { account: { ...next, billing: demoBilling(demoDb, next) } };
+  return { account: demoAccountView(demoDb, next) };
 }
 
 function demoCosts(db, monthParam) {
@@ -3543,6 +3654,9 @@ async function demoApi(method, path, body) {
   if (method === 'GET' && url.pathname === '/api/accounts') return copy({ accounts: db.accounts.map(demoListShape) });
   if (method === 'GET' && url.pathname === '/api/activity') return copy({ entries: demoActivity(db, url.searchParams) });
   if (method === 'GET' && url.pathname === '/api/costs') return copy(demoCosts(db, url.searchParams.get('month')));
+  if (method === 'POST' && parts[0] === 'api' && parts[1] === 'plan-requests' && parts.length === 4 && ['approve', 'decline'].includes(parts[3])) {
+    return copy(demoDecide(db, parts[2], parts[3], body));
+  }
   if (parts[0] === 'api' && parts[1] === 'accounts' && parts[2]) {
     const account = db.accounts.find((a) => a.id === parts[2]);
     if (!account) throw new ApiError('not_found', 404);

@@ -22,7 +22,7 @@ import {
   shopping as shoppingRepo,
 } from '@/db/repositories';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { formatMoney, formatTime, useI18n, type TranslationKey } from '@/i18n';
+import { formatList, formatMoney, formatTime, useI18n } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { AppIcon, Button, Icon, Text, usePressScale } from '@/ui';
@@ -30,10 +30,11 @@ import { AppIcon, Button, Icon, Text, usePressScale } from '@/ui';
 /**
  * Die anderen Better-Apps auf der Startseite von GetBetter — die Verwaltung.
  *
- * Gestaltet wie die Bereiche: eine Ueberschrift mit Anzahl, darunter eine
- * Karte mit Zeilen. Wo man noch nie drin war, steht die App blass mit einem
- * Satz und einem Knopf zum Installieren. Wo man drin war, stehen die Felder
- * dessen, was gerade ansteht — moeglich, weil alle dieselbe Datenbank teilen.
+ * Gestaltet wie die Bereiche: eine Ueberschrift, darunter eine Karte mit
+ * Zeilen. **Jede App zeigt dasselbe**: auf einen Blick, was in ihr gerade
+ * ansteht — moeglich, weil alle dieselbe Datenbank teilen. Wo man schon drin
+ * war, fuehrt ein Tipp hinein; wo nicht, steht die Vorschau blass da und
+ * daneben der Knopf zum Installieren. Kein Werbesatz.
  */
 export function AppFamily() {
   const { t, language } = useI18n();
@@ -50,8 +51,8 @@ export function AppFamily() {
   );
   const unlocked = unlockedList.data ?? [];
 
-  const shoppingOpen = useLiveQuery(
-    () => (account ? shoppingRepo.countOpen(account.id, householdId) : Promise.resolve(0)),
+  const shoppingList = useLiveQuery(
+    () => (account ? shoppingRepo.list(account.id, householdId) : Promise.resolve([])),
     [account?.id, householdId],
   );
   const choreList = useLiveQuery(
@@ -111,14 +112,24 @@ export function AppFamily() {
   function fields(id: AppId): { label: string; value: string | null }[] {
     if (id === 'betterfamily') {
       const next = familyNext.data?.[0];
-      const open = shoppingOpen.data ?? 0;
+      // Die Einkaufsliste auf einen Blick: die ersten Posten, sonst nur die Zahl.
+      const open = (shoppingList.data ?? []).filter((item) => !item.done);
+      const names = open.slice(0, 3).map((item) => item.name);
       const jobs = choreList.data?.length ?? 0;
       return [
         {
           label: t('field.nextAppointment'),
           value: next ? `${formatTime(language, next.startsAt)} · ${next.title}` : null,
         },
-        { label: t('field.shopping'), value: open > 0 ? t('field.open', { count: open }) : null },
+        {
+          label: t('field.shopping'),
+          value:
+            open.length === 0
+              ? null
+              : open.length > names.length
+                ? t('field.open', { count: open.length })
+                : formatList(language, names),
+        },
         { label: t('field.chores'), value: jobs > 0 ? t('field.open', { count: jobs }) : null },
       ];
     }
@@ -169,100 +180,112 @@ export function AppFamily() {
           },
         ]}
       >
-        {others.map((id, index) => {
-          const open = unlocked.includes(id);
-          return open ? (
-            <OpenApp
-              key={id}
-              id={id}
-              first={index === 0}
-              rows={fields(id)}
-              onOpen={() => void Linking.openURL(appUrl(id))}
-            />
-          ) : (
-            <LockedApp
-              key={id}
-              id={id}
-              first={index === 0}
-              installLabel={t('family.install')}
-              tagline={t(APPS[id].taglineKey as TranslationKey)}
-              onInstall={() => void install(id)}
-            />
-          );
-        })}
+        {others.map((id, index) => (
+          <AppRow
+            key={id}
+            id={id}
+            first={index === 0}
+            rows={fields(id)}
+            installLabel={t('family.install')}
+            open={unlocked.includes(id)}
+            onOpen={() => void Linking.openURL(appUrl(id))}
+            onInstall={() => void install(id)}
+          />
+        ))}
       </View>
     </View>
   );
 }
 
-/** Noch nie geoeffnet: blass, ein Satz, der Knopf faellt auf. */
-function LockedApp({
-  id,
-  first,
-  tagline,
-  installLabel,
-  onInstall,
-}: {
-  id: AppId;
-  first: boolean;
-  tagline: string;
-  installLabel: string;
-  onInstall: () => void;
-}) {
-  const theme = useTheme();
-
-  return (
-    <View
-      style={[
-        styles.row,
-        {
-          padding: theme.spacing.md,
-          gap: theme.spacing.md,
-          borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.border,
-        },
-      ]}
-    >
-      <View style={styles.faded}>
-        <AppIcon appId={id} />
-      </View>
-      <View style={[styles.text, styles.faded]}>
-        <Text
-          variant="label"
-          numberOfLines={1}
-          style={{ fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.semibold }}
-        >
-          {APPS[id].name}
-        </Text>
-        <Text variant="caption" tone="muted" numberOfLines={2}>
-          {tagline}
-        </Text>
-      </View>
-      <Button
-        label={installLabel}
-        icon="download"
-        size="sm"
-        fullWidth={false}
-        onPress={onInstall}
-      />
-    </View>
-  );
-}
-
-/** Schon geoeffnet: die ganze Zeile fuehrt in die App, darunter ihre Felder. */
-function OpenApp({
-  id,
-  first,
-  rows,
-  onOpen,
-}: {
+type AppRowProps = {
   id: AppId;
   first: boolean;
   rows: { label: string; value: string | null }[];
+  /** Schon einmal in dieser App gewesen? Dann fuehrt die Zeile hinein. */
+  open: boolean;
+  installLabel: string;
   onOpen: () => void;
-}) {
+  onInstall: () => void;
+};
+
+/**
+ * Eine App in der Karte: oben Logo, Name und — je nachdem — der Pfeil hinein
+ * oder der Knopf zum Installieren, darunter immer die Vorschau. Ohne die App
+ * steht alles blass da, und die Zeile ist nicht druckbar: sie traegt dann den
+ * Knopf, und ein Knopf im Knopf gibt es nicht.
+ */
+function AppRow({ id, first, rows, open, installLabel, onOpen, onInstall }: AppRowProps) {
   const theme = useTheme();
   const press = usePressScale(theme.motion.pressScale.row);
+
+  const inside = (
+    <>
+      <View style={[styles.row, { gap: theme.spacing.md }]}>
+        <View style={open ? undefined : styles.faded}>
+          <AppIcon appId={id} />
+        </View>
+        <Text
+          variant="label"
+          numberOfLines={1}
+          style={[
+            styles.text,
+            styles.name,
+            open ? undefined : styles.faded,
+            { fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.semibold },
+          ]}
+        >
+          {APPS[id].name}
+        </Text>
+        {open ? (
+          <Icon name="forward" size={theme.fontSize.sm} color={theme.colors.borderStrong} />
+        ) : (
+          <Button
+            label={installLabel}
+            icon="download"
+            size="sm"
+            fullWidth={false}
+            onPress={onInstall}
+          />
+        )}
+      </View>
+
+      <View style={[{ marginTop: theme.spacing.sm }, open ? undefined : styles.faded]}>
+        {rows.map((field) => (
+          <View
+            key={field.label}
+            style={[
+              styles.field,
+              {
+                paddingVertical: theme.spacing.sm,
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Text variant="label" tone="muted" style={styles.text}>
+              {field.label}
+            </Text>
+            <Text
+              variant="label"
+              tone={field.value ? 'default' : 'faint'}
+              numberOfLines={1}
+              style={{ fontWeight: theme.fontWeight.semibold }}
+            >
+              {field.value ?? '—'}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </>
+  );
+
+  const edge = {
+    padding: theme.spacing.md,
+    borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  };
+
+  if (!open) return <View style={edge}>{inside}</View>;
 
   return (
     <Pressable
@@ -272,56 +295,7 @@ function OpenApp({
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
     >
-      <Animated.View
-        style={{
-          padding: theme.spacing.md,
-          borderTopWidth: first ? 0 : StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.border,
-          transform: [{ scale: press.scale }],
-        }}
-      >
-        <View style={[styles.row, { gap: theme.spacing.md }]}>
-          <AppIcon appId={id} />
-          <Text
-            variant="label"
-            numberOfLines={1}
-            style={[
-              styles.text,
-              { fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.semibold },
-            ]}
-          >
-            {APPS[id].name}
-          </Text>
-          <Icon name="forward" size={15} color={theme.colors.borderStrong} />
-        </View>
-        <View style={{ marginTop: theme.spacing.sm }}>
-          {rows.map((row) => (
-            <View
-              key={row.label}
-              style={[
-                styles.field,
-                {
-                  paddingVertical: theme.spacing.sm,
-                  borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: theme.colors.border,
-                },
-              ]}
-            >
-              <Text variant="label" tone="muted" style={styles.text}>
-                {row.label}
-              </Text>
-              <Text
-                variant="label"
-                tone={row.value ? 'default' : 'faint'}
-                numberOfLines={1}
-                style={{ fontWeight: theme.fontWeight.semibold }}
-              >
-                {row.value ?? '—'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Animated.View>
+      <Animated.View style={[edge, { transform: [{ scale: press.scale }] }]}>{inside}</Animated.View>
     </Pressable>
   );
 }
@@ -330,7 +304,8 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
   card: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: 'row', alignItems: 'center' },
-  text: { flex: 1, minWidth: 0, gap: 2 },
+  text: { flex: 1, minWidth: 0 },
+  name: { gap: 2 },
   faded: { opacity: 0.55 },
   field: { flexDirection: 'row', alignItems: 'center' },
 });

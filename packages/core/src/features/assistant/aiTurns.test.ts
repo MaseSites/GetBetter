@@ -6,9 +6,29 @@ import {
   AI_TURN_MAX_CHARS,
   aiFailureKey,
   aiFailureOf,
+  aiFailureOffersPlan,
   aiFailureText,
   turnsFor,
 } from './aiTurns';
+
+test('aiFailureOffersPlan: „Abo ansehen“ nur, wo das Abo wirklich hilft', () => {
+  const failure = (error: string, plan: 'paid' | 'trial' | null, priceChf: number | null) => ({
+    error,
+    plan,
+    resetsOn: '2026-10-01',
+    priceChf,
+  });
+  assert.equal(aiFailureOffersPlan(failure('budget_exhausted', 'trial', 1)), true);
+  assert.equal(aiFailureOffersPlan(failure('plan_required', 'trial', 8)), true);
+  assert.equal(aiFailureOffersPlan(failure('plan_required', null, null)), true);
+  // Mit Abo aufgebraucht: dann hilft nur warten.
+  assert.equal(aiFailureOffersPlan(failure('budget_exhausted', 'paid', 8)), false);
+  // BetterMoney hat noch kein Abo.
+  assert.equal(aiFailureOffersPlan(failure('budget_exhausted', 'trial', null)), false);
+  for (const error of ['offline', 'rate_limited', 'not_configured', 'read_only', 'timeout']) {
+    assert.equal(aiFailureOffersPlan(failure(error, 'trial', 8)), false, error);
+  }
+});
 
 test('turnsFor: die Frage steht immer zuletzt', () => {
   const turns = turnsFor(

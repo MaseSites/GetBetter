@@ -50,10 +50,11 @@ const COLLECTIONS = [
 ];
 
 /**
- * Diese drei schreibt nur der Dienst. Eine App, die sie per PUT ersetzte,
- * wuerde ueberschreiben, was der Mail-Abgleich gerade angelegt hat.
+ * Diese schreibt nur der Dienst. Eine App, die sie per PUT ersetzte, wuerde
+ * ueberschreiben, was der Mail-Abgleich gerade angelegt hat — oder sich selbst
+ * eine Abo-Anfrage als freigeschaltet eintragen.
  */
-const SERVER_OWNED = new Set(['notifications', 'mailAccounts', 'mailMessages']);
+const SERVER_OWNED = new Set(['notifications', 'mailAccounts', 'mailMessages', 'planRequests']);
 
 /**
  * Neue Sammlungen duerfen die Apps selbst anlegen — sonst muesste der Dienst

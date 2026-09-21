@@ -47,9 +47,10 @@ export function Screen({
 }: ScreenProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { account } = useApp();
+  const { personal } = useApp();
   const appId = currentApp().id;
-  const backdrop = resolveBackdrop(account?.backdrop, appId);
+  // Ohne Abo das Bild der App — der gewaehlte Hintergrund bleibt gespeichert.
+  const backdrop = resolveBackdrop(personal.backdrop, appId);
 
   const inner: StyleProp<ViewStyle> = [
     {

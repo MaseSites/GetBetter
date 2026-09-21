@@ -36,6 +36,7 @@ export function createBillingUi(ui) {
     fmtRelative,
     APPS,
     isDemo,
+    requestControls,
   } = ui;
 
   // -------------------------------------------------------------------------
@@ -107,6 +108,8 @@ export function createBillingUi(ui) {
       const ids = { name: uid('app'), access: uid('access'), paid: uid('paid') };
       const meta = h('span', { class: 'access-row__meta' });
       const badge = h('span', { class: 'access-row__badge' });
+      // Eine offene Abo-Anfrage steht direkt unter der App, mit Freischalten und Ablehnen.
+      const request = h('div');
       const usage = h('div', { class: 'access-row__usage' });
       const accessSwitch = createSwitch({
         labelledBy: `${ids.access} ${ids.name}`,
@@ -130,6 +133,7 @@ export function createBillingUi(ui) {
           { class: 'access-row__app' },
           h('span', { class: 'access-row__name' }, h('span', { id: ids.name, class: 'access-row__title', text: app.name }), badge),
           meta,
+          request,
         ),
         h(
           'div',
@@ -139,7 +143,7 @@ export function createBillingUi(ui) {
         ),
         usage,
       );
-      return { app, meta, badge, usage, accessSwitch, paidSwitch, el };
+      return { app, meta, badge, request, usage, accessSwitch, paidSwitch, el };
     });
     const list = h('ul', { class: 'access-list' }, rows.map((row) => row.el));
 
@@ -156,6 +160,7 @@ export function createBillingUi(ui) {
           hasPrice ? `Abo ${fmtChf(usage.priceChf)} im Monat` : 'noch kein Abo-Preis',
         ].join(' · ');
         row.badge.replaceChildren(planBadge(usage?.plan) ?? '');
+        row.request.replaceChildren(...[requestControls?.(store, row.app.id)].filter(Boolean));
         row.accessSwitch.update({ checked: !blocked.has(row.app.id), busy: pending });
         // Ohne Preis gibt es kein Abo einzuschalten — ausschalten geht immer.
         row.paidSwitch.update({ checked: paid.has(row.app.id), busy: pending || (!hasPrice && !paid.has(row.app.id)) });
@@ -191,7 +196,9 @@ export function createBillingUi(ui) {
         title: 'Apps: Zugang und Abo',
         note:
           'Gesperrt lässt das Konto nicht mehr in die App. Mit Abo gilt das Kontingent des Abos, ohne Abo ein kleines ' +
-          'Gratis-Kontingent: nur die günstige KI, keine Stimmen von ElevenLabs. Die App merkt es beim nächsten Abgleich.',
+          'Gratis-Kontingent: nur die günstige KI, keine Stimmen von ElevenLabs. Ein Abo irgendeiner App schaltet das ' +
+          'Aussehen in allen Apps frei; das Abo einschalten erledigt auch eine offene Anfrage. Die App merkt es beim ' +
+          'nächsten Abgleich.',
       },
       list,
     );

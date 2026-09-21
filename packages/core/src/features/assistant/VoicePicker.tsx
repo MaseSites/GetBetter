@@ -1,7 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useI18n, useTranslate, type TranslationKey } from '@/i18n';
+import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Icon, Text, usePressScale } from '@/ui';
 
@@ -42,6 +44,11 @@ export type VoicePickerProps = {
   value?: string | undefined;
   /** Eine Stimme wurde gewaehlt. Sie wird beim Antippen gleich vorgelesen. */
   onChange: (voiceUri: string) => void;
+  /**
+   * Wohin „Abo ansehen“ fuehrt. Standard ist das Abo-Fenster; aus einem Blatt
+   * heraus schliesst der Aufrufer erst sein Blatt.
+   */
+  onPlan?: () => void;
 };
 
 /**
@@ -53,10 +60,13 @@ export type VoicePickerProps = {
  * Sprachausgabe, oder wenn es nur eine einzige Stimme gibt), steht statt einer
  * halbleeren Liste ein Satz, der das sagt.
  */
-export function VoicePicker({ value, onChange }: VoicePickerProps) {
+export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
   const t = useTranslate();
   const theme = useTheme();
   const { language } = useI18n();
+  const { personal } = useApp();
+  const plan = usePlanSheet();
+  const showPlan = onPlan ?? plan.open;
   const voices = choosableVoices(useSpeechVoices());
   const cloud = useSyncExternalStore(onCloudChange, cloudState, cloudState);
   const [speaking, setSpeaking] = useState<string | null>(null);
@@ -76,11 +86,27 @@ export function VoicePicker({ value, onChange }: VoicePickerProps) {
   useEffect(() => () => player.release(), [player]);
 
   const note = Platform.OS === 'web' ? cloudNote(cloud) : null;
-  const noteText = note ? (
-    <Text variant="caption" tone="faint">
-      {t(note)}
-    </Text>
-  ) : null;
+  // „Echte Stimmen gibt es mit dem Abo.“ fuehrt direkt dorthin.
+  const noteText =
+    note === 'assistant.cloud.planRequired' ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t(note)} ${t('plan.see')}`}
+        onPress={showPlan}
+        style={({ pressed }) => [styles.note, { gap: theme.spacing.xs, opacity: pressed ? 0.6 : 1 }]}
+      >
+        <Text variant="caption" tone="faint">
+          {t(note)}
+        </Text>
+        <Text variant="caption" tone="accent">
+          {t('plan.see')}
+        </Text>
+      </Pressable>
+    ) : note ? (
+      <Text variant="caption" tone="faint">
+        {t(note)}
+      </Text>
+    ) : null;
 
   if (voices.length < 2) {
     return (
@@ -109,6 +135,11 @@ export function VoicePicker({ value, onChange }: VoicePickerProps) {
   }
 
   function play(voice: SpeechVoice) {
+    // Ohne Abo spricht die beste Stimme — waehlen gibt es mit dem Abo.
+    if (!personal.canPersonalize) {
+      showPlan();
+      return;
+    }
     onChange(voice.uri);
     setSpeaking(voice.uri);
     player.setVoice(voice.uri);
@@ -207,5 +238,6 @@ function VoiceRow({ voice, detail, selected, speaking, onPress }: VoiceRowProps)
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', minHeight: ROW_HEIGHT, borderWidth: 1 },
+  note: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   grow: { flex: 1 },
 });

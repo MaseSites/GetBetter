@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { accessOf } from './access';
+import { accessOf, adminFieldsChanged } from './access';
+
+test('adminFieldsChanged: Sperre, Apps und Abo zaehlen, alles andere nicht', () => {
+  assert.equal(adminFieldsChanged({}, { disabled: false, blockedApps: [], paidApps: [] }), false);
+  assert.equal(adminFieldsChanged({ paidApps: ['getbetter'] }, { paidApps: ['getbetter'] }), false);
+  assert.equal(adminFieldsChanged({ paidApps: [] }, { paidApps: ['getbetter'] }), true);
+  assert.equal(adminFieldsChanged({ blockedApps: ['betterai'] }, {}), true);
+  assert.equal(adminFieldsChanged({ disabled: true }, { disabled: false }), true);
+  assert.equal(adminFieldsChanged({ paidApps: ['a', 'b'] }, { paidApps: ['b', 'a'] }), true);
+});
 
 test('accessOf: ohne Angaben ist alles freigeschaltet', () => {
   assert.equal(accessOf({}, 'getbetter'), 'ok');

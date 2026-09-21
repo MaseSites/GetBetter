@@ -41,6 +41,7 @@ export function SetupScreen() {
   const theme = useTheme();
   const {
     account,
+    personal,
     signOut,
     completeOnboarding,
     setAssistantName,
@@ -57,9 +58,11 @@ export function SetupScreen() {
   // gibt, reicht der Browser erst nach — darum nur das Zweite von aussen.
   const [hadFirstName] = useState(() => Boolean(account?.firstName.trim()));
   const canPickVoice = voices.length > 1;
+  // Neu registriert heisst Gratis: dann kurz — Spitzname, hell oder dunkel, fertig.
+  const canPersonalize = personal.canPersonalize;
   const liveSteps = useMemo(
-    () => setupSteps(hadFirstName, canPickVoice),
-    [hadFirstName, canPickVoice],
+    () => setupSteps(hadFirstName, canPickVoice, canPersonalize),
+    [hadFirstName, canPickVoice, canPersonalize],
   );
   // Sobald man einmal weiter ist, stehen die Schritte fest: kaeme die Stimme
   // danach noch vorne dazu, rutschte der laufende Schritt um eins.
@@ -74,7 +77,7 @@ export function SetupScreen() {
   const firstName = draft.firstName.trim();
   const assistant = draft.assistantName.trim();
   const canGo = canLeave(step, draft);
-  const voiceUri = account?.assistantVoice;
+  const voiceUri = personal.voice;
 
   const bubble: Record<SetupStep, string> = {
     voice: t('intro.setup.voice.bubble'),
@@ -85,7 +88,8 @@ export function SetupScreen() {
       ? t('intro.setup.assistant.bubbleNamed', { name: firstName, assistant })
       : t('intro.setup.assistant.bubble', { name: firstName }),
     avatar: t('intro.setup.avatar.bubble', { assistant }),
-    style: t('intro.setup.style.bubbleAfterAvatar'),
+    // Ohne Abo sagt er ehrlich, was hier frei ist und was mit dem Abo geht.
+    style: canPersonalize ? t('intro.setup.style.bubbleAfterAvatar') : t('plan.setup.bubble'),
     ready: t('intro.setup.ready.bubble', { name: firstName }),
   };
   // Laut gesagt wird der Satz beim Betreten — nicht der, der beim Tippen mitwaechst.

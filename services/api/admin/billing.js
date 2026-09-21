@@ -14,7 +14,16 @@ const { readUsage } = require('../ai/usage.js');
 const { readSpeechUsage } = require('../speech/usage.js');
 const { keyOf, monthSums, roundChf, speechSettings } = require('../billing/costs.js');
 const { readFromOf, readToOf, resetsOnOf } = require('../billing/month.js');
-const { APP_IDS, budgetOf, netRevenueChf, planOf, planSettings, priceOf } = require('../billing/plans.js');
+const {
+  APP_IDS,
+  budgetOf,
+  monthlyPriceOf,
+  netRevenueChf,
+  planOf,
+  planSettings,
+  priceOf,
+  termOf,
+} = require('../billing/plans.js');
 
 const EMPTY = Object.freeze({ aiChf: 0, speechChf: 0 });
 
@@ -29,12 +38,14 @@ async function readMonthSums(dataDir, month, { accountId } = {}) {
 function billingOf(account, sums, month, plans = planSettings()) {
   return APP_IDS.map((app) => {
     const plan = planOf(account, app, plans);
-    const budgetChf = budgetOf(plan, app, plans);
+    const term = termOf(account, app);
+    const budgetChf = budgetOf(plan, app, plans, term);
     const { aiChf, speechChf } = sums.get(keyOf(app, account.id)) ?? EMPTY;
     const spentChf = aiChf + speechChf;
     return {
       app,
       plan,
+      term,
       priceChf: priceOf(app, plans),
       budgetChf,
       aiChf: roundChf(aiChf),
@@ -48,7 +59,8 @@ function billingOf(account, sums, month, plans = planSettings()) {
 
 function appMarginOf(app, accounts, sums, plans) {
   const priceChf = priceOf(app, plans);
-  const paid = new Set(accounts.filter((row) => planOf(row, app, plans) === 'paid').map((row) => row.id));
+  const paidRows = accounts.filter((row) => planOf(row, app, plans) === 'paid');
+  const paid = new Set(paidRows.map((row) => row.id));
   const totals = { aiChf: 0, speechChf: 0, paidCostChf: 0, trialCostChf: 0 };
   for (const [key, usage] of sums) {
     const [keyApp, accountId] = key.split('|');
@@ -59,7 +71,10 @@ function appMarginOf(app, accounts, sums, plans) {
     if (paid.has(accountId)) totals.paidCostChf += cost;
     else totals.trialCostChf += cost;
   }
-  const netRevenue = paid.size * netRevenueChf(priceChf, plans);
+  const netRevenue = paidRows.reduce(
+    (sum, row) => sum + netRevenueChf(monthlyPriceOf(app, plans, termOf(row, app)), plans),
+    0,
+  );
   const variableCostChf = totals.paidCostChf + totals.trialCostChf;
   const marginChf = netRevenue - variableCostChf;
   return {

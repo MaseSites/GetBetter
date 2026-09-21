@@ -17,6 +17,7 @@ const http = require('node:http');
 const path = require('node:path');
 
 const { recordActivity } = require('../activity.js');
+const { createPlanRequests, settleRequests } = require('../billing/requests.js');
 const {
   MIN_PASSWORD_LENGTH,
   USERNAME_PATTERN,
@@ -78,6 +79,7 @@ const CONTENT_TYPES = {
 const isPlainObject = (value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const reply = (status, body) => ({ status, body });
+const listOf = (value) => (Array.isArray(value) ? value : []);
 
 // ------------------------------------------------------------------ HTTP
 
@@ -237,11 +239,38 @@ async function patchAccount(dataDir, id, body) {
   const fields = Object.keys(patch);
   if (fields.length === 0) return reply(200, { account: await accountView(dataDir, row) });
 
-  const next = { ...row, ...patch };
+  // Wieder eingeschaltet heisst auch: eine Kuendigung von vorher gilt nicht mehr.
+  const stillCancelled = Object.fromEntries(
+    Object.entries(row.planCancels ?? {}).filter(
+      ([app, day]) => typeof day === 'string' && !listOf(patch.paidApps).includes(app),
+    ),
+  );
+  const next = { ...row, ...patch, planCancels: stillCancelled };
   db.tables.accounts = rowsOf(db, 'accounts').map((entry) => (entry.id === id ? next : entry));
+  // Das Abo direkt eingeschaltet: offene Anfragen fuer diese Apps sind damit freigeschaltet.
+  const added = listOf(patch.paidApps).filter((app) => !listOf(row.paidApps).includes(app));
+  const settled = settleRequests(db.tables, id, added, new Date().toISOString());
+  if (settled.settled.length > 0) {
+    db.tables.planRequests = settled.planRequests;
+    db.tables.notifications = settled.notifications;
+  }
   await save();
   await track(dataDir, { accountId: id, kind: 'admin.updated', detail: { fields } });
+  for (const request of settled.settled) {
+    await track(dataDir, { accountId: id, kind: 'admin.planApproved', detail: { app: request.app } });
+  }
   return reply(200, { account: await accountView(dataDir, next) });
+}
+
+/**
+ * Eine Abo-Anfrage freischalten oder ablehnen (`billing/requests.js`). Die
+ * Antwort traegt das Konto, wie der Admin es zeigt — mit den neuen `paidApps`.
+ */
+async function decidePlanRequest({ dataDir, plans }, id, decision, body) {
+  if (Object.keys(body).length > 0) return reply(400, { error: 'bad_request' });
+  const result = await plans.decide(id, decision);
+  if (result.status !== 200) return reply(result.status, result.body);
+  return reply(200, { ...result.body, account: await accountView(dataDir, result.account) });
 }
 
 async function setPassword(dataDir, id, body) {
@@ -373,8 +402,14 @@ function readActivityQuery(url) {
   };
 }
 
-function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets }) {
+function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans }) {
   return [
+    {
+      method: 'POST',
+      path: /^\/api\/plan-requests\/([^/]+)\/(approve|decline)$/,
+      body: true,
+      handler: ({ params: [id, decision], body }) => decidePlanRequest({ dataDir, plans }, id, decision, body),
+    },
     {
       method: 'POST',
       path: /^\/api\/accounts\/([^/]+)\/view$/,
@@ -468,7 +503,8 @@ function startAdminServer({
   publicDir = path.join(__dirname, 'public'),
   log = writeLog,
 }) {
-  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets });
+  const plans = createPlanRequests({ dataDir });
+  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans });
 
   const server = http.createServer(async (req, res) => {
     const boundPort = server.address()?.port ?? port;

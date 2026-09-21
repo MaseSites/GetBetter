@@ -387,8 +387,8 @@ function SwipeArt() {
 function AssistantArt() {
   const t = useTranslate();
   const theme = useTheme();
-  const { account } = useApp();
-  const name = account?.assistantName?.trim() ?? '';
+  const { personal } = useApp();
+  const name = personal.assistantName;
   return (
     <View style={[styles.sketch, styles.row, { gap: theme.spacing.md }]}>
       <ClubAvatar size={AVATAR} phase="idle" />

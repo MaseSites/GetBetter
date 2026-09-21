@@ -9,6 +9,7 @@ const path = require('node:path');
 const { kindMatches, ownerOf, readActivity } = require('../activity.js');
 const { PRICES, readUsage, summarizeUsage } = require('../ai/usage.js');
 const { zurichMonthOf } = require('../billing/month.js');
+const { pendingRequests } = require('../billing/requests.js');
 const { readCacheStats } = require('../speech/cache.js');
 const { readSpeechUsage, summarizeSpeech } = require('../speech/usage.js');
 const { load, rowsOf } = require('../store.js');
@@ -238,6 +239,8 @@ async function accountView(dataDir, row, now = Date.now()) {
   return {
     ...summaryOf(row, db, accessByAccount(db), since(aiEntries, startOfUtcMonth(now)), usage),
     billing: billingOf(row, sums, month),
+    // Offene Abo-Anfragen dieses Kontos — der Admin zeigt sie neben dem Abo-Schalter.
+    planRequests: pendingRequests(db.tables, row.id).map(({ id, app, createdAt }) => ({ id, app, createdAt })),
     themeMode: row.themeMode ?? null,
     accentKey: row.accentKey ?? null,
     themePreset: row.themePreset ?? null,
@@ -411,6 +414,8 @@ async function overview(dataDir, { aiStatus, speechStatus, now = Date.now() } = 
     ai: await aiOverview(dataDir, aiStatus, now),
     speech: await speechOverview(dataDir, speechStatus, now),
     margin: await marginFor(dataDir, accounts, zurichMonthOf(now)),
+    // Wer ein Abo angefragt hat und noch wartet, die aelteste Anfrage zuerst.
+    planRequests: pendingRequests(db.tables),
     storage: {
       dbBytes: await sizeOf(path.join(dataDir, 'db.json')),
       uploadsBytes: await directorySize(path.join(dataDir, 'uploads')),

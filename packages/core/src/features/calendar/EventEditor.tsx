@@ -7,6 +7,7 @@ import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/r
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Button, Chip, Icon, Input, Loading, Sheet, Text } from '@/ui';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 
 import {
   EVENT_COLORS,
@@ -119,6 +120,7 @@ type EventFormProps = {
 function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
   const t = useTranslate();
   const theme = useTheme();
+  const celebrate = useCelebrate();
 
   const { calendars, households } = useCalendarAccess();
   const family = hasHouseholds();
@@ -220,6 +222,7 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
 
     if (editing) {
       await eventRepo.save(groupOf(editing), accountId, fields, chosen);
+      if (!editing) celebrate('event');
     } else {
       await eventRepo.create({ accountId, ...fields }, chosen);
     }

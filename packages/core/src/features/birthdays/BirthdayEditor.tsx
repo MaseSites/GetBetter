@@ -7,6 +7,7 @@ import { uploadBackdrop } from '@/features/personalize/uploads';
 import { parseDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import {
   HIT_TARGET,
   Icon,
@@ -70,6 +71,7 @@ function dateOf(contact: ContactRow | undefined, fallback: Date): DateState {
 
 /** Der Stand des Formulars — geteilt vom Blatt und vom Kalender. */
 function useBirthdayForm(draft: BirthdayDraft, accountId: string) {
+  const celebrate = useCelebrate();
   const { t } = useI18n();
   const undo = useUndo();
 
@@ -139,6 +141,7 @@ function useBirthdayForm(draft: BirthdayDraft, accountId: string) {
       await contactRepo.update(linked.id, patch);
     } else {
       await contactRepo.add({ accountId, ...patch });
+      celebrate('birthday');
     }
     if (first) undo.show({ message: t('birthdays.form.firstSaved') });
     return true;

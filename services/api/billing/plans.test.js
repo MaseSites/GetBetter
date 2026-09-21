@@ -5,7 +5,17 @@ const { describe, test } = require('node:test');
 const { affordableTokens, aiChfOf, estimatePromptTokens, monthSums, speechChfOf, speechSettings, worstCaseChf } =
   require('./costs.js');
 const { readFromOf, readToOf, resetsOnOf, zurichMonthOf } = require('./month.js');
-const { budgetOf, netRevenueChf, paidBudgetChf, planOf, planSettings, priceOf } = require('./plans.js');
+const {
+  budgetOf,
+  monthlyPriceOf,
+  netRevenueChf,
+  paidBudgetChf,
+  planOf,
+  planSettings,
+  priceOf,
+  termOf,
+  yearPriceOf,
+} = require('./plans.js');
 
 const DEFAULT = planSettings({});
 
@@ -27,6 +37,26 @@ describe('Abo und Budget', () => {
     for (const price of [1, 3, 5, 8]) {
       assert.ok(paidBudgetChf(price, DEFAULT) <= netRevenueChf(price, DEFAULT) * 0.75 + 1e-9);
     }
+  });
+
+  test('Jahresabo: zehn Monatspreise, kleineres Budget, Marge bleibt', () => {
+    for (const app of ['getbetter', 'betterfamily', 'bettergym', 'betterai']) {
+      const price = priceOf(app, DEFAULT);
+      assert.equal(yearPriceOf(app, DEFAULT), price * 10, app);
+      assert.equal(monthlyPriceOf(app, DEFAULT, 'year'), (price * 10) / 12, app);
+      assert.equal(monthlyPriceOf(app, DEFAULT, 'month'), price, app);
+      const yearBudget = budgetOf('paid', app, DEFAULT, 'year');
+      assert.ok(yearBudget < budgetOf('paid', app, DEFAULT, 'month'), app);
+      // Auch jaehrlich bleiben dem Betreiber mindestens 25 % der Nettoeinnahmen.
+      assert.ok(yearBudget <= netRevenueChf((price * 10) / 12, DEFAULT) * 0.75 + 1e-9, app);
+    }
+    assert.equal(yearPriceOf('bettermoney', DEFAULT), null);
+    assert.equal(termOf({ planTerms: { getbetter: 'year' } }, 'getbetter'), 'year');
+    assert.equal(termOf({ planTerms: { getbetter: 'jahr' } }, 'getbetter'), 'month');
+    assert.equal(termOf({}, 'getbetter'), 'month');
+    // Eine andere Laufzeit laesst sich einstellen.
+    const custom = planSettings({ BETTER_YEAR_MONTHS: '11' });
+    assert.equal(yearPriceOf('getbetter', custom), 11);
   });
 
   test('BetterMoney hat noch keinen Preis: immer Gratis, auch mit paidApps', () => {

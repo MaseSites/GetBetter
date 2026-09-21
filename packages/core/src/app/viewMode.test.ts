@@ -8,6 +8,7 @@ import {
   isViewing,
   onReadOnlyAttempt,
   onViewChange,
+  refusesCall,
   reportReadOnly,
   resetViewModeForTests,
   viewFailed,
@@ -57,6 +58,24 @@ test('allowedInView: nur Lesen und das Einloesen gehen hinaus', () => {
   ] as const) {
     assert.equal(allowedInView(method, path), false, `${method} ${path}`);
   }
+});
+
+test('refusesCall: ausserhalb der Ansicht geht alles hinaus, in der Ansicht nur Lesen', () => {
+  // Der normale Betrieb: Proben, KI, Anmelden — nichts wird abgewiesen.
+  for (const [method, path] of [
+    ['POST', '/v1/speech/sample'],
+    ['POST', '/v1/ai/reply'],
+    ['POST', '/v1/sessions'],
+    ['PATCH', '/v1/accounts/acc_a'],
+    ['GET', '/v1/db'],
+  ] as const) {
+    assert.equal(refusesCall(method, path), false, `${method} ${path}`);
+  }
+  beginViewing();
+  assert.equal(refusesCall('POST', '/v1/speech/sample'), true);
+  assert.equal(refusesCall('PATCH', '/v1/accounts/acc_a'), true);
+  assert.equal(refusesCall('GET', '/v1/db'), false);
+  assert.equal(refusesCall('POST', REDEEM_PATH), false);
 });
 
 test('Nur-Lesen: einmal an, sendet die Kopfzeile und verbietet das Schreiben', () => {

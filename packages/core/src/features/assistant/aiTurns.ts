@@ -69,6 +69,15 @@ export function aiFailureKey(failure: string | AiFailure): TranslationKey {
   return 'assistant.ai.failed';
 }
 
+/**
+ * Ob unter der Antwort „Abo ansehen“ steht: wenn etwas nur mit dem Abo geht,
+ * oder das Gratis-Kontingent einer App aufgebraucht ist, die ein Abo hat.
+ */
+export function aiFailureOffersPlan(failure: AiFailure): boolean {
+  if (failure.error === 'plan_required') return true;
+  return failure.error === 'budget_exhausted' && failure.plan !== 'paid' && failure.priceChf !== null;
+}
+
 /** Der Tag, an dem es weitergeht — sonst der Erste des naechsten Monats. */
 function resetDateOf(resetsOn: string | null, now: Date): Date {
   const match = resetsOn ? DAY_PATTERN.exec(resetsOn) : null;

@@ -74,12 +74,12 @@ die Revision, damit die Apps neu laden.
 | `GET /v1/health`                       | Läuft er?                                                        |
 | `GET /v1/db`                           | Alles, ohne Passwort-Hashes                                      |
 | `GET /v1/revision`                     | Hat sich etwas geändert?                                         |
-| `PUT /v1/db/:collection`               | Eine Sammlung ersetzen — nicht die drei des Dienstes (`403`)     |
+| `PUT /v1/db/:collection`               | Eine Sammlung ersetzen — nicht die vier des Dienstes (`403`)     |
 | `POST /v1/accounts`                    | Registrieren — `{ email, password, username? }`                  |
 | `POST /v1/sessions`                    | Anmelden — `{ email, password }`; gesperrt → `403 account_disabled` |
 | `GET /v1/accounts/:id`                 | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`   | Konto über den Benutzernamen finden                              |
-| `PATCH /v1/accounts/:id`               | Spitzname, Sprache, Benutzername, Aussehen, Assistent, Hintergrund |
+| `PATCH /v1/accounts/:id`               | Spitzname, Sprache, Benutzername, Aussehen, Assistent, Hintergrund — ohne Abo nur der Modus (`403 plan_required`) |
 | `POST /v1/notifications`               | Mitteilung anlegen                                               |
 | `POST /v1/notifications/:id/read`      | Als gelesen markieren                                            |
 | `DELETE /v1/notifications/:id`         | Löschen                                                          |
@@ -110,17 +110,22 @@ die Revision, damit die Apps neu laden.
 | `GET /v1/ai/status`                    | `{ provider, configured, models, lastError }` — nie Schlüssel oder Adresse |
 | `POST /v1/ai/reply`                    | `{ accountId, app, messages, voice?, imageUploadId? }` → Antwort der günstigsten passenden Stufe |
 | `GET /v1/ai/budget?accountId=&app=`    | `{ plan, budgetChf, spentChf, remainingShare, resetsOn, priceChf }` |
+| `GET /v1/plans?accountId=&app=`        | `{ app, priceChf, plan, canPersonalize, request: 'pending'\|null, pricedApps }` |
+| `POST /v1/plans/requests`              | `{ accountId, app }` → `201 { request }`, offen schon da → `200` dieselbe |
 
 Den genauen Vertrag (Felder, Fehlerschlüssel) halten die Zeilentypen in
 `packages/core/src/db/types.ts` fest.
 
 ## Mitteilungen, Bilder, Profil
 
-- `notifications`, `mailAccounts` und `mailMessages` gehören dem Dienst. Apps
-  lesen sie über `GET /v1/db` und schreiben nur über die Routen oben.
+- `notifications`, `mailAccounts`, `mailMessages` und `planRequests` gehören
+  dem Dienst. Apps lesen sie über `GET /v1/db` und schreiben nur über die Routen
+  oben.
 - `title` und `body` einer Mitteilung sind Daten (Name, Betreff), keine Sätze.
-  `kind` ist `calendarShare`, `calendarInvite`, `householdInvite`, `mail` oder
-  `system`; `ref` hält nur Texte.
+  `kind` ist `calendarShare`, `calendarInvite`, `householdInvite`, `mail`,
+  `system`, `planApproved` oder `planDeclined` (die letzten zwei legt der Admin
+  an: `title` ist der Name der App, `ref` `{ app, requestId }`); `ref` hält nur
+  Texte.
 - Bilder: `data:image/jpeg|png|webp;base64,…`, höchstens 5 MB. Die ersten Bytes
   müssen zum Typ passen. Fehler: `bad_request`, `unsupported_type`,
   `too_large` (413), `not_found` für ein unbekanntes Konto.
@@ -445,6 +450,8 @@ billing/month.js    Monat in Zürich, wann er wieder voll ist (rein)
 billing/costs.js    Kosten je Zeile, schlimmster Fall einer KI-Anfrage, Summen je App und Konto (rein)
 billing/ledger.js   Kassenbuch im Speicher: aus den Protokollen gebaut, wächst mit jeder Zeile, Reservierungen
 billing/service.js  Stand eines Kontos, GET /v1/ai/budget
+billing/entitlement.js  Was ohne Abo gesperrt ist: lockedChangesOf, keepLockedFields (rein)
+billing/requests.js     Abo-Anfragen: GET /v1/plans, POST /v1/plans/requests, Entscheid im Admin
 ```
 
 **Budget.** Zahlend: `preis / 1.081 × 0.85 × 0.75` — BetterAi 8.– → 4.72,
@@ -457,6 +464,31 @@ ist darum immer Gratis.
 /v1/db/accounts` behält den gespeicherten Wert, `PATCH /v1/accounts/:id`
 übergeht ihn. Später soll ein Kaufbeleg aus dem Store es setzen; die Prüfung
 steht an einer Stelle (`planOf`).
+
+**Personalisieren.** Ein Abo irgendeiner App mit Preis genügt
+(`canPersonalize` in `billing/plans.js`; `pricedApps` sind die Apps mit Preis).
+Ohne Abo sind `accentKey`, `themePreset`, `backdrop`, `assistantAvatar`,
+`assistantName` und `assistantVoice` gesperrt (`billing/entitlement.js`),
+`themeMode` nie: `PATCH /v1/accounts/:id` mit einem gesperrten Feld, das sich
+wirklich ändert, antwortet `403 { error: 'plan_required', fields }` und schreibt
+nichts aus der Anfrage. `PUT /v1/db/accounts` behält für solche Konten die
+gespeicherten Werte der gesperrten Felder und wirft Mitgeschicktes weg — ein
+neues Konto bringt keine mit. Gespeichertes wird nie gelöscht; mit einem Abo
+gilt es wieder.
+
+**Abo anfragen** (bis es den Kauf im Store gibt). Sammlung `planRequests`,
+Zeile `{ id: 'plr_…', accountId, app, status: 'pending'|'approved'|'declined',
+createdAt, decidedAt }`, dem Dienst (`PUT` → `403 server_owned`).
+
+- `GET /v1/plans?accountId=&app=` → `{ app, priceChf, plan, canPersonalize,
+  request, pricedApps }`; `400 bad_request`, `404 account_not_found`.
+- `POST /v1/plans/requests { accountId, app }` (keine weiteren Felder) →
+  `201 { request: { id, app, status, createdAt, decidedAt } }`; eine offene
+  Anfrage gibt es je Konto und App nur einmal (`200` mit derselben). `400
+  bad_request`, `400 plan_unavailable` (App ohne Preis), `404
+  account_not_found`, `409 already_paid`. Im Verlauf `plan.requested { app }`.
+  Im Nur-Lesen-Modus `403 read_only` wie jede Änderung.
+- Entschieden wird im Admin (`POST /api/plan-requests/:id/approve|decline`).
 
 **Kosten.** KI: `costChf` aus `ai-usage.jsonl` (fehlt er, aber es gibt Tokens:
 der teuerste bekannte Preis). Stimme: `credits × BETTER_SPEECH_USD_PER_1K_CHARS /
@@ -551,7 +583,9 @@ gespeicherten Werte und wirft mitgeschickte weg, `PATCH /v1/accounts/:id`
 
 | Route                                  |                                                                  |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| `GET /api/overview`                    | `{ generatedAt, accounts, apps, modules, ai, speech, storage }`  |
+| `GET /api/overview`                    | `{ generatedAt, accounts, apps, modules, ai, speech, margin, planRequests, storage }` |
+| `POST /api/plan-requests/:id/approve`  | `{}` → `{ request, account }` — App in `paidApps`, Mitteilung `planApproved`, `admin.planApproved` |
+| `POST /api/plan-requests/:id/decline`  | `{}` → `{ request, account }` — Mitteilung `planDeclined`, `admin.planDeclined` |
 | `GET /api/accounts`                    | `{ accounts: [{ id, email, username, firstName, language, createdAt, lastSeenAt, disabled, blockedApps, apps, items, costChfMonth, usage }] }` |
 | `GET /api/accounts/:id`                | `{ account, counts, activity, ai }` — `404 not_found`            |
 | `PATCH /api/accounts/:id`              | `{ firstName?, username?, language?, disabled?, blockedApps?, paidApps? }` → `{ account }` |
@@ -586,6 +620,14 @@ gespeicherten Werte und wirft mitgeschickte weg, `PATCH /v1/accounts/:id`
   Fixkosten (was die Mindestgebühr von Safe Swiss Cloud über dem KI-Verbrauch
   kostet, dazu `BETTER_SPEECH_MONTHLY_FIXED_USD`). Zahlende Konten nach heutigem
   `paidApps`, auch für frühere Monate.
+- **Abo-Anfragen:** `overview.planRequests` sind die offenen, die älteste zuerst
+  (`{ id, accountId, email, username, firstName, app, createdAt }`, ohne Konten,
+  die es nicht mehr gibt); die Einzelansicht hat `account.planRequests`
+  (`{ id, app, createdAt }`). Freischalten und Ablehnen nehmen nur `{}`
+  (`400 bad_request`), unbekannt oder das Konto weg → `404 not_found`, schon
+  entschieden → `409 already_decided`, ohne Preis → `409 plan_unavailable`.
+  Schaltet `PATCH /api/accounts/:id` eine App in `paidApps` ein, werden offene
+  Anfragen dieser App freigeschaltet — mit Mitteilung und `admin.planApproved`.
 - **Ändern:** unbekannte Felder → `400 bad_request`; `language` ist `de`, `en`,
   `fr` oder `it`; `blockedApps` und `paidApps` eindeutige, bekannte App-Ids; der Benutzername
   wie beim Registrieren (`400 username_invalid`, `409 username_taken`). Das

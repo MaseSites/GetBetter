@@ -16,6 +16,7 @@ import { useI18n, type TranslationKey } from '@/i18n';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import {
   FLOATING_BUTTON_SIZE,
   FloatingButton,
@@ -180,6 +181,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
  * wechselt die Ansicht, „+“ unten rechts oeffnet die Satz-Eingabe.
  */
 export function TasksView(_props: { module: ModuleDefinition }) {
+  const celebrate = useCelebrate();
   const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
@@ -357,6 +359,7 @@ export function TasksView(_props: { module: ModuleDefinition }) {
   }
 
   async function createTask(draft: TaskDraft) {
+    celebrate('task');
     await taskRepo.create({
       accountId: account.id,
       householdId,

@@ -203,7 +203,7 @@ class VoiceSession {
 
 export function useVoice({ onDictate, onTurn }: VoiceHandlers): Voicing {
   const { language } = useI18n();
-  const { account } = useApp();
+  const { personal } = useApp();
   const [state, setState] = useState<VoiceState>(IDLE);
   // Kein `useRef`: die Sitzung entsteht einmal, und `useState` ist dafuer da.
   const [session] = useState(() => new VoiceSession(setState));
@@ -218,8 +218,9 @@ export function useVoice({ onDictate, onTurn }: VoiceHandlers): Voicing {
   }, [session, language]);
 
   useEffect(() => {
-    session.setVoice(account?.assistantVoice);
-  }, [session, account?.assistantVoice]);
+    // Ohne Abo spricht die beste Stimme.
+    session.setVoice(personal.voice);
+  }, [session, personal.voice]);
 
   // Der Tab bleibt beim Wechsel stehen — ohne das hier liefe das Mikrofon
   // weiter, waehrend man laengst woanders ist.

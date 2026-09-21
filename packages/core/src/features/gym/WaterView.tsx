@@ -8,6 +8,7 @@ import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Button, Card, Header, Screen, Text } from '@/ui';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 
 /** Ein Glas sind 2.5 dl, eine Flasche 5 dl. */
 export const PORTIONS = [2.5, 5] as const;
@@ -17,6 +18,7 @@ export const TARGET_DL = 20;
 export function WaterView({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
   const theme = useTheme();
+  const celebrate = useCelebrate();
   const router = useRouter();
   const account = useAccount();
   const today = dayKey();
@@ -42,7 +44,10 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
               <Button
                 label={t('water.add', { amount: portion })}
                 icon="plus"
-                onPress={() => void drinkRepo.add(account.id, today, portion)}
+                onPress={() => {
+                  celebrate('water');
+                  void drinkRepo.add(account.id, today, portion);
+                }}
               />
             </View>
           ))}

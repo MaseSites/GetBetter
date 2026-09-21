@@ -21,6 +21,11 @@ import {
 } from '@/features/personalize/SettingsList';
 import { dateOfDay, useAiBudget } from '@/features/personalize/useAiBudget';
 import { checkUsername, type UsernameCheck } from '@/features/personalize/username';
+import { LockMark } from '@/features/plan/PlanLock';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
+import { PLAN_ROW_VALUE, planStateOf } from '@/features/plan/planState';
+import { PLAN_PRICES_CHF } from '@/features/plan/prices';
+import { usePlanStatus } from '@/features/plan/usePlanStatus';
 import {
   LANGUAGES,
   LANGUAGE_LABEL,
@@ -59,10 +64,16 @@ type Sheeted =
   | 'backdrop'
   | null;
 
+/** Diese Blaetter gibt es nur mit Abo — ohne oeffnet die Zeile das Abo. */
+type LockedSheet = 'assistant' | 'avatar' | 'voice' | 'backdrop';
+
 /**
  * Die Einstellungen: oben, wer du bist, darunter je Thema ein Bereich — Konto,
  * Darstellung, Assistent, Haushalt, App. Jede Zeile traegt ihr Zeichen und
  * ihren Wert; ein Tipp oeffnet das Blatt dazu, der neue Wert steht sofort da.
+ *
+ * Ohne Abo tragen Hintergrund und Assistent ein Schloss und den Wert „Abo“:
+ * ein Tipp oeffnet das Abo-Fenster statt des Blatts. Hell oder dunkel bleibt frei.
  */
 export function SettingsScreen() {
   const { t, language } = useI18n();
@@ -72,6 +83,7 @@ export function SettingsScreen() {
     household,
     role,
     appearance,
+    personal,
     setFirstName,
     setUsername,
     setAssistantName,
@@ -82,6 +94,7 @@ export function SettingsScreen() {
   const [sheet, setSheet] = useState<Sheeted>(null);
   const voices = useSpeechVoices();
   const avatar = useAvatarStyle();
+  const plan = usePlanSheet();
 
   const app = currentApp();
   const hasHousehold = APPS_WITH_HOUSEHOLD.includes(app.id);
@@ -90,22 +103,51 @@ export function SettingsScreen() {
   const version = Constants.expoConfig?.version ?? NO_VERSION;
   // Das KI-Kontingent dieser App — in allen Apps, auch in BetterAi.
   const aiBudget = useAiBudget(account?.id ?? null, app.id);
+  const paidHere = account?.paidApps?.includes(app.id) === true;
+  // Neu gefragt nach einer Anfrage und sobald der Abgleich ein Abo bringt.
+  const planStatus = usePlanStatus(account?.id ?? null, app.id, `${plan.revision}:${String(paidHere)}`);
 
   if (!account) return null;
+
+  const locked = !personal.canPersonalize;
+  const planPrice = planStatus ? planStatus.priceChf : PLAN_PRICES_CHF[app.id];
+  const planCancelsOn = account.planCancels?.[app.id] ?? planStatus?.cancelsOn ?? null;
+  const planState = planStateOf({
+    priceChf: planPrice,
+    paid: planStatus ? planStatus.plan === 'paid' : paidHere,
+    pending: planStatus?.request === 'pending',
+    cancelled: planCancelsOn !== null,
+  });
+
+  /** Ein Blatt, das es nur mit Abo gibt: ohne Abo oeffnet sich das Abo. */
+  function openLocked(next: LockedSheet) {
+    if (locked) plan.open();
+    else setSheet(next);
+  }
+
+  /** Aus einem offenen Blatt heraus: erst zu, dann das Abo — nie zwei Blaetter uebereinander. */
+  function switchToPlan() {
+    setSheet(null);
+    plan.open();
+  }
 
   // Der Name der gewaehlten Stimme — solange der Browser die Liste noch nicht
   // nachgereicht hat, steht dort „Standard“ statt einer leeren Zeile.
   // Ohne eigene Wahl spricht die beste Stimme — dann steht auch die hier.
-  const voice = voices.find((entry) => entry.uri === account.assistantVoice) ?? voices[0];
+  const voice = voices.find((entry) => entry.uri === personal.voice) ?? voices[0];
   const voiceLabel = voice ? voice.label : t('settings.voice.default');
 
-  const backdrop = resolveBackdrop(account.backdrop, app.id);
+  const backdrop = resolveBackdrop(personal.backdrop, app.id);
   const backdropLabel =
     backdrop.kind === 'preset'
       ? t(BACKDROPS[backdrop.key].labelKey)
       : backdrop.kind === 'upload'
         ? t('personalize.backdrop.own')
         : t('personalize.backdrop.app');
+
+  /** Ohne Abo: statt des Werts „Abo“ und rechts das Schloss. */
+  const lockedValue = (value: string) => (locked ? t('plan.locked') : value);
+  const lock = locked ? <LockMark /> : undefined;
 
   async function saveUsername(wanted: string): Promise<TranslationKey | null> {
     if (!account) return null;
@@ -169,6 +211,7 @@ export function SettingsScreen() {
 
       <SettingsGroup title={t('settings.appearance')} hint={t('settings.appearance.hint')}>
         <SettingsList>
+          {/* Hell oder dunkel geht immer — darum bleibt diese Zeile offen. */}
           <SettingsRow
             first
             icon="palette"
@@ -180,9 +223,10 @@ export function SettingsScreen() {
           <SettingsRow
             icon="image"
             label={t('settings.backdrop')}
-            value={backdropLabel}
-            chevron
-            onPress={() => setSheet('backdrop')}
+            value={lockedValue(backdropLabel)}
+            trailing={lock}
+            chevron={!locked}
+            onPress={() => openLocked('backdrop')}
           />
         </SettingsList>
       </SettingsGroup>
@@ -194,23 +238,26 @@ export function SettingsScreen() {
               first
               icon="sparkles"
               label={t('personalize.assistant.name')}
-              value={account.assistantName || t('settings.assistant.none')}
-              chevron
-              onPress={() => setSheet('assistant')}
+              value={lockedValue(personal.assistantName || t('settings.assistant.none'))}
+              trailing={lock}
+              chevron={!locked}
+              onPress={() => openLocked('assistant')}
             />
             <SettingsRow
               icon="happy"
               label={t('avatar.title')}
-              value={t(`avatar.kind.${avatar.kind}`)}
-              chevron
-              onPress={() => setSheet('avatar')}
+              value={lockedValue(t(`avatar.kind.${avatar.kind}`))}
+              trailing={lock}
+              chevron={!locked}
+              onPress={() => openLocked('avatar')}
             />
             <SettingsRow
               icon="mic"
               label={t('settings.voice')}
-              value={voiceLabel}
-              chevron
-              onPress={() => setSheet('voice')}
+              value={lockedValue(voiceLabel)}
+              trailing={lock}
+              chevron={!locked}
+              onPress={() => openLocked('voice')}
             />
           </SettingsList>
         </SettingsGroup>
@@ -255,9 +302,16 @@ export function SettingsScreen() {
           : {})}
       >
         <SettingsList>
-          {aiBudget ? <AiUsageRow budget={aiBudget} first /> : null}
           <SettingsRow
-            first={!aiBudget}
+            first
+            icon="star"
+            label={t('plan.row')}
+            value={t(PLAN_ROW_VALUE[planState])}
+            chevron
+            onPress={plan.open}
+          />
+          {aiBudget ? <AiUsageRow budget={aiBudget} first={false} /> : null}
+          <SettingsRow
             icon="info"
             label={t('settings.app.version')}
             value={`${app.name} ${version}`}
@@ -303,7 +357,7 @@ export function SettingsScreen() {
         title={t('personalize.assistant.name')}
         label={t('personalize.assistant.name')}
         hint={t('personalize.assistant.hint')}
-        value={account.assistantName ?? ''}
+        value={personal.assistantName}
         autoCapitalize="words"
         onClose={() => setSheet(null)}
         onSave={async (next) => {
@@ -318,13 +372,14 @@ export function SettingsScreen() {
 
       <Sheet visible={sheet === 'voice'} onClose={() => setSheet(null)} title={t('settings.voice')}>
         <VoicePicker
-          value={account.assistantVoice}
+          value={personal.voice}
           onChange={(uri) => void setAssistantVoice(uri)}
+          onPlan={switchToPlan}
         />
       </Sheet>
 
       <Sheet visible={sheet === 'style'} onClose={() => setSheet(null)} title={t('settings.style')}>
-        <StylePicker />
+        <StylePicker onLocked={switchToPlan} />
       </Sheet>
 
       <Sheet
@@ -333,7 +388,7 @@ export function SettingsScreen() {
         title={t('settings.backdrop')}
       >
         <View>
-          <BackdropPicker />
+          <BackdropPicker onLocked={switchToPlan} />
         </View>
       </Sheet>
 

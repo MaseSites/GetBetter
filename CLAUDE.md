@@ -128,6 +128,9 @@ Stand nichts überschreibt.
 | `POST /v1/speech` · `GET /v1/speech/<id>.mp3`       | einen Satz sprechen lassen, das Audio kommt als Strom            |
 | `POST /v1/speech/sample`                            | Probe einer Stimme: fester Satz, einmal erzeugt, dann gratis     |
 | `GET /v1/ai/budget?accountId=&app=`                 | KI-Kontingent dieses Kontos in dieser App, diesen Monat          |
+| `GET /v1/plans?accountId=&app=`                     | Abo dieser App: Preis, Plan, Personalisieren, offene Anfrage     |
+| `POST /v1/plans/requests`                           | Abo anfragen — freigeschaltet wird im Admin                      |
+| `POST /v1/plans/cancel` · `.../resume`              | Abo kündigen (auf Monatsende) oder die Kündigung zurücknehmen    |
 | `POST /v1/view/redeem`                              | Ticket aus dem Admin einlösen („App ansehen“), genau einmal      |
 
 `db/service.ts` ist der Draht dorthin (`serviceUrl()`, im Bau über
@@ -148,8 +151,8 @@ statt der App „Dein Konto ist gesperrt“ bzw. „Nicht freigeschaltet“ mit
 Ein gesperrtes Konto kann sich nicht mehr anmelden (`account_disabled`).
 Ebenso nur vom Admin: `paidApps`, die Apps mit Abo (siehe „Abo und Kontingent“).
 
-**Drei Sammlungen gehören dem Dienst:** `notifications`, `mailAccounts` und
-`mailMessages`. Die Apps lesen sie wie alles andere, schreiben aber nur über die
+**Vier Sammlungen gehören dem Dienst:** `notifications`, `mailAccounts`,
+`mailMessages` und `planRequests` (Abo-Anfragen). Die Apps lesen sie wie alles andere, schreiben aber nur über die
 Routen oben — `PUT` darauf antwortet `403 server_owned`. Sonst überschriebe eine
 App, was der Dienst gerade für eine neue E-Mail angelegt hat. Im Kern geht das
 über `callService` (`db/service.ts`) und danach `refresh()` aus dem Speicher.
@@ -186,6 +189,16 @@ Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
   der Liste die Spalte „Abo“. Alle drei Felder setzt **nur** der Admin —
   `PUT /v1/db/accounts` behält die gespeicherten Werte, `PATCH
   /v1/accounts/:id` übergeht sie. Die App merkt es beim nächsten Abgleich.
+- **Abo-Anfragen:** in der Übersicht ganz oben der Block „Abo-Anfragen“ mit
+  Anzahl — je Zeile Konto (Name, `@name`, E-Mail), App, seit wann, dazu
+  **Freischalten** und **Ablehnen** mit Meldung (`admin/public/plans.js`). Im
+  Konto steht eine offene Anfrage unter der App, gleich neben dem Abo-Schalter.
+  `POST /api/plan-requests/:id/approve|decline` (Body `{}`, dieselben
+  Host/Origin/JSON-Regeln): Freischalten trägt die App in `paidApps` ein,
+  beide legen eine Mitteilung an (`planApproved`/`planDeclined`) und schreiben
+  `admin.planApproved`/`admin.planDeclined` in den Verlauf; schon entschieden →
+  `409 already_decided`. Schaltet der Admin das Abo direkt ein, ist eine offene
+  Anfrage dieser App damit freigeschaltet (samt Mitteilung).
 - **Marge:** Übersicht (laufender Monat) und Kosten (gewählter Monat): je App
   Nettoeinnahmen (Abos × Preis ÷ 1.081 × 0.85), KI, Stimme, davon Gratis-Konten,
   Marge in CHF und %, negativ rot; gesamt auch mit den Fixkosten (was die
@@ -268,21 +281,96 @@ Damit KI und Stimmen nie mehr kosten, als ein Konto einbringt, hat jedes Konto
 **je App und Kalendermonat in Zürich** ein Budget (`services/api/billing/`,
 getestet; `2026-09-30T22:30Z` zählt schon zum Oktober).
 
-| App          | Abo im Monat | Budget     |
-| ------------ | ------------ | ---------- |
-| BetterAi     | 8.–          | 4.72 CHF   |
-| BetterGym    | 5.–          | 2.95 CHF   |
-| BetterFamily | 3.–          | 1.77 CHF   |
-| GetBetter    | 1.–          | 0.59 CHF   |
-| BetterMoney  | noch keins   | nur Gratis |
+| App          | Im Monat   | Im Jahr    | Budget monatlich | Budget jährlich |
+| ------------ | ---------- | ---------- | ---------------- | --------------- |
+| BetterAi     | 8.–        | 80.–       | 4.72 CHF         | 3.93 CHF        |
+| BetterGym    | 5.–        | 50.–       | 2.95 CHF         | 2.46 CHF        |
+| BetterFamily | 3.–        | 30.–       | 1.77 CHF         | 1.47 CHF        |
+| GetBetter    | 1.–        | 10.–       | 0.59 CHF         | 0.49 CHF        |
+| BetterMoney  | noch keins | noch keins | nur Gratis       | nur Gratis      |
 
 - **Formel:** `preis / 1.081 (MwSt) × 0.85 (Store) × 0.75` — dem Betreiber
-  bleiben mindestens 25 % der Nettoeinnahmen. **Ohne Abo** 0.10 CHF je App,
+  bleiben mindestens 25 % der Nettoeinnahmen.
+- **Jahresabo:** Ein Jahr kostet **zehn Monatspreise** (`BETTER_YEAR_MONTHS`,
+  Standard 10), also zwei Monate geschenkt. Gerechnet wird weiter je Monat: das
+  Budget nimmt ein Zwölftel des Jahrespreises (`monthlyPriceOf`), darum ist es
+  kleiner und die Marge bleibt. Die Laufzeit steht als `planTerms` am Konto
+  (`termOf`, nur der Dienst setzt es) und kommt aus der Anfrage mit. **Ohne Abo** 0.10 CHF je App,
   nur die günstige Stufe (ein Bild → `403 plan_required`), keine Stimmen von
   ElevenLabs.
 - **Wer zahlt:** `paidApps` am Konto. Bis es den Kauf im Store gibt, setzt es
   **nur der Admin**; `planOf` (`billing/plans.js`) ist die eine Stelle, die
   später ein Kaufbeleg füttert.
+- **Kostenlos gibt es die ganze App im Standard-Aussehen.** Personalisieren
+  gibt es mit einem Abo **irgendeiner** App mit Preis (`canPersonalize`: in
+  `paidApps` steht eine App mit Preis; BetterMoney zählt nicht) — das Aussehen
+  gilt ohnehin in allen Apps. Die KI bleibt je App. Ohne Abo frei: hell/dunkel,
+  Sprache, Spitzname, Benutzername, Favoriten, Schnellzugriff und alle
+  Funktionen. **Gesperrt:** Akzentfarbe, Voreinstellung, Hintergrund (auch
+  eigener), Avatar, Stimme (auch die des Browsers — dann spricht die beste)
+  und der Name des Assistenten.
+- **Nie gelöscht, beim Lesen ersetzt:** `effectivePersonalization`
+  (`features/plan/entitlement.ts`, getestet) liefert ohne Abo den Standard und
+  behält nur den Modus; `AppContext` stellt es als `personal` bereit, und alle
+  lesen dort (`Screen`, `useAvatarStyle`, Stimme, Name, Einstellungen). Mit Abo
+  kommt die eigene Wahl zurück. Welche Apps einen Preis haben, sagt der Dienst
+  (`GET /v1/plans` → `pricedApps`); bis dahin gilt `features/plan/prices.ts`,
+  das `test/plan-client.test.js` mit `billing/plans.js` gleich hält (ebenso die
+  gesperrten Felder). Ändert der Admin `paidApps`, `disabled` oder
+  `blockedApps`, übernimmt `AppContext` das Konto beim nächsten Abgleich
+  (`adminFieldsChanged`).
+- **Durchgesetzt im Dienst** (`billing/entitlement.js`, getestet): `PATCH
+  /v1/accounts/:id` mit einem gesperrten Feld, das sich wirklich ändert, gibt
+  ohne Abo `403 plan_required` (mit `fields`) — `themeMode` geht immer, derselbe
+  Wert nochmal auch. `PUT /v1/db/accounts` behält ohne Abo die gespeicherten
+  Werte der gesperrten Felder (auch `assistantVoice`) und wirft Mitgeschicktes
+  weg, wie bei `paidApps`.
+- **Abo anfragen** (`billing/requests.js`, Sammlung `planRequests`
+  `{ id, accountId, app, status: pending|approved|declined, createdAt,
+  decidedAt }`): `POST /v1/plans/requests { accountId, app }` legt eine offene
+  Anfrage an (`201`), eine offene gilt nur einmal (`200` mit derselben), schon
+  bezahlt → `409 already_paid`, App ohne Preis → `400 plan_unavailable`, im
+  Verlauf `plan.requested`. In der App ist das genau eine Funktion,
+  `requestPlan(accountId, app)` in `db/plans.ts` — die ersetzt später der Kauf
+  im Store.
+- **Das Abo-Fenster** (`features/plan/PlanSheet.tsx`, einmal in `RootShell`
+  über `PlanSheetProvider`, geöffnet mit `usePlanSheet().open()`): oben das Logo
+  der App auf ruhiger Akzentfläche, „GetBetter Abo“ und gross der Preis mit `/Monat` oder,
+  über die Reiter **Monatlich / Jährlich**, mit `/Jahr` und dem Hinweis, was das
+  im Monat macht (`2 Monate gratis`), darunter eine **Liste zum Abhaken**
+  (`planBenefitsOf`, getestet): KI im vollen Umfang „mit grosszügigem
+  Monatskontingent“ — nie unbegrenzt, in BetterAi „KI-Chats“ —, echte Stimmen,
+  Stimme wählen, Name des Assistenten und Avatar (die vier nicht in BetterAi),
+  Akzentfarbe, Voreinstellung, Hintergründe, gilt in allen Apps, jederzeit
+  kündbar. Unten **Abo anfragen** (danach „Angefragt – wir schalten dich bald
+  frei“) oder „Dein Abo ist aktiv“, dazu **Später**. Ohne Preis nur „Das Abo für
+  BetterMoney kommt bald.“ Was gilt, rechnet `planStateOf` (`planState.ts`,
+  getestet).
+- **Kündigen** (`plan.cancel`, im Fenster unter dem aktiven Abo): eine
+  Rückfrage im Blatt selbst, dann gilt die Kündigung **auf Monatsende** —
+  `POST /v1/plans/cancel` schreibt `planCancels: { <app>: <erster Tag des
+  Folgemonats> }` ans Konto. Bis dahin bleibt alles, danach zählt
+  `planOf` das Konto als Gratis (Zürich, getestet). Im Fenster steht
+  „Gekündigt · aktiv bis 1. Oktober“ mit **Kündigung zurücknehmen**
+  (`POST /v1/plans/resume`), in den Einstellungen „Gekündigt“. `planCancels`
+  setzt nur der Dienst: `PUT /v1/db/accounts` behält den Wert, `PATCH`
+  übergeht ihn. Schaltet der Admin das Abo ein oder schaltet er eine Anfrage
+  frei, fällt eine Kündigung dieser App weg. Im Verlauf `plan.cancelled` und
+  `plan.resumed`.
+- **Wo es aufgeht:** Einstellungen → App → „Abo“ (Gratis/Aktiv/Angefragt/Bald);
+  jede gesperrte Zeile (Hintergrund, Name, Avatar, Stimme: Schloss und „Abo“,
+  ein Tipp öffnet das Abo statt des Blatts); im `StylePicker` die Karte „Mit Abo
+  personalisierbar · Abo ansehen“ und ein Schloss an Akzentfarbe,
+  Voreinstellung und Hintergrund (ein Tipp darauf öffnet das Abo, der Modus
+  bleibt frei); „Echte Stimmen gibt es mit dem Abo. Abo ansehen“ in der
+  Stimmenwahl; „Abo ansehen“ unter dem Assistenten und in BetterAi, wenn
+  `aiFailureOffersPlan` es sagt (Gratis aufgebraucht in einer App mit Preis,
+  oder `plan_required`). Aus einem offenen Blatt schliesst die Einstellung
+  erst ihr Blatt — nie zwei übereinander.
+- **Einrichten ohne Abo** (jede neue Registrierung): `setupSteps` lässt Stimme,
+  Namen des Assistenten und Avatar weg — Spitzname, „Aussehen“ (hell/dunkel,
+  der Rest mit Schloss und Hinweis), fertig. Er sagt dazu, dass Farben,
+  Hintergrund, Avatar und Stimme mit dem Abo gehen. Nichts blockiert.
 - **Gezählt** nach `app` in `ai-usage.jsonl` (`costChf`) und
   `speech-usage.jsonl` (Credits × `BETTER_SPEECH_USD_PER_1K_CHARS` / 1000 ×
   `BETTER_USD_CHF`, bewusst zu hoch; aus dem Zwischenspeicher 0). Das
@@ -299,9 +387,10 @@ getestet; `2026-09-30T22:30Z` zählt schon zum Oktober).
 - **In der App:** Assistent und BetterAi sagen ehrlich „Dein KI-Kontingent für
   diesen Monat ist aufgebraucht. Am 1. Oktober geht es weiter.“ oder „Dein
   Gratis-Kontingent ist aufgebraucht. Mit dem Abo (CHF 8 im Monat) geht es
-  weiter.“ (`aiFailureText` in `aiTurns.ts`, getestet) — **keinen Kaufknopf**.
-  Ohne Abo sind nur Browser-Stimmen wählbar, mit „Echte Stimmen gibt es mit dem
-  Abo.“ In den Einstellungen (Gruppe App, in allen Apps) „KI diesen Monat“:
+  weiter.“ (`aiFailureText` in `aiTurns.ts`, getestet) — darunter „Abo
+  ansehen“ statt eines Kaufknopfs. Ohne Abo dieser App keine Stimmen von
+  ElevenLabs, „Echte Stimmen gibt es mit dem Abo.“ In den Einstellungen
+  (Gruppe App, in allen Apps) „Abo“ und „KI diesen Monat“:
   Gratis oder Abo, genutzt in Prozent mit Balken, darunter wann es wieder voll
   ist — nie Franken.
 - **Stellschrauben:** `BETTER_PRICE_<APP>_CHF`, `BETTER_VAT`,
@@ -331,6 +420,15 @@ Stufe, die die Frage kann (cheap · chat · reasoning · vision), begrenzt die
 Länge und liefert im Gespräch per Stimme zusätzlich einen kurzen `voice_text`
 zum Vorlesen:
 
+- **Beispiele unter dem Feld** (`features/assistant/suggestions.ts`, getestet):
+  drei aus einem Vorrat, **nur zu Apps, in denen das Konto schon war**
+  (`appAccess.appsOf`, die laufende immer dabei) — nach jeder Frage andere. Der
+  Startwert kommt aus der Konto-Id und einem Zaehler, nicht aus dem Zufall
+  (React-Compiler: keine unreine Funktion im Bauteil). Im Vorrat steht nur, was
+  wirklich ankommt: die zwei Auftraege, die `route()` erkennt, und Fragen, die
+  die KI ohne eigene Daten beantworten kann. Die drei Chips stehen
+  **nebeneinander und lassen sich schieben**; sobald die erste Nachricht steht,
+  sind sie weg (`empty`).
 - **Assistent** (`AssistantView`): Was `route()` als Auftrag erkennt, geht wie
   bisher an die andere App; alles andere fragt die KI mit den letzten zwölf
   Zügen (`turnsFor` in `features/assistant/aiTurns.ts`, getestet). Im
@@ -754,10 +852,15 @@ was sie gerade weiss — und mit dem, was man direkt tun kann:
 | Sparziele                     | die ersten drei mit Stand                           |
 
 Welche Abschnitte erscheinen, sagt `modulesOfApp()`. In GetBetter folgen die
-Karten der anderen Better-Apps (`features/apps/AppFamily.tsx`): wo man schon
-einmal drin war, stehen feste Felder mit Wert oder „—“; wo nicht, das Logo
-blass, ein Satz und ein farbiger **Installieren**-Knopf (`storeUrl`, sonst die
-laufende App). Ganz unten steht **Kommt noch** — was diese App führt, aber noch
+Karten der anderen Better-Apps (`features/apps/AppFamily.tsx`): **jede App
+zeigt dasselbe** — auf einen Blick, was in ihr gerade ansteht (BetterFamily:
+nächster Termin, die ersten Posten der Einkaufsliste, offene Ämtli; BetterGym:
+Training, Kalorien, Schlaf; BetterMoney: Monatssumme und offene Rechnungen;
+BetterAi: das letzte Gespräch), leere Felder als „—“. Wo man schon drin war,
+führt ein Tipp in die App; wo nicht, steht alles **blass** da und daneben der
+**Installieren**-Knopf (`storeUrl`, sonst die laufende App). **Kein Werbesatz**
+mehr — die Vorschau sagt, was einen erwartet. Die Zeile ohne App ist nicht
+drückbar, weil sie den Knopf trägt (kein Knopf im Knopf). Ganz unten steht **Kommt noch** — was diese App führt, aber noch
 nicht kann. Nur die Kopfzeile eines Abschnitts führt in die volle Ansicht; die
 Zeilen darunter gehören der Funktion. Kein Knopf im Knopf: eine `Card` ist nur
 dann drückbar, wenn sie keinen eigenen Knopf enthält — im Browser wäre das
@@ -780,6 +883,27 @@ Favoriten aus einer anderen App, und dann steht dort deren Name. Auch keine
 hervorgehobene Zahl: jeder Wert ist schlichter Text. `BUILT_MODULE_IDS` in
 `mocks/modules.ts` ist die eine Stelle, die weiss, was gebaut ist. Nie die
 Funktionen anderer Apps.
+
+### Das Profil (`screens/ProfileScreen.tsx`)
+
+Der dritte Tab zeigt, **was ist** — geändert wird hier nichts. Oben Bild,
+Spitzname und `@name`, darunter Abzeichen: „seit September 2026“ und, wo es
+einen gibt, der Haushalt. Darunter zwei Blöcke:
+
+- **Überblick** — je Funktion **dieser** App eine Kachel mit einer Zahl
+  (`features/profile/ProfileStats.tsx`): GetBetter offene Aufgaben, Termine der
+  nächsten sieben Tage, Notizen und die Haken von heute; BetterFamily Einkauf,
+  Ämtli, Termine des Haushalts und Rezepte; BetterGym Minuten der Woche,
+  Kalorien, Getrunkenes und die letzte Nacht; BetterMoney Ausgaben des Monats,
+  offene Rechnungen, Abos im Monat und Sparziele; BetterAi die Gespräche und
+  die dieser Woche. Zeichen und Farbe kommen von der Funktion (`moduleBase`),
+  der Name aus `moduleName` — nie die Funktionen einer anderen App.
+- **Mehr** — Einstellungen, Mitteilungen mit der Zahl der ungelesenen (nur
+  GetBetter) und der Haushalt (nur BetterFamily).
+
+**Kein Aussehen, kein Abo und keine KI im Profil**: hell/dunkel, Farben,
+Hintergrund, das Abo und das KI-Kontingent stehen alle in den Einstellungen —
+eine Stelle, nicht zwei.
 
 ### Suche (`screens/SearchScreen.tsx`, `features/search/`)
 
@@ -874,6 +998,23 @@ Das Wecker-Rad (`features/alarm/AlarmEditor.tsx`) hat kein Ende: die Zahlen
 stehen mehrmals hintereinander, und in Ruhe springt das Rad unsichtbar in die
 mittlere Runde zurück.
 
+## Kleine Feiern (`features/celebrate/`)
+
+Wer etwas eintraegt, sieht es kurz vorbeifahren: der **Einkaufswagen** faehrt
+durchs Bild und faengt ein, was dazukommt, der **Kalender** bekommt seine Haken,
+das **Geschenk** feiert einen neuen Geburtstag. Was wozu gehoert, steht in
+`celebrations.ts` (getestet, nur Zeichen aus `ui/Icon.tsx`): Einkauf, Aemtli,
+Termin, Aufgabe, Notiz, Trinken, Training, Geld, Geburtstag, Erledigt.
+
+`CelebrationProvider` liegt einmal in `RootShell` (im `PlanSheetProvider`),
+ausgeloest wird mit `useCelebrate()('shopping')` genau dort, wo wirklich etwas
+entsteht: Einkaufsliste, Aemtli, Termin (nur ein neuer), Aufgabe, Trinken,
+Ausgabe, Geburtstag — und im Assistenten, sobald der Auftrag in der anderen App
+angekommen ist. Die Ebene liegt ueber allem, nimmt aber **keine Tipps** an
+(`pointerEvents="none"`), dauert gut eine Sekunde und laeuft ueber
+`Animated` mit `useNativeDriver`. Bei **reduzierter Bewegung** blitzt nur das
+Zeichen kurz auf (`useReducedMotion`).
+
 ## Mitteilungen (`features/notifications/`, `db/notifications.ts`)
 
 Eine Mitteilung ist eine Zeile `NotificationRow` (Art, Titel, Text, `ref`,
@@ -886,10 +1027,15 @@ Wird eine Anfrage anderswo beantwortet oder zurückgezogen, räumt
 `removeByRef` die Mitteilung weg. Scheitert das Anlegen, bleibt die Einladung
 trotzdem bestehen.
 
-| Wo                        | Anfrage             | E-Mail                         | Sonst               |
-| ------------------------- | ------------------- | ------------------------------ | ------------------- |
-| Was gibt's Neues          | Annehmen / Ablehnen | Gesehen / Löschen (Papierkorb) | Gelesen / Weg damit |
-| Glocke (`/notifications`) | Annehmen / Ablehnen | Gesehen / Löschen              | Gelesen = weg       |
+| Wo                        | Anfrage             | E-Mail                                | Sonst               |
+| ------------------------- | ------------------- | ------------------------------------- | ------------------- |
+| Was gibt's Neues          | Annehmen / Ablehnen | schmale Zeile ohne Knöpfe (siehe unten) | Gelesen / Weg damit |
+| Glocke (`/notifications`) | Annehmen / Ablehnen | schmale Zeile ohne Knöpfe             | Gelesen = weg       |
+
+Eine **E-Mail** ist eine schmale Zeile: Symbol, Absender, Zeit, darunter der
+Betreff in einer Zeile. Antippen öffnet die Mail selbst
+(`/run/mail?message=<id>`) und setzt die Mitteilung auf gelesen; nach rechts
+wischen heisst gesehen, nach links wischen löscht die E-Mail (Papierkorb).
 
 „Gelesen“ in Was gibt's Neues setzt `readAt`: die Mitteilung bleibt in der
 Glocke. „Weg damit“ löscht sie ganz. In der Glocke heisst gelesen weg. Nach
@@ -1122,10 +1268,10 @@ als Weiterleitung dorthin — zwei Oberflächen fürs selbe wären zwei Wahrheit
 | Bereich      | Was darin steht                                                                  |
 | ------------ | -------------------------------------------------------------------------------- |
 | Konto        | Spitzname, Benutzername, E-Mail (fest), Sprache, Mitglied seit                   |
-| Darstellung  | Modus, Voreinstellung, Akzentfarbe, Hintergrund                                   |
+| Darstellung  | Modus (hell/dunkel/automatisch), Voreinstellung, Akzentfarbe, Hintergrund         |
 | Assistent    | sein Name (`assistantName`), seine Stimme und sein Avatar, in BetterAi ausgeblendet |
 | Haushalt     | nur in BetterFamily: der aktive Haushalt und Beitreten                            |
-| App          | Version und Abmelden                                                              |
+| App          | Abo (Gratis/Aktiv/Angefragt), KI diesen Monat, Version und Abmelden               |
 
 Der Aufbau: oben eine **Profilkarte** (Bild, Spitzname, `@name` und E-Mail, dazu
 „Profil bearbeiten“), darunter je Thema eine Karte mit Zeilen — jede mit ihrem
@@ -1143,7 +1289,12 @@ der Dienst: `changeUsername` (`auth/accounts.ts`) schreibt **erst** dorthin und
 nur bei einem Ja in die Abschrift. Sonst stünde in der App ein Name, den es beim
 Dienst nicht gibt. `checkUsername` fragt vorher, damit die Maske früh etwas sagt.
 
-Die drei Regler des Aussehens liegen am Konto und gelten damit in allen Apps:
+**Das Aussehen wird nur hier gemacht.** Die Zeile „Aussehen“ öffnet den
+`StylePicker`: zuoberst **hell, dunkel oder automatisch** als drei Kacheln mit
+je einer kleinen Vorschau ihrer selbst (`features/personalize/ModeTiles.tsx`,
+auch beim Einrichten), darunter Akzentfarbe, Voreinstellung und Hintergrund.
+
+Die vier Regler des Aussehens liegen am Konto und gelten damit in allen Apps:
 
 |                |                                                                      |
 | -------------- | -------------------------------------------------------------------- |
@@ -1152,7 +1303,15 @@ Die drei Regler des Aussehens liegen am Konto und gelten damit in allen Apps:
 | Akzentfarbe    | Die Töne aus `ACCENTS`, in Schwarzweiss ohne Wirkung                 |
 | Hintergrund    | App-Bild, eines aus `BACKDROPS` oder ein eigenes (`upload:<id>`)     |
 
-`ui/Screen.tsx` nimmt den Hintergrund vom Konto — in allen Apps gleich —, mit
+**Ohne Abo ist nur der Modus frei** (siehe „Abo und Kontingent“). Gesperrt sind
+Voreinstellung, Akzentfarbe, Hintergrund und im Bereich Assistent Name, Avatar
+und Stimme: die Zeile zeigt ein Schloss und „Abo“, ein Tipp öffnet das
+Abo-Fenster. „Aussehen“ bleibt offen, weil hell/dunkel darin steht; Farben,
+Voreinstellung und Hintergrund darin tragen ein Schloss. Gezeigt wird der
+Standard — gelesen über `personal` aus `useApp()`, nie direkt am Konto; die
+Setter in `AppContext` schreiben ohne Abo nichts.
+
+`ui/Screen.tsx` nimmt den Hintergrund vom Konto (`personal.backdrop`) — in allen Apps gleich —, mit
 einem Verlauf in der Papierfarbe darüber, damit Text lesbar bleibt. Wie viel
 Papier es sein muss, ist **gemessen**, nicht geschätzt (`theme/backdrops.ts`:
 `veil` je Bild, `APP_BACKDROP_VEILS`, `MISMATCH_VEIL`, `UPLOAD_VEIL`, fünf

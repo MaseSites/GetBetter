@@ -65,6 +65,10 @@ export type Account = Row & {
    * Admin. Ohne Abo gilt ein kleines Gratis-Kontingent fuer die KI.
    */
   paidApps?: readonly string[];
+  /** Gekuendigte Abos: App -> Stichtag `YYYY-MM-DD`. Setzt nur der Dienst. */
+  planCancels?: Readonly<Record<string, string>>;
+  /** Laufzeit je App: 'month' oder 'year'. Setzt nur der Dienst. */
+  planTerms?: Readonly<Record<string, string>>;
   createdAt: string;
 };
 
@@ -637,9 +641,18 @@ export type AlarmRow = Row & {
 /** Der Ort, fuer den das Wetter gilt. */
 export type WeatherPlace = { name: string; lat: number; lon: number };
 
-/** Woher eine Mitteilung kommt — danach richten sich ihre Knoepfe. */
+/**
+ * Woher eine Mitteilung kommt — danach richten sich ihre Knoepfe. `planApproved`
+ * und `planDeclined` legt der Admin an, wenn er ueber eine Abo-Anfrage entscheidet.
+ */
 export type NotificationKind =
-  'calendarShare' | 'calendarInvite' | 'householdInvite' | 'mail' | 'system';
+  | 'calendarShare'
+  | 'calendarInvite'
+  | 'householdInvite'
+  | 'mail'
+  | 'system'
+  | 'planApproved'
+  | 'planDeclined';
 
 /**
  * Eine Mitteilung fuer die Glocke und fuer „Was gibt's Neues“. Die Sammlung

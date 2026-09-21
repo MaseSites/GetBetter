@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -27,14 +28,21 @@ export type AvatarSheetProps = {
 export function AvatarSheet({ visible, onClose }: AvatarSheetProps) {
   const t = useTranslate();
   const theme = useTheme();
-  const { account, setAssistantAvatar } = useApp();
+  const { personal, setAssistantAvatar } = useApp();
+  const plan = usePlanSheet();
   const saved = useAvatarStyle();
   // Die Vorschau wartet nicht auf die Ablage: was getippt ist, steht schon da.
   const [draft, setDraft] = useState<AvatarStyle | null>(null);
   const shown = draft ?? saved;
-  const name = account?.assistantName?.trim() ?? '';
+  const name = personal.assistantName;
 
   function change(next: AvatarStyle) {
+    // Ohne Abo bleibt der Roboter: statt zu speichern, zeigt es das Abo.
+    if (!personal.canPersonalize) {
+      close();
+      plan.open();
+      return;
+    }
     setDraft(next);
     void setAssistantAvatar(next);
   }

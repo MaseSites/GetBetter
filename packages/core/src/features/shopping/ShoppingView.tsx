@@ -9,6 +9,7 @@ import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import {
   AddBar,
   Button,
@@ -45,6 +46,7 @@ function categoryOf(item: ShoppingItemRow): ShoppingCategory {
 export function ShoppingView({ module }: { module: ModuleDefinition }) {
   const t = useTranslate();
   const theme = useTheme();
+  const celebrate = useCelebrate();
   const router = useRouter();
   const account = useAccount();
   const { household } = useApp();
@@ -72,6 +74,7 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
     const { name, quantity } = splitQuantity(draft);
     if (name.length === 0) return;
     setDraft('');
+    celebrate('shopping');
     await shoppingRepo.add({
       accountId: account.id,
       householdId,

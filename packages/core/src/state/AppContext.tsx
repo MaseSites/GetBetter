@@ -32,6 +32,7 @@ import {
   type JoinResult,
   type WeatherPlace,
 } from '@/db';
+import { adminFieldsChanged } from '@/app/access';
 import { currentApp } from '@/app/identity';
 import {
   REDEEM_PATH,
@@ -50,14 +51,12 @@ import { subscribeDataChanged } from '@/db/events';
 import { callService, fetchAccount, type RemoteAccount } from '@/db/service';
 import { setSpeaker } from '@/features/assistant/cloudVoice';
 import { normalizeAvatar, type AvatarStyle } from '@/features/avatar/style';
+import { effectivePersonalization, type Personalization } from '@/features/plan/entitlement';
+import { onPricedAppsChange, pricedApps } from '@/features/plan/pricedApps';
 import { placesOf, withPlaceFirst } from '@/features/weather/places';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
 import type { Area } from '@/mocks/types';
 import {
-  ACCENT_KEYS,
-  DEFAULT_ACCENT,
-  DEFAULT_PRESET,
-  THEME_PRESETS,
   ThemeProvider,
   createTheme,
   type AccentKey,
@@ -129,6 +128,11 @@ export type AppContextValue = {
   setLanguage: (language: Language) => Promise<void>;
   /** Aussehen: was nicht mitgegeben wird, bleibt wie es ist. */
   appearance: Appearance;
+  /**
+   * Aussehen und Assistent, wie sie gelten: ohne Abo der Standard, nur hell
+   * oder dunkel bleibt frei. Gelesen wird hier, nie direkt am Konto.
+   */
+  personal: Personalization;
   setAppearance: (patch: Partial<Appearance>) => Promise<void>;
   /** Der Ort fuers Wetter, am Konto gespeichert: holt ihn in der Liste nach vorne. */
   setWeatherPlace: (place: WeatherPlace) => Promise<void>;
@@ -176,17 +180,8 @@ export type Appearance = {
   preset: ThemePreset;
 };
 
-function appearanceOf(account: Account | null): Appearance {
-  const mode = account?.themeMode;
-  const accent = account?.accentKey;
-  const preset = account?.themePreset;
-  return {
-    mode: mode === 'dark' || mode === 'system' ? mode : 'light',
-    accent: ACCENT_KEYS.includes(accent as AccentKey) ? (accent as AccentKey) : DEFAULT_ACCENT,
-    preset: THEME_PRESETS.includes(preset as ThemePreset)
-      ? (preset as ThemePreset)
-      : DEFAULT_PRESET,
-  };
+function appearanceOf(personal: Personalization): Appearance {
+  return { mode: personal.mode, accent: personal.accent, preset: personal.preset };
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -199,8 +194,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false);
   const view = useSyncExternalStore(onViewChange, viewState, viewState);
   const systemScheme = useColorScheme();
+  const priced = useSyncExternalStore(onPricedAppsChange, pricedApps, pricedApps);
+  // Ohne Abo gilt der Standard — gespeichert bleibt, was einmal gewaehlt war.
+  const personal = useMemo(() => effectivePersonalization(account, priced), [account, priced]);
+  const canPersonalize = personal.canPersonalize;
   // Eigene Konstante, sonst haengt der ganze Kontext an jedem Rendern.
-  const appearance = useMemo(() => appearanceOf(account), [account]);
+  const appearance = useMemo(() => appearanceOf(personal), [personal]);
   const colorScheme: ColorScheme =
     appearance.mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : appearance.mode;
 
@@ -337,7 +336,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (checking) return;
       checking = true;
       try {
-        if (await db.accounts.find(accountId)) return;
+        const stored = await db.accounts.find(accountId);
+        if (stored) {
+          // Abo, Sperre oder Apps hat der Admin geaendert: das gilt ab diesem Abgleich.
+          if (active) {
+            setAccount((current) =>
+              current?.id === stored.id && adminFieldsChanged(current, stored) ? stored : current,
+            );
+          }
+          return;
+        }
         const remote = await fetchAccount(accountId);
         if (!active || remote.ok || remote.error !== 'not_found') return;
         await AsyncStorage.removeItem(SESSION_KEY);
@@ -389,14 +397,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setAppearance = useCallback<AppContextValue['setAppearance']>(
     async (patch) => {
       if (!account) return;
-      const updated = await updateAccount(account.id, {
+      // Hell oder dunkel geht immer; Farben nur mit Abo — der Dienst wiese sie sonst ab.
+      const changes = {
         ...(patch.mode ? { themeMode: patch.mode } : {}),
-        ...(patch.accent ? { accentKey: patch.accent } : {}),
-        ...(patch.preset ? { themePreset: patch.preset } : {}),
-      });
+        ...(patch.accent && canPersonalize ? { accentKey: patch.accent } : {}),
+        ...(patch.preset && canPersonalize ? { themePreset: patch.preset } : {}),
+      };
+      if (Object.keys(changes).length === 0) return;
+      const updated = await updateAccount(account.id, changes);
       if (updated) setAccount(updated);
     },
-    [account],
+    [account, canPersonalize],
   );
 
   // Aeltere Konten kennen nur `weatherPlace` — `placesOf` zieht ihn beim Lesen in die Liste.
@@ -436,21 +447,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setAssistantVoice = useCallback<AppContextValue['setAssistantVoice']>(
     async (voiceUri) => {
-      if (!account) return;
+      // Ohne Abo spricht die beste Stimme — gewaehlt wird erst mit Abo.
+      if (!account || !canPersonalize) return;
       const updated = await updateAccount(account.id, { assistantVoice: voiceUri });
       if (updated) setAccount(updated);
     },
-    [account],
+    [account, canPersonalize],
   );
 
   const setAssistantAvatar = useCallback<AppContextValue['setAssistantAvatar']>(
     async (style) => {
-      if (!account) return;
+      if (!account || !canPersonalize) return;
       // Nur, was gueltig ist — der Dienst wiese alles andere ohnehin ab.
       const updated = await updateAccount(account.id, { assistantAvatar: normalizeAvatar(style) });
       if (updated) setAccount(updated);
     },
-    [account],
+    [account, canPersonalize],
   );
 
   const setQuickAccess = useCallback<AppContextValue['setQuickAccess']>(
@@ -464,20 +476,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setAssistantName = useCallback<AppContextValue['setAssistantName']>(
     async (name) => {
-      if (!account) return;
+      if (!account || !canPersonalize) return;
       const updated = await updateAccount(account.id, { assistantName: name.trim() });
       if (updated) setAccount(updated);
     },
-    [account],
+    [account, canPersonalize],
   );
 
   const setBackdrop = useCallback<AppContextValue['setBackdrop']>(
     async (key) => {
-      if (!account) return;
+      if (!account || !canPersonalize) return;
       const updated = await updateAccount(account.id, { backdrop: key });
       if (updated) setAccount(updated);
     },
-    [account],
+    [account, canPersonalize],
   );
 
   const setFirstName = useCallback<AppContextValue['setFirstName']>(
@@ -562,6 +574,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setLanguage,
       appearance,
+      personal,
       setAppearance,
       setWeatherPlace,
       weatherPlaces,
@@ -594,6 +607,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLanguage,
       colorScheme,
       appearance,
+      personal,
       setAppearance,
       setWeatherPlace,
       weatherPlaces,

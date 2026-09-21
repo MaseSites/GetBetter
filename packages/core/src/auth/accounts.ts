@@ -126,13 +126,12 @@ async function adoptLegacy(email: string, password: string): Promise<AuthResult 
   const created = await register(email, password);
   if (!created.ok) return { ok: false, error: created.error };
 
-  // Was das alte Konto schon wusste, gehoert jetzt in den Dienst.
+  // Was das alte Konto schon wusste, gehoert jetzt in den Dienst. Farben gibt
+  // es nur mit Abo — ein neues Konto hat keins, der Dienst wiese die Anfrage ab.
   await pushProfile(created.account.id, {
     firstName: local.firstName,
     language: local.language,
     ...(local.themeMode ? { themeMode: local.themeMode } : {}),
-    ...(local.accentKey ? { accentKey: local.accentKey } : {}),
-    ...(local.themePreset ? { themePreset: local.themePreset } : {}),
   });
 
   return { ok: true, account: await mirror({ ...created.account, firstName: local.firstName }) };

@@ -36,6 +36,14 @@ test('der Avatar kommt gleich nach dem Namen des Assistenten', () => {
   }
 });
 
+test('ohne Abo kurz: Stimme, Name des Assistenten und Avatar fallen weg', () => {
+  assert.deepEqual(setupSteps(false, true, false), ['name', 'style', 'ready']);
+  assert.deepEqual(setupSteps(true, true, false), ['style', 'ready']);
+  assert.deepEqual(setupSteps(true, false, false), ['style', 'ready']);
+  // Mit Abo wie bisher.
+  assert.deepEqual(setupSteps(true, true, true), setupSteps(true, true));
+});
+
 test('Namen brauchen mindestens ein Zeichen, der Rest geht immer weiter', () => {
   const empty = { firstName: '  ', assistantName: '' };
   const filled = { firstName: 'Lea', assistantName: 'Bo' };

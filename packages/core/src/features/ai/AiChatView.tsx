@@ -1,19 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { currentApp } from '@/app/identity';
 import { isViewing, reportReadOnly } from '@/app/viewMode';
 import { ai, chatMessages as messageRepo, chats as chatRepo, useLiveQuery } from '@/db';
-import { aiFailureOf, aiFailureText, turnsFor } from '@/features/assistant/aiTurns';
+import { aiFailureOf, aiFailureOffersPlan, aiFailureText, turnsFor } from '@/features/assistant/aiTurns';
 import { Message } from '@/features/assistant/AssistantView';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useI18n } from '@/i18n';
 import { AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
 import { moduleName } from '@/mocks/moduleText';
 import type { AssistantMessage, ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { ComposeBar, EmptyState, Header, Loading, Screen, SuggestionChip } from '@/ui';
+import { Button, ComposeBar, EmptyState, Header, Loading, Screen, SuggestionChip } from '@/ui';
 
 export type AiChatViewProps = {
   module: ModuleDefinition;
@@ -48,8 +49,11 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const plan = usePlanSheet();
 
   const [local, setLocal] = useState<readonly AssistantMessage[]>([]);
+  // Ist das Gratis-Kontingent aufgebraucht, steht ueber dem Feld „Abo ansehen“.
+  const [planOffer, setPlanOffer] = useState(false);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
   const [answered] = useState(() => new Answered());
@@ -81,14 +85,22 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     scrollDown();
   }
 
-  /** Die Antwort der KI — oder ein ehrlicher Satz, wenn keine kommt. */
-  async function fetchReply(history: readonly AssistantMessage[], question: string) {
+  /**
+   * Die Antwort der KI — oder ein ehrlicher Satz, wenn keine kommt. Dazu, ob
+   * das Abo helfen wuerde; den Zustand setzt, wer die Antwort bekommt.
+   */
+  async function fetchReply(
+    history: readonly AssistantMessage[],
+    question: string,
+  ): Promise<{ text: string; offersPlan: boolean }> {
     const result = await ai.reply({
       accountId: account.id,
       app: currentApp().id,
       messages: turnsFor(history, question),
     });
-    return result.ok ? result.data.response : aiFailureText(t, language, aiFailureOf(result));
+    if (result.ok) return { text: result.data.response, offersPlan: false };
+    const failure = aiFailureOf(result);
+    return { text: aiFailureText(t, language, failure), offersPlan: aiFailureOffersPlan(failure) };
   }
 
   // Ein gespeichertes Gespraech, dessen letzte Nachricht noch keine Antwort hat —
@@ -104,17 +116,19 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     const history = (stored.data ?? [])
       .slice(0, -1)
       .map((row) => ({ id: row.id, role: row.role, text: row.text }));
-    void fetchReply(history, lastStored.text).then((text) =>
-      messageRepo.add({ chatId, accountId: account.id, role: 'assistant', text }),
-    );
+    void fetchReply(history, lastStored.text).then((reply) => {
+      setPlanOffer(reply.offersPlan);
+      return messageRepo.add({ chatId, accountId: account.id, role: 'assistant', text: reply.text });
+    });
   });
 
   /** Ohne Speicher (die Funktion in GetBetter) antwortet das Gespraech gleich hier. */
   async function respondLocally(history: readonly AssistantMessage[], question: string) {
     setThinking(true);
-    const text = await fetchReply(history, question);
+    const reply = await fetchReply(history, question);
     setThinking(false);
-    await append('assistant', text);
+    setPlanOffer(reply.offersPlan);
+    await append('assistant', reply.text);
   }
 
   function ask(text: string) {
@@ -185,6 +199,18 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
               ))}
             </ScrollView>
           ) : null}
+          {planOffer ? (
+            <View style={styles.offer}>
+              <Button
+                label={t('plan.see')}
+                size="sm"
+                variant="secondary"
+                icon="star"
+                fullWidth={false}
+                onPress={plan.open}
+              />
+            </View>
+          ) : null}
           <ComposeBar
             value={draft}
             onChangeText={setDraft}
@@ -222,3 +248,7 @@ export function AiChatView({ module, chatId }: AiChatViewProps) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  offer: { alignSelf: 'flex-start' },
+});

@@ -186,8 +186,8 @@ function Card({
 }) {
   const t = useTranslate();
   const theme = useTheme();
-  const { account } = useApp();
-  const assistant = account?.assistantName?.trim() ?? '';
+  const { personal } = useApp();
+  const assistant = personal.assistantName;
 
   const range = [(index - 1) * width, index * width, (index + 1) * width];
   const artStyle = still

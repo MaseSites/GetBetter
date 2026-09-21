@@ -15,6 +15,7 @@ import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import {
   Button,
   Card,
@@ -43,6 +44,7 @@ const CATEGORIES = ['food', 'home', 'transport', 'fun', 'health', 'other'] as co
 export function BudgetView({ module }: { module: ModuleDefinition }) {
   const { t, language } = useI18n();
   const theme = useTheme();
+  const celebrate = useCelebrate();
   const router = useRouter();
   const account = useAccount();
   // Der Monat, den man gerade anschaut — 0 ist dieser, -1 der letzte.
@@ -87,6 +89,7 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
       setError(true);
       return;
     }
+    celebrate('money');
     await expenseRepo.add({
       accountId: account.id,
       // In einem anderen Monat landet die Ausgabe auf dessen Erstem.

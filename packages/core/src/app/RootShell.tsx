@@ -6,6 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { currentApp } from '@/app/identity';
 import { IntroLayer } from '@/features/intro/IntroLayer';
+import { CelebrationProvider } from '@/features/celebrate/CelebrationLayer';
+import { PlanSheetProvider } from '@/features/plan/PlanSheet';
 import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -133,21 +135,26 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
       {/* „Gelöscht · Rückgängig“ steht über allen Bildschirmen, einmal für die ganze App. */}
       <UndoProvider readOnlyMessage={view.active ? t('view.readOnly') : undefined}>
         {view.active ? <ViewBanner username={view.username} /> : null}
-        {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
-        <IntroLayer hasOnboarding={hasOnboarding}>
-          <EdgeSwipeBack>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-                animation: 'slide_from_right',
-                animationDuration: theme.motion.duration.sheet,
-                // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
-                gestureEnabled: true,
-              }}
-            />
-          </EdgeSwipeBack>
-        </IntroLayer>
+        {/* Das Abo-Fenster: von überall zu öffnen, einmal für die ganze App. */}
+        <PlanSheetProvider>
+          <CelebrationProvider>
+          {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
+          <IntroLayer hasOnboarding={hasOnboarding}>
+            <EdgeSwipeBack>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: theme.colors.background },
+                  animation: 'slide_from_right',
+                  animationDuration: theme.motion.duration.sheet,
+                  // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
+                  gestureEnabled: true,
+                }}
+              />
+            </EdgeSwipeBack>
+          </IntroLayer>
+          </CelebrationProvider>
+        </PlanSheetProvider>
       </UndoProvider>
     </>
   );

@@ -12,6 +12,10 @@
  * - `style`     — hell oder dunkel, Akzentfarbe, Voreinstellung, Hintergrund
  * - `ready`     — kennst du dich schon aus? Tutorial oder direkt rein
  *
+ * Ohne Abo (jede neue Registrierung) fallen Stimme, Name und Avatar weg — dort
+ * gaebe es nichts zu waehlen. `style` bleibt: hell oder dunkel ist frei, der
+ * Rest zeigt den Standard mit „Mit Abo personalisierbar“.
+ *
  * Reine Rechnung ohne React, damit sie unter Node getestet werden kann.
  */
 export type SetupStep = 'name' | 'assistant' | 'avatar' | 'voice' | 'style' | 'ready';
@@ -22,9 +26,15 @@ export type SetupDraft = { firstName: string; assistantName: string };
  * Die Schritte dieser Einrichtung. Die Stimme kommt zuerst — aber nur, wo es
  * mehr als eine gibt; sonst waere das ein Schritt ohne Wahl.
  */
-export function setupSteps(hasFirstName: boolean, canPickVoice: boolean): readonly SetupStep[] {
-  const voice: readonly SetupStep[] = canPickVoice ? ['voice'] : [];
+export function setupSteps(
+  hasFirstName: boolean,
+  canPickVoice: boolean,
+  canPersonalize = true,
+): readonly SetupStep[] {
   const name: readonly SetupStep[] = hasFirstName ? [] : ['name'];
+  // Ohne Abo kurz: der Spitzname, hell oder dunkel, fertig.
+  if (!canPersonalize) return [...name, 'style', 'ready'];
+  const voice: readonly SetupStep[] = canPickVoice ? ['voice'] : [];
   // Kaum hat er einen Namen, zeigt er sich — und man darf ihn gleich umgestalten.
   return [...voice, ...name, 'assistant', 'avatar', 'style', 'ready'];
 }

@@ -10,7 +10,7 @@ const { load, rowsOf } = require('../store.js');
 const { createLedger } = require('./ledger.js');
 const { resetsOnOf } = require('./month.js');
 const { speechSettings } = require('./costs.js');
-const { budgetOf, isAppId, planOf, planSettings, priceOf } = require('./plans.js');
+const { budgetOf, isAppId, planOf, planSettings, priceOf, termOf } = require('./plans.js');
 
 const ACCOUNT_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
@@ -37,13 +37,15 @@ function createBilling({ dataDir, findAccount = accountInStore, env = process.en
   function standingOf(account, app) {
     const settings = planSettings(env);
     const plan = planOf(account, app, settings);
-    const budgetChf = budgetOf(plan, app, settings);
+    const term = termOf(account, app);
+    const budgetChf = budgetOf(plan, app, settings, term);
     const accountId = typeof account?.id === 'string' ? account.id : null;
     const usage = accountId ? book.usageOf(accountId, app) : { aiChf: 0, speechChf: 0, heldChf: 0 };
     const spentChf = usage.aiChf + usage.speechChf + usage.heldChf;
     const remainingChf = budgetChf - spentChf;
     return {
       plan,
+      term,
       priceChf: priceOf(app, settings),
       budgetChf,
       ...usage,
