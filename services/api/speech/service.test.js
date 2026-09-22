@@ -344,7 +344,11 @@ describe('Stimmen ueber ElevenLabs', () => {
     assert.equal(anna.status, 201);
     assert.equal(await playAll(anna), 'ID3-fake-mp3');
     assert.equal(fake.calls.at(-1).body.text, SAMPLE_TEXT.de);
-    assert.equal(await exists(path.join(dir, CACHE_DIR, SAMPLES_DIR, `${anna.body.id}.mp3`)), true);
+    // Die Datei bekommt ihren Namen erst, nachdem die Antwort zu Ende ist.
+    assert.equal(
+      await eventually(() => exists(path.join(dir, CACHE_DIR, SAMPLES_DIR, `${anna.body.id}.mp3`))),
+      true,
+    );
 
     const ben = await current.prepareSample({ voice: VOICE, language: 'de', accountId: 'acc_ben', app: 'betterfamily' });
     assert.equal(ben.body.id, anna.body.id);

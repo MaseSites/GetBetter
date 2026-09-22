@@ -168,6 +168,58 @@ describe('registering with a username', () => {
 
     const renamed = await call('PATCH', `/v1/accounts/${id}`, { username: 'mia-neu' });
     assert.equal(renamed.data.account.username, 'mia-neu');
+    assert.ok(Date.parse(renamed.data.account.usernameChangedAt) > 0);
+  });
+
+  test('changes the username once a month — the nickname any time', async () => {
+    const created = await signUp('ben@test.ch', 'ben.a');
+    const id = created.data.account.id;
+    // Beim Anlegen zaehlt nichts: die erste Aenderung geht gleich.
+    const first = await call('PATCH', `/v1/accounts/${id}`, { username: 'ben.b' });
+    assert.equal(first.status, 200);
+
+    const again = await call('PATCH', `/v1/accounts/${id}`, { username: 'ben.c' });
+    assert.equal(again.status, 409);
+    assert.equal(again.data.error, 'username_cooldown');
+    const days = (Date.parse(again.data.nextChangeAt) - Date.now()) / 86_400_000;
+    assert.ok(days > 29.9 && days <= 30, `nach ${days} Tagen`);
+
+    // Derselbe Name ist keine Aenderung, der Spitzname geht immer.
+    assert.equal((await call('PATCH', `/v1/accounts/${id}`, { username: 'ben.b' })).status, 200);
+    for (const firstName of ['Ben', 'Benni', 'B.']) {
+      const named = await call('PATCH', `/v1/accounts/${id}`, { firstName });
+      assert.equal(named.data.account.firstName, firstName);
+    }
+
+    // Auch ueber PUT laesst sich der Name nicht vorbeischmuggeln.
+    const db = await call('GET', '/v1/db');
+    const rows = db.data.tables.accounts.map((row) =>
+      row.id === id ? { ...row, username: 'ben.z', usernameChangedAt: null } : row,
+    );
+    assert.equal((await call('PUT', '/v1/db/accounts', { rows })).status, 200);
+    const after = await call('GET', `/v1/accounts/${id}`);
+    assert.equal(after.data.account.username, 'ben.b');
+    assert.equal(after.data.account.usernameChangedAt, first.data.account.usernameChangedAt);
+  });
+
+  test('keeps a profile photo that exists — and lets it go again', async () => {
+    const created = await signUp('lina@test.ch', 'lina');
+    const id = created.data.account.id;
+    const png =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const upload = await call('POST', '/v1/uploads', { accountId: id, dataUrl: png });
+    assert.equal(upload.status, 201);
+
+    const set = await call('PATCH', `/v1/accounts/${id}`, { photoUploadId: upload.data.id });
+    assert.deepEqual([set.status, set.data.account.photoUploadId], [200, upload.data.id]);
+
+    for (const photoUploadId of ['upl_000000000000000000000000', 'kaputt', 42]) {
+      const wrong = await call('PATCH', `/v1/accounts/${id}`, { photoUploadId });
+      assert.deepEqual([wrong.status, wrong.data], [400, { error: 'photo_invalid' }], String(photoUploadId));
+    }
+
+    const cleared = await call('PATCH', `/v1/accounts/${id}`, { photoUploadId: null });
+    assert.deepEqual([cleared.status, cleared.data.account.photoUploadId], [200, null]);
   });
 
   test('signs in with the fresh account', async () => {

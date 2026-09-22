@@ -289,6 +289,9 @@ describe('service endpoints', () => {
         // Die KI bleibt unkonfiguriert, auch wenn der Rechner einen Schluessel kennt.
         SAFESWISSCLOUD_API_KEY: '',
         SAFESWISSCLOUD_API_URL: '',
+        GROQ_API_KEY: '',
+        BETTER_AI_PROVIDER: '',
+        BETTER_AI_GROQ_MODEL: '',
         BETTER_AI_TEST_URL: '',
         BETTER_AI_MODEL_CHEAP: '',
         BETTER_AI_MODEL_CHAT: '',
@@ -593,8 +596,9 @@ describe('service endpoints', () => {
       [read.firstName, read.disabled, read.blockedApps, read.passwordHash],
       ['Gesperrt', true, ['bettergym'], undefined],
     );
-    const profile = (await activityLines()).at(-1);
-    assert.deepEqual([profile.kind, profile.detail], ['profile.updated', { fields: ['firstName'] }]);
+    // Das Profil zu aendern steht nicht im Verlauf.
+    const last = (await activityLines()).at(-1);
+    assert.deepEqual([last.accountId, last.kind], [LOCKED.id, 'session.blocked']);
   });
 
   test('PUT /v1/db/accounts keeps disabled and blockedApps as the admin set them', async () => {
@@ -620,14 +624,8 @@ describe('service endpoints', () => {
     assert.equal(Object.hasOwn(rowOf('acc_neu'), 'disabled'), false);
     assert.equal(Object.hasOwn(rowOf('acc_neu'), 'blockedApps'), false);
 
-    // Nur das neue Konto zaehlt als Aenderung: gleiche Zeilen mit behaltenen Feldern nicht.
-    const changes = (await activityLines())
-      .slice(start)
-      .filter((line) => line.kind === 'collection.changed');
-    assert.deepEqual(
-      changes.map((line) => [line.accountId, line.detail]),
-      [['acc_neu', { collection: 'accounts', added: 1, updated: 0, removed: 0 }]],
-    );
+    // Ein PUT steht nicht im Verlauf, auch nicht fuer ein neues Konto.
+    assert.equal((await activityLines()).length, start);
 
     // Passwoerter bleiben ebenso: Anna meldet sich an, das gesperrte Konto weiterhin nicht.
     const anna = await call('POST', '/v1/sessions', { email: 'anna@test.ch', password: 'passwort123' });
@@ -733,28 +731,18 @@ describe('service endpoints', () => {
     assert.deepEqual(lines.map((line) => [line.accountId, line.detail]), [[accountB.id, { app: 'bettergym' }]]);
   });
 
-  test('a PUT records collection.changed per owner, without row contents', async () => {
+  test('a PUT from an app leaves no trace in the activity log', async () => {
     const original = (await tables()).tasks;
-    const start = (await activityLines()).length;
+    const before = await activityText();
     const ownRow = { id: 'ta1', accountId: accountA.id, title: 'Geheimer Titel' };
     const first = [...original, ownRow, { id: 'tb1', accountId: accountB.id, title: 'Ben' }];
     const second = [...original, { ...ownRow, title: 'Geheimer Titel 2' }];
     assert.equal((await call('PUT', '/v1/db/tasks', { rows: first })).status, 200);
     assert.equal((await call('PUT', '/v1/db/tasks', { rows: second })).status, 200);
-    // Nichts geaendert heisst: kein Ereignis.
-    assert.equal((await call('PUT', '/v1/db/tasks', { rows: second })).status, 200);
+    assert.equal((await call('PATCH', `/v1/accounts/${accountA.id}`, { firstName: 'Anna' })).status, 200);
 
-    const changes = (await activityLines())
-      .slice(start)
-      .filter((line) => line.kind === 'collection.changed')
-      .map((line) => [line.accountId, line.detail]);
-    const detail = (added, updated, removed) => ({ collection: 'tasks', added, updated, removed });
-    assert.deepEqual(changes, [
-      [accountA.id, detail(1, 0, 0)],
-      [accountB.id, detail(1, 0, 0)],
-      [accountA.id, detail(0, 1, 0)],
-      [accountB.id, detail(0, 0, 1)],
-    ]);
+    // Was die Nutzer eintragen oder am Profil aendern, schreibt der Dienst nicht mehr mit.
+    assert.equal(await activityText(), before);
     assert.equal((await activityText()).includes('Geheimer Titel'), false);
 
     assert.equal((await call('PUT', '/v1/db/tasks', { rows: original })).status, 200);

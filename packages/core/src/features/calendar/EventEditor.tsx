@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useLiveQuery, type EventRow } from '@/db';
 import { hasHouseholds } from '@/app/identity';
 import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Chip, Icon, Input, Loading, Sheet, Text } from '@/ui';
+import { Button, Chip, Icon, Input, Loading, Sheet, Text, Toggle } from '@/ui';
 import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
+import { clockText } from '@/features/shared/clock';
 
 import {
   EVENT_COLORS,
@@ -65,6 +66,8 @@ export type EventEditorProps = {
 };
 
 const DURATIONS = [30, 60, 90, 120] as const;
+/** Ohne eigenes Ende dauert ein Termin eine Stunde — wie im Assistenten. */
+const DEFAULT_MINUTES = 60;
 
 export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
   const t = useTranslate();
@@ -89,9 +92,7 @@ export function EventEditor({ draft, accountId, onClose }: EventEditorProps) {
     <Sheet
       visible={draft !== null}
       onClose={onClose}
-      title={
-        editing ? t('calendar.edit') : t('calendar.add')
-      }
+      title={editing ? t('calendar.edit') : t('calendar.add')}
       fullScreen
     >
       {draft && ready ? (
@@ -158,6 +159,27 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
     chosen ??
     (family ? (firstHousehold ? [`house:${firstHousehold.household.id}`] : []) : ['personal']);
 
+  /**
+   * Beim Verlassen: „18“ wird „18:00“, „1830“ wird „18:30“. Liegt das Ende
+   * danach nicht mehr hinter dem Beginn, rueckt es auf eine Stunde danach.
+   */
+  function settleStart() {
+    const start = parseTime(startText);
+    if (!start) return;
+    setStartText(clockText(start));
+    const end = parseTime(endText);
+    if (!end || end.hour * 60 + end.minute <= start.hour * 60 + start.minute) {
+      const later = new Date(0);
+      later.setHours(start.hour, start.minute + DEFAULT_MINUTES, 0, 0);
+      setEndText(formatTimeValue(later));
+    }
+  }
+
+  function settleEnd() {
+    const end = parseTime(endText);
+    if (end) setEndText(clockText(end));
+  }
+
   function applyDuration(minutes: number) {
     const start = parseTime(startText);
     if (!start) return;
@@ -222,9 +244,9 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
 
     if (editing) {
       await eventRepo.save(groupOf(editing), accountId, fields, chosen);
-      if (!editing) celebrate('event');
     } else {
       await eventRepo.create({ accountId, ...fields }, chosen);
+      celebrate('event');
     }
     onClose();
   }
@@ -285,12 +307,10 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
             {t('calendar.field.allDay')}
           </Text>
         </View>
-        <Switch
+        <Toggle
           value={allDay}
           onValueChange={setAllDay}
           accessibilityLabel={t('calendar.field.allDay')}
-          trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
-          thumbColor={theme.colors.surface}
         />
       </View>
 
@@ -333,10 +353,12 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
                 label={t('calendar.field.from')}
                 placeholder="09:00"
                 value={startText}
+                keyboardType="numbers-and-punctuation"
                 onChangeText={(value) => {
                   setStartText(value);
                   setError(null);
                 }}
+                onBlur={settleStart}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -344,10 +366,12 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
                 label={t('calendar.field.to')}
                 placeholder="10:00"
                 value={endText}
+                keyboardType="numbers-and-punctuation"
                 onChangeText={(value) => {
                   setEndText(value);
                   setError(null);
                 }}
+                onBlur={settleEnd}
               />
             </View>
           </View>
@@ -399,12 +423,10 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
                   {isPrivate ? t('calendar.field.privateOn') : t('calendar.field.privateOff')}
                 </Text>
               </View>
-              <Switch
+              <Toggle
                 value={isPrivate}
                 onValueChange={setIsPrivate}
                 accessibilityLabel={t('calendar.field.private')}
-                trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
-                thumbColor={theme.colors.surface}
               />
             </View>
           ) : null}

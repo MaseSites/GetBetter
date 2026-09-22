@@ -278,6 +278,11 @@ export function TimeField({
           setError(input.trim().length > 0 && clock === null);
           if (clock) onChange(clock);
         }}
+        onBlur={() => {
+          // „18“ steht nach dem Verlassen als „18:00“ da.
+          const clock = parseClock(text);
+          if (clock) setText(clock);
+        }}
         placeholder={t('tasks.time.placeholder')}
         keyboardType="numbers-and-punctuation"
         accessibilityLabel={t('tasks.field.time')}

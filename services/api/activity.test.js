@@ -1,6 +1,6 @@
 /**
- * Das Aktivitaetsprotokoll: wem eine Aenderung zaehlt, Drehen der Datei,
- * Filter beim Lesen. Der Datenordner liegt im Temp-Verzeichnis.
+ * Das Aktivitaetsprotokoll: Schreiben, Drehen der Datei, Filter beim Lesen
+ * und was nicht mehr zaehlt. Der Datenordner liegt im Temp-Verzeichnis.
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -10,67 +10,14 @@ const { after, before, describe, test } = require('node:test');
 
 const {
   ACTIVITY_FILE,
+  IGNORED_KINDS,
   ROTATED_FILE,
-  diffCollection,
   kindMatches,
   readActivity,
   recordActivity,
 } = require('./activity.js');
 
-describe('diffCollection', () => {
-  test('counts added, updated and removed rows per owner', () => {
-    const before = [
-      { id: 'a1', accountId: 'acc_a', title: 'eins' },
-      { id: 'a2', accountId: 'acc_a', title: 'zwei' },
-      { id: 'b1', accountId: 'acc_b', title: 'drei' },
-    ];
-    const after = [
-      { id: 'a1', accountId: 'acc_a', title: 'eins' },
-      { id: 'a2', accountId: 'acc_a', title: 'zwei!' },
-      { id: 'a3', accountId: 'acc_a', title: 'neu' },
-    ];
-    assert.deepEqual(diffCollection(before, after), [
-      { accountId: 'acc_a', added: 1, updated: 1, removed: 0 },
-      { accountId: 'acc_b', added: 0, updated: 0, removed: 1 },
-    ]);
-  });
-
-  test('falls back to ownerId, then createdBy, and groups rows without owner under null', () => {
-    const after = [
-      { id: 'c1', ownerId: 'acc_owner' },
-      { id: 'h1', createdBy: 'acc_creator' },
-      { id: 'x1', accountId: 'acc_first', ownerId: 'acc_second' },
-      { id: 'ch1', householdId: 'h1' },
-    ];
-    assert.deepEqual(
-      diffCollection([], after).map((entry) => [entry.accountId, entry.added]),
-      [
-        ['acc_owner', 1],
-        ['acc_creator', 1],
-        ['acc_first', 1],
-        [null, 1],
-      ],
-    );
-  });
-
-  test('ignores key order, rows without id and unchanged collections', () => {
-    const before = [{ id: 'a', accountId: 'acc_a', x: 1, y: { p: 1, q: 2 } }, { title: 'ohne Id' }, 'Text'];
-    const after = [{ y: { q: 2, p: 1 }, x: 1, accountId: 'acc_a', id: 'a' }, null];
-    assert.deepEqual(diffCollection(before, after), []);
-    assert.deepEqual(diffCollection(undefined, null), []);
-  });
-
-  test('takes a custom owner and leaves omitted fields out of the comparison', () => {
-    const before = [{ id: 'acc_a', username: 'anna', passwordHash: 'alt' }];
-    const after = [{ id: 'acc_a', username: 'anna', passwordHash: 'neu' }];
-    const options = { owner: (row) => row.id, omit: ['passwordHash'] };
-    assert.deepEqual(diffCollection(before, after, options), []);
-    assert.deepEqual(
-      diffCollection(before, [{ ...after[0], username: 'anna2' }], options),
-      [{ accountId: 'acc_a', added: 0, updated: 1, removed: 0 }],
-    );
-  });
-
+describe('kindMatches', () => {
   test('matches kinds exactly or by their prefix', () => {
     assert.equal(kindMatches('session.created', 'session'), true);
     assert.equal(kindMatches('session.created', 'session.created'), true);
@@ -101,7 +48,7 @@ describe('recordActivity and readActivity', () => {
     const dir = await freshDir();
     const line = await recordActivity(dir, {
       accountId: 'acc_a',
-      kind: 'profile.updated',
+      kind: 'admin.updated',
       detail: { fields: ['firstName'] },
       password: 'geheim',
     });
@@ -146,7 +93,7 @@ describe('recordActivity and readActivity', () => {
     const lines = [
       { at: '2026-09-14T08:00:00.000Z', accountId: 'acc_a', kind: 'session.created', detail: {} },
       { at: '2026-09-14T08:00:01.000Z', accountId: 'acc_b', kind: 'session.failed', detail: {} },
-      { at: '2026-09-14T08:00:02.000Z', accountId: 'acc_a', kind: 'profile.updated', detail: {} },
+      { at: '2026-09-14T08:00:02.000Z', accountId: 'acc_a', kind: 'plan.requested', detail: {} },
       { at: '2026-09-14T08:00:03.000Z', accountId: null, kind: 'admin.updated', detail: {} },
     ];
     const text = [
@@ -169,5 +116,31 @@ describe('recordActivity and readActivity', () => {
     assert.deepEqual(at(await readActivity(dir, { before: '2026-09-14T08:00:02.000Z' })), ['01', '00']);
     assert.deepEqual(at(await readActivity(dir, { limit: 2 })), ['03', '02']);
     assert.deepEqual(await readActivity(path.join(dir, 'fehlt')), []);
+  });
+
+  test('no longer writes changes of collections, profiles or AI replies and skips old ones', async () => {
+    const dir = await freshDir();
+    assert.deepEqual([...IGNORED_KINDS].sort(), ['ai.reply', 'collection.changed', 'profile.updated']);
+    for (const kind of IGNORED_KINDS) {
+      assert.equal(await recordActivity(dir, { accountId: 'acc_a', kind, detail: {} }), null, kind);
+    }
+    await assert.rejects(fs.access(path.join(dir, ACTIVITY_FILE)));
+
+    // Zeilen aus der Zeit, als sie noch geschrieben wurden, stehen nie im Verlauf.
+    const old = (second, kind) =>
+      JSON.stringify({ at: `2026-09-14T08:00:0${second}.000Z`, accountId: 'acc_a', kind, detail: {} });
+    await fs.writeFile(
+      path.join(dir, ROTATED_FILE),
+      `${[old(0, 'account.created'), old(1, 'collection.changed')].join('\n')}\n`,
+    );
+    await fs.writeFile(
+      path.join(dir, ACTIVITY_FILE),
+      `${[old(2, 'profile.updated'), old(3, 'session.created'), old(4, 'ai.reply')].join('\n')}\n`,
+    );
+    const kinds = async (query) => (await readActivity(dir, query)).map((entry) => entry.kind);
+    assert.deepEqual(await kinds(), ['session.created', 'account.created']);
+    assert.deepEqual(await kinds({ kind: 'collection' }), []);
+    assert.deepEqual(await kinds({ kind: 'profile.updated' }), []);
+    assert.deepEqual(await kinds({ limit: 1 }), ['session.created']);
   });
 });

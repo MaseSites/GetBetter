@@ -1,7 +1,6 @@
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Animated, Platform, Pressable, View } from 'react-native';
+import { Animated, Pressable, View } from 'react-native';
 
 import {
   bills as billRepo,
@@ -29,7 +28,7 @@ import {
   vitals as vitalRepo,
   workouts as workoutRepo,
 } from '@/db';
-import { daysUntil, nextBirthday, parseDay, relativeDay, shiftDay } from '@/features/shared/days';
+import { daysUntil, nextBirthday, relativeDay, shiftDay } from '@/features/shared/days';
 import {
   alarms as alarmRepo,
   chores as choreRepo,
@@ -38,11 +37,8 @@ import {
   shopping as shoppingRepo,
   tasks as taskRepo,
 } from '@/db/repositories';
-import { eventColor } from '@/features/calendar/colors';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
-import { appUrl } from '@/app/bridge';
-import { APPS, currentApp, hasHouseholds, storeUrl, type AppId } from '@/app/identity';
-import { WEEKDAYS } from '@/features/alarm/AlarmView';
+import { currentApp, hasHouseholds } from '@/app/identity';
 import { AppFamily } from '@/features/apps/AppFamily';
 import { NewsSection } from '@/features/notifications/NewsSection';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
@@ -55,14 +51,23 @@ import {
   useI18n,
   type TranslationKey,
 } from '@/i18n';
-import { DayThread, type AllDayEntry, type DayEntry } from '@/features/today/DayThread';
+import { HomeNotes } from '@/features/notes/HomeNotes';
+import { DayTasks } from '@/features/today/DayTasks';
+import { HomeCustom } from '@/features/today/HomeCustom';
+import { HomeFocus } from '@/features/today/HomeFocus';
+import { HomeGrid } from '@/features/today/HomeGrid';
+import { HomeViewSwitch } from '@/features/today/HomeViewSwitch';
+import { useHomeView } from '@/features/today/useHomeView';
+import { TaskQuickAdd } from '@/features/today/TaskQuickAdd';
+import { DayThread } from '@/features/today/DayThread';
+import { useDayThread } from '@/features/today/useDayThread';
 import { weatherIcon } from '@/features/weather/api';
 import { useWeather } from '@/features/weather/useWeather';
-import { MODULES, modulesOfApp } from '@/mocks/modules';
+import { modulesOfApp } from '@/mocks/modules';
 import { moduleName, moduleShort } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount, useApp } from '@/state/AppContext';
-import { moduleBase, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import {
   Button,
   Card,
@@ -191,38 +196,25 @@ export function WorkspaceScreen() {
   const [dayShift, setDayShift] = useState(0);
   const isToday = dayShift === 0;
   const shownDay = isToday ? todayKey : shiftDay(dayShift);
-  const dayFrom = parseDay(shownDay).toISOString();
-  const dayTo = parseDay(shiftDay(1, parseDay(shownDay))).toISOString();
-
-  // Das Ganztaegige des gezeigten Tages: im Band steht nur, was eine Uhrzeit hat.
-  const allDayList = useLiveQuery(
-    () => eventRepo.listAllDay(access, dayFrom, dayTo),
-    [access.accountId, access.householdIds, access.calendarIds, dayFrom, dayTo],
-  );
-  // Heute reicht `upcoming`; fuer jeden anderen Tag holt das Band seinen eigenen.
-  const dayEventList = useLiveQuery(
-    () => eventRepo.listDay(access, dayFrom, dayTo, { timedOnly: true }),
-    [access.accountId, access.householdIds, access.calendarIds, dayFrom, dayTo],
-  );
-  // Der naechste Tag blinzelt ganz unten ins Band — nur, was dann wirklich ist.
-  const nextDay = shiftDay(1, parseDay(shownDay));
-  const nextTo = parseDay(shiftDay(1, parseDay(nextDay))).toISOString();
-  const nextAllDayList = useLiveQuery(
-    () => eventRepo.listAllDay(access, dayTo, nextTo),
-    [access.accountId, access.householdIds, access.calendarIds, dayTo, nextTo],
-  );
-  const nextEventList = useLiveQuery(
-    () => eventRepo.listDay(access, dayTo, nextTo, { timedOnly: true }),
-    [access.accountId, access.householdIds, access.calendarIds, dayTo, nextTo],
-  );
-  const alarmList = useLiveQuery(() => alarmRepo.list(account.id), [account.id]);
+  // Was an diesem Tag im Band steht — derselbe Haken wie im grossen Zeitstrahl.
+  const band = useDayThread(shownDay);
 
   /** Nach links wischen heisst morgen, nach rechts gestern — wie im Kalender. */
   function stepDay(direction: number) {
     setDayShift((current) => current + direction);
   }
 
+  /** Der grosse Zeitstrahl, bei einer angetippten Karte gleich an ihrer Stelle. */
+  function openTimeline(day: string, focus?: string) {
+    const query = focus ? `&focus=${encodeURIComponent(focus)}` : '';
+    router.push(`/timeline?day=${day}${query}`);
+  }
+
   const swipe = useSwipeSteps(stepDay);
+  // Die Schnelleingabe der Aufgaben, unten ueber der Tastatur — fuer den gezeigten Tag.
+  const [taskAdd, setTaskAdd] = useState<{ id: number; day: string } | null>(null);
+  // Drei Ansichten der Startseite — nur in GetBetter; die anderen Apps bleiben bei einer.
+  const [homeView, setHomeView] = useHomeView(account.id);
 
   const events = upcoming.data ?? [];
   const tasks = openTasks.data ?? [];
@@ -794,238 +786,7 @@ export function WorkspaceScreen() {
   const built = mine.filter((module) => content(module.id) !== null);
   const pending = mine.filter((module) => content(module.id) === null);
 
-  /** Name und Symbol einer Funktion — auch einer, die eine andere App fuehrt. */
-  const moduleOf = (id: string) => MODULES.find((module) => module.id === id);
-  const nameOf = (id: string) => moduleName(t, id);
-  const iconOf = (id: string): IconName => moduleOf(id)?.icon ?? 'circle';
   const owns = (id: string) => mine.some((module) => module.id === id);
-
-  /** "06:40" auf den gezeigten Tag bezogen, damit der Wecker an seiner Zeit steht. */
-  function dayAt(time: string): string {
-    const [hours, minutes] = time.split(':');
-    const when = parseDay(shownDay);
-    when.setHours(Number(hours), Number(minutes), 0, 0);
-    return when.toISOString();
-  }
-
-  /**
-   * Der Wecker, der an diesem Tag klingelt. Ohne Wochentage klingelt er jeden
-   * Tag; sonst nur an den angehakten.
-   */
-  function alarmOfDay() {
-    if (isToday) return nextAlarm.data;
-    const weekday = WEEKDAYS[(parseDay(shownDay).getDay() + 6) % 7];
-    return (alarmList.data ?? []).find(
-      (row) => row.enabled && (row.days.length === 0 || row.days.includes(weekday ?? '')),
-    );
-  }
-
-  /** Oeffnet eine andere Better-App — im Store, sobald es sie dort gibt. */
-  function openApp(id: AppId) {
-    void Linking.openURL(storeUrl(APPS[id], Platform.OS) ?? appUrl(id));
-  }
-
-  /**
-   * Das Tagesband. Es fragt nichts Neues ab — es ordnet, was dieser Bildschirm
-   * ohnehin laedt, nach der Zeit statt nach Funktion. Was man vorher auf den
-   * Karten direkt tun konnte (abhaken, bezahlen, Gewohnheit setzen), geht hier
-   * ueber den Kreis links.
-   */
-  const thread: DayEntry[] = [];
-
-  const dayAlarm = alarmOfDay();
-
-  if (dayAlarm && owns('alarm')) {
-    thread.push({
-      key: 'alarm',
-      moduleId: 'alarm',
-      icon: iconOf('alarm'),
-      at: dayAt(dayAlarm.time),
-      title: dayAlarm.label || nameOf('alarm'),
-      tag: nameOf('alarm'),
-      onPress: () => router.push('/run/alarm'),
-    });
-  }
-
-  // Ganztaegiges steht in der eigenen Zeile ueber dem Band, nicht dazwischen.
-  const dayEvents = isToday
-    ? events.filter((row) => row.startsAt.slice(0, 10) === today && !row.allDay)
-    : (dayEventList.data ?? []);
-
-  for (const event of dayEvents) {
-    thread.push({
-      key: `event-${event.id}`,
-      moduleId: 'calendar',
-      icon: iconOf('calendar'),
-      at: event.startsAt,
-      // Ohne „Kalender“ rechts: Uhrzeit und Symbol sagen schon, was es ist.
-      title: event.title,
-      onPress: () => router.push('/run/calendar'),
-    });
-  }
-
-  // Heute steht an, was offen ist; an einem anderen Tag nur, was dann faellig ist.
-  const dayTasks = isToday
-    ? tasks.slice(0, 5)
-    : tasks.filter((row) => (row.dueAt ?? '').slice(0, 10) === shownDay).slice(0, 5);
-
-  for (const task of dayTasks) {
-    thread.push({
-      key: `task-${task.id}`,
-      moduleId: 'tasks',
-      icon: iconOf('tasks'),
-      title: task.title,
-      tag: nameOf('tasks'),
-      // Der Kreis hakt direkt ab — dafuer muss man nirgends hin.
-      onToggle: () => void taskRepo.setDone(task.id, true),
-    });
-  }
-
-  // Gewohnheiten hakt man heute ab, nicht im Voraus.
-  if (isToday && owns('habits')) {
-    for (const habit of habitRows.filter((row) => !tickedToday.has(row.id)).slice(0, 3)) {
-      thread.push({
-        key: `habit-${habit.id}`,
-        moduleId: 'habits',
-        icon: iconOf('habits'),
-        title: habit.name,
-        tag: nameOf('habits'),
-        onToggle: () => void habitRepo.toggle(habit.id, account.id, today),
-      });
-    }
-  }
-
-  for (const bill of bills
-    .filter((row) => (isToday ? row.dueDay <= today : row.dueDay === shownDay))
-    .slice(0, 2)) {
-    thread.push({
-      key: `bill-${bill.id}`,
-      moduleId: 'bills',
-      icon: iconOf('bills'),
-      title: bill.title,
-      meta: money(bill.amountChf),
-      tag: nameOf('bills'),
-      // Antippen heisst bezahlt — wie beim Abhaken einer Aufgabe.
-      onToggle: () => void billRepo.setPaid(bill.id, true),
-    });
-  }
-
-  if (isToday && owns('documents')) {
-    for (const row of expiring.slice(0, 2)) {
-      thread.push({
-        key: `doc-${row.id}`,
-        moduleId: 'documents',
-        icon: iconOf('documents'),
-        title: row.title,
-        meta: row.expiresOn ? relativeDay(t, language, row.expiresOn) : undefined,
-        tag: nameOf('documents'),
-        onPress: () => router.push('/run/documents'),
-      });
-    }
-  }
-
-  // Geburtstage gehoeren der Funktion Geburtstage, wo es sie gibt, sonst den Kontakten.
-  const birthdayModule = owns('birthdays') ? 'birthdays' : owns('contacts') ? 'contacts' : null;
-
-  /** Ein Tipp auf einen Geburtstag oeffnet die Person selbst, wo es die Funktion gibt. */
-  const openPerson = (contactId: string) =>
-    router.push(
-      birthdayModule === 'birthdays'
-        ? `/run/birthdays?person=${encodeURIComponent(contactId)}`
-        : `/run/${birthdayModule ?? 'contacts'}`,
-    );
-
-  /**
-   * Ein Geburtstag steht nur an seinem Tag im Band: oben in der Ganztags-Karte
-   * oder unten unter „Morgen“ — nie Tage im Voraus. Geschenk, „Max hat
-   * Geburtstag“, darunter „wird 38“; der Tag steht schon darueber.
-   */
-  const birthdayTitle = ({ row, next }: (typeof birthdays)[number]) =>
-    row.birthYearKnown === false
-      ? t('birthdays.eventNoAge', { name: row.name })
-      : t('birthdays.event', { name: row.name, age: next.age });
-
-  /** Die Karte ueber dem Band: wer an diesem Tag feiert, dann ganztaegige Termine. */
-  const allDay: AllDayEntry[] = [
-    ...(birthdayModule
-      ? birthdays
-          .filter((entry) => entry.next.day === shownDay)
-          .map((entry): AllDayEntry => ({
-            key: `birthday-today-${entry.row.id}`,
-            title: birthdayTitle(entry),            icon: 'gift',
-            color: moduleBase(theme, birthdayModule),
-            onPress: () => openPerson(entry.row.id),
-          }))
-      : []),
-    ...(allDayList.data ?? []).map((event): AllDayEntry => ({
-      key: `allday-${event.id}`,
-      title: event.title,
-      color: eventColor(event.color),
-      onPress: owns('calendar') ? () => router.push('/run/calendar') : undefined,
-    })),
-  ];
-
-  /**
-   * Der naechste Tag ganz unten, verblassend: wer feiert, Ganztaegiges, dann
-   * nach Uhrzeit. Ohne eigene Knoepfe — ein Tipp blaettert zum Tag.
-   */
-  const nextEntries: DayEntry[] = [
-    ...(birthdayModule
-      ? birthdays
-          .filter((entry) => entry.next.day === nextDay)
-          .map((entry): DayEntry => ({
-            key: `next-birthday-${entry.row.id}`,
-            moduleId: birthdayModule,
-            icon: 'gift',
-            title: birthdayTitle(entry),          }))
-      : []),
-    ...(nextAllDayList.data ?? []).map(
-      (event): DayEntry => ({
-        key: `next-allday-${event.id}`,
-        moduleId: 'calendar',
-        icon: iconOf('calendar'),
-        title: event.title,
-      }),
-    ),
-    ...(nextEventList.data ?? []).map(
-      (event): DayEntry => ({
-        key: `next-event-${event.id}`,
-        moduleId: 'calendar',
-        icon: iconOf('calendar'),
-        at: event.startsAt,
-        title: event.title,
-      }),
-    ),
-  ];
-
-  if (isToday && owns('travel') && nextTrip) {
-    thread.push({
-      key: `trip-${nextTrip.id}`,
-      moduleId: 'travel',
-      icon: iconOf('travel'),
-      title: nextTrip.name,
-      meta:
-        nextTrip.startDay <= today
-          ? t('trips.ongoing')
-          : relativeDay(t, language, nextTrip.startDay),
-      tag: nameOf('travel'),
-      onPress: () => router.push('/run/travel'),
-    });
-  }
-
-  if (isToday && shopping.length > 0) {
-    thread.push({
-      key: 'shopping',
-      moduleId: 'shopping',
-      icon: iconOf('shopping'),
-      title: nameOf('shopping'),
-      meta: t('today.openCount', { count: String(shopping.length) }),
-      tag: nameOf('shopping'),
-      onPress: owns('shopping')
-        ? () => router.push('/run/shopping')
-        : () => openApp('betterfamily'),
-    });
-  }
 
   // Neues legt man ueber das „+“ an, nicht ueber ein zweites Feld unter dem Band.
   const createMenu: FloatingButtonMenuItem[] = CREATE_ACTIONS.filter((action) =>
@@ -1037,6 +798,7 @@ export function WorkspaceScreen() {
     onPress: () => router.push(action.href),
   }));
   const hasCreate = main && createMenu.length > 0;
+  const view = main ? homeView : 'list';
 
   return (
     <View style={{ flex: 1 }}>
@@ -1045,6 +807,14 @@ export function WorkspaceScreen() {
         contentStyle={
           hasCreate ? { paddingBottom: FLOATING_BUTTON_SIZE + theme.spacing.xl } : undefined
         }
+        // Dieselbe Leiste wie in den Aufgaben: Datum · Priorität · Projekt · Tag · Erinnerung.
+        {...(taskAdd
+          ? {
+              footer: (
+                <TaskQuickAdd key={taskAdd.id} day={taskAdd.day} onClose={() => setTaskAdd(null)} />
+              ),
+            }
+          : {})}
         // Nur Datum und Gruss — die Uebersicht darunter sagt selbst, was ansteht.
         header={
           <Header
@@ -1064,105 +834,154 @@ export function WorkspaceScreen() {
             // Die Glocke gibt es nur in GetBetter — dort liegen die Mitteilungen. Ein
             // Profilknopf fehlt bewusst: dafuer gibt es den Tab.
             {...(main ? { right: <NotificationBell /> } : {})}
-          />
+          >
+            {main ? (
+              <HomeViewSwitch
+                value={view}
+                onChange={(next) => {
+                  setHomeView(next);
+                  // Uebersicht und Jetzt zeigen immer heute — und zurueck auch.
+                  setDayShift(0);
+                }}
+              />
+            ) : null}
+          </Header>
         }
       >
-        {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}
-        {main ? <NewsSection /> : null}
-
-        {/* Wischen blaettert den Tag; die Flaeche folgt dem Finger ein Stueck. */}
-        <Animated.View style={swipe.style} {...swipe.panHandlers}>
-          {isToday ? null : (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: theme.spacing.sm,
-                marginBottom: theme.spacing.xs,
-              }}
-            >
-              <Text variant="label">{relativeDay(t, language, shownDay)}</Text>
-              <Button
-                label={t('day.today')}
-                size="sm"
-                variant="ghost"
-                fullWidth={false}
-                onPress={() => setDayShift(0)}
-              />
-            </View>
-          )}
-          <DayThread
-            entries={thread}
-            allDay={allDay}
-            showNow={isToday}
-            next={{
-              label: relativeDay(t, language, nextDay),
-              entries: nextEntries,
-              onPress: () => stepDay(1),
-            }}
+        {view === 'grid' ? (
+          <HomeGrid
+            onAddTask={() =>
+              setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
+            }
           />
-        </Animated.View>
-
-        {main ? <QuickAccess /> : null}
-
-        {main ? (
-          <AppFamily />
+        ) : view === 'custom' ? (
+          <HomeCustom
+            onAddTask={() =>
+              setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
+            }
+          />
+        ) : view === 'focus' ? (
+          <HomeFocus
+            onAddTask={() =>
+              setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
+            }
+          />
         ) : (
           <>
-            {hasHouseholds() ? (
-              <Section
-                module={{
-                  id: 'household',
-                  area: 'household',
-                  topic: 'supplies',
-                  icon: 'people',
-                  priority: 1,
-                  permissions: { read: [], write: [] },
+            {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}
+            {main ? <NewsSection /> : null}
+
+            {/* Wischen blaettert den Tag; die Flaeche folgt dem Finger ein Stueck. */}
+            <Animated.View style={swipe.style} {...swipe.panHandlers}>
+              {isToday ? null : (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: theme.spacing.sm,
+                    marginBottom: theme.spacing.xs,
+                  }}
+                >
+                  <Text variant="label">{relativeDay(t, language, shownDay)}</Text>
+                  <Button
+                    label={t('day.today')}
+                    size="sm"
+                    variant="ghost"
+                    fullWidth={false}
+                    onPress={() => setDayShift(0)}
+                  />
+                </View>
+              )}
+              {/* Jeder Tipp hinein oeffnet den grossen Zeitstrahl — nur der Kreis hakt direkt ab. */}
+              <DayThread
+                entries={band.entries}
+                allDay={band.allDay}
+                showNow={isToday}
+                onOpen={(focus) => openTimeline(shownDay, focus)}
+                next={{
+                  label: relativeDay(t, language, band.nextDay),
+                  entries: band.nextEntries,
+                  onPress: () => openTimeline(band.nextDay),
                 }}
-                onOpen={() => router.push('/household')}
-              >
-                <Text variant="label" tone={household ? 'default' : 'faint'}>
-                  {household ? household.name : t('household.none.title')}
-                </Text>
-              </Section>
+              />
+            </Animated.View>
+
+            {/* Die Aufgaben des gezeigten Tages — ausserhalb der Wischflaeche, damit
+            das Wischen einer Aufgabe nicht den Tag blaettert. */}
+            {owns('tasks') ? (
+              <DayTasks
+                day={shownDay}
+                onAdd={() =>
+                  setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
+                }
+              />
             ) : null}
 
-            {built.map((module) => (
-              <Section
-                key={module.id}
-                module={module}
-                onOpen={() => router.push(`/run/${module.id}`)}
-              >
-                {content(module.id)}
-              </Section>
-            ))}
+            {/* Was an die Startseite geheftet ist — nur, wenn es etwas gibt. */}
+            {owns('notes') ? <HomeNotes /> : null}
 
-            {pending.length > 0 ? (
-              <View style={{ gap: theme.spacing.sm }}>
-                <Text variant="section" tone="muted">
-                  {t('workspace.pending')}
-                </Text>
-                <Card>
-                  {pending.map((module, index) => (
-                    <View key={module.id} style={{ opacity: 0.55 }}>
-                      {index > 0 ? <Divider /> : null}
-                      <ListItem
-                        title={moduleName(t, module.id)}
-                        subtitle={moduleShort(t, module.id)}
-                        onPress={() => router.push(`/module/${module.id}`)}
-                      />
-                    </View>
-                  ))}
-                </Card>
-              </View>
-            ) : null}
+            {main ? <QuickAccess /> : null}
+
+            {main ? (
+              <AppFamily />
+            ) : (
+              <>
+                {hasHouseholds() ? (
+                  <Section
+                    module={{
+                      id: 'household',
+                      area: 'household',
+                      topic: 'supplies',
+                      icon: 'people',
+                      priority: 1,
+                      permissions: { read: [], write: [] },
+                    }}
+                    onOpen={() => router.push('/household')}
+                  >
+                    <Text variant="label" tone={household ? 'default' : 'faint'}>
+                      {household ? household.name : t('household.none.title')}
+                    </Text>
+                  </Section>
+                ) : null}
+
+                {built.map((module) => (
+                  <Section
+                    key={module.id}
+                    module={module}
+                    onOpen={() => router.push(`/run/${module.id}`)}
+                  >
+                    {content(module.id)}
+                  </Section>
+                ))}
+
+                {pending.length > 0 ? (
+                  <View style={{ gap: theme.spacing.sm }}>
+                    <Text variant="section" tone="muted">
+                      {t('workspace.pending')}
+                    </Text>
+                    <Card>
+                      {pending.map((module, index) => (
+                        <View key={module.id} style={{ opacity: 0.55 }}>
+                          {index > 0 ? <Divider /> : null}
+                          <ListItem
+                            title={moduleName(t, module.id)}
+                            subtitle={moduleShort(t, module.id)}
+                            onPress={() => router.push(`/module/${module.id}`)}
+                          />
+                        </View>
+                      ))}
+                    </Card>
+                  </View>
+                ) : null}
+              </>
+            )}
           </>
         )}
       </Screen>
 
       {/* Ausserhalb der Rollflaeche: der Knopf bleibt stehen, waehrend der Tag rollt. */}
-      {hasCreate ? (
+      {hasCreate && !taskAdd ? (
         <FloatingButton label={t('shell.create')} menu={createMenu} aboveTabBar />
       ) : null}
     </View>

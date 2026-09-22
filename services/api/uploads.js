@@ -91,6 +91,11 @@ async function findUpload(id) {
   return null;
 }
 
+/** Ob es ein Bild mit dieser Id gibt — etwa, bevor es ein Profilbild wird. */
+async function uploadExists(id) {
+  return (await findUpload(id)) !== null;
+}
+
 async function readUpload(id) {
   const found = await findUpload(id);
   if (!found) return null;
@@ -104,4 +109,4 @@ async function deleteUpload(id) {
   return { status: 200, body: { ok: true } };
 }
 
-module.exports = { MAX_BYTES, parseDataUrl, saveUpload, readUpload, deleteUpload };
+module.exports = { MAX_BYTES, parseDataUrl, saveUpload, readUpload, deleteUpload, uploadExists };

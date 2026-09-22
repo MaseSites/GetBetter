@@ -265,6 +265,7 @@ export function NoteEditor({ accountId, note, folderId, initialQuery }: NoteEdit
   const blank = isBlank(blocks);
   const saved = noteId !== null;
   const pinned = row?.pinned ?? false;
+  const onHome = Boolean(row?.homeAt);
   const menu: MenuEntry[] = [
     {
       key: 'pin',
@@ -272,6 +273,13 @@ export function NoteEditor({ accountId, note, folderId, initialQuery }: NoteEdit
       icon: pinned ? 'pinFilled' : 'pin',
       disabled: blank && !saved,
       onPress: () => void withSavedId((id) => actions.setPinned([id], !pinned)),
+    },
+    {
+      key: 'home',
+      label: onHome ? t('notes.home.unpin') : t('notes.home.pin'),
+      icon: 'home',
+      disabled: blank && !saved,
+      onPress: () => void withSavedId((id) => actions.setOnHome([id], !onHome)),
     },
     {
       key: 'move',

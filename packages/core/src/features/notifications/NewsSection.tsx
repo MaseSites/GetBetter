@@ -7,14 +7,15 @@ import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { Icon, SectionHead, Text } from '@/ui';
 
-import { NotificationItem } from './NotificationItem';
+import { NewsStack } from './NewsStack';
 
-/** Mehr passt auf die Startseite nicht, ohne dass sie zur Glocke wird. */
-const NEWS_LIMIT = 5;
+/** So viele liegen im Stapel — der Rest wartet in der Glocke. */
+const NEWS_LIMIT = 12;
 
 /**
- * „Was gibt's Neues“ auf der Startseite: was noch ungelesen ist, als Karten zum
- * direkt Beantworten. Gelesenes verschwindet von hier und bleibt in der Glocke.
+ * „Neuigkeiten“ auf der Startseite: was noch ungelesen ist, als Stapel
+ * statt als endlose Liste (`NewsStack`) — direkt zu beantworten, wegzuwischen
+ * oder zu oeffnen. Gelesenes verschwindet von hier und bleibt in der Glocke.
  */
 export function NewsSection() {
   const t = useTranslate();
@@ -29,6 +30,10 @@ export function NewsSection() {
 
   const openInbox = () => router.push('/notifications');
 
+  // Nichts Ungelesenes heisst: kein Bereich. Erst wenn geladen ist — sonst
+  // blitzt die Ueberschrift kurz auf.
+  if (unread.data && rows.length === 0) return null;
+
   return (
     <View style={{ gap: theme.spacing.sm }}>
       <SectionHead
@@ -37,16 +42,7 @@ export function NewsSection() {
         onPress={openInbox}
       />
 
-      {/* Erst wenn geladen ist — sonst blitzt „Keine Neuigkeiten“ kurz auf. */}
-      {unread.data && rows.length === 0 ? (
-        <Text variant="label" tone="faint">
-          {t('news.empty')}
-        </Text>
-      ) : null}
-
-      {shown.map((row) => (
-        <NotificationItem key={row.id} notification={row} place="news" />
-      ))}
+      {shown.length > 0 ? <NewsStack rows={shown} /> : null}
 
       {hidden > 0 ? (
         <Pressable

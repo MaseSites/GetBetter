@@ -45,12 +45,15 @@ export function SettingsProfile({
   name,
   handle,
   email,
+  photo,
   actionLabel,
   onAction,
 }: {
   name: string;
   handle: string;
   email: string;
+  /** Das Bild links — ohne eigenes das Kuerzel des Namens. */
+  photo?: ReactNode;
   actionLabel: string;
   onAction: () => void;
 }) {
@@ -71,7 +74,7 @@ export function SettingsProfile({
         },
       ]}
     >
-      <Avatar name={name} size={56} />
+      {photo ?? <Avatar name={name} size={56} />}
       <View style={[styles.grow, { gap: theme.spacing.xs }]}>
         <Text variant="label" numberOfLines={1} style={{ fontSize: theme.fontSize.lede }}>
           {name}
@@ -108,6 +111,7 @@ export function SettingsRow({
   label,
   value,
   icon,
+  leading,
   first = false,
   chevron = false,
   muted = false,
@@ -120,6 +124,8 @@ export function SettingsRow({
   value?: string;
   /** Das Zeichen links — gibt der Zeile ihr Thema auf einen Blick. */
   icon?: IconName;
+  /** Statt des Zeichens etwas Eigenes links, etwa das Logo einer App. */
+  leading?: ReactNode;
   first?: boolean;
   chevron?: boolean;
   /** Leiser Titel — fuer Zeilen, die etwas anbieten statt etwas zeigen. */
@@ -149,7 +155,7 @@ export function SettingsRow({
         },
       ]}
     >
-      {icon ? <Icon name={icon} size={19} color={tint} /> : null}
+      {leading ?? (icon ? <Icon name={icon} size={19} color={tint} /> : null)}
       <Text
         variant="label"
         numberOfLines={1}

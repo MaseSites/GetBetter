@@ -39,6 +39,9 @@ export type RemoteAccount = {
   themePreset?: string;
   /** Wie es der Dienst gespeichert hat — gelesen wird ueber `normalizeAvatar`. */
   assistantAvatar?: unknown;
+  /** Wann der Benutzername zuletzt neu war — neu gibt es ihn einmal im Monat. */
+  usernameChangedAt?: string | null;
+  photoUploadId?: string | null;
   createdAt: string;
 };
 
@@ -47,6 +50,10 @@ export type ServiceError =
   | 'email_taken'
   | 'username_invalid'
   | 'username_taken'
+  /** Den Benutzernamen gibt es nur einmal im Monat neu. */
+  | 'username_cooldown'
+  /** Ein Profilbild, das es beim Dienst nicht gibt. */
+  | 'photo_invalid'
   | 'password_too_short'
   | 'not_found'
   | 'wrong_password'
@@ -129,6 +136,7 @@ export function pushProfile(
     assistantName?: string;
     assistantAvatar?: AvatarStyle;
     backdrop?: string;
+    photoUploadId?: string | null;
   },
 ): Promise<ServiceResult> {
   return call(`/v1/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes });

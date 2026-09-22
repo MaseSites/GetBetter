@@ -19,6 +19,9 @@ export const ERROR_KEY: Record<FormError, TranslationKey> = {
   wrong_password: 'auth.error.wrongPassword',
   account_disabled: 'auth.error.accountDisabled',
   offline: 'auth.error.offline',
+  // Nur beim spaeteren Aendern des Profils — hier der Vollstaendigkeit halber.
+  username_cooldown: 'settings.username.cooldown',
+  photo_invalid: 'profile.photo.error',
 };
 
 /** Welches Feld eine Meldung rot faerbt — der Rest bleibt, wie er ist. */

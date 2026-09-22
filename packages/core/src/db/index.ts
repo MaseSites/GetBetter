@@ -13,7 +13,17 @@ export { chatMessages, chatTitleOf, chats } from './chats';
 export { ai } from './ai';
 export { plans, cancelPlan, requestPlan, resumePlan } from './plans';
 export type { PlanRequestOutcome, PlanStatus, PlanTerm } from './plans';
-export type { AiApp, AiReply, AiRequest, AiStatus, AiTier, AiTurn } from './ai';
+export type {
+  AiAction,
+  AiApp,
+  AiContext,
+  AiContextItem,
+  AiReply,
+  AiRequest,
+  AiStatus,
+  AiTier,
+  AiTurn,
+} from './ai';
 export { mail } from './mail';
 export { bills, budgets, expenses, monthKey, savings, subscriptions } from './money';
 export { contacts, documents, habits, trips } from './organizer';

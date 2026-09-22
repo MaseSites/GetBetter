@@ -4,6 +4,7 @@ import { itAvatar } from './it-avatar';
 import { itB } from './it-b';
 import { itBirthdays } from './it-birthdays';
 import { itC } from './it-c';
+import { itHome } from './it-home';
 import { itMailUi } from './it-mailui';
 import { itNotes } from './it-notes';
 import { itPlan } from './it-plan';
@@ -18,6 +19,7 @@ export const it: Readonly<Record<TranslationKey, string>> = {
   ...itA,
   ...itB,
   ...itC,
+  ...itHome,
   ...itVoice,
   ...itAvatar,
   ...itShell,

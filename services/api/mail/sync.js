@@ -459,7 +459,7 @@ function createMailSync({ vault, stateFile }) {
         : row,
     );
     const changed = result.changed || threaded.changed > 0 || foldersChanged;
-    // Ohne Aenderung keine neue Revision, sonst laden alle Apps alle zwei Minuten alles neu.
+    // Ohne Aenderung keine neue Revision, sonst laden alle Apps alle zehn Sekunden alles neu.
     if (changed || account.lastError !== null || manual) await save();
     return { mailAccountId: id, newMessages: result.added.length, error: null };
   }

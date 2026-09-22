@@ -91,7 +91,8 @@ Was an einer App wirklich anders ist, steht in ihrer `app.json` und in ihrem
 Haushalte, Training. Jede App lädt beim Start den ganzen Stand (`GET /v1/db`),
 hält ihn im Speicher (`db/store.ts`) und schreibt geänderte Sammlungen zurück
 (`PUT /v1/db/:collection`). Alle vier Sekunden fragt sie nach der Revision und
-lädt neu, wenn eine andere App etwas geändert hat — so landen die Zahlen aus
+lädt neu, wenn eine andere App etwas geändert hat — und sofort, wenn sie wieder
+nach vorne kommt (`AppState`; im Hintergrund bremst der Browser den Takt) — so landen die Zahlen aus
 BetterGym ohne Neuladen auf der GetBetter-Karte.
 
 Antwortet der Dienst nicht, zeigt `RootShell` einen Bildschirm mit „Nochmal
@@ -107,7 +108,7 @@ Stand nichts überschreibt.
 | `POST /v1/sessions`                                 | Anmelden                                                         |
 | `GET /v1/accounts/:id`                              | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`                | Für Einladungen                                                  |
-| `PATCH /v1/accounts/:id`                            | Spitzname, Sprache, Benutzername, Aussehen, Assistent, Hintergrund |
+| `PATCH /v1/accounts/:id`                            | Spitzname, Sprache, Benutzername (einmal im Monat), Profilbild, Aussehen, Assistent, Hintergrund |
 | `POST /v1/notifications`                            | Mitteilung für ein Konto anlegen                                 |
 | `POST /v1/notifications/:id/read`                   | als gelesen markieren                                            |
 | `DELETE /v1/notifications/:id`                      | löschen                                                          |
@@ -173,25 +174,41 @@ Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
 (`services/api/admin/server.js`), startet also mit `npm run all`; nach
 Änderungen am Dienst neu starten. `BETTER_ADMIN_PORT=0` schaltet ihn ab.
 
-- **Übersicht:** Konten, aktive der letzten 7/30 Tage, Nutzer je App, Einträge
-  je Funktion, KI-Anfragen und -Kosten der letzten 30 Tage, Anteil der
-  günstigen Stufe (Ziel 80 %), die Stimmen (Sätze, Credits, gesparte Credits,
-  Credits des Monats gegen das Kontingent), Speicher.
-- **Verbrauch je Konto:** in der Liste „Verbrauch 30 Tage“ („12’340 Tokens ·
-  1’230 Credits“), im Konto eine Tabelle für die letzten 30 Tage und gesamt —
-  KI: Anfragen, Tokens ein/aus/zusammen, CHF; Stimme: Sätze, davon aus dem
-  Zwischenspeicher, erzeugte Zeichen, Credits, davon Proben, gesparte Credits
-  (`usage` an `/api/accounts` und `/api/accounts/:id`).
-- **Konten:** Spitzname, Benutzername, Sprache und Passwort ändern; das Konto
-  sperren (`disabled`). Gleich daneben je App eine Zeile: Zugang
-  (erlaubt/gesperrt, `blockedApps`), Abo (an/aus, `paidApps`) und der Verbrauch
-  dieses Monats als Balken gegen das Budget, dazu ein Abzeichen Gratis/Abo; in
-  der Liste die Spalte „Abo“. Alle drei Felder setzt **nur** der Admin —
-  `PUT /v1/db/accounts` behält die gespeicherten Werte, `PATCH
-  /v1/accounts/:id` übergeht sie. Die App merkt es beim nächsten Abgleich.
-- **Abo-Anfragen:** in der Übersicht ganz oben der Block „Abo-Anfragen“ mit
-  Anzahl — je Zeile Konto (Name, `@name`, E-Mail), App, seit wann, dazu
-  **Freischalten** und **Ablehnen** mit Meldung (`admin/public/plans.js`). Im
+**Wenig Text, das Wichtigste zuerst.** Keine erklärenden Absätze: wo ein
+Hinweis nötig ist, steht ein ⓘ mit Tooltip hinter dem Titel (`card({ hint })`).
+Was nicht auf den ersten Blick muss, liegt zugeklappt unter **Details**
+(`moreSection`, offen oder zu bleibt nur, solange die Seite offen ist).
+
+- **Übersicht:** oben fünf Kacheln — Konten (+neu diese Woche, gesperrt), aktiv
+  7 Tage (30 Tage darunter), Abos, Marge diesen Monat (ohne Fixkosten, negativ
+  rot), KI diesen Monat; Konten, Marge und KI führen weiter. Darunter die
+  offenen **Abo-Anfragen**, nur wenn jemand wartet, dann eine Tabelle **Apps**
+  (Nutzer, aktiv 7 T., Abos, Marge; gesperrte Konten als ⊘ an der App).
+  Zugeklappt unter Details: KI (Anbieter, Anfragen und Kosten 30 Tage,
+  Mindestgebühr, Anteil der günstigen Stufe gegen das Ziel 80 %), Stimme
+  (Sätze, Credits, gespart, Credits des Monats gegen das Kontingent), KI pro
+  Tag, Einträge pro Funktion, Speicher. Die volle Marge steht unter Kosten.
+- **Verbrauch je Konto:** in der Liste „Verbrauch 30 T.“ („12’340 Tokens ·
+  1’230 Credits“), im Konto unter Details eine Tabelle für die letzten 30 Tage
+  und gesamt — KI: Anfragen, Tokens ein/aus/zusammen, CHF; Stimme: Sätze, davon
+  aus dem Zwischenspeicher, erzeugte Zeichen, Credits, davon Proben, gesparte
+  Credits (`usage` an `/api/accounts` und `/api/accounts/:id`).
+- **Konten:** die Liste hat Konto (Name, darunter `@name` und E-Mail,
+  „gesperrt“ gleich daneben), seit, aktiv, Apps, Abo und Verbrauch; Suche und
+  Filter Alle/Mit Abo/Nicht gesperrt/Gesperrt. Im Konto oben Name,
+  `@name` · E-Mail · seit · aktiv und **App ansehen**, darunter zuerst je App
+  eine Zeile: Zugang (erlaubt/gesperrt, `blockedApps`), Abo (an/aus,
+  `paidApps`) und der Verbrauch dieses Monats als Balken gegen das Budget, dazu
+  ein Abzeichen Gratis/Abo. Daneben Profil (Spitzname, Benutzername, Sprache)
+  und Konto: Gesperrt (`disabled`), Passwort („Neu setzen“ klappt das Formular
+  auf), Konto löschen; dann der Verlauf, der Rest unter Details. Alle drei
+  Felder setzt **nur** der Admin — `PUT /v1/db/accounts` behält die
+  gespeicherten Werte, `PATCH /v1/accounts/:id` übergeht sie. Die App merkt es
+  beim nächsten Abgleich.
+- **Abo-Anfragen:** in der Übersicht gleich unter den Kacheln, nur wenn jemand
+  wartet, mit Anzahl — je eine Zeile Konto, App, seit wann, dazu
+  **Freischalten** und **Ablehnen** mit Meldung (`admin/public/plans.js`); nach
+  der letzten Entscheidung verschwindet der Block. Im
   Konto steht eine offene Anfrage unter der App, gleich neben dem Abo-Schalter.
   `POST /api/plan-requests/:id/approve|decline` (Body `{}`, dieselben
   Host/Origin/JSON-Regeln): Freischalten trägt die App in `paidApps` ein,
@@ -199,7 +216,8 @@ Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
   `admin.planApproved`/`admin.planDeclined` in den Verlauf; schon entschieden →
   `409 already_decided`. Schaltet der Admin das Abo direkt ein, ist eine offene
   Anfrage dieser App damit freigeschaltet (samt Mitteilung).
-- **Marge:** Übersicht (laufender Monat) und Kosten (gewählter Monat): je App
+- **Marge:** in der Übersicht je App und als Kachel (laufender Monat), ganz
+  unter Kosten (gewählter Monat): je App
   Nettoeinnahmen (Abos × Preis ÷ 1.081 × 0.85), KI, Stimme, davon Gratis-Konten,
   Marge in CHF und %, negativ rot; gesamt auch mit den Fixkosten (was die
   Mindestgebühr von Safe Swiss Cloud über dem Verbrauch kostet,
@@ -239,18 +257,26 @@ Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
   Sitzung meldet sich beim nächsten Abgleich ab (`AppContext`, nur bei
   `not_found`, nie offline).
 - **Verlauf** (`services/api/activity.js`, `<datenordner>/activity.jsonl`):
-  Konto angelegt, angemeldet, Anmeldung gescheitert oder gesperrt, Profil
-  geändert, je Sammlung neu/geändert/gelöscht (`collection.changed`, ohne
-  Inhalte), Admin-Änderungen — dazu jeder KI-Aufruf aus `ai-usage.jsonl`.
-  Ämtli haben keinen Besitzer und erscheinen dort nicht.
-- **Kosten:** je App, je Konto, je Stufe und je Tag aus `ai-usage.jsonl`
+  **nur, was zählt** — Konto angelegt, angemeldet, falsches Passwort, gesperrt
+  abgewiesen, Abo angefragt/gekündigt/Kündigung zurückgenommen (`plan.*`) und
+  alles, was der Admin tut (`admin.*`). **Nicht mehr** mitgeschrieben: jede
+  Änderung einer Sammlung (`collection.changed`), das Profil
+  (`profile.updated`) und die KI-Aufrufe — die stehen unter Kosten und im
+  Konto. Alte Zeilen dieser Arten bleiben in der Datei, fallen beim Lesen aber
+  weg (`IGNORED_KINDS`). Je Ereignis eine Zeile: Zeit, Zeichen, kurzer Satz,
+  rechts das Konto, „Admin“ an dem, was hier geschah; Filter nach Konto und Art
+  (Neue Konten, Anmeldungen, Falsches Passwort, Gesperrt abgewiesen, Abo,
+  Admin — `kind` als Anfang).
+- **Kosten:** oben die Marge des Monats (Kacheln, Tabelle je App, Fixkosten),
+  dann KI mit Verbrauch, Mindestgebühr und „Zu zahlen“, darunter
+  je App, je Konto, je Stufe und je Tag aus `ai-usage.jsonl`
   (Tokens × Preis je Modell in `ai/usage.js`), dazu die Mindestgebühr von
   Safe Swiss Cloud (CHF 95 im Monat, `BETTER_AI_MONTHLY_MINIMUM_CHF`). Dazu die
   Stimmen aus `speech-usage.jsonl` in Credits — je Konto, je App, davon Proben,
   gesparte Credits — gegen das Kontingent (`BETTER_SPEECH_MONTHLY_CREDITS`,
-  Standard 10’000 wie der Gratis-Plan), und der Zwischenspeicher: Sätze,
-  Grösse, Wiedergaben und die zehn meistgespielten — nur Art, Zeichen und
-  Hits, nie der Wortlaut und nie eine Id.
+  Standard 10’000 wie der Gratis-Plan), und zugeklappt der Zwischenspeicher:
+  Sätze, Grösse, Wiedergaben und die zehn meistgespielten — nur Art, Zeichen
+  und Hits, nie der Wortlaut und nie eine Id — sowie die Preise.
 
 Die Seite selbst ist schlichtes HTML/JS ohne Fremdbibliothek
 (`services/api/admin/public/`), mit `?demo=1` auch ohne Dienst.
@@ -405,20 +431,21 @@ getestet; `2026-09-30T22:30Z` zählt schon zum Oktober).
 
 |       | Assistent (Tab in GetBetter)                                      | BetterAi                                  |
 | ----- | ----------------------------------------------------------------- | ----------------------------------------- |
-| Was   | Verwaltet quer über die Apps, schickt Aufträge los                | Ein ganz normales KI-Gespräch             |
+| Was   | Bedient die App: trägt ein, verschiebt, löscht, hakt ab, öffnet   | Ein ganz normales KI-Gespräch             |
 | Wo    | `features/assistant/AssistantView.tsx`                            | `features/ai/ChatsView.tsx`, `/chat/[id]` |
-| Daten | Liest deine GetBetter-Daten, schickt Aufträge an die anderen Apps | Sieht deine Daten nicht                   |
+| Daten | Bekommt eine kurze Liste deiner Daten dieser App mit              | Sieht deine Daten nicht                   |
 
 Beide folgen dem Aussehen des Kontos wie jeder andere Bildschirm — eine eigene
 dunkle Fläche gibt es nicht mehr. Der Assistent hat keinen Kopfbereich: in der Mitte der Avatar und „Wie kann ich
 dich unterstützen?“, unten das Feld.
 
 **Die Antworten kommen von der KI im Dienst** (`POST /v1/ai/reply`,
-`db/ai.ts`), Anbieter ist **Safe Swiss Cloud** („Private AI“, alles in der
-Schweiz). Ein Router im Dienst wählt ohne eigenen KI-Aufruf die günstigste
-Stufe, die die Frage kann (cheap · chat · reasoning · vision), begrenzt die
-Länge und liefert im Gespräch per Stimme zusätzlich einen kurzen `voice_text`
-zum Vorlesen:
+`db/ai.ts`). Anbieter ist **Safe Swiss Cloud** („Private AI“, alles in der
+Schweiz) oder, solange das nicht eingerichtet ist, **gratis Groq** mit dem
+kleinen `openai/gpt-oss-20b` (siehe „Einrichten“). Ein Router im Dienst
+wählt ohne eigenen KI-Aufruf die günstigste Stufe, die die Frage kann (cheap ·
+chat · reasoning · vision), begrenzt die Länge und liefert im Gespräch per
+Stimme zusätzlich einen kurzen `voice_text` zum Vorlesen:
 
 - **Beispiele unter dem Feld** (`features/assistant/suggestions.ts`, getestet):
   drei aus einem Vorrat, **nur zu Apps, in denen das Konto schon war**
@@ -430,9 +457,10 @@ zum Vorlesen:
   **nebeneinander und lassen sich schieben**; sobald die erste Nachricht steht,
   sind sie weg (`empty`).
 - **Assistent** (`AssistantView`): Was `route()` als Auftrag erkennt, geht wie
-  bisher an die andere App; alles andere fragt die KI mit den letzten zwölf
-  Zügen (`turnsFor` in `features/assistant/aiTurns.ts`, getestet). Im
-  **Gespräch** wird `voice_text` vorgelesen, geschrieben steht die ganze
+  bisher an die andere App; alles andere fragt die KI mit den letzten sechs
+  Zügen (`turnsFor` in `features/assistant/aiTurns.ts`, getestet) — **mit den
+  Funktionen der App und einer Liste der Daten** (siehe „Er bedient die App“).
+  Im **Gespräch** wird `voice_text` vorgelesen, geschrieben steht die ganze
   Antwort.
 - **BetterAi** (`AiChatView`): ein gespeichertes Gespräch, dessen letzte
   Nachricht noch unbeantwortet ist, beantwortet sich selbst — so wartet ein
@@ -443,7 +471,111 @@ zum Vorlesen:
   Route) bleibt es beim ehrlichen Satz von vorher; nicht erreichbar, zu viel
   los und gescheitert haben je einen eigenen Satz (`aiFailureKey`).
 
-**Einrichten:** Schlüssel in `SAFESWISSCLOUD_API_KEY` oder
+**Gratis einrichten (Groq):** einen Schlüssel auf console.groq.com anlegen
+(`gsk_…`) und als eine Zeile in `services/api/data/groq.key` legen (oder
+`GROQ_API_KEY`), dann den Dienst neu starten — nie ins Git, nie in den Chat.
+Ohne Safe Swiss Cloud antwortet dann Groq; `BETTER_AI_PROVIDER=groq` erzwingt
+es auch mit. Auf jeder Stufe antwortet dasselbe Modell, `openai/gpt-oss-20b`
+(`BETTER_AI_GROQ_MODEL`; Llama gibt es bei Groq nicht mehr). Es denkt kurz nach
+(`reasoning_effort: low`, 1024 Tokens Zuschlag), es kostet nichts und zählt darum **nicht gegen das
+Kontingent** (`costChf: 0`, keine Reservierung). Die Grenzen setzt Groq (`429`
+→ „zu viel los“), Bilder gehen nicht (`400 vision_unavailable`), und die
+Nachrichten gehen in die USA statt in die Schweiz. Der Admin zeigt in der
+KI-Karte den Anbieter („Groq (gratis)“) und dann keine Mindestgebühr.
+
+**Er bedient die App** (in GetBetter, BetterFamily, BetterGym und BetterMoney,
+nie in BetterAi). Die Regel: **die KI entscheidet, was gemeint ist; die App
+rechnet, prüft und tut es.** Selbst handelt die App nur, wo sie es an den Daten
+nachprüfen kann — nie, weil ein Muster zufällig passt.
+
+- **Selbst, ohne KI** (`features/assistant/understand.ts`, getestet mit echten
+  Sätzen), nur was `sure` ist: Löschen, Verschieben und Abhaken an **genau
+  einem** Eintrag, den es gibt — nach Name, Tag, Uhrzeit oder allem zusammen
+  („lösch meinen Termin morgen“ ist der eine Termin morgen, „sag den Zahnarzt
+  ab“, „den Zahnarzt auf Freitag verschieben“, „hab das Velo geflickt“) —,
+  dazu hell/dunkel und Öffnen. Fragen nach dem Programm („was habe ich
+  morgen?“, „wann ist der Zahnarzt?“) beantwortet `agenda.ts` aus der Liste;
+  „Kannst du …?“ ist eine Bitte, keine solche Frage.
+- **Nachfragen statt raten:** Passen mehrere Termine oder keiner, antwortet die
+  App „Morgen: 10:00 Coiffeur, 15:00 Zahnarzt. Welchen meinst du?“ bzw. „Da
+  finde ich keinen Termin.“ (`pick`, `pickText`). Die offene Rückfrage
+  (`Pending`) merkt sich `AssistantView`; die nächste Antwort wählt daraus —
+  „den Zahnarzt“, „den um 10“, „den ersten“, „den letzten“ — und nur aus diesem
+  Tag.
+- **Ein Befehl an Bestehendem legt nie etwas an** (`commandOf`): „lösch …“,
+  „… löschen“, „sag … ab“, „verschieb …“, „… verschieben“, „hak … ab“, „…
+  erledigt“, auch höflich („Kannst du bitte …?“). „Erinnere mich …“, „Todo:“
+  und „Notiz:“ legen ausdrücklich an und zählen nie; „morgen Wand streichen“
+  ist malen.
+- **Alles andere entscheidet die KI** — jedes Anlegen aus freiem Text, jeder
+  Tippfehler, alles Unklare: mit **allen Funktionen der App**, der ganzen Liste
+  und den letzten sechs Zügen (`ASSISTANT_HISTORY_LIMIT`). Tag und Uhrzeit
+  rechnet die App vor und hängt sie an (`whenHint`, „(→ 2026-09-22
+  15:00–17:00)“) — das kleine Modell verrechnet sich bei „nächsten Mittwoch“
+  sonst gern. Was die App selbst liest — Termine, Aufgaben, Notizen, Wecker,
+  Trinken, Training, Ausgaben, samt „halb 7“, „gegen sechs“, „ab 15 Uhr“,
+  Tageszeiten und Spannen wie „von 15 bis 17 Uhr“, „15–17“, „zwischen 3 und 5“
+  —, ist nur gelesen (`sure: false`) und gilt **nur, wenn die KI nicht
+  antwortet** (nicht eingerichtet, offline, zu viel los, Kontingent leer).
+- **Jede Aktion wird geprüft, bevor sie geschieht** (`vet.ts`, getestet), egal
+  ob von der KI oder aus dem eigenen Lesen: will der Satz löschen, verschieben
+  oder abhaken, fällt jedes Anlegen weg; ein Titel, der mit dem Befehl des
+  Satzes anfängt („Lösche meinen Termin“), ist nachgeplappert und fällt weg;
+  „lösch meinen Termin morgen“ löscht nur einen Termin von morgen. Fällt etwas
+  weg, fragt die App nach („Welchen meinst du?“ oder „Das habe ich nicht sicher
+  verstanden.“). Die Aufrufe laufen dann durch dieselbe `runActions`.
+- Gemessen mit Groq: rund 1340 Eingabe-Tokens je Frage an die KI — bei 8000
+  Tokens je Minute gratis gut fünf Fragen in der Minute; was die App selbst
+  tut, kostet nichts.
+
+Fragt sie die KI, schickt der Assistent `tools: true` und die Liste der Daten
+(`context`) an `/v1/ai/reply`:
+
+- **Die Liste** (`features/assistant/context.ts`, getestet; gesammelt von
+  `useAssistantContext.ts` im Moment der Frage): „jetzt“ in Ortszeit, Termine
+  der nächsten 14 Tage mit Kennung `T1`, `T2` …, offene Aufgaben mit `A1`, `A2`
+  …, eingeschaltete Wecker, Geburtstage der nächsten 30 Tage, Gewohnheiten
+  (heute abgehakt ✓), die letzten Notizen, Einkaufsliste und Ämtli; in
+  BetterGym die Zahlen des Tages, in BetterMoney der Monat und offene
+  Rechnungen. Der Dienst (`ai/context.js`, getestet) räumt sie auf und schreibt
+  sie mit den **nächsten 14 Tagen samt Wochentag** in den Systemtext — so wird
+  „nächsten Dienstag“ der richtige Tag. Echte Ids sieht das Modell nie; die
+  Kennungen führt `refs` in der App zurück.
+- **Die Funktionen** (`services/api/ai/tools.js`, je App nur ihre): Termin
+  anlegen, verschieben, löschen (Kalender und Familienkalender); Aufgabe
+  anlegen und abhaken, Notiz, Wecker, Geburtstag, Gewohnheit (GetBetter);
+  Einkauf und Ämtli (GetBetter und BetterFamily, in den aktiven Haushalt);
+  Trinken, Mahlzeit, Training (BetterGym); Ausgabe und Rechnung (BetterMoney);
+  überall eine Funktion öffnen und hell/dunkel umstellen (`APP_ACTIONS` in
+  `actions.ts`, gleich gehalten mit dem Dienst). Mit `toolNames` bietet der
+  Dienst nur diese an und nimmt nur deren Aufrufe. Der Dienst prüft jeden
+  Aufruf gegen ihr Schema — falsche Pflichtfelder fallen weg, falsche
+  Nebenfelder nur das Feld, höchstens fünf je Antwort — und gibt sie als
+  `actions` zurück. Ausgeführt wird **in der App**, über dieselben Repositories
+  wie die Bildschirme (`runActions.ts`), nachdem `actions.ts` (getestet) sie
+  noch einmal gelesen hat. `test/assistant-tools.test.js` hält Namen,
+  Aufzählungen und `APP_MODULES` in Dienst und App gleich.
+- **Die Bestätigung schreibt die App**, nicht das Modell: „Eingetragen:
+  Coiffeur, Dienstag, 22. September, 10:00.“ (`assistant.did.*`), eine Zeile je
+  Aktion, mit der passenden kleinen Feier. Löschen, Verschieben und Abhaken
+  lassen sich über die Leiste „Rückgängig“ zurücknehmen (`events.restore`).
+  Ohne Uhrzeit wird ein Termin ganztägig, ohne Ende dauert er eine Stunde
+  (`eventWindow`, wie der Editor). Mit Funktionen schreibt das Modell schlichten
+  Text ohne Markdown. Lehnt der Anbieter einen verhaspelten Funktionsaufruf ab
+  (`400`), fragt der Dienst einmal ohne Funktionen nach.
+- **Fragen beantwortet er selbst** aus der Liste, als Text — geöffnet wird nur,
+  wer es ausdrücklich will. Beiläufiges gilt als Auftrag („ich muss morgen um 3
+  zum Coiffeur“ trägt ein, „hab das Velo geflickt“ hakt ab). Kennungen wie
+  `[T1]`, Sternchen und Überschriften nimmt `plainText` (`ai/text.js`,
+  getestet) aus der Antwort.
+- **Groq gratis heisst 8000 Tokens je Minute** und 1000 Fragen am Tag. Darum
+  gehen die Funktionen **schlank** hinaus (`slim` in `tools.js`: Typ,
+  Pflichtfelder, Auswahl, Zahlengrenzen — Längen und Muster prüft nur der
+  Dienst), das Nachdenken hat bei Groq 384 statt 1024 Tokens, und sagt der
+  Anbieter „gleich nochmal“ (`429` mit `retry-after` bis 8 s), wartet der Dienst
+  einmal und fragt erneut. Sieben schnelle Fragen hintereinander gehen so durch.
+
+**Einrichten (Safe Swiss Cloud):** Schlüssel in `SAFESWISSCLOUD_API_KEY` oder
 `services/api/data/safeswisscloud.key`, die eigene Adresse von Safe Swiss Cloud
 (`https://…/v1`) in `SAFESWISSCLOUD_API_URL` oder
 `services/api/data/safeswisscloud.url` — beides wird bei jeder Anfrage neu
@@ -580,21 +712,36 @@ Die Startseite zeigt die Liste, die letzten Rezepte, was heute zu giessen ist
   Schrift (`AllDayRow` in `CalendarView.tsx`); mehrere stehen untereinander,
   nie nebeneinander, und in der Woche genau über ihrer Spalte.
 - `EventEditor` — Titel, ganztägig, Datum, Von/Bis, Kalender, Farbe, Ort, Notiz.
-  Die Zielkalender werden angehakt, **mehrere sind erlaubt**. Der Knopf zum
+  Die Zielkalender werden angehakt, **mehrere sind erlaubt**. Die Uhrzeit tippt
+  man, wie man will: „18“ wird beim Verlassen des Felds „18:00“, „1830“ und
+  „930“ werden „18:30“ und „09:30“, dazu „18.30“, „18h30“, „18 Uhr“
+  (`readClock` in `features/shared/clock.ts`, getestet — dieselbe Regel in den
+  Aufgaben und beim Schlaf). Rutscht das Ende dadurch vor den Beginn, rückt es
+  auf eine Stunde danach. Der Knopf zum
   Anlegen ist der kleine `FloatingButton` unten rechts.
-- `CalendarPicker` — das aufklappbare Menü in der Kopfzeile: oben die Ansicht,
-  darunter je ein Häkchen pro Kalender, unten unter **Kalender anzeigen** die
-  Personen. „Kalender verwalten“ sitzt als Zahnrad oben rechts.
+- **Die Kopfzeile** ist eine Zeile: links der Zeitraum **nur in Worten** — in
+  der Tagesansicht der Wochentag, in Woche und Monat nur der Monat
+  („September“, über zwei Monate „Sep. – Okt.“; das Datum steht in der
+  Wochenleiste) —, rechts ‹ Heute ›. Oben rechts **ein** Menü-Knopf (≡, Icon
+  `menu`), sonst nichts: kein Zahnrad, kein Aufklappen am Titel.
+- `CalendarPicker` — das Blatt hinter dem Menü-Knopf: zuoberst, was auf eine
+  Antwort wartet (jemand will deinen Kalender sehen, eine alte Einladung) mit
+  Annehmen/Ablehnen — dann trägt der Knopf einen roten Punkt (`badge` an der
+  `HeaderAction`) —, darunter die Ansicht (Tag · Woche · Monat), die eigenen
+  Kalender nur, wenn es mehr als einen gibt, und unter **Personen** die
+  Kalender anderer zum Anhaken samt „Andere Person“.
 
 ### Eigene Kalender
 
-`db/calendars.ts` — bis zu **5** eigene Kalender (`MAX_CALENDARS`). Geteilt wird
-über `calendarMembers`: Haushaltsmitglieder kommen direkt dazu, Externe werden
-per **Benutzername** eingeladen und müssen zustimmen.
+**Anlegen gibt es nicht mehr** — auch nicht mit anderen zusammen; die
+Verwaltung (`CalendarManager`) ist weg. Kalender anderer lassen sich nur
+**ansehen** (siehe unten). Was es in `db/calendars.ts` schon gibt, bleibt
+lesbar: bestehende eigene Kalender stehen im Menü zum An- und Abwählen, und
+eine alte Einladung lässt sich dort noch annehmen oder ablehnen.
 
 ### Fremde Kalender ansehen
 
-Unter **Kalender anzeigen** stehen die Haushaltsmitglieder — je Haushalt eine
+Im Menü unter **Personen** stehen die Haushaltsmitglieder — je Haushalt eine
 Gruppe, mit Überschrift erst, wenn mehrere welche beisteuern. Darunter
 **Andere**: Konten ausserhalb, die zugestimmt haben. „Andere Person anzeigen“
 fragt per Benutzername an (`db/shares.ts`, Sammlung `calendarShares`).
@@ -616,6 +763,14 @@ Jede angehakte Quelle wird einzeln geprüft, gezeigt wird die Vereinigung.
 Mehrere Zeilen in `events` mit gemeinsamer `groupId` (`groupOf(row)`).
 `listBetween` und `listUpcoming` entdoppeln danach; `events.save(groupId, …)`
 legt an, aktualisiert und löscht die abgewählten Kopien.
+
+**Von aussen hinein** (`links.ts`, getestet): `/run/calendar?day=YYYY-MM-DD&at=HH:MM&event=<id>`
+öffnet die Tagesansicht an diesem Tag, rollt zur Uhrzeit (eine Stunde Luft
+darüber), und der Termin **leuchtet kurz auf** — ein feiner, heller Rand
+(`FlashRing` aus `@/ui`), der nach dem Ankommen erscheint und gleich wieder
+verblasst, bei reduzierter Bewegung nur ein Blitz; ganztägige ohne `at`. Gebaut mit
+`calendarLinkOf(event)`, gelesen mit `calendarFocusOf` — Krummes zählt nicht.
+Ohne Anlass rollt das Raster heute zu jetzt, an anderen Tagen zu 7 Uhr.
 
 `dates.ts` hält die Datumsrechnung ohne Fremdbibliothek; die Woche beginnt am
 Montag. `colors.ts` hat die sieben Terminfarben.
@@ -659,7 +814,7 @@ einem Monat, dahinter ein Feld für alles andere.
   - **Links**: `/run/tasks?new=1`, `?task=<id>`.
 - **Notizen** (`notes`, `noteFolders`, `features/notes/`):
   - **Liste**: nach Datum gruppiert (Angeheftet, Heute, Letzte 7 Tage,
-    Monate), Zeilen von 64 pt, Raster je Ordner (`view`). Das Titelmenü
+    Monate), jede Notiz eine eigene weisse Karte (runde Ecken, Luft innen, etwas breiter als die Spalte, mindestens 64 pt; `useNoteCard` in `NoteRow.tsx`, auch im Papierkorb), Raster je Ordner (`view`). Das Titelmenü
     führt zu Alle Notizen, Ordnern, Tags und „Zuletzt gelöscht“.
   - **Editor**: ein eigener Bildschirm aus Blöcken (`blocks`, je Block ein
     `TextInput`). Die erste Zeile ist der Titel. Kürzel `- `, `1. `, `[] `,
@@ -667,6 +822,14 @@ einem Monat, dahinter ein Feld für alles andere.
   - **Speichern** ohne Knopf: Die Notiz entsteht mit dem ersten Zeichen und
     sichert 500 ms nach der letzten Eingabe (`NoteDraft`). Leer verlassen
     verwirft sie. `title` und `body` leitet `noteTextOf` ab.
+  - **An die Startseite heften** (`homeAt` an der Notiz, `notes.setOnHome`,
+    Auswahl und Reihenfolge in `features/notes/home.ts`, getestet): im
+    Kontextmenü der Liste und im Menü des Editors, beides mit „Rückgängig“.
+    Auf der Startseite steht eine allein als Karte über die ganze Breite,
+    mehrere nebeneinander zum Schieben (das zuletzt Angeheftete vorne): Titel
+    mit Notiz-Zeichen, darunter bis vier Zeilen Text. Ein Tipp öffnet die ganze
+    Notiz, das X oben rechts nimmt sie wieder weg. Im Papierkorb erscheint sie
+    dort nicht; ein Anheften ändert `updatedAt` nicht.
   - **Tags** sind `#wort` im Text.
   - **Löschen** setzt `deletedAt`; nach 30 Tagen ist die Notiz weg.
   - **Grenzen**: Bilder nur im Browser. Fett und kursiv, Anhänge,
@@ -740,8 +903,8 @@ Die Startseite zeigt je Funktion das Nächste: was bald abläuft, die Haken von
 heute (antippbar), die nächste Reise, wer heute oder morgen feiert. **Ganztägiges**
 — Termine ohne Uhrzeit und wer heute Geburtstag hat — steht ganz oben am
 Tagesband als **eine Karte mit einer Zeile je Eintrag** (`AllDayLane` in
-`features/today/DayThread.tsx`, Daten aus `events.listAllDay`): Farbstreifen
-oder Geschenk, Titel, rechts woher. Untereinander, nie als Pillen nebeneinander;
+`features/today/DayThread.tsx`, Daten aus `events.listAllDay`):
+Kalender-Symbol (wie bei jedem Termin) oder Geschenk, Titel, rechts woher. Untereinander, nie als Pillen nebeneinander;
 ab vier Einträgen stehen zwei da und „2 weitere“ klappt den Rest auf. Die drei
 Plätze im Band gehören dann den Terminen mit Uhrzeit.
 
@@ -755,7 +918,78 @@ rechts, und bei Terminen auch kein „Kalender“ — Symbol und Uhrzeit sagen e
 der nächste Tag („Morgen“) mit höchstens zwei Einträgen — wer feiert,
 Ganztägiges, dann nach Uhrzeit —, die immer blasser werden (`NextDayPeek`).
 Das Verblassen ist gewollt und die eine Ausnahme von der Kontrast-Regel: eine
-Vorschau, kein Inhalt. Ein Tipp blättert zu diesem Tag.
+Vorschau, kein Inhalt. Ein Tipp öffnet diesen Tag im grossen Zeitstrahl.
+
+**Der grosse Zeitstrahl** (`/timeline`, nur GetBetter,
+`features/today/TimelineScreen.tsx`): **jeder Tipp ins Band** — auf eine
+Karte, die Jetzt-Linie, „Keine Einträge“, das Ganztägige — öffnet ihn im
+Vollbild; nur der Kreis links hakt weiter direkt ab. Oben links der Pfeil
+zurück, oben der Tag („Heute“, darüber das Datum), bei einem anderen Tag
+**Heute**; wischen blättert den Tag. Er zeigt dasselbe wie das Band, aber den
+**ganzen Tag**: auch Vergangenes, alle Termine, ohne Obergrenzen — Aufgaben
+stehen auch hier nicht (siehe „Aufgaben unter dem Zeitstrahl“). Das Ganztägige steht **fest oben angeheftet** (ausserhalb der Rollfläche, mit feiner Linie darunter) und bleibt beim Rollen sichtbar; darunter „Ohne feste Zeit“ und ein
+**Stundenraster** von 0 bis 24 Uhr (72 pt je Stunde, zum Rollen), jede Karte so
+hoch, wie sie dauert (mindestens 48 pt), Überschneidungen nebeneinander, dazu
+die Jetzt-Linie und die laufende Karte als umgekehrtes Papier. Hier öffnet ein
+Tipp den Eintrag selbst: einen Geburtstag die Person,
+einen **Termin den Kalender an seinem Tag, gerollt zu seiner Uhrzeit, wo er
+kurz aufleuchtet** (`calendarLinkOf`, siehe „Kalender“). Beim Öffnen rollt er zur
+angetippten Karte (`focus=<schlüssel>`, die kurz aufleuchtet), sonst zu jetzt, sonst zum
+Ersten des Tages — eine Stunde Luft darüber (`timeline.ts`, getestet).
+
+Band und Zeitstrahl lesen **denselben Haken** (`useDayThread(day, { full })`
+in `features/today/useDayThread.ts`) — die Startseite die kurze Fassung (heute
+die nächsten drei Termine), der Zeitstrahl `full`. Ein Termin ohne Ende dauert
+eine Stunde, wie im Kalender.
+
+**Die Jetzt-Linie und wer dran ist** (`threadState.ts`, getestet): ein Termin
+ist erst **vorbei, wenn er zu Ende ist**. **Dran** ist er **genau ab Beginn** —
+wenn die Jetzt-Linie die Karte berührt — bis zum Ende, vorher nie: dann ist die Karte **Better-Grün** (`accent` als
+Fläche, darauf `textOnAccent`, die zweite Zeile leiser, aber lesbar) und
+**leicht grösser** (`LIVE_SCALE`, mit etwas Luft). Hat er schon begonnen, steht
+die Jetzt-Linie **in seiner Karte** und **wandert durch sie hindurch** — oben
+am Beginn, unten am Ende (`progressOf`), links die Uhrzeit und die Nadel auf
+der Schiene. Was darüber liegt, ist vorbei und wird **in Echtzeit wieder
+Papier**: eine helle Kopie der Karte, an der Linie abgeschnitten — oben weiss,
+unten noch grün. In der Karte steht „noch 1 Std. 55 Min.“ (`minutesLeftOf`),
+bei jedem Eintrag, der heute noch kommt, „in 20 Min.“ bzw. „in 2 Std. 5 Min.“
+(`minutesUntilOf`, `spanText`) — an anderen Tagen nicht, dort gibt es kein
+Jetzt. Die Uhr des Bands tickt alle zehn Sekunden (`useNow`), auch ohne neue
+Daten. Der nächste Termin sieht aus wie jeder andere, ohne Rand. Ohne Ende
+(Wecker) ist ein Eintrag mit seinem Zeitpunkt vorbei. Im grossen Zeitstrahl ist
+die laufende Karte ebenso grün und wird bis zur Jetzt-Linie wieder Papier.
+
+**Aufgaben unter dem Zeitstrahl** (`features/today/DayTasks.tsx`, Auswahl in
+`taskGroups.ts`, getestet): **nie im Band**, sondern in einem eigenen kleinen
+Bereich zwischen Zeitstrahl und Schnellzugriff. Er folgt dem Tag des Bands —
+wischt man auf morgen, stehen die Aufgaben von morgen da („Aufgaben · Morgen“).
+Er sieht aus wie **eine Seite im Heft**, nur ohne Schreibschrift: gleich hohe
+Zeilen (52 pt) auf feinen Linien, mindestens drei, und links ein dünner roter
+Rand; links davon der Kreis, rechts davon der Text.
+
+- **Heute:** „Überfällig“ (rot, das Älteste zuerst, rechts **Alle auf heute**),
+  dann was heute fällig ist (mit Uhrzeit zuerst, dann die wichtigen), dann
+  „Eingang“ — was noch kein Datum hat. **An einem anderen Tag** nur, was dann
+  fällig ist. Höchstens sechs, der Rest als „+N weitere Aufgaben“.
+- **Je Aufgabe:** der Kreis hakt ab (mit kleiner Feier und „Rückgängig“),
+  „!!“ vor dem Titel, darunter Uhrzeit, ↻ oder wie lange sie schon wartet.
+  Rechts **ein Knopf**: heute „Morgen“, an jedem anderen Tag „Heute“ (holt sie
+  vor). Ein Tipp auf den Text öffnet die Aufgabe. Nach rechts wischen heisst
+  erledigt, nach links „Nächste Woche“ (bzw. „Morgen“) und Löschen. Alles über
+  `useTaskActions` — dasselbe Verschieben ab dem echten Heute und dasselbe
+  „Rückgängig“ wie in den Aufgaben.
+- **Die letzte Zeile** „Neue Aufgabe für heute“ bzw. „· Morgen“ öffnet unten
+  über der Tastatur **dieselbe Leiste wie in den Aufgaben** (`TaskQuickAdd.tsx`
+  um `QuickAddBar`, als `footer` der Startseite): ein Satz, darunter die
+  erkannten Teile als Chips und Datum · Priorität · Projekt · Tag ·
+  Erinnerung, vorbelegt mit dem gezeigten Tag. Menüs und das Datums-Blatt gehen
+  von dort auf; das „+“ unten rechts tritt solange zurück.
+- **Ohne Aufgaben an diesem Tag steht der Bereich gar nicht da** — dasselbe
+  gilt für „Neuigkeiten“ ohne Ungelesenes (`NewsSection`). Die Startseite zeigt
+  nur, was es gibt; angelegt wird über das „+“ unten rechts. (In der Ansicht
+  **Übersicht** ist es umgekehrt: dort stehen die Kacheln immer.)
+- Der Bereich liegt **ausserhalb** der Wischfläche des Bands, damit das Wischen
+  einer Aufgabe nicht den Tag blättert.
 
 ## BetterGym
 
@@ -817,20 +1051,75 @@ In GetBetter: oben Datum (mit Wetter), Gruss und rechts die **Glocke** — kein
 Profilknopf, dafür gibt es den Tab
 (`features/notifications/NotificationBell.tsx`, Zähler der ungelesenen, führt zu
 `/notifications`). Darunter **Was gibt's Neues**
-(`features/notifications/NewsSection.tsx`), dann der Tagesstrahl und zuunterst
-der **Schnellzugriff** — ein 3D-Karussell der Favoriten mit einer „+“-Karte am
+(`features/notifications/NewsSection.tsx`), dann der Tagesstrahl, darunter die
+**Aufgaben** des gezeigten Tages (`DayTasks`), dann die **an die Startseite gehefteten Notizen** (`features/notes/HomeNotes.tsx`, nur wenn es welche gibt) und zuunterst der **Schnellzugriff** — ein 3D-Karussell der Favoriten mit einer „+“-Karte am
 Ende (`features/quick/QuickAccess.tsx`). Unten rechts steht ein „+“
 (`FloatingButton` mit Menü), von oben nach unten: Termin, Aufgabe, Notiz,
 E-Mail. Es öffnet die Funktion direkt beim Anlegen (`/run/calendar?new=1`,
-`/run/tasks?new=1` …). Ein eigenes Eingabefeld
-für Aufgaben gibt es auf der Startseite nicht mehr.
+`/run/tasks?new=1` …).
 
-**Der Tagesstrahl lässt sich wischen**: nach links kommt morgen, nach rechts
+**Vier Ansichten** (nur GetBetter, `features/today/homeView.ts`, getestet; die
+Wahl merkt sich `useHomeView` je Konto in AsyncStorage). Der Umschalter sind
+vier Knöpfe in der Kopfzeile, gleich unter dem Gruss rechts
+(`HomeViewSwitch.tsx`):
+
+| Ansicht | Knopf | Was sie zeigt |
+| ------- | ----- | ------------- |
+| **Alles** (`list`) | ≡ | wie beschrieben: Neuigkeiten, Tagesstrahl, Aufgaben, Notizen, Schnellzugriff, Better-Apps |
+| **Übersicht** (`grid`) | ⊞ | kürzer und an einem Ort (`HomeGrid.tsx`): oben **Heute** mit dem **echten Tagesstrahl** über die ganze Breite (`DayThread`, nur was noch kommt, auf ruhiger Fläche; seine Karten sind eigene Knöpfe, darum führt nur die Kopfzeile weiter), darunter die **Aufgaben** als dasselbe Heft wie überall (`DayTasks keepEmpty`), dann **Notizen** und **Neuigkeiten** als zwei halbe Kacheln, zuunterst der **Schnellzugriff**. Alles steht **immer** da, auch leer |
+| **Jetzt** (`focus`) | ⏱ | nur der Moment (`HomeFocus.tsx`): oben das Ganztägige, dann gross, was gerade läuft (Better-Grün, „noch 40 Min.“) oder als Nächstes kommt („in 20 Min.“) — sonst „Heute steht nichts mehr an.“ —, darunter die Aufgaben von heute |
+| **Eigene** (`custom`) | + | eine freie Fläche (`HomeCustom.tsx`, Modell in `homeLayout.ts`, getestet): Elemente liegen auf einem Raster, lassen sich hinschieben, wohin man will, und an den Ecken grösser ziehen |
+
+**Die eigene Ansicht ist eine Sandbox** (`HomeCustom.tsx`; das Modell
+`homeLayout.ts` ist rein und getestet: `clampBlock`, `moveTo`, `resizeBy`,
+`canvasRows`, `patchBlock`, `removeBlock`, `templateLayout`, `parseLayout`).
+Man landet **gleich dort**, ohne vorher eine Vorlage zu wählen — ohne Element
+steht nur ein Satz und die Leiste; eine Vorlage ist ein Angebot, kein Schritt.
+
+Die Fläche ist ein **Raster mit vier Spalten** (`GRID_COLUMNS`) und Zeilen von
+56 pt (`GRID_ROW`); jedes Element hat `{ x, y, w, h }` in Rasterfeldern. Im
+**Bearbeiten** (ohne Elemente immer an) liegt das Raster blass darunter, jedes
+Element trägt seinen Namen und ein Zahnrad (Stil wählen, Entfernen):
+
+- **Schieben:** irgendwo auf dem Element mit dem Finger ziehen. Es rastet
+  **schon beim Ziehen** ins Zielfeld (`moveTo`), der Rest zwischen zwei Feldern
+  folgt dem Finger.
+- **Grösse:** an einer der **vier Ecken** ziehen (`resizeBy`); links und oben
+  wandert dabei der Anfang mit. Kleiner als ein Feld wird nichts, über den Rand
+  geht nichts.
+- **Alles live:** Lage, Grösse und der Inhalt ändern sich während des Ziehens,
+  nicht erst beim Loslassen — der Entwurf (`draft`) liegt im Bildschirm,
+  gespeichert wird erst am Schluss.
+- **Kleiner heisst wirklich kleiner:** Ein schmales Element baut seinen Inhalt
+  in voller Breite und zieht ihn dann zusammen (`blockScale`, getestet:
+  ein volles ist 1, ein halbes 0.5, nie unter 0.4) — so schrumpfen Formen und
+  Schrift mit, statt nur enger zu stehen.
+- **Oben rechts** zwei runde Knöpfe von 36 pt: das Zahnrad öffnet die Stile,
+  der rote Mülleimer nimmt das Element weg. Sie liegen über der Schiebefläche,
+  darum fängt das Ziehen sie nicht ab.
+- Elemente dürfen sich überlappen — es ist die eigene Ansicht.
+- Der Inhalt wird auf die Höhe des Elements **beschnitten**, steht also nie
+  darüber hinaus.
+
+**Elemente und ihre Stile** (`HomeBlockView.tsx`): Tagesstrahl (Band ·
+Jetzt-Karte · Liste), Aufgaben (Heft · Liste), Notizen (Karten · Liste),
+Neuigkeiten (Stapel · Zahl), Schnellzugriff (Karussell · Symbole),
+Better-Apps (Karten). Wie viel ein Element zeigt, sagt seine Höhe. Die grossen Stile sind genau die Bausteine der anderen
+Ansichten — `DayThread`, `DayTasks`, `HomeNotes`, `NewsSection`,
+`QuickAccess`, `AppFamily` —, die kleinen kurze Fassungen für halbe Breite.
+Gemerkt wird das Ganze je Konto auf dem Gerät (`useHomeLayout`).
+
+Übersicht und Jetzt zeigen immer **heute**; ein Umschalten setzt einen
+gewischten Tag zurück. Jede Kachel ist als Ganzes ein Knopf und führt in ihre
+Funktion; der Schnellzugriff behält seine eigenen Karten. Das „+“ unten rechts gibt es in allen drei Ansichten.
+
+**Ein Tipp in den Tagesstrahl öffnet ihn gross** (siehe „Der grosse
+Zeitstrahl“). **Er lässt sich wischen**: nach links kommt morgen, nach rechts
 gestern; ein Knopf **Heute** führt zurück. Heute zeigt das Band alles, was die
 Startseite weiss. An einem anderen Tag steht nur, was wirklich an diesem Tag
 ist: ganztägige Termine und Geburtstage oben, Termine mit Uhrzeit, der Wecker,
-der dann klingelt (`AlarmRow.days`), Aufgaben mit Frist an dem Tag und
-Rechnungen, die dann fällig sind. Was kein Datum hat — Einkauf, Gewohnheiten,
+der dann klingelt (`AlarmRow.days`) und Rechnungen, die dann fällig sind — die
+Aufgaben dieses Tages stehen darunter in ihrem eigenen Bereich. Was kein Datum hat — Einkauf, Gewohnheiten,
 Reisen, Dokumente — bleibt bei heute, und die Jetzt-Marke fällt weg
 (`showNow`).
 
@@ -886,20 +1175,39 @@ Funktionen anderer Apps.
 
 ### Das Profil (`screens/ProfileScreen.tsx`)
 
-Der dritte Tab zeigt, **was ist** — geändert wird hier nichts. Oben Bild,
-Spitzname und `@name`, darunter Abzeichen: „seit September 2026“ und, wo es
-einen gibt, der Haushalt. Darunter zwei Blöcke:
+Der dritte Tab ist ein Profil, wie man es aus anderen Apps kennt — **keine
+Zahlen, keine Kacheln**. Oben in der Mitte gross das **Profilbild** (96 pt, mit
+kleinem Kamera-Kreis; ein Tipp ändert es), darunter Spitzname, `@name` und
+Abzeichen: „seit September 2026“ und, wo es einen gibt, der Haushalt. Darunter:
 
-- **Überblick** — je Funktion **dieser** App eine Kachel mit einer Zahl
-  (`features/profile/ProfileStats.tsx`): GetBetter offene Aufgaben, Termine der
-  nächsten sieben Tage, Notizen und die Haken von heute; BetterFamily Einkauf,
-  Ämtli, Termine des Haushalts und Rezepte; BetterGym Minuten der Woche,
-  Kalorien, Getrunkenes und die letzte Nacht; BetterMoney Ausgaben des Monats,
-  offene Rechnungen, Abos im Monat und Sparziele; BetterAi die Gespräche und
-  die dieser Woche. Zeichen und Farbe kommen von der Funktion (`moduleBase`),
-  der Name aus `moduleName` — nie die Funktionen einer anderen App.
+- **Profil** — Profilbild (Eigenes/Keins), Spitzname, Benutzername, E-Mail
+  (fest). Ein Tipp öffnet das Blatt dazu. Darunter steht, dass der
+  Benutzername einmal im Monat geht, oder ab wann wieder („Deinen
+  Benutzernamen kannst du am 22. Oktober wieder ändern.“).
+- **Deine Better-Apps** — die laufende App („Hier“) und jede, in der das Konto
+  schon war (`appAccess.appsOf`), mit Logo; ein Tipp öffnet sie. Darüber „In 3
+  von 5 Apps dabei“.
 - **Mehr** — Einstellungen, Mitteilungen mit der Zahl der ungelesenen (nur
   GetBetter) und der Haushalt (nur BetterFamily).
+
+Spitzname, Benutzername und Bild ändern **dieselben Blätter** im Profil und in
+den Einstellungen (`features/profile/ProfileSheets.tsx`) — zwei Eingänge, eine
+Wahrheit.
+
+- **Spitzname**: beliebig oft.
+- **Benutzername**: **einmal im Monat** (30 Tage, `usernameFreeAt` in
+  `features/profile/usernameCooldown.ts` und `services/api/auth.js`, getestet
+  und gleich gehalten). Beim Anlegen zählt nichts — die erste Änderung geht
+  gleich. Der Dienst setzt `usernameChangedAt` und antwortet sonst `409
+  username_cooldown` mit `nextChangeAt`; derselbe Name nochmal ist keine
+  Änderung. Über `PUT /v1/db/accounts` lässt er sich gar nicht ändern (der
+  Dienst behält `username` und `usernameChangedAt`). Der Admin darf immer.
+- **Profilbild** (`photoUploadId` am Konto, `PhotoSheet.tsx`,
+  `AccountPhoto.tsx`): gewählt und verkleinert wie ein eigener Hintergrund
+  (`pickImage`, `/v1/uploads`), das alte Bild räumt die App danach weg; „Foto
+  entfernen“ nimmt es ganz. Der Dienst nimmt nur ein Bild, das es gibt (sonst
+  `400 photo_invalid`). Frei, ohne Abo. Am Handy fehlt die Auswahl noch
+  (`expo-image-picker`) — das Blatt sagt es ehrlich.
 
 **Kein Aussehen, kein Abo und keine KI im Profil**: hell/dunkel, Farben,
 Hintergrund, das Abo und das KI-Kontingent stehen alle in den Einstellungen —
@@ -982,7 +1290,12 @@ Löschen auch als Aktion der Bedienungshilfe; bestehende Papierkörbe bleiben.
 - `Sheet` mit `detent` mittel/gross
 - `Menu` und `ContextMenu`
 - `Header` mit `titleMenu` für den Ansichtswechsel im Titel
-- `FloatingButton` mit `text` und `menu`
+- `FloatingButton` mit `text` und `menu` — gebaut wie eine Karte: Papier
+  (`surface`) mit Schatten, Plus und Wort in Tinte (`text`), ohne Rand
+- `Toggle` statt `Switch` von React Native (der zeichnet im Browser einen
+  türkisen Knopf auf schmaler Spur): Pille wie am iPhone, ein im Better-Grün
+  (`accent`) mit Knopf in `textOnAccent`, aus grau mit hellem Knopf, gleitend
+  (bei reduzierter Bewegung springend); `accessibilityRole="switch"`
 - `useUndo()` für die Leiste „Rückgängig“ (5 s; `UndoProvider` sitzt in
   `RootShell`)
 
@@ -1029,17 +1342,37 @@ trotzdem bestehen.
 
 | Wo                        | Anfrage             | E-Mail                                | Sonst               |
 | ------------------------- | ------------------- | ------------------------------------- | ------------------- |
-| Was gibt's Neues          | Annehmen / Ablehnen | schmale Zeile ohne Knöpfe (siehe unten) | Gelesen / Weg damit |
+| Was gibt's Neues          | Annehmen / Ablehnen | Karte im Stapel ohne Knöpfe (siehe unten) | Gelesen / Weg damit |
 | Glocke (`/notifications`) | Annehmen / Ablehnen | schmale Zeile ohne Knöpfe             | Gelesen = weg       |
 
 Eine **E-Mail** ist eine schmale Zeile: Symbol, Absender, Zeit, darunter der
-Betreff in einer Zeile. Antippen öffnet die Mail selbst
+Betreff in einer Zeile — **immer genau gleich hoch** (`MAIL_ROW_HEIGHT`, 64 pt;
+Überlanges wird abgeschnitten). Damit Neues auffällt, steht das Zeichen jeder
+Mitteilung **rot auf hellem Rot** (`danger` auf `dangerSoft`, im
+Kontrast-Test), und eine ungelesene E-Mail trägt neben der Zeit einen roten
+Punkt. Antippen öffnet die Mail selbst
 (`/run/mail?message=<id>`) und setzt die Mitteilung auf gelesen; nach rechts
 wischen heisst gesehen, nach links wischen löscht die E-Mail (Papierkorb).
 
 „Gelesen“ in Was gibt's Neues setzt `readAt`: die Mitteilung bleibt in der
 Glocke. „Weg damit“ löscht sie ganz. In der Glocke heisst gelesen weg. Nach
 links wischen löscht, bei E-Mails die E-Mail selbst. Leer: „Keine Neuigkeiten“.
+
+**Was gibt's Neues ist ein Stapel**, keine endlose Liste
+(`features/notifications/NewsStack.tsx`, Rechnung in `stack.ts`, getestet):
+die ungelesenen liegen fast übereinander, **jede eine schmale, schlichte
+Zeile, genau gleich hoch** wie eine E-Mail (`STACK_CARD_HEIGHT`, 64 pt,
+`NotificationItem stacked`): Zeichen, Satz, Zeit — ohne Schatten, mit feinem
+Rand. Vorn steht eine ganz hell, dahinter schauen bis zu drei je 10 pt hervor,
+jede schmaler und durchsichtiger (0.58, 0.32, 0.14). **Rollen im Stapel** um
+eine Karte (rastet ein — auf dem Gerät `snapToInterval`, im Browser nach
+120 ms Ruhe) schiebt die vorderste **mit dem Finger nach oben aus dem Stapel**,
+die nächste **steigt von unten nach vorn**. Nur die vorderste nimmt Tipps
+an. **Nach rechts wischen heisst
+gelesen, nach links weg damit** (bei einer E-Mail: gesehen bzw. löschen);
+Knöpfe gibt es nur noch für Anfragen (✓ annehmen, ✕ ablehnen), eine E-Mail
+öffnet sich per Tipp. Höchstens zwölf liegen im Stapel,
+der Rest als „+N weitere“ in der Glocke. Die Glocke selbst bleibt eine Liste.
 
 ## E-Mail (`features/mail/`, `db/mail.ts`, `services/api/mail/`)
 
@@ -1055,8 +1388,15 @@ Spam, Papierkorb, Archiv. Welcher Ordner welche Rolle hat, sagt erst SPECIAL-USE
 (RFC 6154), dann der Name, auch in modifiziertem UTF-7 (`INBOX.Gel&APY-scht` ist
 der Papierkorb). Gmails „All Mail“ gilt bewusst **nicht** als Archiv.
 
-Der Abgleich (`mail/sync.js`) läuft alle 2 Minuten über **alle** Ordner und
-merkt sich je Ordner UIDVALIDITY und letzte UID in `mail-state.json`: der
+Der Abgleich (`mail/sync.js`) läuft alle **10 Sekunden** über **alle** Ordner (ein
+Durchgang wartet, bis der vorige fertig ist; ohne Änderung keine neue Revision) und
+merkt sich je Ordner UIDVALIDITY und letzte UID in `mail-state.json`. Ist eine
+solche Datei einmal **unlesbar** (halb geschrieben, von Hand verändert), legt
+`readJson` (`services/api/files.js`, getestet) sie als `<name>.broken` zur Seite
+und beginnt mit leerem Zustand — ein kaputter Zustand darf nicht jeden weiteren
+Abgleich mit „unerwarteter Fehler: SyntaxError“ scheitern lassen. Der
+Posteingang holt dann wieder von vorne, ohne Mitteilungen zu wiederholen: was
+in `db.json` steht, gilt als bekannt. Im Takt: der
 Posteingang holt 50 und behält 100, die übrigen 25 und 40. Gelesen, Fahne
 (`\Flagged`) und beantwortet (`\Answered`) kommen mit. Anhänge liest
 `mail/structure.js` aus der BODYSTRUCTURE — Name, Typ und Grösse, **kein Byte
@@ -1267,7 +1607,7 @@ als Weiterleitung dorthin — zwei Oberflächen fürs selbe wären zwei Wahrheit
 
 | Bereich      | Was darin steht                                                                  |
 | ------------ | -------------------------------------------------------------------------------- |
-| Konto        | Spitzname, Benutzername, E-Mail (fest), Sprache, Mitglied seit                   |
+| Konto        | Profilbild, Spitzname, Benutzername (einmal im Monat), E-Mail (fest), Sprache, Mitglied seit |
 | Darstellung  | Modus (hell/dunkel/automatisch), Voreinstellung, Akzentfarbe, Hintergrund         |
 | Assistent    | sein Name (`assistantName`), seine Stimme und sein Avatar, in BetterAi ausgeblendet |
 | Haushalt     | nur in BetterFamily: der aktive Haushalt und Beitreten                            |

@@ -109,30 +109,18 @@ const LANGUAGES = [
   ['it', 'Italienisch'],
 ];
 
-const KIND_LABELS = {
-  'account.created': 'Konto angelegt',
-  'session.created': 'Anmeldung',
-  'session.failed': 'Anmeldung fehlgeschlagen',
-  'session.blocked': 'Anmeldung abgewiesen',
-  'profile.updated': 'Profil geändert',
-  'collection.changed': 'Daten geändert',
-  'ai.reply': 'KI-Anfrage',
-  'admin.updated': 'Admin: Konto geändert',
-  'admin.password': 'Admin: Passwort gesetzt',
-  'admin.deleted': 'Admin: Konto gelöscht',
-  'admin.viewed': 'Admin: App angesehen',
-  'plan.requested': 'Abo angefragt',
-  'admin.planApproved': 'Admin: Abo freigeschaltet',
-  'admin.planDeclined': 'Admin: Abo-Anfrage abgelehnt',
-};
-
-const REASON_TEXT = {
-  wrong_password: 'falsches Passwort',
-  unknown_account: 'unbekanntes Konto',
-  invalid_credentials: 'falsche Anmeldedaten',
-  account_disabled: 'Konto gesperrt',
-  app_blocked: 'App gesperrt',
-};
+/**
+ * Der Filter im Verlauf. Der Dienst nimmt eine Art genau oder als Anfang:
+ * `session` sind alle Anmeldungen, `admin` alles, was hier geschah.
+ */
+const KIND_FILTERS = [
+  ['account.created', 'Neue Konten'],
+  ['session', 'Anmeldungen'],
+  ['session.failed', 'Falsches Passwort'],
+  ['session.blocked', 'Gesperrt abgewiesen'],
+  ['plan', 'Abo'],
+  ['admin', 'Admin'],
+];
 
 const APP_STATUS = {
   used: { icon: '●', label: 'genutzt' },
@@ -728,6 +716,7 @@ function billingUi() {
       isNum,
       clamp,
       fmtChf,
+      signedChf,
       fmtPct,
       fmtInt,
       fmtDayLong,
@@ -781,7 +770,8 @@ function page({ title, subtitle, actions }, ...content) {
   );
 }
 
-function card({ title, actions, note, className, headingTag = 'h2' }, ...content) {
+/** `hint` ist ein kurzer Satz als Tooltip hinter dem Titel — statt eines Absatzes. */
+function card({ title, actions, hint, className, headingTag = 'h2' }, ...content) {
   const titleId = uid('card');
   return h(
     'section',
@@ -789,12 +779,57 @@ function card({ title, actions, note, className, headingTag = 'h2' }, ...content
     h(
       'div',
       { class: 'card__head' },
-      h(headingTag, { id: titleId, class: 'card__title' }, title),
+      // Der Hinweis steht neben, nicht in der Überschrift — sonst hiesse die ganze Karte so.
+      h('div', { class: 'card__heading' }, h(headingTag, { id: titleId, class: 'card__title' }, title), hint ? hintMark(hint) : null),
       actions?.length ? h('div', { class: 'card__actions' }, actions) : null,
     ),
-    note ? h('p', { class: 'card__note' }, note) : null,
     content,
   );
+}
+
+/** Ein kleines ⓘ mit Tooltip; mit der Tastatur erreichbar, der Screenreader liest den Satz. */
+function hintMark(text) {
+  return h('span', { class: 'hint', tabindex: '0', role: 'img', title: text, 'aria-label': text, text: 'ⓘ' });
+}
+
+/**
+ * Die Kennzahlen oben auf einer Seite. items: { label, value, sub?, tone?, href?, hint? }.
+ * Mit `href` ist die ganze Kachel ein Link.
+ */
+function kpiRow(items) {
+  return h(
+    'ul',
+    { class: 'kpis' },
+    items.filter(Boolean).map(({ label, value, sub, tone, href, hint }) => {
+      const className = ['kpi', tone ? `kpi--${tone}` : null, href ? 'kpi--link' : null].filter(Boolean).join(' ');
+      const content = [
+        h('span', { class: 'kpi__label', text: label }),
+        h('span', { class: 'kpi__value num' }, value),
+        sub ? h('span', { class: 'kpi__sub' }, sub) : null,
+      ];
+      return h('li', null, href ? h('a', { class: className, href, title: hint }, content) : h('div', { class: className, title: hint }, content));
+    }),
+  );
+}
+
+/** Franken mit Vorzeichen: negativ steht rot. */
+function signedChf(value) {
+  return h('span', { class: isNum(value) && value < 0 ? 'num-negative' : null, text: fmtChf(value) });
+}
+
+/** Offen oder zu bleibt, solange die Seite offen ist — gespeichert wird nichts. */
+const moreOpen = new Map();
+
+/** Alles, was nicht auf den ersten Blick muss: zugeklappt unter „Details“. */
+function moreSection(key, content, label = 'Details') {
+  const section = h(
+    'details',
+    { class: 'more', open: moreOpen.get(key) === true },
+    h('summary', { class: 'more__summary' }, h('span', { text: label })),
+    h('div', { class: 'more__body' }, content),
+  );
+  section.addEventListener('toggle', () => moreOpen.set(key, section.open));
+  return section;
 }
 
 /** items: [label, value, tone?] — value darf Text oder ein Element sein. */
@@ -833,8 +868,6 @@ function pill(icon, label, tone) {
   );
 }
 
-const statusPill = (disabled) => (disabled ? pill('⊘', 'Gesperrt', 'danger') : pill('✓', 'Aktiv', 'ok'));
-
 function timeEl(value, format = fmtDateTime) {
   const date = toDate(value);
   if (!date) return h('span', { class: 'muted', text: '—' });
@@ -865,16 +898,13 @@ function appPills(account) {
   );
 }
 
-function appLegend() {
-  return h(
-    'p',
-    { class: 'legend' },
-    Object.values(APP_STATUS).map((meta) =>
-      h('span', { class: 'legend__item' }, h('span', { 'aria-hidden': 'true', text: meta.icon }), meta.label),
-    ),
-    h('span', { class: 'legend__item', text: APPS.map((app) => `${app.short} ${app.name}`).join(' · ') }),
-  );
-}
+/** Die Legende der App-Kürzel, als Tooltip über der Spalte statt als Absatz. */
+const APP_LEGEND = [
+  Object.values(APP_STATUS)
+    .map((meta) => `${meta.icon} ${meta.label}`)
+    .join(' · '),
+  APPS.map((app) => `${app.short} ${app.name}`).join(' · '),
+].join('\n');
 
 function createSwitch({ labelledBy, onText, offText, dangerWhen, onToggle }) {
   const stateText = h('span', { class: 'switch__state' });
@@ -925,7 +955,7 @@ function setBusy(button, busy, busyText, idleText) {
 // ---------------------------------------------------------------------------
 
 /**
- * columns: { key, label, type?: 'num'|'date'|'text', sortable?: false,
+ * columns: { key, label, type?: 'num'|'date'|'text', sortable?: false, title?,
  *            sortValue?: row => number|string|null, render: row => Node|string }
  */
 function createTable({ caption, columns, sort = null, onSortChange, rowHref, emptyText = 'Keine Einträge.' }) {
@@ -948,13 +978,13 @@ function createTable({ caption, columns, sort = null, onSortChange, rowHref, emp
   function headerCell(column) {
     const className = column.type === 'num' ? 'num' : null;
     if (column.sortable === false || !column.sortValue) {
-      return h('th', { scope: 'col', class: className, text: column.label });
+      return h('th', { scope: 'col', class: className, title: column.title, text: column.label });
     }
     const active = current?.key === column.key;
     const ariaSort = active ? (current.dir === 'asc' ? 'ascending' : 'descending') : null;
     return h(
       'th',
-      { scope: 'col', class: className, 'aria-sort': ariaSort },
+      { scope: 'col', class: className, title: column.title, 'aria-sort': ariaSort },
       h(
         'button',
         { type: 'button', class: 'sort', 'data-sort-key': column.key, on: { click: () => toggleSort(column) } },
@@ -1273,11 +1303,11 @@ function shareMeter(share) {
   const target = CHEAP_TARGET * 100;
   return h(
     'div',
-    { class: 'share' },
+    { class: 'share', title: `Strich = Ziel ${fmtPct(CHEAP_TARGET)}` },
     h(
       'div',
       { class: 'share__head' },
-      h('span', { id: labelId, class: 'share__label', text: 'Anteil günstige Stufe (30 Tage)' }),
+      h('span', { id: labelId, class: 'share__label', text: 'Günstige Stufe, 30 Tage' }),
       h('span', { class: 'share__value num', text: hasValue ? fmtPct(value) : '—' }),
     ),
     h(
@@ -1305,12 +1335,7 @@ function shareMeter(share) {
         }),
       ),
     ),
-    h(
-      'div',
-      { class: 'share__foot' },
-      h('span', { text: `Senkrechter Strich: Ziel ${fmtPct(CHEAP_TARGET)}` }),
-      h('span', { class: statusClass, text: statusText }),
-    ),
+    h('div', { class: 'share__foot' }, h('span', { class: statusClass, text: statusText })),
   );
 }
 
@@ -1318,83 +1343,49 @@ function shareMeter(share) {
 // Verlauf: Sätze je Art und die Liste mit «Ältere laden»
 // ---------------------------------------------------------------------------
 
-function listText(fields) {
+function fieldList(fields) {
   const names = asArray(fields).map(fieldName);
-  return names.length ? `: ${names.join(', ')}` : '';
+  return names.length ? names.join(', ') : 'Konto';
 }
 
+/**
+ * Ein kurzer Satz je Art; das Konto steht daneben. `tone` färbt das Zeichen:
+ * `good` (neu, Abo), `danger` (abgewiesen), `admin` (hier im Admin getan).
+ */
 function describeEntry(entry) {
   const detail = entry.detail && typeof entry.detail === 'object' ? entry.detail : {};
-  const inApp = detail.app ? ` in ${appName(detail.app)}` : '';
+  const app = detail.app ? appName(detail.app) : null;
+  const inApp = app ? ` · ${app}` : '';
   switch (entry.kind) {
     case 'account.created':
-      return { icon: '+', tone: 'neutral', text: 'Konto angelegt' };
+      return { icon: '+', tone: 'good', text: 'Konto angelegt' };
     case 'session.created':
       return { icon: '→', tone: 'neutral', text: `Angemeldet${inApp}` };
     case 'session.failed':
-      return {
-        icon: '✕',
-        tone: 'danger',
-        text: `Anmeldung${inApp} fehlgeschlagen${detail.reason ? ` (${REASON_TEXT[detail.reason] ?? detail.reason})` : ''}`,
-      };
+      return { icon: '✕', tone: 'danger', text: `Falsches Passwort${inApp}` };
     case 'session.blocked':
-      return {
-        icon: '⊘',
-        tone: 'danger',
-        text: detail.app
-          ? `Anmeldung in ${appName(detail.app)} abgewiesen, die App ist gesperrt`
-          : 'Anmeldung abgewiesen, das Konto ist gesperrt',
-      };
-    case 'profile.updated':
-      return { icon: '✎', tone: 'neutral', text: `Profil geändert${listText(detail.fields)}` };
-    case 'collection.changed':
-      return {
-        icon: '≡',
-        tone: 'neutral',
-        text:
-          `${collectionName(detail.collection)}: ${fmtInt(detail.added ?? 0)} neu, ` +
-          `${fmtInt(detail.updated ?? 0)} geändert, ${fmtInt(detail.removed ?? 0)} gelöscht`,
-      };
-    case 'ai.reply':
-      return describeAi(detail, inApp);
-    case 'admin.updated':
-      return { icon: '⚙︎', tone: 'admin', text: `Im Admin geändert${listText(detail.fields)}` };
-    case 'admin.password':
-      return { icon: '⚙︎', tone: 'admin', text: 'Passwort im Admin neu gesetzt' };
-    case 'admin.deleted':
-      return {
-        icon: '⚙︎',
-        tone: 'danger',
-        text: detail.username ? `Konto @${detail.username} im Admin gelöscht` : 'Konto im Admin gelöscht',
-      };
-    case 'admin.viewed':
-      return { icon: '⚙︎', tone: 'admin', text: `App${inApp} im Admin angesehen, nur lesend` };
+      return { icon: '⊘', tone: 'danger', text: app ? `Abgewiesen · ${app} gesperrt` : 'Abgewiesen · Konto gesperrt' };
     case 'plan.requested':
-      return { icon: '★', tone: 'neutral', text: `Abo${inApp} angefragt` };
+      return { icon: '★', tone: 'good', text: `Abo angefragt${inApp}${detail.term === 'year' ? ' · Jahr' : ''}` };
+    case 'plan.cancelled':
+      return { icon: '★', tone: 'neutral', text: `Abo gekündigt${inApp}` };
+    case 'plan.resumed':
+      return { icon: '★', tone: 'good', text: `Kündigung zurückgenommen${inApp}` };
+    case 'admin.updated':
+      return { icon: '⚙︎', tone: 'admin', text: `Geändert: ${fieldList(detail.fields)}` };
+    case 'admin.password':
+      return { icon: '⚙︎', tone: 'admin', text: 'Passwort neu gesetzt' };
+    case 'admin.deleted':
+      return { icon: '⚙︎', tone: 'danger', text: detail.username ? `Konto @${detail.username} gelöscht` : 'Konto gelöscht' };
+    case 'admin.viewed':
+      return { icon: '⚙︎', tone: 'admin', text: `Angesehen${inApp}` };
     case 'admin.planApproved':
-      return { icon: '⚙︎', tone: 'admin', text: `Abo${inApp} im Admin freigeschaltet` };
+      return { icon: '⚙︎', tone: 'admin', text: `Abo freigeschaltet${inApp}` };
     case 'admin.planDeclined':
-      return { icon: '⚙︎', tone: 'admin', text: `Abo-Anfrage${inApp} im Admin abgelehnt` };
+      return { icon: '⚙︎', tone: 'admin', text: `Abo abgelehnt${inApp}` };
     default:
-      return { icon: '•', tone: 'neutral', text: `Ereignis «${entry.kind ?? 'unbekannt'}»` };
+      return { icon: '•', tone: 'neutral', text: String(entry.kind ?? 'Unbekannt') };
   }
-}
-
-function describeAi(detail, inApp) {
-  const parts = [
-    detail.tier ? tierName(detail.tier) : null,
-    detail.model || null,
-    isNum(detail.costChf) ? fmtChf(detail.costChf) : null,
-  ].filter(Boolean);
-  const suffix = parts.length ? ` · ${parts.join(' · ')}` : '';
-  if (detail.ok === false) {
-    return {
-      icon: '✕',
-      tone: 'danger',
-      text: `KI-Anfrage${inApp} fehlgeschlagen${detail.error ? `: ${detail.error}` : ''}${suffix}`,
-    };
-  }
-  return { icon: '✦', tone: 'neutral', text: `KI-Antwort${inApp}${suffix}` };
 }
 
 function groupByDay(entries) {
@@ -1409,11 +1400,13 @@ function groupByDay(entries) {
   return groups;
 }
 
+/** Eine Zeile: Zeit, Zeichen, Satz — rechts das Konto, was im Admin geschah mit „Admin“. */
 function entryItem(entry, { showAccount, accountsById }) {
   const description = describeEntry(entry);
   const date = toDate(entry.at);
   const account = entry.accountId ? accountsById.get(entry.accountId) : null;
-  const accountLabel = entry.email || account?.email || entry.accountId;
+  const accountLabel = account ? displayName(account) : entry.email || entry.accountId;
+  const byAdmin = String(entry.kind ?? '').startsWith('admin.');
   return h(
     'li',
     { class: `entry entry--${description.tone}` },
@@ -1422,20 +1415,16 @@ function entryItem(entry, { showAccount, accountsById }) {
       : h('span', { class: 'entry__time', text: '—' }),
     h('span', { class: 'entry__icon', 'aria-hidden': 'true', text: description.icon }),
     h(
-      'div',
-      { class: 'entry__body' },
-      h('p', { class: 'entry__text', text: description.text }),
-      h(
-        'p',
-        { class: 'entry__meta' },
-        showAccount
-          ? entry.accountId
-            ? h('a', { href: accountHref(entry.accountId), text: accountLabel })
-            : h('span', { text: 'ohne Konto' })
-          : null,
-        h('code', { class: 'entry__kind', text: entry.kind ?? '—' }),
-      ),
+      'p',
+      { class: 'entry__text', title: entry.kind ?? '' },
+      description.text,
+      byAdmin ? h('span', { class: 'entry__tag', text: 'Admin' }) : null,
     ),
+    showAccount
+      ? entry.accountId
+        ? h('a', { class: 'entry__account', href: accountHref(entry.accountId), title: entry.email || entry.accountId, text: accountLabel })
+        : h('span', { class: 'entry__account muted', text: 'ohne Konto' })
+      : null,
   );
 }
 
@@ -1450,15 +1439,16 @@ function activityQuery(filter, before) {
 function activityFeed({ filter: initialFilter, initial = null, showAccount = true, headingTag = 'h2', accountsById = new Map() }) {
   let filter = { ...initialFilter };
   let entries = asArray(initial);
-  let exhausted = false;
+  // Weniger als eine Seite mitgebracht heisst: das ist schon alles.
+  let exhausted = initial !== null && entries.length < PAGE_SIZE;
   let loading = false;
   let generation = 0;
 
   const list = h('ol', { class: 'timeline' });
-  const emptyNote = h('p', { class: 'empty-note', text: 'Hier ist noch nichts passiert.', hidden: true });
+  const emptyNote = h('p', { class: 'empty-note', text: 'Noch nichts.', hidden: true });
   const errorSlot = h('div');
   const status = h('p', { class: 'feed__status', tabindex: '-1' });
-  const moreButton = h('button', { type: 'button', class: 'btn', text: 'Ältere laden', on: { click: () => load(false) } });
+  const moreButton = h('button', { type: 'button', class: 'btn btn--small', text: 'Ältere laden', on: { click: () => load(false) } });
   const root = h(
     'div',
     { class: 'feed' },
@@ -1471,7 +1461,7 @@ function activityFeed({ filter: initialFilter, initial = null, showAccount = tru
   function summary() {
     if (!entries.length) return '';
     const noun = entries.length === 1 ? 'Eintrag' : 'Einträge';
-    return `${fmtInt(entries.length)} ${noun}${exhausted ? ' · das ist alles' : ''}`;
+    return `${fmtInt(entries.length)} ${noun}`;
   }
 
   function draw() {
@@ -1637,15 +1627,107 @@ function boot() {
 // 1. Übersicht
 // ===========================================================================
 
+/**
+ * Auf einen Blick: fünf Zahlen, wer auf ein Abo wartet, und je App eine Zeile.
+ * Alles Weitere liegt zugeklappt unter „Details“ und im Reiter Kosten.
+ */
 async function renderOverview(ctx) {
   const data = await api('/api/overview');
   const accounts = data?.accounts ?? {};
   const ai = data?.ai ?? {};
-  const speech = data?.speech ?? {};
-  const storage = data?.storage ?? {};
-  const apps = [...asArray(data?.apps)].sort(
-    (a, b) => indexOfApp(a.id) - indexOfApp(b.id),
+  const totals = data?.margin?.totals ?? {};
+  const generated = toDate(data?.generatedAt) ?? new Date();
+
+  return page(
+    {
+      title: 'Übersicht',
+      subtitle: `Stand ${fmtTime(generated)}`,
+      actions: [reloadButton(ctx.reload)],
+    },
+    kpiRow([
+      { label: 'Konten', value: fmtInt(accounts.total), sub: accountsSub(accounts), href: '#/accounts' },
+      {
+        label: 'Aktiv 7 Tage',
+        value: fmtInt(accounts.active7),
+        sub: isNum(accounts.active30) ? `${fmtInt(accounts.active30)} in 30 Tagen` : null,
+      },
+      { label: 'Abos', value: fmtInt(totals.paidAccounts) },
+      {
+        label: 'Marge diesen Monat',
+        value: signedChf(totals.marginChf),
+        tone: isNum(totals.marginChf) && totals.marginChf < 0 ? 'danger' : 'strong',
+        href: '#/costs',
+        hint: 'Abos netto minus KI und Stimmen, ohne Fixkosten',
+      },
+      { label: 'KI diesen Monat', value: fmtChf(ai.costChfMonth), href: '#/costs' },
+    ]),
+    // Wer auf ein Abo wartet, steht ganz oben — nur, wenn jemand wartet.
+    planRequestsUi().requestsCard(data?.planRequests),
+    appsCard(data?.apps, data?.margin?.byApp),
+    overviewDetails(data),
   );
+}
+
+/** „+1 diese Woche · 1 gesperrt“ — nur, was nicht null ist. */
+function accountsSub(accounts) {
+  const parts = [
+    accounts.newThisWeek > 0 ? h('span', { text: `+${fmtInt(accounts.newThisWeek)} diese Woche` }) : null,
+    accounts.disabled > 0 ? h('span', { class: 'num-negative', text: `${fmtInt(accounts.disabled)} gesperrt` }) : null,
+  ].filter(Boolean);
+  return parts.length ? parts.flatMap((part, index) => (index === 0 ? [part] : [' · ', part])) : null;
+}
+
+function indexOfApp(id) {
+  const index = APPS.findIndex((app) => app.id === id);
+  return index < 0 ? APPS.length : index;
+}
+
+function appCell(row) {
+  const meta = APP_BY_ID.get(row.id);
+  return h(
+    'span',
+    { class: 'app-cell' },
+    h('span', { class: 'app-code', 'aria-hidden': 'true', text: meta?.short ?? '?' }),
+    h('span', { class: 'app-cell__name', text: row.name || appName(row.id) }),
+    row.blockedCount > 0
+      ? h('span', {
+          class: 'pill pill--danger pill--tiny',
+          title: `${fmtInt(row.blockedCount)} ${row.blockedCount === 1 ? 'Konto' : 'Konten'} gesperrt`,
+          text: `⊘ ${fmtInt(row.blockedCount)}`,
+        })
+      : null,
+  );
+}
+
+/** Je App eine Zeile: Nutzer, aktiv, Abos und die Marge dieses Monats. */
+function appsCard(apps, marginRows) {
+  const margins = new Map(asArray(marginRows).map((row) => [row.app, row]));
+  const rows = asArray(apps).map((app) => ({
+    ...app,
+    paidAccounts: margins.get(app.id)?.paidAccounts ?? null,
+    marginChf: margins.get(app.id)?.marginChf ?? null,
+  }));
+  const table = createTable({
+    caption: 'Apps',
+    columns: [
+      { key: 'app', label: 'App', sortValue: (r) => indexOfApp(r.id), render: appCell },
+      { key: 'users', label: 'Nutzer', type: 'num', sortValue: (r) => r.users, render: (r) => fmtInt(r.users) },
+      { key: 'active7', label: 'Aktiv 7 T.', type: 'num', sortValue: (r) => r.active7, render: (r) => fmtInt(r.active7) },
+      { key: 'paidAccounts', label: 'Abos', type: 'num', sortValue: (r) => r.paidAccounts, render: (r) => fmtInt(r.paidAccounts) },
+      { key: 'marginChf', label: 'Marge', type: 'num', sortValue: (r) => r.marginChf, render: (r) => signedChf(r.marginChf) },
+    ],
+    sort: { key: 'app', dir: 'asc' },
+    emptyText: 'Der Dienst meldet keine Apps.',
+  });
+  table.setRows(rows);
+  return card({ title: 'Apps' }, table.el);
+}
+
+/** KI, Stimme, KI pro Tag, Einträge pro Funktion und Speicher — zugeklappt. */
+function overviewDetails(data) {
+  const ai = data?.ai ?? {};
+  const storage = data?.storage ?? {};
+  const moduleRows = asArray(data?.modules);
   const generated = toDate(data?.generatedAt) ?? new Date();
   const maxDataDay = asArray(ai.byDay)
     .map((row) => row.day)
@@ -1653,40 +1735,15 @@ async function renderOverview(ctx) {
     .sort()
     .at(-1);
   const endDay = maxDataDay && maxDataDay > dayKeyOf(generated) ? maxDataDay : dayKeyOf(generated);
-  const moduleRows = asArray(data?.modules);
+  const bytesOf = (value) => (isNum(value) ? value : 0);
+  const hasStorage = isNum(storage.dbBytes) || isNum(storage.uploadsBytes);
 
-  return page(
-    {
-      title: 'Übersicht',
-      subtitle: `Stand ${fmtDateTime(generated)}`,
-      actions: [reloadButton(ctx.reload)],
-    },
-    stats(
-      [
-        ['Konten', fmtInt(accounts.total)],
-        ['Aktiv 7 Tage', fmtInt(accounts.active7)],
-        ['Aktiv 30 Tage', fmtInt(accounts.active30)],
-        ['Neu diese Woche', fmtInt(accounts.newThisWeek)],
-        ['Gesperrt', fmtInt(accounts.disabled), accounts.disabled > 0 ? 'danger' : null],
-      ],
-      'kpis',
-    ),
-    // Wer auf ein Abo wartet, steht ganz oben — das ist heute der einzige Weg zum Abo.
-    planRequestsUi().requestsCard(data?.planRequests),
-    h(
-      'section',
-      { 'aria-labelledby': 'overview-apps' },
-      h('h2', { id: 'overview-apps', class: 'section-title', text: 'Apps' }),
-      apps.length
-        ? h('div', { class: 'grid grid--apps' }, apps.map(appCard))
-        : h('p', { class: 'empty-note', text: 'Der Dienst meldet keine Apps.' }),
-    ),
-    billingUi().marginCard(data?.margin),
+  return moreSection('overview', [
     h(
       'div',
       { class: 'grid grid--2' },
-      h('div', { class: 'stack' }, aiCard(ai), speechCard(speech)),
-      dailyChartCard({ title: 'KI pro Tag, letzte 30 Tage', byDay: ai.byDay, dayKeys: lastDayKeys(endDay, OVERVIEW_DAYS) }),
+      h('div', { class: 'stack' }, aiCard(ai), speechCard(data?.speech ?? {})),
+      dailyChartCard({ title: 'KI pro Tag', byDay: ai.byDay, dayKeys: lastDayKeys(endDay, OVERVIEW_DAYS) }),
     ),
     h(
       'div',
@@ -1694,7 +1751,7 @@ async function renderOverview(ctx) {
       card(
         {
           title: 'Einträge pro Funktion',
-          actions: [h('span', { class: 'num', text: `${fmtInt(sumOf(moduleRows, (row) => row.items))} zusammen` })],
+          actions: [h('span', { class: 'num', text: fmtInt(sumOf(moduleRows, (row) => row.items)) })],
         },
         moduleCountsTable(moduleRows, 'Einträge pro Funktion'),
       ),
@@ -1703,62 +1760,39 @@ async function renderOverview(ctx) {
         stats(
           [
             ['Datenbank', fmtBytes(storage.dbBytes)],
-            ['Hochgeladene Bilder', fmtBytes(storage.uploadsBytes)],
-            [
-              'Zusammen',
-              isNum(storage.dbBytes) || isNum(storage.uploadsBytes)
-                ? fmtBytes((isNum(storage.dbBytes) ? storage.dbBytes : 0) + (isNum(storage.uploadsBytes) ? storage.uploadsBytes : 0))
-                : '—',
-            ],
+            ['Bilder', fmtBytes(storage.uploadsBytes)],
+            ['Zusammen', hasStorage ? fmtBytes(bytesOf(storage.dbBytes) + bytesOf(storage.uploadsBytes)) : '—'],
           ],
           'stats stats--list',
         ),
       ),
     ),
-  );
+  ]);
 }
 
-function indexOfApp(id) {
-  const index = APPS.findIndex((app) => app.id === id);
-  return index < 0 ? APPS.length : index;
-}
+const AI_PROVIDER_LABELS = { safeswisscloud: 'Safe Swiss Cloud', groq: 'Groq (gratis)' };
 
-function appCard(app) {
-  const meta = APP_BY_ID.get(app.id);
-  return card(
-    {
-      title: [
-        h('span', { class: 'app-code', 'aria-hidden': 'true', text: meta?.short ?? '?' }),
-        app.name || appName(app.id),
-      ],
-      className: 'card--app',
-      headingTag: 'h3',
-    },
-    stats(
-      [
-        ['Nutzer', fmtInt(app.users)],
-        ['Aktiv 7 Tage', fmtInt(app.active7)],
-        ['Gesperrt', fmtInt(app.blockedCount), app.blockedCount > 0 ? 'danger' : null],
-      ],
-      'stats stats--list',
-    ),
-  );
+/** „✓ Groq (gratis)“ oder „✕ nicht eingerichtet“. */
+function setupPill(configured, label) {
+  return configured ? pill('✓', label, 'ok') : pill('✕', 'nicht eingerichtet', 'danger');
 }
 
 function aiCard(ai) {
+  const free = ai.provider === 'groq';
   return card(
     { title: 'KI' },
     stats(
       [
-        ['Eingerichtet', ai.configured ? pill('✓', 'Ja', 'ok') : pill('✕', 'Nein', 'danger')],
+        ['Anbieter', setupPill(ai.configured, AI_PROVIDER_LABELS[ai.provider] ?? 'eingerichtet')],
         ['Anfragen 30 Tage', fmtInt(ai.requests30)],
-        ['Kosten diesen Monat', fmtChf(ai.costChfMonth)],
         ['Kosten 30 Tage', fmtChf(ai.costChf30)],
-        ['Mindestgebühr pro Monat', fmtChf(ai.monthlyMinimumChf)],
+        // Die Mindestgebuehr gilt nur bei Safe Swiss Cloud.
+        free ? null : ['Mindestgebühr / Monat', fmtChf(ai.monthlyMinimumChf)],
       ],
       'stats stats--list',
     ),
-    shareMeter(ai.cheapShare30),
+    // Groq hat nur ein Modell — der Anteil der guenstigen Stufe sagt dort nichts.
+    free ? null : shareMeter(ai.cheapShare30),
   );
 }
 
@@ -1767,15 +1801,15 @@ const PURPOSE_LABELS = { speech: 'Satz', sample: 'Probe' };
 function speechCard(speech) {
   const cache = speech.cache ?? {};
   return card(
-    { title: 'Stimme (ElevenLabs)' },
+    { title: 'Stimme' },
     stats(
       [
-        ['Eingerichtet', speech.configured ? pill('✓', 'Ja', 'ok') : pill('✕', 'Nein', 'danger')],
+        ['ElevenLabs', setupPill(speech.configured, 'eingerichtet')],
         ['Sätze 30 Tage', fmtInt(speech.requests30)],
-        ['davon aus dem Zwischenspeicher', fmtInt(speech.cached30)],
+        ['davon aus dem Speicher', fmtInt(speech.cached30)],
         ['Credits 30 Tage', fmtCredits(speech.credits30)],
-        ['Gesparte Credits 30 Tage', fmtCredits(speech.savedCredits30)],
-        ['Gespeicherte Sätze', isNum(cache.entries) ? `${fmtInt(cache.entries)} · ${fmtBytes(cache.bytes)}` : '—'],
+        ['Gespart 30 Tage', fmtCredits(speech.savedCredits30)],
+        ['Im Speicher', isNum(cache.entries) ? `${fmtInt(cache.entries)} · ${fmtBytes(cache.bytes)}` : '—'],
       ],
       'stats stats--list',
     ),
@@ -1792,7 +1826,7 @@ function creditMeter(used, limit) {
   const statusText = !hasValue ? 'Kein Kontingent' : over ? '! Aufgebraucht' : `${fmtCredits(limit - used)} übrig`;
   return h(
     'div',
-    { class: 'share' },
+    { class: 'share', title: 'Kalendermonat in UTC; ElevenLabs zählt ab dem eigenen Abrechnungstag' },
     h(
       'div',
       { class: 'share__head' },
@@ -1824,12 +1858,7 @@ function creditMeter(used, limit) {
           : null,
       ),
     ),
-    h(
-      'div',
-      { class: 'share__foot' },
-      h('span', { text: 'Kalendermonat in UTC — ElevenLabs zählt ab dem eigenen Abrechnungstag.' }),
-      h('span', { class: over ? 'share__status share__status--low' : 'share__status', text: statusText }),
-    ),
+    h('div', { class: 'share__foot' }, h('span', { class: over ? 'share__status share__status--low' : 'share__status', text: statusText })),
   );
 }
 
@@ -1842,52 +1871,38 @@ let accountsUi = { query: '', status: 'all', sort: { key: 'lastSeenAt', dir: 'de
 const ACCOUNT_COLUMNS = [
   {
     key: 'name',
-    label: 'Name',
+    label: 'Konto',
     sortValue: (a) => displayName(a).replace(/^@/, ''),
     render: (a) => accountNameCell(a),
   },
-  { key: 'email', label: 'E-Mail', sortValue: (a) => a.email, render: (a) => a.email || '—' },
   {
     key: 'createdAt',
-    label: 'Erstellt',
+    label: 'Seit',
     type: 'date',
     sortValue: (a) => timeValue(a.createdAt),
     render: (a) => timeEl(a.createdAt, fmtDate),
   },
   {
     key: 'lastSeenAt',
-    label: 'Zuletzt aktiv',
+    label: 'Aktiv',
     type: 'date',
     sortValue: (a) => timeValue(a.lastSeenAt),
     render: (a) => (a.lastSeenAt ? timeEl(a.lastSeenAt, fmtRelative) : h('span', { class: 'muted', text: 'nie' })),
   },
-  { key: 'apps', label: 'Apps', sortable: false, render: (a) => appPills(a) },
+  { key: 'apps', label: 'Apps', title: APP_LEGEND, sortable: false, render: (a) => appPills(a) },
   {
     key: 'paidApps',
     label: 'Abo',
     sortValue: (a) => asArray(a.paidApps).length,
     render: (a) => billingUi().paidCell(a),
   },
-  { key: 'items', label: 'Einträge', type: 'num', sortValue: (a) => a.items, render: (a) => fmtInt(a.items) },
-  {
-    key: 'costChfMonth',
-    label: 'Kosten Monat',
-    type: 'num',
-    sortValue: (a) => a.costChfMonth,
-    render: (a) => fmtChf(a.costChfMonth),
-  },
   {
     key: 'usage',
-    label: 'Verbrauch 30 Tage',
+    label: 'Verbrauch 30 T.',
+    title: 'KI-Tokens und Credits von ElevenLabs, letzte 30 Tage',
     type: 'num',
     sortValue: (a) => a.usage?.last30?.ai?.tokens ?? null,
     render: (a) => usageCell(a.usage?.last30),
-  },
-  {
-    key: 'disabled',
-    label: 'Status',
-    sortValue: (a) => (a.disabled ? 1 : 0),
-    render: (a) => statusPill(a.disabled),
   },
 ];
 
@@ -1896,18 +1911,24 @@ function usageCell(usage) {
   if (!usage) return h('span', { class: 'muted', text: '—' });
   return h('span', {
     class: 'usage-cell',
-    title: 'KI-Tokens und Credits von ElevenLabs, letzte 30 Tage',
     text: `${fmtInt(usage.ai?.tokens)} Tokens · ${fmtCredits(usage.speech?.credits)} Credits`,
   });
 }
 
+/** Name, darunter @name und E-Mail; ein gesperrtes Konto trägt es gleich daneben. */
 function accountNameCell(account) {
   const first = typeof account.firstName === 'string' ? account.firstName.trim() : '';
+  const sub = [first && account.username ? `@${account.username}` : null, account.email].filter(Boolean).join(' · ');
   return h(
     'div',
     { class: 'name-cell' },
-    h('a', { class: 'name-cell__link', href: accountHref(account.id), text: displayName(account) }),
-    first && account.username ? h('span', { class: 'name-cell__user', text: `@${account.username}` }) : null,
+    h(
+      'span',
+      { class: 'name-cell__line' },
+      h('a', { class: 'name-cell__link', href: accountHref(account.id), text: displayName(account) }),
+      account.disabled ? pill('⊘', 'gesperrt', 'danger') : null,
+    ),
+    sub ? h('span', { class: 'name-cell__user', text: sub }) : null,
   );
 }
 
@@ -1916,6 +1937,7 @@ function filterAccounts(accounts, { query, status }) {
   return accounts.filter((account) => {
     if (status === 'disabled' && !account.disabled) return false;
     if (status === 'active' && account.disabled) return false;
+    if (status === 'paid' && asArray(account.paidApps).length === 0) return false;
     if (!needle) return true;
     return [account.firstName, account.username, account.email, account.id].some(
       (value) => typeof value === 'string' && value.toLowerCase().includes(needle),
@@ -1934,7 +1956,7 @@ async function renderAccounts(ctx) {
       accountsUi = { ...accountsUi, sort };
     },
     rowHref: (account) => accountHref(account.id),
-    emptyText: accounts.length ? 'Kein Konto passt zur Suche.' : 'Noch keine Konten.',
+    emptyText: accounts.length ? 'Kein Konto passt.' : 'Noch keine Konten.',
   });
   const count = h('p', { class: 'toolbar__count', 'aria-live': 'polite' });
   const searchInput = h('input', {
@@ -1942,15 +1964,17 @@ async function renderAccounts(ctx) {
     class: 'input',
     type: 'search',
     value: accountsUi.query,
-    placeholder: 'Name, @benutzername oder E-Mail',
+    placeholder: 'Name, @name oder E-Mail',
+    'aria-label': 'Konten suchen',
     autocomplete: 'off',
     spellcheck: 'false',
   });
   const statusSelect = h(
     'select',
-    { id: uid('status'), class: 'select' },
+    { id: uid('status'), class: 'select', 'aria-label': 'Welche Konten' },
     h('option', { value: 'all', text: 'Alle' }),
-    h('option', { value: 'active', text: 'Aktiv' }),
+    h('option', { value: 'paid', text: 'Mit Abo' }),
+    h('option', { value: 'active', text: 'Nicht gesperrt' }),
     h('option', { value: 'disabled', text: 'Gesperrt' }),
   );
   statusSelect.value = accountsUi.status;
@@ -1958,7 +1982,10 @@ async function renderAccounts(ctx) {
   function apply() {
     const filtered = filterAccounts(accounts, accountsUi);
     table.setRows(filtered);
-    count.textContent = `${fmtInt(filtered.length)} von ${fmtInt(accounts.length)} Konten`;
+    count.textContent =
+      filtered.length === accounts.length
+        ? `${fmtInt(accounts.length)} ${accounts.length === 1 ? 'Konto' : 'Konten'}`
+        : `${fmtInt(filtered.length)} von ${fmtInt(accounts.length)}`;
   }
   searchInput.addEventListener('input', () => {
     accountsUi = { ...accountsUi, query: searchInput.value };
@@ -1971,15 +1998,8 @@ async function renderAccounts(ctx) {
   apply();
 
   return page(
-    { title: 'Konten', subtitle: 'Ein Klick auf eine Zeile öffnet das Konto.', actions: [reloadButton(ctx.reload)] },
-    h(
-      'div',
-      { class: 'toolbar' },
-      h('div', { class: 'field field--grow' }, h('label', { class: 'field__label', for: searchInput.id, text: 'Suchen' }), searchInput),
-      field('Status', statusSelect),
-      count,
-    ),
-    appLegend(),
+    { title: 'Konten', actions: [reloadButton(ctx.reload)] },
+    h('div', { class: 'toolbar' }, h('div', { class: 'field field--grow' }, searchInput), statusSelect, count),
     table.el,
   );
 }
@@ -1988,6 +2008,10 @@ async function renderAccounts(ctx) {
 // 3. Konto-Detail
 // ===========================================================================
 
+/**
+ * Ein Konto: oben wer es ist, dann Zugang und Abo je App (was man hier am
+ * häufigsten tut), Profil und Konto, der Verlauf — der Rest zugeklappt.
+ */
 async function renderAccountDetail(ctx) {
   let data;
   try {
@@ -2006,23 +2030,25 @@ async function renderAccountDetail(ctx) {
     'div',
     { class: 'page', 'data-title': displayName(data.account) },
     accountHeader(store),
-    h(
-      'div',
-      { class: 'grid grid--2' },
-      h('div', { class: 'stack' }, profileCard(store), detailsCard(store)),
-      // Sperre, Zugang und Abo stehen beieinander: alles, was der Admin am Konto freigibt.
-      h('div', { class: 'stack' }, lockCard(store), billingUi().accessCard(store), passwordCard(store), deleteCard(store)),
-    ),
-    usageCard(data.account.usage),
-    card(
-      {
-        title: 'Einträge pro Funktion',
-        actions: [h('span', { class: 'num', text: `${fmtInt(sumOf(counts, (row) => row.items))} zusammen` })],
-      },
-      moduleCountsTable(counts, 'Einträge pro Funktion'),
-    ),
-    aiUsageCard(data.ai),
+    billingUi().accessCard(store),
+    h('div', { class: 'grid grid--2' }, profileCard(store), accountCard(store)),
     historyCard(data.account.id ?? ctx.route.id, data.activity),
+    moreSection('account', [
+      usageCard(data.account.usage),
+      aiUsageCard(data.ai),
+      h(
+        'div',
+        { class: 'grid grid--main-side' },
+        card(
+          {
+            title: 'Einträge pro Funktion',
+            actions: [h('span', { class: 'num', text: fmtInt(sumOf(counts, (row) => row.items)) })],
+          },
+          moduleCountsTable(counts, 'Einträge pro Funktion'),
+        ),
+        settingsCard(store),
+      ),
+    ]),
   );
 }
 
@@ -2033,20 +2059,30 @@ async function patchAccount(store, body) {
   return next;
 }
 
+/** „@lea · lea@example.ch · seit 14.09.2026 · aktiv vor 2 Stunden“ */
+function accountMeta(account) {
+  return [
+    account.username ? `@${account.username}` : null,
+    account.email || null,
+    account.createdAt ? `seit ${fmtDate(account.createdAt)}` : null,
+    account.lastSeenAt ? `aktiv ${fmtRelative(account.lastSeenAt)}` : 'nie aktiv',
+  ].filter(Boolean);
+}
+
 function accountHeader(store) {
   const title = h('h1', { class: 'page__title', tabindex: '-1' });
   const statusSlot = h('span');
-  const email = h('span');
-  const username = h('span');
-  const id = store.get().id ?? '';
+  const meta = h('p', { class: 'account-head__meta' });
 
   function draw(account) {
     title.textContent = displayName(account);
-    statusSlot.replaceChildren(statusPill(account.disabled));
-    email.textContent = account.email ?? '';
-    email.hidden = !account.email;
-    username.textContent = account.username ? `@${account.username}` : '';
-    username.hidden = !account.username;
+    statusSlot.replaceChildren(...(account.disabled ? [pill('⊘', 'Gesperrt', 'danger')] : []));
+    meta.replaceChildren(
+      ...accountMeta(account).flatMap((part, index) => [
+        ...(index > 0 ? [h('span', { class: 'dot', 'aria-hidden': 'true', text: '·' })] : []),
+        h('span', { text: part }),
+      ]),
+    );
   }
   draw(store.get());
   store.subscribe(draw);
@@ -2055,30 +2091,8 @@ function accountHeader(store) {
     'header',
     { class: 'account-head' },
     h('a', { class: 'back', href: '#/accounts' }, h('span', { 'aria-hidden': 'true', text: '‹ ' }), 'Konten'),
-    h('div', { class: 'account-head__row' }, title, statusSlot, billingUi().viewButton(store)),
-    h(
-      'div',
-      { class: 'account-head__meta' },
-      email,
-      username,
-      h(
-        'span',
-        { class: 'id-chip' },
-        h('span', { class: 'sr-only', text: 'Id:' }),
-        h('code', { text: id }),
-        h('button', {
-          type: 'button',
-          class: 'btn btn--small',
-          text: 'Id kopieren',
-          on: {
-            click: async () => {
-              const copied = await copyText(id);
-              toast(copied ? 'Id kopiert.' : 'Kopieren ging nicht. Markiere die Id von Hand.', copied ? 'ok' : 'error');
-            },
-          },
-        }),
-      ),
-    ),
+    h('div', { class: 'account-head__row' }, title, statusSlot, h('span', { class: 'account-head__action' }, billingUi().viewButton(store))),
+    meta,
   );
 }
 
@@ -2117,7 +2131,7 @@ function usernameProblem(value) {
 }
 
 function profileCard(store) {
-  const ids = { name: uid('f'), user: uid('f'), hint: uid('f'), error: uid('f'), lang: uid('f') };
+  const ids = { name: uid('f'), user: uid('f'), error: uid('f'), lang: uid('f') };
   const nameInput = h('input', { id: ids.name, class: 'input', type: 'text', autocomplete: 'off', maxlength: '80' });
   const userInput = h('input', {
     id: ids.user,
@@ -2126,12 +2140,8 @@ function profileCard(store) {
     autocomplete: 'off',
     autocapitalize: 'none',
     spellcheck: 'false',
-    'aria-describedby': `${ids.hint} ${ids.error}`,
-  });
-  const userHint = h('p', {
-    id: ids.hint,
-    class: 'field__hint',
-    text: '3–24 Zeichen, klein geschrieben: a–z, 0–9, Punkt, Strich, Unterstrich. Am Anfang ein Buchstabe oder eine Ziffer.',
+    title: '3–24 Zeichen: a–z, 0–9, Punkt, Strich, Unterstrich',
+    'aria-describedby': ids.error,
   });
   const userError = h('p', { id: ids.error, class: 'field__error', hidden: true });
   const langSelect = h(
@@ -2192,7 +2202,7 @@ function profileCard(store) {
     'form',
     { class: 'form', novalidate: true },
     field('Spitzname', nameInput),
-    field('Benutzername', userInput, userHint, userError),
+    field('Benutzername', userInput, userError),
     field('Sprache', langSelect),
     h('div', { class: 'form__actions' }, saveButton, dirtyNote),
   );
@@ -2236,21 +2246,34 @@ function profileCard(store) {
   return card({ title: 'Profil' }, form);
 }
 
-function detailsCard(store) {
+/** Was das Konto sonst noch weiss — unter „Details“. */
+function settingsCard(store) {
   const slot = h('div');
+  const id = store.get().id ?? '';
+  const copyButton = h('button', {
+    type: 'button',
+    class: 'btn btn--ghost btn--small',
+    text: 'Kopieren',
+    'aria-label': 'Id kopieren',
+    on: {
+      click: async () => {
+        const copied = await copyText(id);
+        toast(copied ? 'Id kopiert.' : 'Kopieren ging nicht. Markiere die Id von Hand.', copied ? 'ok' : 'error');
+      },
+    },
+  });
   function draw(account) {
     const look = [account.themeMode, account.themePreset, account.accentKey].filter(Boolean).join(' · ');
     slot.replaceChildren(
       stats(
         [
-          ['Erstellt', fmtDateTime(account.createdAt)],
-          ['Zuletzt aktiv', account.lastSeenAt ? fmtRelative(account.lastSeenAt) : 'nie'],
           ['Sprache', languageName(account.language)],
-          ['Einrichtung', account.onboarded ? 'abgeschlossen' : 'offen'],
+          ['Einrichtung', account.onboarded ? 'fertig' : 'offen'],
           ['Haushalt', account.householdId ? h('code', { text: account.householdId }) : 'keiner'],
           ['Aussehen', look || '—'],
-          ['Name des Assistenten', account.assistantName || '—'],
-          ['Kosten diesen Monat', fmtChf(account.costChfMonth)],
+          ['Assistent', account.assistantName || '—'],
+          ['KI diesen Monat', fmtChf(account.costChfMonth)],
+          ['Id', h('span', { class: 'id-chip' }, h('code', { text: id }), copyButton)],
         ],
         'stats stats--list',
       ),
@@ -2258,16 +2281,21 @@ function detailsCard(store) {
   }
   draw(store.get());
   store.subscribe(draw);
-  return card({ title: 'Details' }, slot);
+  return card({ title: 'Einstellungen' }, slot);
 }
 
-function lockCard(store) {
+/** Sperren, Passwort, Löschen — je eine Zeile. */
+function accountCard(store) {
+  return card({ title: 'Konto' }, h('ul', { class: 'setting-list' }, lockRow(store), passwordRow(store), deleteRow(store)));
+}
+
+function lockRow(store) {
   let pending = false;
   const labelId = uid('lock');
   const toggleSwitch = createSwitch({
     labelledBy: labelId,
-    onText: 'gesperrt',
-    offText: 'nicht gesperrt',
+    onText: 'ja',
+    offText: 'nein',
     dangerWhen: 'on',
     onToggle: () => toggle(),
   });
@@ -2280,10 +2308,8 @@ function lockCard(store) {
     if (disable) {
       const confirmed = await confirmDialog({
         title: 'Konto sperren?',
-        body:
-          `${displayName(account)} kann sich danach in keiner Better-App mehr anmelden. ` +
-          'Die Daten bleiben erhalten, und du kannst die Sperre jederzeit wieder aufheben.',
-        confirmLabel: 'Konto sperren',
+        body: `${displayName(account)} kann sich in keiner App mehr anmelden. Die Daten bleiben.`,
+        confirmLabel: 'Sperren',
         tone: 'danger',
       });
       if (!confirmed) return;
@@ -2305,19 +2331,17 @@ function lockCard(store) {
 
   draw(store.get());
   store.subscribe(draw);
-  return card(
-    { title: 'Konto sperren', note: 'Ein gesperrtes Konto kann sich nicht mehr anmelden. Die Daten bleiben erhalten.' },
-    h(
-      'div',
-      { class: 'toggle-row' },
-      h('div', { class: 'toggle-row__text' }, h('span', { id: labelId, class: 'toggle-row__title', text: 'Konto gesperrt' })),
-      toggleSwitch.el,
-    ),
+  return h(
+    'li',
+    { class: 'setting-row' },
+    h('span', { id: labelId, class: 'setting-row__title', text: 'Gesperrt' }),
+    toggleSwitch.el,
   );
 }
 
-function passwordCard(store) {
-  const ids = { first: uid('pw'), second: uid('pw'), firstError: uid('pw'), secondError: uid('pw') };
+/** „Neu setzen“ klappt das Formular auf; gespeichert wird erst nach der Rückfrage. */
+function passwordRow(store) {
+  const ids = { form: uid('pw'), first: uid('pw'), second: uid('pw'), firstError: uid('pw'), secondError: uid('pw') };
   const passwordInput = (id, errorId) =>
     h('input', {
       id,
@@ -2332,7 +2356,15 @@ function passwordCard(store) {
   const second = passwordInput(ids.second, ids.secondError);
   const firstError = h('p', { id: ids.firstError, class: 'field__error', hidden: true });
   const secondError = h('p', { id: ids.secondError, class: 'field__error', hidden: true });
-  const submitButton = h('button', { type: 'submit', class: 'btn', text: 'Passwort setzen' });
+  const submitButton = h('button', { type: 'submit', class: 'btn btn--primary btn--small', text: 'Setzen' });
+  const cancelButton = h('button', { type: 'button', class: 'btn btn--ghost btn--small', text: 'Abbrechen' });
+  const openButton = h('button', {
+    type: 'button',
+    class: 'btn btn--small',
+    text: 'Neu setzen',
+    'aria-expanded': 'false',
+    'aria-controls': ids.form,
+  });
   let touched = { first: false, second: false };
   let attempted = false;
   let pending = false;
@@ -2343,7 +2375,7 @@ function passwordCard(store) {
     const showFirst = attempted || touched.first;
     const showSecond = attempted || touched.second;
     setFieldError(first, firstError, showFirst && tooShort ? `Mindestens ${PASSWORD_MIN} Zeichen.` : '');
-    setFieldError(second, secondError, showSecond && !tooShort && mismatch ? 'Die beiden Passwörter stimmen nicht überein.' : '');
+    setFieldError(second, secondError, showSecond && !tooShort && mismatch ? 'Stimmt nicht überein.' : '');
     return { tooShort, mismatch };
   }
 
@@ -2358,7 +2390,21 @@ function passwordCard(store) {
     validate();
   });
 
-  function clearForm() {
+  const form = h(
+    'form',
+    { id: ids.form, class: 'form setting-row__form', novalidate: true, hidden: true },
+    field('Neues Passwort', first, firstError),
+    field('Wiederholen', second, secondError),
+    h('div', { class: 'form__actions' }, submitButton, cancelButton),
+  );
+
+  function setOpen(open) {
+    form.hidden = !open;
+    openButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+      first.focus();
+      return;
+    }
     first.value = '';
     second.value = '';
     touched = { first: false, second: false };
@@ -2366,13 +2412,12 @@ function passwordCard(store) {
     validate();
   }
 
-  const form = h(
-    'form',
-    { class: 'form', novalidate: true },
-    field('Neues Passwort', first, firstError),
-    field('Passwort wiederholen', second, secondError),
-    h('div', { class: 'form__actions' }, submitButton),
-  );
+  openButton.addEventListener('click', () => setOpen(form.hidden));
+  cancelButton.addEventListener('click', () => {
+    if (pending) return;
+    setOpen(false);
+    openButton.focus();
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -2389,18 +2434,17 @@ function passwordCard(store) {
     }
     const confirmed = await confirmDialog({
       title: 'Passwort neu setzen?',
-      body:
-        `Für ${displayName(store.get())} gilt danach nur noch das neue Passwort. ` +
-        'Gib es der Person auf einem sicheren Weg weiter.',
-      confirmLabel: 'Passwort setzen',
+      body: `Für ${displayName(store.get())} gilt danach nur noch das neue Passwort.`,
+      confirmLabel: 'Setzen',
       tone: 'primary',
     });
     if (!confirmed) return;
     pending = true;
-    setBusy(submitButton, true, 'Wird gesetzt …', 'Passwort setzen');
+    setBusy(submitButton, true, 'Setzt …', 'Setzen');
     try {
       await api(`${accountPath(store.get().id)}/password`, { method: 'POST', body: { password: first.value } });
-      clearForm();
+      setOpen(false);
+      openButton.focus();
       toast('Passwort gesetzt.');
     } catch (err) {
       reportUnexpected(err);
@@ -2411,18 +2455,21 @@ function passwordCard(store) {
       toast(errorContent(err), 'error');
     } finally {
       pending = false;
-      setBusy(submitButton, false, 'Wird gesetzt …', 'Passwort setzen');
+      setBusy(submitButton, false, 'Setzt …', 'Setzen');
     }
   });
 
-  return card(
-    { title: 'Passwort setzen', note: `Mindestens ${PASSWORD_MIN} Zeichen. Das Passwort wird nirgends angezeigt oder gespeichert.` },
+  return h(
+    'li',
+    { class: 'setting-row' },
+    h('span', { class: 'setting-row__title', text: 'Passwort' }),
+    openButton,
     form,
   );
 }
 
-function deleteCard(store) {
-  const button = h('button', { type: 'button', class: 'btn btn--danger', text: 'Konto löschen…' });
+function deleteRow(store) {
+  const button = h('button', { type: 'button', class: 'btn btn--danger btn--small', text: 'Löschen …' });
 
   button.addEventListener('click', async () => {
     const account = store.get();
@@ -2430,14 +2477,14 @@ function deleteCard(store) {
     const deleted = await typedConfirmDialog({
       title: 'Konto endgültig löschen?',
       body: [
-        `${displayName(account)} verliert alle privaten Einträge, eigenen Kalender, Postfächer und Bilder. ` +
-          'Was mit dem Haushalt geteilt ist, bleibt dort. Zum Bestätigen die E-Mail des Kontos eintippen: ',
+        `${displayName(account)} verliert alle privaten Einträge, Kalender, Postfächer und Bilder. ` +
+          'Was mit dem Haushalt geteilt ist, bleibt. Eine Sicherung landet in data/deleted-accounts. Zum Bestätigen: ',
         h('strong', { text: email || '—' }),
       ],
       expected: email,
       inputLabel: 'E-Mail des Kontos',
       confirmLabel: 'Endgültig löschen',
-      busyLabel: 'Wird gelöscht …',
+      busyLabel: 'Löscht …',
       onConfirm: (typed) => api(accountPath(account.id), { method: 'DELETE', body: { confirm: typed } }),
     });
     if (!deleted) return;
@@ -2445,23 +2492,16 @@ function deleteCard(store) {
     location.hash = '#/accounts';
   });
 
-  return card(
-    {
-      title: 'Konto löschen',
-      className: 'card--danger',
-      note: [
-        'Löscht das Konto mit allen privaten Einträgen, Kalendern, Postfächern und Bildern. ',
-        'Was mit dem Haushalt geteilt ist, bleibt dort. Eine Sicherung landet in ',
-        h('code', { text: 'services/api/data/deleted-accounts' }),
-        '.',
-      ],
-    },
-    h('div', { class: 'form__actions' }, button),
+  return h(
+    'li',
+    { class: 'setting-row' },
+    h('span', { class: 'setting-row__title setting-row__title--danger', text: 'Konto löschen' }),
+    button,
   );
 }
 
 const USAGE_ROWS = [
-  { group: 'KI (Safe Swiss Cloud)' },
+  { group: 'KI' },
   { label: 'Anfragen', pick: (u) => u.ai?.requests, format: fmtInt },
   { label: 'Tokens Eingabe', pick: (u) => u.ai?.promptTokens, format: fmtInt },
   { label: 'Tokens Ausgabe', pick: (u) => u.ai?.completionTokens, format: fmtInt },
@@ -2508,10 +2548,7 @@ function usageCard(usage) {
     ),
   );
   return card(
-    {
-      title: 'Verbrauch',
-      note: 'Tokens der KI und Credits von ElevenLabs. Ein Satz aus dem Zwischenspeicher kostet nichts.',
-    },
+    { title: 'Verbrauch', hint: 'Ein Satz aus dem Zwischenspeicher kostet nichts' },
     h('div', { class: 'table-wrap', role: 'region', 'aria-label': 'Verbrauch', tabindex: '0' }, table),
   );
 }
@@ -2594,8 +2631,14 @@ function historyCard(accountId, initial) {
     {
       title: 'Verlauf',
       actions: [
-        h('button', { type: 'button', class: 'btn btn--ghost btn--small', text: 'Neu laden', on: { click: () => feed.reload() } }),
-        h('a', { class: 'btn btn--ghost btn--small', href: activityHref({ accountId }), text: 'Im ganzen Verlauf öffnen' }),
+        h('button', {
+          type: 'button',
+          class: 'btn btn--ghost btn--small',
+          'aria-label': 'Verlauf neu laden',
+          text: '↻',
+          on: { click: () => feed.reload() },
+        }),
+        h('a', { class: 'btn btn--ghost btn--small', href: activityHref({ accountId }), text: 'Alle ›' }),
       ],
     },
     feed.el,
@@ -2625,7 +2668,7 @@ async function renderActivity(ctx) {
   const sortedAccounts = [...accounts].sort((a, b) => collator.compare(displayName(a), displayName(b)));
   const accountSelect = h(
     'select',
-    { id: uid('filter'), class: 'select' },
+    { id: uid('filter'), class: 'select', 'aria-label': 'Konto' },
     h('option', { value: '', text: 'Alle Konten' }),
     sortedAccounts.map((account) =>
       h('option', {
@@ -2641,15 +2684,17 @@ async function renderActivity(ctx) {
 
   const kindSelect = h(
     'select',
-    { id: uid('filter'), class: 'select' },
-    h('option', { value: '', text: 'Alle Arten' }),
-    Object.entries(KIND_LABELS).map(([value, label]) => h('option', { value, text: label })),
+    { id: uid('filter'), class: 'select', 'aria-label': 'Art' },
+    h('option', { value: '', text: 'Alles' }),
+    KIND_FILTERS.map(([value, label]) => h('option', { value, text: label })),
   );
-  if (filter.kind && !(filter.kind in KIND_LABELS)) kindSelect.append(h('option', { value: filter.kind, text: filter.kind }));
+  if (filter.kind && !KIND_FILTERS.some(([value]) => value === filter.kind)) {
+    kindSelect.append(h('option', { value: filter.kind, text: filter.kind }));
+  }
   kindSelect.value = filter.kind;
 
   const feed = activityFeed({ filter, showAccount: true, headingTag: 'h2', accountsById });
-  const resetButton = h('button', { type: 'button', class: 'btn btn--ghost', text: 'Filter zurücksetzen' });
+  const resetButton = h('button', { type: 'button', class: 'btn btn--ghost', text: 'Zurücksetzen' });
 
   function currentFilter() {
     return { accountId: accountSelect.value, kind: kindSelect.value };
@@ -2671,15 +2716,9 @@ async function renderActivity(ctx) {
   resetButton.hidden = !filter.accountId && !filter.kind;
 
   return page(
-    {
-      title: 'Verlauf',
-      subtitle: 'Was in den Konten passiert ist, das Neueste zuerst.',
-      actions: [reloadButton(() => feed.reload(currentFilter()))],
-    },
-    h('div', { class: 'toolbar' }, field('Konto', accountSelect), field('Art', kindSelect), resetButton),
-    accountsFailed
-      ? h('p', { class: 'note' }, 'Die Kontenliste fehlt gerade, darum geht der Filter nach Konto nicht. ', errorContent(accountsFailed))
-      : null,
+    { title: 'Verlauf', actions: [reloadButton(() => feed.reload(currentFilter()))] },
+    h('div', { class: 'toolbar' }, accountSelect, kindSelect, resetButton),
+    accountsFailed ? h('p', { class: 'note' }, 'Filter nach Konto geht gerade nicht: ', errorContent(accountsFailed)) : null,
     feed.el,
   );
 }
@@ -2728,7 +2767,6 @@ async function renderCosts(ctx) {
   return page(
     {
       title: 'Kosten',
-      subtitle: 'Pro Monat: die KI in Franken, die Stimmen in Credits.',
       actions: [field('Monat', select), reloadButton(ctx.reload)],
     },
     body,
@@ -2737,9 +2775,6 @@ async function renderCosts(ctx) {
 
 function costsContent(data, requestedMonth) {
   const month = typeof data?.month === 'string' && MONTH_RE.test(data.month) ? data.month : requestedMonth;
-  const total = data?.totalChf;
-  const minimum = data?.monthlyMinimumChf;
-  const coverage = isNum(total) && isNum(minimum) && minimum > 0 ? total / minimum : null;
   const tierRows = asArray(data?.byTier);
   const tierRequests = sumOf(tierRows, (row) => row.requests);
 
@@ -2819,33 +2854,30 @@ function costsContent(data, requestedMonth) {
   return h(
     'div',
     { class: 'page' },
-    stats(
-      [
-        ['Verbrauch', fmtChf(total)],
-        ['Mindestgebühr', fmtChf(minimum)],
+    billingUi().marginCard(data?.margin, { title: `Marge ${monthLabel(month)}` }),
+    card(
+      { title: 'KI', hint: 'Safe Swiss Cloud verrechnet jeden Monat mindestens die Mindestgebühr' },
+      stats([
+        ['Verbrauch', fmtChf(data?.totalChf)],
+        ['Mindestgebühr', fmtChf(data?.monthlyMinimumChf)],
         ['Zu zahlen', fmtChf(data?.billableChf), 'strong'],
-      ],
-      'kpis',
+      ]),
+      h(
+        'div',
+        { class: 'grid grid--2' },
+        h('div', null, h('h3', { class: 'subhead', text: 'Pro App' }), appTable.el),
+        h('div', null, h('h3', { class: 'subhead', text: 'Pro Stufe' }), tierTable.el),
+      ),
+      h('h3', { class: 'subhead', text: 'Pro Konto' }),
+      accountTable.el,
     ),
-    h(
-      'p',
-      { class: 'note' },
-      'Safe Swiss Cloud verrechnet jeden Monat mindestens die Mindestgebühr: Liegt der Verbrauch darunter, ' +
-        'zahlst du die Mindestgebühr, sonst den Verbrauch.',
-      coverage !== null ? ` Im ${monthLabel(month)} deckt der Verbrauch ${fmtPct(coverage)} davon.` : '',
-    ),
-    billingUi().marginCard(data?.margin, { title: `Marge im ${monthLabel(month)}` }),
-    h(
-      'div',
-      { class: 'grid grid--2' },
-      card({ title: 'Pro App' }, appTable.el),
-      card({ title: 'Pro Stufe' }, tierTable.el),
-    ),
-    card({ title: 'Pro Konto' }, accountTable.el),
     speechCostsCard(data?.speech),
-    speechCacheCard(data?.speech?.cache),
-    dailyChartCard({ title: `Pro Tag im ${monthLabel(month)}`, byDay: data?.byDay, dayKeys: monthDayKeys(month), metric: 'costChf' }),
-    card({ title: 'Preise', note: 'Franken pro 1 Mio. Tokens, so wie der Dienst sie rechnet.' }, priceTable.el),
+    dailyChartCard({ title: 'KI pro Tag', byDay: data?.byDay, dayKeys: monthDayKeys(month), metric: 'costChf' }),
+    moreSection(
+      'costs',
+      [speechCacheCard(data?.speech?.cache), card({ title: 'Preise', hint: 'CHF pro 1 Mio. Tokens' }, priceTable.el)],
+      'Zwischenspeicher und Preise',
+    ),
   );
 }
 
@@ -2893,10 +2925,7 @@ function speechCostsCard(speech) {
   appTable.setRows(asArray(speech.byApp).filter((row) => row.requests > 0));
   const limit = speech.monthlyCredits;
   return card(
-    {
-      title: 'Stimme (ElevenLabs)',
-      note: 'ElevenLabs rechnet in Credits pro Zeichen. Ein Satz aus dem Zwischenspeicher kostet nichts, eine Probe entsteht je Stimme nur einmal.',
-    },
+    { title: 'Stimme', hint: 'ElevenLabs: ein Credit je Zeichen; aus dem Zwischenspeicher gratis' },
     stats([
       ['Credits', isNum(limit) && limit > 0 ? `${fmtCredits(speech.credits)} / ${fmtInt(limit)}` : fmtCredits(speech.credits)],
       ['Erzeugte Zeichen', fmtInt(speech.characters)],
@@ -2941,10 +2970,7 @@ function speechCacheCard(cache) {
   });
   top.setRows(asArray(cache.top).map((row, index) => ({ ...row, rank: index + 1 })));
   return card(
-    {
-      title: 'Zwischenspeicher der Stimmen',
-      note: 'Oft gesagte Sätze bleiben am längsten, Proben immer. Der Wortlaut steht hier bewusst nicht — nur Länge und wie oft.',
-    },
+    { title: 'Zwischenspeicher der Stimmen', hint: 'Nie der Wortlaut, nur Länge und wie oft' },
     stats([
       ['Gespeicherte Sätze', isNum(cache.maxFiles) ? `${fmtInt(cache.entries)} von ${fmtInt(cache.maxFiles)}` : fmtInt(cache.entries)],
       ['Grösse', isNum(cache.maxBytes) ? `${fmtBytes(cache.bytes)} von ${fmtBytes(cache.maxBytes)}` : fmtBytes(cache.bytes)],
@@ -3127,28 +3153,27 @@ function buildDemoDb() {
     });
   }
 
+  // Wie der Dienst: nur Konten, Anmelden, Abo und was der Admin tat — nie jede Eingabe.
   const activity = [];
-  const kinds = ['session.created', 'collection.changed', 'collection.changed', 'collection.changed', 'profile.updated', 'session.failed', 'session.blocked', 'ai.reply'];
-  for (let k = 0; k < 260; k += 1) {
-    const account = pick(accounts);
-    const kind = pick(kinds);
-    const app = pick(APPS).id;
-    const call = pick(aiCalls);
-    const details = {
-      'session.created': { app },
-      'session.failed': { app, reason: 'wrong_password' },
-      'session.blocked': { app: 'bettermoney' },
-      'profile.updated': { fields: pick([['firstName'], ['language', 'themeMode'], ['assistantVoice']]) },
-      'collection.changed': {
-        collection: pick([...Object.keys(COLLECTION_NAMES), 'weatherPlaces']),
-        added: Math.floor(rand() * 4),
-        updated: Math.floor(rand() * 3),
-        removed: Math.floor(rand() * 2),
-      },
-      'ai.reply': { app: call.app, tier: call.tier, model: call.model, costChf: call.costChf, ok: call.ok, error: call.error },
-    };
-    activity.push({ at: iso(now - k * 2 * HOUR_MS - Math.floor(rand() * HOUR_MS)), accountId: account.id, kind, detail: details[kind] });
+  const at = (hoursAgo) => iso(now - hoursAgo * HOUR_MS - Math.floor(rand() * HOUR_MS));
+  const active = accounts.filter((account) => !account.disabled && account.apps.length > 0);
+  for (let k = 0; k < 70; k += 1) {
+    const account = pick(active);
+    const kind = rand() < 0.9 ? 'session.created' : 'session.failed';
+    activity.push({ at: at(k * 9), accountId: account.id, kind, detail: {} });
   }
+  const [matteo, lea, nico, , sam] = accounts;
+  activity.push(
+    { at: at(5), accountId: sam.id, kind: 'session.blocked', detail: {} },
+    { at: at(30), accountId: sam.id, kind: 'session.blocked', detail: {} },
+    { at: at(52), accountId: sam.id, kind: 'admin.updated', detail: { fields: ['disabled'] } },
+    { at: at(80), accountId: nico.id, kind: 'admin.updated', detail: { fields: ['blockedApps'] } },
+    { at: at(120), accountId: matteo.id, kind: 'admin.planApproved', detail: { app: 'betterai' } },
+    { at: at(140), accountId: lea.id, kind: 'plan.cancelled', detail: { app: 'bettergym' } },
+    { at: at(150), accountId: lea.id, kind: 'plan.resumed', detail: { app: 'bettergym' } },
+    { at: at(200), accountId: lea.id, kind: 'admin.password', detail: {} },
+    { at: at(8), accountId: matteo.id, kind: 'admin.viewed', detail: { app: 'getbetter' } },
+  );
   accounts.forEach((account) => activity.push({ at: account.createdAt, accountId: account.id, kind: 'account.created', detail: {} }));
   // Drei offene Abo-Anfragen (Nico, Giulia, ohne Namen) und eine schon abgelehnte.
   const planRequests = [
@@ -3165,7 +3190,7 @@ function buildDemoDb() {
     decidedAt: status === 'pending' ? null : iso(now - ageMs + HOUR_MS),
   }));
   planRequests.forEach((request) =>
-    activity.push({ at: request.createdAt, accountId: request.accountId, kind: 'plan.requested', detail: { app: request.app } }),
+    activity.push({ at: request.createdAt, accountId: request.accountId, kind: 'plan.requested', detail: { app: request.app, term: request.app === 'bettergym' ? 'year' : 'month' } }),
   );
   activity.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
@@ -3497,6 +3522,7 @@ function demoOverview(db) {
     })),
     ai: {
       configured: true,
+      provider: 'safeswisscloud',
       requests30: calls30.length,
       costChf30: sumOf(calls30, (c) => c.costChf),
       costChfMonth: sumOf(db.aiCalls.filter((c) => monthKeyOf(new Date(c.at)) === month), (c) => c.costChf),
@@ -3514,10 +3540,11 @@ function demoOverview(db) {
 function demoActivity(db, params) {
   const limit = clamp(Number.parseInt(params.get('limit') ?? '', 10) || PAGE_SIZE, 1, 500);
   const before = params.get('before');
+  const kind = params.get('kind');
   const emailOf = new Map(db.accounts.map((a) => [a.id, a.email]));
   return db.activity
     .filter((entry) => !params.get('accountId') || entry.accountId === params.get('accountId'))
-    .filter((entry) => !params.get('kind') || entry.kind === params.get('kind'))
+    .filter((entry) => !kind || entry.kind === kind || entry.kind.startsWith(`${kind}.`))
     .filter((entry) => !before || Date.parse(entry.at) < Date.parse(before))
     .slice(0, limit)
     .map((entry) => ({ ...entry, email: emailOf.get(entry.accountId) ?? null }));

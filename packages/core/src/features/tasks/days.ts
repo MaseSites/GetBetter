@@ -1,5 +1,6 @@
 // Relative Pfade mit Absicht: so laeuft die Datei auch in den Tests unter Node.
 import { dayKey } from '../../db/pure';
+import { readClock } from '../shared/clock';
 
 /**
  * Tagesrechnung der Aufgaben: ein Tag ist `YYYY-MM-DD` in Ortszeit, ohne
@@ -81,11 +82,10 @@ export function timeOf(hour: number, minute: number): string | null {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-/** Nimmt „9:05“, „09:05“ und „9.05“ — gibt `09:05` zurueck oder null. */
+/** Nimmt „9:05“, „9.05“, „18“ und „1830“ (`readClock`) — gibt `09:05` zurueck oder null. */
 export function parseClock(input: string): string | null {
-  const match = /^(\d{1,2})[:.](\d{2})$/u.exec(input.trim());
-  if (!match) return null;
-  return timeOf(Number(match[1]), Number(match[2]));
+  const clock = readClock(input);
+  return clock ? timeOf(clock.hour, clock.minute) : null;
 }
 
 export function minutesOfTime(time: string): number {

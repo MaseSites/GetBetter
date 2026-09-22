@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import type { AlarmRow } from '@/db';
 import { alarms as alarmRepo } from '@/db/repositories';
 import { useTranslate, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Chip, Icon, Sheet, Text, Wheel, WheelFrame } from '@/ui';
+import { Chip, Icon, Sheet, Text, Toggle, Wheel, WheelFrame } from '@/ui';
 
 export const WEEKDAYS = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
@@ -219,12 +219,10 @@ export function AlarmEditor({ visible, accountId, alarm, onClose }: AlarmEditorP
           ) : null}
 
           <Row label={t('alarm.snooze')}>
-            <Switch
+            <Toggle
               value={snooze}
               onValueChange={setSnooze}
               accessibilityLabel={t('alarm.snooze')}
-              trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
-              thumbColor={theme.colors.surface}
             />
           </Row>
 

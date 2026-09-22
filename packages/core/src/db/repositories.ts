@@ -266,6 +266,14 @@ export const events = {
     await db.events.removeWhere((row) => groupOf(row) === groupId);
     changed(null);
   },
+
+  /** Rueckgaengig zu `remove`: die Zeilen genau so, wie sie vorher waren. */
+  async restore(rows: readonly EventRow[]) {
+    const all = await db.events.list();
+    const missing = rows.filter((row) => !all.some((existing) => existing.id === row.id));
+    for (const row of missing) await db.events.insert(row);
+    if (missing.length > 0) changed(null);
+  },
 };
 
 /** Die Felder, die alle Kopien eines Termins gemeinsam haben. */

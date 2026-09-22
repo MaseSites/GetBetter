@@ -3,14 +3,15 @@
  *
  * - `BETTER_DATA_DIR`         wohin Datenbank, Bilder und Mail-Geheimnisse gehen
  *                             (Standard: services/api/data)
- * - `BETTER_MAIL_SYNC_MS`     Takt des Mail-Abgleichs in ms (Standard 120000, 0 = aus)
+ * - `BETTER_MAIL_SYNC_MS`     Takt des Mail-Abgleichs in ms (Standard 10000, 0 = aus)
  * - `BETTER_MAIL_ALLOW_PLAIN` nur fuer Tests: `1` erlaubt unverschluesselte
  *                             Verbindungen zu 127.0.0.1
  * - `BETTER_ADMIN_PORT`       Port des Admins auf 127.0.0.1 (Standard 8091, 0 = aus)
  */
 const path = require('node:path');
 
-const DEFAULT_SYNC_MS = 120_000;
+/** Neue E-Mails sollen nach hoechstens zehn Sekunden da sein. */
+const DEFAULT_SYNC_MS = 10_000;
 const DEFAULT_ADMIN_PORT = 8091;
 const MAX_PORT = 65_535;
 

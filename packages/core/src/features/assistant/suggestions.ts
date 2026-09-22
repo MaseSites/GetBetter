@@ -6,9 +6,9 @@ import type { TranslationKey } from '../../i18n/de';
  * das Konto schon war. Rein gerechnet — aus einem Startwert kommt immer
  * dieselbe Auswahl, darum laesst es sich testen.
  *
- * Im Vorrat steht nur, was wirklich ankommt: die zwei Auftraege, die `route()`
- * erkennt (Einkauf und Aemtli), und sonst Fragen, die die KI ohne eigene Daten
- * beantworten kann. Nichts, was so tut, als kenne er den Kalender.
+ * Im Vorrat steht nur, was wirklich ankommt: zwei Auftraege (Einkauf und
+ * Aemtli) und sonst Fragen, die die KI ohne eigene Daten beantworten kann.
+ * Nichts, was so tut, als kenne er den Kalender.
  */
 const POOL: Readonly<Record<AppId, readonly TranslationKey[]>> = {
   getbetter: [
@@ -26,6 +26,15 @@ const POOL: Readonly<Record<AppId, readonly TranslationKey[]>> = {
   bettergym: ['assistant.chip.workout', 'assistant.chip.water', 'assistant.chip.sleep'],
   betterai: ['assistant.chip.explain', 'assistant.chip.idea'],
   bettermoney: ['assistant.chip.save', 'assistant.chip.budget'],
+};
+
+/**
+ * Beispiele, die etwas eintragen: nur in Apps, deren KI das auch kann
+ * (`add_shopping`, `add_chore` in `services/api/ai/tools.js`).
+ */
+const ACTION_APPS: Partial<Record<TranslationKey, readonly AppId[]>> = {
+  'assistant.chip.shopping': ['getbetter', 'betterfamily'],
+  'assistant.chip.chore': ['getbetter', 'betterfamily'],
 };
 
 /** So viele Beispiele stehen da — mehr wird die Zeile unter dem Feld zu voll. */
@@ -61,7 +70,7 @@ function stepOf(seed: number): () => number {
  */
 export function poolFor(current: AppId, seen: readonly string[]): readonly TranslationKey[] {
   const apps = [current, ...seen.filter((app): app is AppId => isAppId(app) && app !== current)];
-  return apps.flatMap((app) => POOL[app]);
+  return apps.flatMap((app) => POOL[app]).filter((key) => ACTION_APPS[key]?.includes(current) ?? true);
 }
 
 /**

@@ -162,6 +162,8 @@ export type AppContextValue = {
    * der Dienst — darum sagt der Rueckgabewert, ob es geklappt hat.
    */
   setUsername: (name: string) => Promise<UsernameSave>;
+  /** Das Profilbild aus `/v1/uploads` — null nimmt es weg. Gilt in allen Apps. */
+  setPhoto: (uploadId: string | null) => Promise<void>;
   /** Der Hintergrund: `app`, ein Schluessel aus `BACKDROPS` oder `upload:<id>`. */
   setBackdrop: (key: string) => Promise<void>;
 
@@ -513,6 +515,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [account],
   );
 
+  const setPhoto = useCallback<AppContextValue['setPhoto']>(
+    async (uploadId) => {
+      if (!account) return;
+      const updated = await updateAccount(account.id, { photoUploadId: uploadId });
+      if (updated) setAccount(updated);
+    },
+    [account],
+  );
+
   const createHousehold = useCallback(
     async (name: string) => {
       if (!account) return false;
@@ -586,6 +597,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAssistantAvatar,
       setFirstName,
       setUsername,
+      setPhoto,
       setBackdrop,
       createHousehold,
       switchHousehold,
@@ -619,6 +631,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAssistantAvatar,
       setFirstName,
       setUsername,
+      setPhoto,
       setBackdrop,
       household,
       role,

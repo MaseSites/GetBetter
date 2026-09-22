@@ -11,6 +11,30 @@ export type AiApp = 'getbetter' | 'betterfamily' | 'bettergym' | 'betterai' | 'b
 
 export type AiTurn = { role: 'user' | 'assistant'; text: string };
 
+/** Was der Assistent über die Daten weiss — eine Zeile je Eintrag, Ortszeit. */
+export type AiContextItem = {
+  /** Kennung wie `T1`: darüber trifft er bestehende Einträge. */
+  ref?: string;
+  kind: 'event' | 'task' | 'alarm' | 'birthday' | 'habit' | 'note' | 'shopping' | 'chore' | 'bill';
+  title: string;
+  /** `YYYY-MM-DD` */
+  date?: string;
+  /** `HH:MM` */
+  time?: string;
+  end?: string;
+  note?: string;
+};
+
+export type AiContext = {
+  /** Jetzt in Ortszeit, `YYYY-MM-DDTHH:MM`. */
+  now: string;
+  items: readonly AiContextItem[];
+  facts?: readonly { label: string; value: string }[];
+};
+
+/** Ein Funktionsaufruf, geprüft vom Dienst — ausgeführt wird in der App. */
+export type AiAction = { name: string; args: Record<string, unknown> };
+
 export type AiRequest = {
   accountId: string;
   app: AiApp;
@@ -19,6 +43,11 @@ export type AiRequest = {
   /** Im Gespräch per Stimme: kürzer, und dazu ein Text zum Vorlesen. */
   voice?: boolean;
   imageUploadId?: string;
+  /** Die Funktionen der App anbieten (der Assistent, nie BetterAi). */
+  tools?: boolean;
+  /** Nur diese Funktionen anbieten — was zum Satz passt, spart Tokens. */
+  toolNames?: readonly string[];
+  context?: AiContext;
 };
 
 export type AiReply = {
@@ -28,6 +57,8 @@ export type AiReply = {
   response: string;
   /** Nur mit `voice`: ohne Zeichen, Listen und Links, zum Vorlesen. */
   voice_text?: string;
+  /** Nur mit `tools`: was die App tun soll. Dann darf `response` leer sein. */
+  actions?: readonly AiAction[];
   estimated_cost_level: 'low' | 'medium' | 'high';
 };
 

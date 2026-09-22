@@ -9,6 +9,12 @@ const { load } = require('./store.js');
 /** Dieselbe Regel wie in den Apps (`packages/core/src/auth/accounts.ts`). */
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,23}$/;
 const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Den Benutzernamen gibt es einmal im Monat neu — so bleibt man fuer andere
+ * auffindbar. Dieselbe Zahl in `packages/core/src/features/profile/usernameCooldown.ts`.
+ */
+const USERNAME_COOLDOWN_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function hashPassword(password, salt) {
   return new Promise((resolve, reject) => {
@@ -38,6 +44,18 @@ function normaliseUsername(input) {
     .replace(/^@/, '');
 }
 
+/**
+ * Ab wann der Benutzername wieder geaendert werden darf, als ISO-Zeitpunkt —
+ * null heisst: jetzt schon. Beim Anlegen zaehlt nichts; erst eine Aenderung
+ * setzt `usernameChangedAt`.
+ */
+function usernameFreeAt(row, now = new Date()) {
+  const changed = Date.parse(row?.usernameChangedAt ?? '');
+  if (Number.isNaN(changed)) return null;
+  const free = changed + USERNAME_COOLDOWN_DAYS * DAY_MS;
+  return free > now.getTime() ? new Date(free).toISOString() : null;
+}
+
 async function usernameFor(email) {
   const db = await load();
   const base = (normaliseEmail(email).split('@')[0] ?? 'nutzer').replace(/[^a-z0-9._-]/g, '');
@@ -51,10 +69,12 @@ async function usernameFor(email) {
 
 module.exports = {
   MIN_PASSWORD_LENGTH,
+  USERNAME_COOLDOWN_DAYS,
   USERNAME_PATTERN,
   hashPassword,
   matches,
   normaliseEmail,
   normaliseUsername,
   usernameFor,
+  usernameFreeAt,
 };

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import type { EventRow } from '@/db';
 import { useTheme } from '@/theme';
-import { Text } from '@/ui';
+import { FlashRing, Text } from '@/ui';
 
 import { eventColor } from './colors';
 import { isToday, minutesOfDay, startOfDay } from './dates';
@@ -85,7 +85,17 @@ export type TimeGridProps = {
   onPressEvent: (event: EventRow) => void;
   /** In der Wochenansicht bleibt nur Platz fuer den Titel. */
   compact?: boolean;
+  /**
+   * Beim Oeffnen dorthin rollen (Minuten seit Mitternacht) und diesen Termin
+   * hervorheben — wer aus dem Zeitstrahl kommt, sieht ihn gleich.
+   */
+  focus?: { minutes: number; eventId: string | null } | null;
 };
+
+/** Ohne Anlass steht der Tag beim Oeffnen bei 7 Uhr — eine Stunde Luft ueber 8. */
+const OPEN_AT_MINUTES = 8 * 60;
+/** So viel vom Tag steht ueber dem Termin, zu dem der Kalender rollt. */
+const LEAD_MINUTES = 60;
 
 const clock = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(Math.floor(minutes % 60)).padStart(2, '0')}`;
@@ -95,21 +105,31 @@ const clock = (minutes: number) =>
  * Kante, und eine Linie in Signalgruen fuer jetzt — die einzige Farbe, die
  * im Raster nicht von einem Termin kommt.
  */
-export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: TimeGridProps) {
+export function TimeGrid({
+  days,
+  events,
+  onPressSlot,
+  onPressEvent,
+  compact,
+  focus = null,
+}: TimeGridProps) {
   const theme = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const single = days.length === 1;
   const right = single ? theme.spacing.edge : 0;
-
-  // Beim Oeffnen nicht bei Mitternacht stehen, sondern beim Arbeitstag.
-  useEffect(() => {
-    const target = Math.max(0, 7 * HOUR_HEIGHT);
-    const timer = setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 50);
-    return () => clearTimeout(timer);
-  }, []);
-
   const nowMinutes = minutesOfDay(new Date());
   const showNow = days.some((day) => isToday(day));
+
+  // Beim Oeffnen nicht bei Mitternacht stehen: beim angetippten Termin, heute
+  // bei jetzt, sonst beim Arbeitstag — immer mit einer Stunde Luft darueber.
+  const [openAt] = useState(() => {
+    const minutes = focus?.minutes ?? (showNow ? nowMinutes : OPEN_AT_MINUTES);
+    return Math.max(0, ((minutes - LEAD_MINUTES) / 60) * HOUR_HEIGHT);
+  });
+  useEffect(() => {
+    const timer = setTimeout(() => scrollRef.current?.scrollTo({ y: openAt, animated: false }), 50);
+    return () => clearTimeout(timer);
+  }, [openAt]);
 
   return (
     <ScrollView ref={scrollRef} style={styles.fill} showsVerticalScrollIndicator={false}>
@@ -177,6 +197,7 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
                   const width = `${100 / columns}%` as const;
                   const left = `${(100 / columns) * column}%` as const;
                   const short = height < 44;
+                  const focused = focus?.eventId === event.id;
                   return (
                     <Pressable
                       key={event.id}
@@ -200,6 +221,8 @@ export function TimeGrid({ days, events, onPressSlot, onPressEvent, compact }: T
                         },
                       ]}
                     >
+                      {/* Der Termin, zu dem man kam, leuchtet kurz auf. */}
+                      {focused ? <FlashRing radius={theme.radii.sm} /> : null}
                       <View style={[styles.rail, { backgroundColor: eventColor(event.color) }]} />
                       <Text
                         variant="label"

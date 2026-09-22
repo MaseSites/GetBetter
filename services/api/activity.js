@@ -2,6 +2,10 @@
  * Was mit den Konten geschieht, fuer den Admin: jede Zeile in
  * `<datenordner>/activity.jsonl` ist ein Ereignis. Nur anhaengen, nie aendern.
  *
+ * Nur, was zaehlt: Konto angelegt, Anmelden (geglueckt, falsch, gesperrt),
+ * Abo und alles, was der Admin tut. Was die Nutzer in den Apps eintragen oder
+ * am Profil aendern, steht hier nicht.
+ *
  * Zeile: `{ at, accountId, kind, detail }`. `detail` traegt nur Namen und
  * Zahlen — nie ein Passwort, einen Nachrichtentext, den Inhalt einer Notiz,
  * eine Mail oder eine Adresse, die kein Konto hat. Waechst die Datei ueber
@@ -16,6 +20,12 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_DETAIL_CHARS = 4000;
 const MAX_ID_LENGTH = 100;
 const KIND_PATTERN = /^[a-z][a-zA-Z]*(\.[a-z][a-zA-Z]*)*$/;
+/**
+ * Frueher im Verlauf, heute nicht mehr: jede Aenderung einer Sammlung, des
+ * Profils und jede KI-Antwort (die steht unter Kosten). Solche Zeilen werden
+ * nicht mehr geschrieben; alte bleiben in der Datei, fallen beim Lesen aber weg.
+ */
+const IGNORED_KINDS = new Set(['collection.changed', 'profile.updated', 'ai.reply']);
 
 /** Je Datenordner schreibt immer nur einer — sonst verschraenken sich Zeilen beim Drehen. */
 const queues = new Map();
@@ -28,6 +38,7 @@ function lineOf(entry) {
   if (!isPlainObject(entry) || typeof entry.kind !== 'string' || !KIND_PATTERN.test(entry.kind)) {
     return null;
   }
+  if (IGNORED_KINDS.has(entry.kind)) return null;
   const accountId =
     typeof entry.accountId === 'string' &&
     entry.accountId.length > 0 &&
@@ -64,7 +75,7 @@ async function append(dataDir, text, maxBytes) {
 
 /**
  * Haengt ein Ereignis an und gibt die geschriebene Zeile zurueck (oder null,
- * wenn `kind` fehlt). `maxBytes` nur fuer Tests.
+ * wenn `kind` fehlt oder nicht mehr protokolliert wird). `maxBytes` nur fuer Tests.
  */
 async function recordActivity(dataDir, entry, { maxBytes = MAX_FILE_BYTES } = {}) {
   const line = lineOf(entry);
@@ -96,7 +107,8 @@ async function linesOf(file) {
         isPlainObject(entry) &&
         typeof entry.at === 'string' &&
         Number.isFinite(new Date(entry.at).getTime()) &&
-        typeof entry.kind === 'string';
+        typeof entry.kind === 'string' &&
+        !IGNORED_KINDS.has(entry.kind);
       return valid ? [entry] : [];
     } catch {
       return [];
@@ -110,7 +122,7 @@ const kindMatches = (entryKind, wanted) =>
 
 /**
  * Ereignisse, neueste zuerst, aus beiden Dateien. `before` gilt ausschliesslich,
- * `limit` fehlt = alle. Kaputte Zeilen fallen weg.
+ * `limit` fehlt = alle. Kaputte Zeilen und `IGNORED_KINDS` fallen weg.
  */
 async function readActivity(dataDir, { accountId, kind, before, limit } = {}) {
   const end = before === undefined || before === null ? null : new Date(before).getTime();
@@ -137,62 +149,11 @@ function ownerOf(row) {
   return typeof owner === 'string' && owner.length > 0 ? owner : null;
 }
 
-/** JSON mit sortierten Schluesseln — dieselbe Zeile in anderer Reihenfolge ist unveraendert. */
-function stableJson(value) {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (isPlainObject(value)) {
-    const keys = Object.keys(value)
-      .filter((key) => value[key] !== undefined)
-      .sort();
-    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
-
-function byId(rows, omit) {
-  const map = new Map();
-  for (const row of Array.isArray(rows) ? rows : []) {
-    if (!isPlainObject(row) || typeof row.id !== 'string') continue;
-    const compared = omit.length === 0 ? row : { ...row };
-    for (const field of omit) delete compared[field];
-    map.set(row.id, { row, json: stableJson(compared) });
-  }
-  return map;
-}
-
-/**
- * Was sich zwischen zwei Fassungen einer Sammlung geaendert hat, je Besitzer:
- * `[{ accountId, added, updated, removed }]`. Verglichen wird ueber die Id;
- * Zeilen ohne Id zaehlen nicht. `accountId` ist null, wo eine Zeile keinen
- * Besitzer nennt. `owner` und `omit` (Felder, die nicht zaehlen) sind optional.
- */
-function diffCollection(beforeRows, afterRows, { owner = ownerOf, omit = [] } = {}) {
-  const before = byId(beforeRows, omit);
-  const after = byId(afterRows, omit);
-  const counts = new Map();
-  const bump = (row, field) => {
-    const key = owner(row);
-    const current = counts.get(key) ?? { accountId: key, added: 0, updated: 0, removed: 0 };
-    counts.set(key, { ...current, [field]: current[field] + 1 });
-  };
-  for (const [id, next] of after) {
-    const previous = before.get(id);
-    if (!previous) bump(next.row, 'added');
-    else if (previous.json !== next.json) bump(next.row, 'updated');
-  }
-  for (const [id, previous] of before) {
-    if (!after.has(id)) bump(previous.row, 'removed');
-  }
-  return [...counts.values()].filter(
-    (entry) => entry.added + entry.updated + entry.removed > 0,
-  );
-}
-
 module.exports = {
   ACTIVITY_FILE,
+  IGNORED_KINDS,
   MAX_FILE_BYTES,
   ROTATED_FILE,
-  diffCollection,
   kindMatches,
   ownerOf,
   readActivity,

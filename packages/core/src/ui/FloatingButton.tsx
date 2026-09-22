@@ -38,8 +38,6 @@ export type FloatingButtonProps = {
   aboveTabBar?: boolean;
 };
 
-/** Der helle Ring, der den Knopf vom Inhalt darunter absetzt. */
-const RING_WIDTH = 4;
 /** So breit darf das Wort neben dem Symbol hoechstens werden. */
 const TEXT_MAX_WIDTH = 160;
 
@@ -49,8 +47,9 @@ const useNativeDriver = Platform.OS !== 'web';
  * Der Knopf unten rechts — der eine Ort zum Erstellen. Er legt sich ueber den
  * Inhalt, statt ihn zu verkuerzen.
  *
- * Er traegt Tinte, nicht die Signalfarbe: er steht auf jedem Bildschirm, und
- * was immer da ist, kann nicht gleichzeitig «jetzt» heissen.
+ * Gebaut wie die Karten darunter: Papier (`surface`) mit Schatten, darauf das
+ * Plus in Tinte (`text`) — kein Rand, keine eigene Farbe. So passt er auf
+ * jeden Hintergrund und in jede Akzentfarbe, hell wie dunkel.
  */
 export function FloatingButton({
   label,
@@ -130,14 +129,12 @@ export function FloatingButton({
               height: FLOATING_BUTTON_SIZE,
               paddingHorizontal: theme.spacing.md,
               borderRadius: theme.radii.pill,
-              backgroundColor: theme.colors.inverse,
-              borderWidth: RING_WIDTH,
-              borderColor: theme.colors.background,
+              backgroundColor: theme.colors.surface,
               transform: [{ scale: press.scale }],
             },
           ]}
         >
-          <Icon name={icon} size={24} color={theme.colors.onInverse} />
+          <Icon name={icon} size={24} color={theme.colors.text} />
           {text ? (
             <Animated.View
               style={[
@@ -162,7 +159,7 @@ export function FloatingButton({
               <Text
                 variant="label"
                 numberOfLines={1}
-                style={{ color: theme.colors.onInverse, fontWeight: theme.fontWeight.semibold }}
+                style={{ color: theme.colors.text, fontWeight: theme.fontWeight.semibold }}
               >
                 {text}
               </Text>
@@ -283,13 +280,11 @@ function FanMenu({
             width: anchor.height,
             height: anchor.height,
             borderRadius: theme.radii.pill,
-            backgroundColor: theme.colors.inverse,
-            borderWidth: RING_WIDTH,
-            borderColor: theme.colors.background,
+            backgroundColor: theme.colors.surface,
           },
         ]}
       >
-        <Icon name="close" size={24} color={theme.colors.onInverse} />
+        <Icon name="close" size={24} color={theme.colors.text} />
       </Pressable>
     </Overlay>
   );

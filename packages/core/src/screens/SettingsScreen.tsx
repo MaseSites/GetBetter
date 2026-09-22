@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { APPS_WITH_HOUSEHOLD, currentApp } from '@/app/identity';
-import type { UsernameSave } from '@/auth/accounts';
 import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
 import { VoicePicker } from '@/features/assistant/VoicePicker';
 import { AvatarSheet } from '@/features/avatar/AvatarSheet';
 import { useAvatarStyle } from '@/features/avatar/useAvatarStyle';
 import { StylePicker } from '@/features/onboarding/StylePicker';
 import { AccountFieldSheet } from '@/features/personalize/AccountFieldSheet';
+import { AccountPhoto } from '@/features/profile/AccountPhoto';
+import { ProfileSheets } from '@/features/profile/ProfileSheets';
 import { AiUsageRow } from '@/features/personalize/AiUsageRow';
 import { BackdropPicker } from '@/features/personalize/BackdropPicker';
 import {
@@ -20,7 +21,6 @@ import {
   SettingsRow,
 } from '@/features/personalize/SettingsList';
 import { dateOfDay, useAiBudget } from '@/features/personalize/useAiBudget';
-import { checkUsername, type UsernameCheck } from '@/features/personalize/username';
 import { LockMark } from '@/features/plan/PlanLock';
 import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { PLAN_ROW_VALUE, planStateOf } from '@/features/plan/planState';
@@ -39,16 +39,6 @@ import { useApp } from '@/state/AppContext';
 import { BACKDROPS, resolveBackdrop } from '@/theme/backdrops';
 import { Header, Screen, Sheet } from '@/ui';
 
-/** Was eine besetzte oder unmoegliche Wahl am Feld sagt. */
-const USERNAME_MESSAGE: Readonly<
-  Record<Exclude<UsernameCheck, 'ok'> | Exclude<UsernameSave, 'ok'>, TranslationKey>
-> = {
-  empty: 'settings.username.empty',
-  invalid: 'settings.username.invalid',
-  taken: 'settings.username.taken',
-  offline: 'settings.username.offline',
-};
-
 /** Steht in der Zeile, solange die App ihre eigene Version nicht kennt. */
 const NO_VERSION = '—';
 
@@ -56,6 +46,7 @@ const NO_VERSION = '—';
 type Sheeted =
   | 'nickname'
   | 'username'
+  | 'photo'
   | 'assistant'
   | 'avatar'
   | 'voice'
@@ -84,8 +75,6 @@ export function SettingsScreen() {
     role,
     appearance,
     personal,
-    setFirstName,
-    setUsername,
     setAssistantName,
     setAssistantVoice,
     setLanguage,
@@ -149,15 +138,6 @@ export function SettingsScreen() {
   const lockedValue = (value: string) => (locked ? t('plan.locked') : value);
   const lock = locked ? <LockMark /> : undefined;
 
-  async function saveUsername(wanted: string): Promise<TranslationKey | null> {
-    if (!account) return null;
-    const free = await checkUsername(wanted, account.id);
-    if (free !== 'ok') return USERNAME_MESSAGE[free];
-    // Zwischen Frage und Antwort kann ihn jemand belegen — der Dienst entscheidet.
-    const saved = await setUsername(wanted);
-    return saved === 'ok' ? null : USERNAME_MESSAGE[saved];
-  }
-
   return (
     <Screen
       header={
@@ -172,6 +152,7 @@ export function SettingsScreen() {
         name={account.firstName || t('settings.nickname.none')}
         handle={`@${account.username}`}
         email={account.email}
+        photo={<AccountPhoto size={56} />}
         actionLabel={t('settings.profile.edit')}
         onAction={() => setSheet('nickname')}
       />
@@ -180,6 +161,13 @@ export function SettingsScreen() {
         <SettingsList>
           <SettingsRow
             first
+            icon="image"
+            label={t('profile.photo')}
+            value={account.photoUploadId ? t('profile.photo.own') : t('profile.photo.none')}
+            chevron
+            onPress={() => setSheet('photo')}
+          />
+          <SettingsRow
             icon="person"
             label={t('settings.nickname')}
             value={account.firstName || t('settings.nickname.none')}
@@ -327,29 +315,10 @@ export function SettingsScreen() {
         </SettingsList>
       </SettingsGroup>
 
-      <AccountFieldSheet
-        visible={sheet === 'nickname'}
-        title={t('settings.nickname')}
-        label={t('settings.nickname')}
-        hint={t('settings.nickname.hint')}
-        value={account.firstName}
-        autoCapitalize="words"
+      {/* Spitzname, Benutzername und Bild — dieselben Blaetter wie im Profil. */}
+      <ProfileSheets
+        open={sheet === 'nickname' || sheet === 'username' || sheet === 'photo' ? sheet : null}
         onClose={() => setSheet(null)}
-        onSave={async (next) => {
-          await setFirstName(next);
-          return null;
-        }}
-      />
-
-      <AccountFieldSheet
-        visible={sheet === 'username'}
-        title={t('settings.username')}
-        label={t('settings.username')}
-        hint={t('settings.username.hint')}
-        value={account.username}
-        autoCapitalize="none"
-        onClose={() => setSheet(null)}
-        onSave={saveUsername}
       />
 
       <AccountFieldSheet

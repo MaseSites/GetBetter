@@ -12,15 +12,27 @@ const { after, before, describe, test } = require('node:test');
 const { affordableTokens, estimatePromptTokens } = require('../billing/costs.js');
 const { resetsOnOf, zurichMonthOf } = require('../billing/month.js');
 const { createBilling } = require('../billing/service.js');
-const { DEFAULT_MODELS, MIN_ANSWER_TOKENS, createAiService, normaliseBaseUrl, upstreamError } = require('./service.js');
+const {
+  DEFAULT_MODELS,
+  GROQ_BASE,
+  GROQ_MODEL,
+  MIN_ANSWER_TOKENS,
+  createAiService,
+  normaliseBaseUrl,
+  upstreamError,
+} = require('./service.js');
 const { PRICES, USAGE_FILE, readUsage } = require('./usage.js');
 
-// Eigene Modelle aus der Umgebung des Rechners duerfen die Tests nicht verbiegen.
+// Eigene Modelle und Schluessel aus der Umgebung des Rechners duerfen die Tests
+// nicht verbiegen — und nie echt bei Groq anfragen.
 for (const name of [
   'BETTER_AI_MODEL_CHEAP',
   'BETTER_AI_MODEL_CHAT',
   'BETTER_AI_MODEL_REASONING',
   'BETTER_AI_MODEL_VISION',
+  'BETTER_AI_PROVIDER',
+  'BETTER_AI_GROQ_MODEL',
+  'GROQ_API_KEY',
 ]) {
   delete process.env[name];
 }
@@ -69,16 +81,17 @@ function createFakeProvider() {
       body: raw ? JSON.parse(raw) : null,
     };
     calls.push(call);
-    const json = (status, value) => {
+    const json = (status, value, headers = {}) => {
       if (res.destroyed) return;
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
       res.end(JSON.stringify(value));
     };
     if (req.headers.authorization !== `Bearer ${KEY}`) {
       return json(401, { error: { message: 'Invalid API key', type: 'invalid_request_error' } });
     }
     const plan = state.plan(call);
-    const answer = () => json(plan.status ?? 200, plan.body ?? completion(plan.content ?? 'Gern.'));
+    const answer = () =>
+      json(plan.status ?? 200, plan.body ?? completion(plan.content ?? 'Gern.'), plan.headers ?? {});
     if (plan.delayMs) setTimeout(answer, plan.delayMs);
     else answer();
     return undefined;
@@ -633,6 +646,266 @@ describe('KI ueber Safe Swiss Cloud', () => {
       );
       assert.deepEqual(results.map((result) => result.status).sort(), [200, 200, 402, 402]);
       assert.equal(fake.calls.length, before + 2);
+      respond({});
+    });
+  });
+
+  describe('gratis ueber Groq', () => {
+    /** Ohne Safe Swiss Cloud, mit Groq auf dem nachgebauten Anbieter. */
+    const groq = (options = {}) =>
+      service({ readKey: () => null, readGroqKey: () => KEY, groqBaseUrl: base, ...options });
+    const groqModels = Object.fromEntries(Object.keys(DEFAULT_MODELS).map((tier) => [tier, GROQ_MODEL]));
+    const tempDirs = [];
+    const tempDir = async () => {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'better-ai-groq-'));
+      tempDirs.push(dir);
+      return dir;
+    };
+    after(() => Promise.all(tempDirs.map((dir) => fs.rm(dir, { recursive: true, force: true }))));
+
+    test('ohne Safe Swiss Cloud antwortet Groq: ein kleines Modell fuer jede Stufe', async () => {
+      const ai = groq();
+      assert.deepEqual(await statusOf(ai), {
+        provider: 'groq',
+        configured: true,
+        models: groqModels,
+        lastError: null,
+      });
+
+      respond({ content: 'Gern geschehen.' });
+      for (const [text, app] of [
+        ['Hallo', 'getbetter'],
+        ['Erstelle mir einen Trainingsplan für drei Tage', 'bettergym'],
+      ]) {
+        const result = await call(ai, ask(text, { app }));
+        assert.equal(result.status, 200, text);
+        assert.equal(result.body.model, GROQ_MODEL);
+        assert.equal(result.body.response, 'Gern geschehen.');
+        assert.equal(lastCall().body.model, GROQ_MODEL);
+        // Ein denkendes Modell: knapp nachdenken, und etwas Platz dafuer lassen.
+        assert.equal(lastCall().body.reasoning_effort, 'low');
+        // Mit `low` denkt es kurz: 384 Tokens Platz dafuer, mehr kostet nur Minuten-Tokens.
+        assert.ok(lastCall().body.max_tokens >= 384 + 64, String(lastCall().body.max_tokens));
+        // „Hallo“ ist die guenstige Stufe: 600 Zeichen sind 200 Tokens, dazu 384 zum Nachdenken.
+        if (app === 'getbetter') assert.equal(lastCall().body.max_tokens, 200 + 384);
+        assert.equal(lastCall().url, '/chat/completions');
+        assert.equal(lastCall().authorization, `Bearer ${KEY}`);
+      }
+      assert.equal(GROQ_BASE, 'https://api.groq.com/openai/v1');
+      assert.equal(GROQ_MODEL, 'openai/gpt-oss-20b');
+    });
+
+    test('kostet nichts: kein Kontingent, der Verbrauch steht mit 0 CHF da', async () => {
+      const dir = await tempDir();
+      // Das Gratis-Kontingent ist schon weg — bei Groq zaehlt das nicht.
+      const spent = { at: new Date().toISOString(), accountId: TRIAL, app: 'betterai', tier: 'cheap_model', model: 'gemma4-31b', ok: true, costChf: 0.1 };
+      await fs.writeFile(path.join(dir, USAGE_FILE), `${JSON.stringify(spent)}\n`);
+      const ai = groq({ dataDir: dir });
+
+      respond({ content: 'Gern.' });
+      const result = await call(ai, ask('Hallo', { accountId: TRIAL, app: 'betterai' }));
+      assert.equal(result.status, 200);
+      assert.equal(result.body.selected_model, 'cheap_model');
+
+      const last = (await readUsage(dir)).at(-1);
+      assert.deepEqual(
+        [last.model, last.ok, last.promptTokens, last.completionTokens, last.costChf],
+        [GROQ_MODEL, true, 1000, 500, 0],
+      );
+      assert.equal(Object.hasOwn(last, 'free'), false);
+      assert.equal((await ai.budget({ accountId: TRIAL, app: 'betterai' })).body.spentChf, 0.1);
+    });
+
+    test('ein Bild geht nicht: 400 vision_unavailable, ohne Groq zu fragen', async () => {
+      const before = fake.calls.length;
+      assert.deepEqual(await call(groq(), ask('Was ist das?', { imageUploadId: UPLOAD })), {
+        status: 400,
+        body: { error: 'vision_unavailable' },
+      });
+      assert.equal(fake.calls.length, before);
+    });
+
+    test('Vorrang: Safe Swiss Cloud vor Groq, ausser es ist anders vorgegeben', async () => {
+      respond({ content: 'Gern.' });
+      const both = service({ readGroqKey: () => KEY, groqBaseUrl: base });
+      assert.equal((await statusOf(both)).provider, 'safeswisscloud');
+      await call(both, ask('Hallo'));
+      assert.notEqual(lastCall().body.model, GROQ_MODEL);
+      assert.equal(Object.hasOwn(lastCall().body, 'reasoning_effort'), false);
+
+      const forced = service({ readGroqKey: () => KEY, groqBaseUrl: base, provider: 'groq' });
+      await call(forced, ask('Hallo'));
+      assert.equal(lastCall().body.model, GROQ_MODEL);
+
+      const before = fake.calls.length;
+      const swissOnly = groq({ provider: 'safeswisscloud' });
+      assert.deepEqual(await call(swissOnly, ask('Hallo')), { status: 503, body: { error: 'not_configured' } });
+      assert.deepEqual(await statusOf(service({ provider: 'groq' })), {
+        provider: 'groq',
+        configured: false,
+        models: groqModels,
+        lastError: null,
+      });
+      assert.equal(fake.calls.length, before);
+    });
+
+    test('der Schluessel kommt aus groq.key im Datenordner, falsche Schluessel zaehlen nicht', async () => {
+      const dir = await tempDir();
+      await fs.writeFile(path.join(dir, 'groq.key'), `${KEY}\n`);
+      const ai = service({ dataDir: dir, readKey: () => null, groqBaseUrl: base });
+      assert.equal((await statusOf(ai)).provider, 'groq');
+      respond({ content: 'Gern.' });
+      assert.equal((await call(ai, ask('Hallo'))).status, 200);
+
+      assert.equal((await statusOf(groq({ readGroqKey: () => 'mit leerzeichen drin' }))).configured, false);
+      const wrong = groq({ readGroqKey: () => 'gsk_falscher_schluessel_1' });
+      assert.deepEqual(await call(wrong, ask('Hallo')), { status: 502, body: { error: 'auth_failed' } });
+    });
+  });
+
+  describe('Funktionen und Kontext', () => {
+    const toolCall = (name, args) => ({
+      id: `call_${name}`,
+      type: 'function',
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    const calling = (...calls) => ({ body: completion(null, { tool_calls: calls }) });
+    const context = {
+      now: '2026-09-21T19:42',
+      items: [{ ref: 'T1', kind: 'event', title: 'Zahnarzt', date: '2026-09-23', time: '14:00' }],
+    };
+
+    test('mit tools: Funktionen gehen mit, geprueft kommen sie als actions zurueck', async () => {
+      respond(
+        calling(
+          toolCall('create_event', { title: 'Coiffeur', date: '2026-09-24', start: '09:30' }),
+          toolCall('log_water', { dl: 5 }),
+        ),
+      );
+      const result = await call(service(), ask('Trag morgen Coiffeur um halb zehn ein', { tools: true, context }));
+      assert.equal(result.status, 200);
+      assert.equal(result.body.response, '');
+      assert.deepEqual(result.body.actions, [
+        { name: 'create_event', args: { title: 'Coiffeur', date: '2026-09-24', start: '09:30' } },
+      ]);
+
+      const sent = lastCall().body;
+      assert.equal(sent.tool_choice, 'auto');
+      const sentNames = sent.tools.map((tool) => tool.function.name);
+      assert.ok(sentNames.includes('create_event') && sentNames.includes('set_theme'));
+      assert.equal(sentNames.includes('log_water'), false);
+      const system = sent.messages[0].content;
+      assert.match(system, /Bediene die App mit den Funktionen/);
+      assert.match(system, /Leg nie etwas an, wenn die Person etwas löschen/);
+      assert.match(system, /ohne Markdown/);
+      assert.doesNotMatch(system, /nichts ausführen/);
+      assert.match(system, /Jetzt: Mo 2026-09-21, 19:42 Uhr\./);
+      assert.match(system, /- \[T1\] Mi 2026-09-23 14:00 Zahnarzt/);
+    });
+
+    test('toolNames: nur die angebotenen Funktionen gehen mit, und nur deren Aufrufe zaehlen', async () => {
+      respond(
+        calling(
+          toolCall('create_task', { title: 'Steuern' }),
+          toolCall('create_event', { title: 'Coiffeur', date: '2026-09-24' }),
+        ),
+      );
+      const result = await call(service(), ask('Steuern nicht vergessen', { tools: true, toolNames: ['create_task', 'create_note', 'erfunden'] }));
+      assert.deepEqual(lastCall().body.tools.map((tool) => tool.function.name).sort(), ['create_note', 'create_task']);
+      // create_event war nicht angeboten: der Aufruf zaehlt nicht.
+      assert.deepEqual(result.body.actions, [{ name: 'create_task', args: { title: 'Steuern' } }]);
+
+      // Keine passende Funktion: dann ohne Funktionen, einfach eine Antwort.
+      respond({ content: 'Gern.' });
+      await call(service(), ask('Hallo', { tools: true, toolNames: ['log_water'] }));
+      assert.equal(Object.hasOwn(lastCall().body, 'tools'), false);
+
+      for (const bad of ['create_task', [42], Array.from({ length: 31 }, () => 'x')]) {
+        assert.equal((await call(service(), ask('Hallo', { tools: true, toolNames: bad }))).status, 400);
+      }
+    });
+
+    test('ohne tools, und in BetterAi nie: keine Funktionen, kein Kontext', async () => {
+      respond({ content: 'Gern.' });
+      const plain = await call(service(), ask('Hallo', { context }));
+      assert.equal(Object.hasOwn(plain.body, 'actions'), false);
+      assert.equal(Object.hasOwn(lastCall().body, 'tools'), false);
+      assert.match(lastCall().body.messages[0].content, /nichts ausführen/);
+      // Der Kontext allein darf mit — Fragen zu Terminen gehen auch ohne Funktionen.
+      assert.match(lastCall().body.messages[0].content, /\[T1\]/);
+
+      await call(service(), ask('Hallo', { app: 'betterai', tools: true, context }));
+      assert.equal(Object.hasOwn(lastCall().body, 'tools'), false);
+      assert.doesNotMatch(lastCall().body.messages[0].content, /\[T1\]/);
+
+      assert.equal((await call(service(), ask('Hallo', { tools: 'ja' }))).status, 400);
+      // Ein kaputter Kontext stoert nicht, er faellt nur weg.
+      assert.equal((await call(service(), ask('Hallo', { context: { now: 'gestern' } }))).status, 200);
+    });
+
+    test('Text und Funktionen zusammen; im Gespraech kein Sprechtext ohne Text', async () => {
+      respond({
+        body: completion('Mach ich.', { tool_calls: [toolCall('set_theme', { mode: 'dark' })] }),
+      });
+      const both = await call(service(), ask('Mach es dunkel', { tools: true }));
+      assert.deepEqual([both.body.response, both.body.actions], ['Mach ich.', [{ name: 'set_theme', args: { mode: 'dark' } }]]);
+
+      respond(calling(toolCall('set_theme', { mode: 'dark' })));
+      const spoken = await call(service(), ask('Mach es dunkel', { tools: true, voice: true }));
+      assert.equal(spoken.status, 200);
+      assert.equal(Object.hasOwn(spoken.body, 'voice_text'), false);
+    });
+
+    test('nur ungueltige Aufrufe und kein Text: 502 upstream_failed', async () => {
+      respond(calling(toolCall('create_event', { title: 'Ohne Tag' })));
+      assert.deepEqual(await call(service(), ask('Trag etwas ein', { tools: true })), {
+        status: 502,
+        body: { error: 'upstream_failed' },
+      });
+    });
+
+    test('„gleich nochmal“: bei kurzem retry-after wartet er einmal, bei langem nicht', async () => {
+      let first = true;
+      respond(() => {
+        if (!first) return { content: 'Jetzt geht es.' };
+        first = false;
+        return { status: 429, body: { error: 'slow down' }, headers: { 'retry-after': '0' } };
+      });
+      const before = fake.calls.length;
+      const retried = await call(service(), ask('Hallo', { tools: true }));
+      assert.deepEqual([retried.status, retried.body.response], [200, 'Jetzt geht es.']);
+      assert.equal(fake.calls.length, before + 2);
+
+      respond({ status: 429, body: { error: 'slow down' }, headers: { 'retry-after': '60' } });
+      const after = fake.calls.length;
+      assert.deepEqual(await call(service(), ask('Hallo', { tools: true })), {
+        status: 429,
+        body: { error: 'rate_limited' },
+      });
+      assert.equal(fake.calls.length, after + 1);
+      respond({});
+    });
+
+    test('schlichter Text: ohne Sternchen und Kennungen, und schlank geschickt', async () => {
+      respond({ content: '**Mittwoch:** Zahnarzt um 14:00 ([T1])' });
+      const result = await call(service(), ask('Was habe ich am Mittwoch?', { tools: true, context }));
+      assert.equal(result.body.response, 'Mittwoch: Zahnarzt um 14:00');
+      const sentEvent = lastCall().body.tools.find((tool) => tool.function.name === 'create_event');
+      assert.deepEqual(sentEvent.function.parameters.properties.date, { type: 'string' });
+      assert.deepEqual(sentEvent.function.parameters.required, ['title', 'date']);
+
+      // Ohne Funktionen (BetterAi und Co.) bleibt Markdown, wie es kommt.
+      respond({ content: '**Fett**' });
+      assert.equal((await call(service(), ask('Hallo'))).body.response, '**Fett**');
+    });
+
+    test('lehnt der Anbieter die Funktionen ab (400), kommt die Antwort ohne sie', async () => {
+      const before = fake.calls.length;
+      respond((request) => (request.body.tools ? { status: 400, body: { error: 'tool_use_failed' } } : { content: 'Gern.' }));
+      const result = await call(service(), ask('Hallo', { tools: true }));
+      assert.deepEqual([result.status, result.body.response], [200, 'Gern.']);
+      assert.equal(fake.calls.length, before + 2);
+      assert.equal(Object.hasOwn(lastCall().body, 'tools'), false);
       respond({});
     });
   });

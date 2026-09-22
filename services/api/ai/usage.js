@@ -4,7 +4,8 @@
  * Nachricht, nie der Schluessel, nie die Adresse des Anbieters.
  *
  * Zeile: `{ at, accountId, app, tier, model, intent, voice, ok, error,
- * promptTokens, completionTokens, costChf, durationMs }`. Waechst die Datei
+ * promptTokens, completionTokens, costChf, durationMs }`. Ein Aufruf beim
+ * Gratis-Anbieter (`free: true` beim Schreiben) kostet 0. Waechst die Datei
  * ueber 5 MB, wird sie zu `ai-usage.1.jsonl` (die vorige faellt weg).
  */
 const { MAX_FILE_BYTES, appendJsonLine, readJsonLines } = require('../jsonl.js');
@@ -69,7 +70,7 @@ function lineOf(entry) {
     error: entry.ok === true ? null : textOrNull(entry.error),
     promptTokens,
     completionTokens,
-    costChf: costOf(entry.model, promptTokens, completionTokens),
+    costChf: entry.free === true ? 0 : costOf(entry.model, promptTokens, completionTokens),
     durationMs: Number.isFinite(entry.durationMs) ? Math.max(0, Math.round(entry.durationMs)) : null,
   };
 }

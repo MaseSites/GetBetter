@@ -13,7 +13,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 
-const { diffCollection, recordActivity } = require('./activity.js');
+const { recordActivity } = require('./activity.js');
 const { startAdminServer } = require('./admin/server.js');
 const { createAiService } = require('./ai/service.js');
 const {
@@ -24,6 +24,7 @@ const {
   normaliseEmail,
   normaliseUsername,
   usernameFor,
+  usernameFreeAt,
 } = require('./auth.js');
 const { isAvatarStyle } = require('./avatar.js');
 const { keepLockedFields, lockedChangesOf } = require('./billing/entitlement.js');
@@ -48,7 +49,7 @@ const {
   save,
   withoutDeleted,
 } = require('./store.js');
-const { deleteUpload, readUpload, saveUpload } = require('./uploads.js');
+const { deleteUpload, readUpload, saveUpload, uploadExists } = require('./uploads.js');
 const { viewTickets } = require('./viewTickets.js');
 
 const PORT = Number(process.env.PORT ?? 8090);
@@ -85,7 +86,17 @@ const PROFILE_FIELDS = [
   'assistantName',
   'assistantAvatar',
   'backdrop',
+  'photoUploadId',
 ];
+
+/**
+ * Der Benutzername aendert sich nur ueber `PATCH` — dort wird er geprueft, und
+ * dort zaehlt der Monat. Was eine App per `PUT` mitschickt, zaehlt nicht.
+ */
+const USERNAME_FIELDS = ['username', 'usernameChangedAt'];
+
+/** Ein Profilbild ist ein Bild aus `/v1/uploads` — oder keines. */
+const PHOTO_ID = /^upl_[a-f0-9]{24}$/;
 
 /** Die neuen Felder werden geprueft: Text mit Hoechstlaenge. */
 const PROFILE_TEXT_LIMITS = { assistantName: 60, backdrop: 200 };
@@ -200,9 +211,19 @@ async function patchProfile(id, changes) {
     return { status: 403, body: { error: 'plan_required', fields: locked } };
   }
 
+  // Das Profilbild muss es geben — sonst zeigte jede App ein leeres Rund.
+  const photo = changes.photoUploadId;
+  if (photo !== undefined && photo !== null) {
+    if (typeof photo !== 'string' || !PHOTO_ID.test(photo) || !(await uploadExists(photo))) {
+      return { status: 400, body: { error: 'photo_invalid' } };
+    }
+  }
+
   // Der Benutzername gilt fuer alle Apps und muss einmalig bleiben — beim
   // Aendern genauso wie beim Anlegen. Die Maske fragt vorher, das hier gilt.
+  // Neu gibt es ihn einmal im Monat; derselbe Name nochmal ist keine Aenderung.
   let patch = changes;
+  let renamedAt = null;
   if (changes.username !== undefined) {
     const wanted = normaliseUsername(changes.username);
     if (!USERNAME_PATTERN.test(wanted)) {
@@ -210,6 +231,11 @@ async function patchProfile(id, changes) {
     }
     if (db.tables.accounts.some((entry) => entry.id !== id && entry.username === wanted)) {
       return { status: 409, body: { error: 'username_taken' } };
+    }
+    if (wanted !== row.username) {
+      const freeAt = usernameFreeAt(row);
+      if (freeAt) return { status: 409, body: { error: 'username_cooldown', nextChangeAt: freeAt } };
+      renamedAt = new Date().toISOString();
     }
     patch = { ...changes, username: wanted };
   }
@@ -220,10 +246,9 @@ async function patchProfile(id, changes) {
       patch[field],
     ]),
   );
-  const next = { ...row, ...picked };
+  const next = { ...row, ...picked, ...(renamedAt ? { usernameChangedAt: renamedAt } : {}) };
   db.tables.accounts = db.tables.accounts.map((entry) => (entry.id === id ? next : entry));
   await save();
-  await track({ accountId: id, kind: 'profile.updated', detail: { fields: Object.keys(picked) } });
   return { status: 200, body: { account: withoutSecrets(next) } };
 }
 
@@ -257,18 +282,19 @@ async function replaceCollection(name, rows) {
   if (!Array.isArray(rows)) return { status: 400, body: { error: 'bad_request' } };
 
   const db = await load();
-  const previous = rowsOf(db, name);
   // Was der Admin mit einem Konto geloescht hat, bringt ein alter Stand nicht zurueck.
   const incomingRows = withoutDeleted(db, name, rows);
   if (name === 'accounts') {
-    const stored = new Map(previous.map((row) => [row.id, row]));
+    const stored = new Map(rowsOf(db, name).map((row) => [row.id, row]));
     const settings = planSettings();
     db.tables.accounts = incomingRows.map((row) => {
       const known = stored.get(row?.id);
       const incoming = { ...row };
       for (const field of ADMIN_FIELDS) delete incoming[field];
+      // Ein bekanntes Konto behaelt seinen Benutzernamen — den aendert nur PATCH.
+      if (known) for (const field of USERNAME_FIELDS) delete incoming[field];
       const kept = {};
-      for (const field of [...SECRET_FIELDS, ...ADMIN_FIELDS]) {
+      for (const field of [...SECRET_FIELDS, ...ADMIN_FIELDS, ...USERNAME_FIELDS]) {
         if (known?.[field] !== undefined) kept[field] = known[field];
       }
       return keepLockedFields({ ...incoming, ...kept }, known, settings);
@@ -278,26 +304,7 @@ async function replaceCollection(name, rows) {
   }
 
   await save();
-  await recordChanges(name, previous, db.tables[name]);
   return { status: 200, body: { revision: db.revision } };
-}
-
-/** Je Konto, dessen Zeilen sich geaendert haben, ein Ereignis mit den Zahlen — nie Inhalte. */
-async function recordChanges(name, before, after) {
-  try {
-    const options = name === 'accounts' ? { owner: (row) => row.id, omit: SECRET_FIELDS } : {};
-    for (const change of diffCollection(before, after, options)) {
-      if (change.accountId === null) continue;
-      const { added, updated, removed } = change;
-      await track({
-        accountId: change.accountId,
-        kind: 'collection.changed',
-        detail: { collection: name, added, updated, removed },
-      });
-    }
-  } catch (error) {
-    process.stderr.write(`[api] Aenderungen von ${name}: ${error?.name ?? 'Error'}\n`);
-  }
 }
 
 // ------------------------------------------------------------------ HTTP
@@ -398,7 +405,7 @@ const speech = createSpeechService({
   billing,
 });
 
-// KI ueber Safe Swiss Cloud. `BETTER_AI_TEST_URL` gilt nur fuer 127.0.0.1 (Tests).
+// KI ueber Safe Swiss Cloud oder gratis ueber Groq. `BETTER_AI_TEST_URL` gilt nur fuer 127.0.0.1 (Tests).
 const ai = createAiService({ dataDir: dataDir(), baseUrl: process.env.BETTER_AI_TEST_URL, billing });
 
 /** `accountId` und `app` aus der Adresse — geprueft wird im Dienst. */

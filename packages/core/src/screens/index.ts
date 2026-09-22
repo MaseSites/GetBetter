@@ -22,3 +22,4 @@ export { AiChatScreen } from './AiChatScreen';
 export { CommandScreen } from './CommandScreen';
 export { CalendarScreen } from './CalendarScreen';
 export { NotificationsScreen } from '@/features/notifications/NotificationsScreen';
+export { TimelineScreen } from '@/features/today/TimelineScreen';

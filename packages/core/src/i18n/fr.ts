@@ -4,6 +4,7 @@ import { frAvatar } from './fr-avatar';
 import { frB } from './fr-b';
 import { frBirthdays } from './fr-birthdays';
 import { frC } from './fr-c';
+import { frHome } from './fr-home';
 import { frMailUi } from './fr-mailui';
 import { frNotes } from './fr-notes';
 import { frPlan } from './fr-plan';
@@ -18,6 +19,7 @@ export const fr: Readonly<Record<TranslationKey, string>> = {
   ...frA,
   ...frB,
   ...frC,
+  ...frHome,
   ...frVoice,
   ...frAvatar,
   ...frShell,

@@ -4,6 +4,8 @@ import { formatDayMonth, formatPrice } from '../../i18n/format';
 
 /** So viele Züge gehen mit — genug für den Zusammenhang, wenig für die Kosten. */
 export const AI_HISTORY_LIMIT = 12;
+/** Der Assistent erledigt Dinge; dafür reichen die letzten Züge. */
+export const ASSISTANT_HISTORY_LIMIT = 6;
 /** So lang darf ein Zug sein; der Dienst nimmt nicht mehr. */
 export const AI_TURN_MAX_CHARS = 4000;
 

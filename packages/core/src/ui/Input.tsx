@@ -20,6 +20,8 @@ export type InputProps = {
   editable?: boolean;
   multiline?: boolean;
   onSubmitEditing?: () => void;
+  /** Wenn man das Feld verlaesst — etwa um „18“ als „18:00“ hinzuschreiben. */
+  onBlur?: () => void;
   returnKeyType?: 'done' | 'next' | 'send' | 'search';
   accessibilityLabel?: string;
 };
@@ -38,6 +40,7 @@ export function Input({
   editable = true,
   multiline = false,
   onSubmitEditing,
+  onBlur,
   returnKeyType,
   accessibilityLabel,
 }: InputProps) {
@@ -90,7 +93,10 @@ export function Input({
           onSubmitEditing={onSubmitEditing}
           returnKeyType={returnKeyType}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            onBlur?.();
+          }}
           style={[
             styles.input,
             {

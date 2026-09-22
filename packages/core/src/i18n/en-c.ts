@@ -141,7 +141,7 @@ export const enC = {
   'intro.tutorial.chats.title': 'Your conversations',
   'intro.tutorial.chats.body':
     'Every conversation is saved, with the newest at the top. A starter chip begins a new one.',
-  'intro.tutorial.art.news': 'What’s new',
+  'intro.tutorial.art.news': 'News',
   'intro.tutorial.art.inbox': 'Inbox',
 
   // E-Mail
@@ -414,8 +414,9 @@ export const enC = {
   'aiChat.starter.ideas': 'Give me three ideas',
 
   // Neues
-  'news.title': 'What’s new',
+  'news.title': 'News',
   'news.empty': 'Nothing new',
+  'news.unread': 'Unread',
   'news.more': '+{count} more',
   'news.bell.label': 'Notifications, {count} new',
   'news.bell.many': '{count}+',
@@ -507,7 +508,9 @@ export const enC = {
   'settings.nickname.hint': 'This is how the app addresses you.',
   'settings.nickname.none': 'None yet',
   'settings.username': 'Username',
-  'settings.username.hint': 'Lowercase, without @ — this is how others find you.',
+  'settings.username.hint': 'Lowercase, without @ — this is how others find you. You can change it once a month.',
+  'settings.username.cooldown': 'You can only change your username once a month.',
+  'settings.username.locked': 'You can change your username again on {date}.',
   'settings.username.empty': 'Without a name, no one can find you. Type something in.',
   'settings.username.taken': 'Someone already has that one. Pick another.',
   'settings.username.invalid':

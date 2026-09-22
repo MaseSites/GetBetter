@@ -8,6 +8,13 @@ export type Account = Row & {
   /** Eindeutig, klein geschrieben. Darueber laedt man Externe ein. */
   username: string;
   /**
+   * Wann der Benutzername zuletzt geaendert wurde — neu gibt es ihn einmal im
+   * Monat (`usernameFreeAt`). Setzt nur der Dienst; beim Anlegen fehlt es.
+   */
+  usernameChangedAt?: string | null;
+  /** Das Profilbild aus `/v1/uploads`; ohne steht das Kuerzel des Namens da. */
+  photoUploadId?: string | null;
+  /**
    * Kommt aus der Zeit, als jede App ihre Passwoerter selbst pruefte.
    * Heute macht das der Kontodienst; aeltere Zeilen haben die Felder noch.
    */
@@ -259,6 +266,8 @@ export type NoteRow = Row & {
   body: string;
   /** Angeheftet: steht immer oben. */
   pinned?: boolean;
+  /** An die Startseite geheftet, seit wann — ohne Angabe nicht dort. */
+  homeAt?: string | null;
   /** Der Inhalt. Aeltere Zeilen haben keine Bloecke — `blocksOf` macht welche daraus. */
   blocks?: readonly NoteBlock[];
   /** Der Ordner (`noteFolders`); ohne ihn liegt die Notiz ganz oben. */

@@ -28,6 +28,7 @@ import {
   Skeleton,
   SwipeRow,
   Text,
+  Toggle,
   useUndo,
   type MenuAnchor,
   type MenuEntry,
@@ -47,6 +48,7 @@ export default function UiKitScreen() {
   const [detentSheet, setDetentSheet] = useState(false);
   const [lastAction, setLastAction] = useState('—');
   const [fabCollapsed, setFabCollapsed] = useState(false);
+  const [toggle, setToggle] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; open: boolean } | null>(null);
   const menuButton = useRef<View>(null);
@@ -172,6 +174,18 @@ export default function UiKitScreen() {
           <Chip label="Gewaehlt" selected={chip === 'a'} onPress={() => setChip('a')} />
           <Chip label="Nicht gewaehlt" selected={chip === 'b'} onPress={() => setChip('b')} />
           <Chip label="Deaktiviert" disabled onPress={() => undefined} />
+        </View>
+      </Card>
+
+      <Card title="Toggle">
+        <View style={{ flexDirection: 'row', gap: theme.spacing.lg, alignItems: 'center' }}>
+          <Toggle value={toggle} onValueChange={setToggle} accessibilityLabel="Schalter" />
+          <Toggle
+            value={!toggle}
+            onValueChange={(next) => setToggle(!next)}
+            accessibilityLabel="Gegenteil"
+          />
+          <Toggle value onValueChange={() => undefined} accessibilityLabel="Deaktiviert" disabled />
         </View>
       </Card>
 
