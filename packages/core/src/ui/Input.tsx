@@ -20,10 +20,10 @@ export type InputProps = {
   editable?: boolean;
   multiline?: boolean;
   onSubmitEditing?: () => void;
+  /** Wenn man das Feld verlaesst — etwa um „18“ als „18:00“ hinzuschreiben. */
+  onBlur?: () => void;
   returnKeyType?: 'done' | 'next' | 'send' | 'search';
   accessibilityLabel?: string;
-  /** Beim Verlassen des Felds — dort prueft eine Maske, nicht bei jedem Zeichen. */
-  onBlur?: () => void;
 };
 
 export function Input({
@@ -40,9 +40,9 @@ export function Input({
   editable = true,
   multiline = false,
   onSubmitEditing,
+  onBlur,
   returnKeyType,
   accessibilityLabel,
-  onBlur,
 }: InputProps) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);

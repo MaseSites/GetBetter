@@ -1,7 +1,8 @@
 /** Mitteilungen, die Glocke und „Was gibt's Neues“. Teil von `de` — die Schluessel landen dort per Spread. */
 export const deNews = {
-  'news.title': 'Was gibt’s Neues',
+  'news.title': 'Neuigkeiten',
   'news.empty': 'Keine Neuigkeiten',
+  'news.unread': 'Ungelesen',
   'news.more': '+{count} weitere',
   'news.bell.label': 'Mitteilungen, {count} neu',
   'news.bell.many': '{count}+',

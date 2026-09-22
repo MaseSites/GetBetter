@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useLiveQuery, type AlarmRow } from '@/db';
 import { alarms as alarmRepo } from '@/db/repositories';
@@ -9,7 +9,7 @@ import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, EmptyState, Header, Loading, Screen, SwipeRow, Text } from '@/ui';
+import { Button, Card, EmptyState, Header, Loading, Screen, SwipeRow, Text, Toggle } from '@/ui';
 
 import { AlarmEditor, WEEKDAYS, repeatLabel, type Weekday } from './AlarmEditor';
 
@@ -108,14 +108,12 @@ export function AlarmView({ module }: { module: ModuleDefinition }) {
                   )}
                 </View>
               </Pressable>
-              <Switch
+              <Toggle
                 value={alarm.enabled}
                 onValueChange={(value) => {
                   void alarmRepo.setEnabled(alarm.id, value);
                 }}
                 accessibilityLabel={t('alarm.enabledLabel', { time: alarm.time })}
-                trackColor={{ true: theme.colors.accentMark, false: theme.colors.borderStrong }}
-                thumbColor={theme.colors.surface}
               />
             </View>
           </Card>

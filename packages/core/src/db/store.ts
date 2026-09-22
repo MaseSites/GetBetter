@@ -1,3 +1,5 @@
+import { AppState } from 'react-native';
+
 import { reportReadOnly, viewHeaders, writesAllowed } from '../app/viewMode';
 import { notifyDataChanged } from './events';
 import { serviceUrl } from './service';
@@ -143,6 +145,10 @@ async function poll(): Promise<void> {
 function startPolling(): void {
   if (pollTimer) return;
   pollTimer = setInterval(() => void poll(), POLL_MS);
+  // Im Hintergrund bremst der Browser den Takt — zurueck vorne, gleich nachsehen.
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') void poll();
+  });
 }
 
 function scheduleFlush(): void {

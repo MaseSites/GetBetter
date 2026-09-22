@@ -4,18 +4,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { NoteRow } from '@/db';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import {
-  Menu,
-  measureAnchor,
-  PlainList,
-  SwipeRow,
-  Text,
-  type MenuAnchor,
-  type MenuEntry,
-} from '@/ui';
+import { Menu, measureAnchor, SwipeRow, Text, type MenuAnchor, type MenuEntry } from '@/ui';
 
 import { NOTE_ICONS } from './icons';
-import { NOTE_ROW_HEIGHT } from './NoteRow';
+import { useNoteCard } from './NoteRow';
 import { trashDaysLeft } from './trash';
 
 type TrashRowProps = {
@@ -29,6 +21,7 @@ type TrashRowProps = {
 function TrashRow({ note, now, onRestore, onPurge }: TrashRowProps) {
   const t = useTranslate();
   const theme = useTheme();
+  const card = useNoteCard();
   const node = useRef<View>(null);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; open: boolean } | null>(null);
 
@@ -58,7 +51,8 @@ function TrashRow({ note, now, onRestore, onPurge }: TrashRowProps) {
   return (
     <>
       <SwipeRow
-        backgroundColor={theme.colors.background}
+        backgroundColor={theme.colors.surface}
+        radius={card.radius}
         leading={{
           key: 'restore',
           label: t('notes.trash.restore'),
@@ -81,10 +75,7 @@ function TrashRow({ note, now, onRestore, onPurge }: TrashRowProps) {
           accessibilityRole="button"
           accessibilityLabel={title}
           onPress={() => void open()}
-          style={[
-            styles.row,
-            { minHeight: NOTE_ROW_HEIGHT, paddingVertical: theme.spacing.sm, gap: 2 },
-          ]}
+          style={[styles.row, card.face, { gap: 2 }]}
         >
           <Text variant="body" numberOfLines={1} style={{ fontWeight: theme.fontWeight.semibold }}>
             {title}
@@ -116,6 +107,7 @@ export type TrashListProps = {
 
 export function TrashList({ notes, now, onRestore, onPurge }: TrashListProps) {
   const t = useTranslate();
+  const card = useNoteCard();
   if (notes.length === 0) {
     return (
       <Text variant="body" tone="muted" align="center">
@@ -124,11 +116,11 @@ export function TrashList({ notes, now, onRestore, onPurge }: TrashListProps) {
     );
   }
   return (
-    <PlainList separatorInset="none">
+    <View style={card.list}>
       {notes.map((note) => (
         <TrashRow key={note.id} note={note} now={now} onRestore={onRestore} onPurge={onPurge} />
       ))}
-    </PlainList>
+    </View>
   );
 }
 

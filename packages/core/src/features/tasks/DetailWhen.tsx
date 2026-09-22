@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { tasks as taskRepo, type TaskRepeat, type TaskRepeatUnit, type TaskRow } from '@/db';
 import { dueDayOf } from '@/db/taskFields';
@@ -7,7 +7,7 @@ import type { TaskPatch } from '@/db/tasks';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Chip, HIT_TARGET, Text } from '@/ui';
+import { Chip, HIT_TARGET, Text, Toggle } from '@/ui';
 
 import { weekdayOf } from './days';
 import { ChipRow, FieldRow, TimeField } from './fields';
@@ -104,12 +104,10 @@ function RepeatEditor({
             <Text variant="body" style={styles.grow}>
               {t('tasks.repeat.fromCompletion')}
             </Text>
-            <Switch
+            <Toggle
               accessibilityLabel={t('tasks.repeat.fromCompletion')}
               value={repeat.fromCompletion}
               onValueChange={(fromCompletion) => onChange({ ...repeat, fromCompletion })}
-              trackColor={{ true: theme.colors.accentMark, false: theme.colors.border }}
-              thumbColor={theme.colors.surface}
             />
           </View>
         </>

@@ -32,6 +32,18 @@ export function useNoteActions() {
       run(noteRepo.setPinned([note.id], !note.pinned));
     },
 
+    /** An die Startseite heften oder davon nehmen, mit „Rückgängig“. */
+    setOnHome(ids: readonly string[], onHome: boolean) {
+      run(
+        noteRepo.setOnHome(ids, onHome).then(() =>
+          undo.show({
+            message: onHome ? t('notes.toast.onHome') : t('notes.toast.offHome'),
+            onUndo: () => run(noteRepo.setOnHome(ids, !onHome)),
+          }),
+        ),
+      );
+    },
+
     move(ids: readonly string[], folderId: string | null, previous: string | null | undefined) {
       run(
         noteRepo.moveToFolder(ids, folderId).then(() =>

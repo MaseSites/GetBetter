@@ -1,14 +1,23 @@
 /**
- * Die KI der Better-Apps: der Dienst spricht mit Safe Swiss Cloud („Private
- * AI“, Modelle in der Schweiz), die Apps nie.
+ * Die KI der Better-Apps: der Dienst spricht mit dem Anbieter, die Apps nie.
  *
- * Schluessel und Adresse liegen nur hier — `SAFESWISSCLOUD_API_KEY` /
- * `SAFESWISSCLOUD_API_URL` oder die Dateien `safeswisscloud.key` /
- * `safeswisscloud.url` im Datenordner — und werden bei jeder Anfrage neu
- * gelesen. Sie gehen nie in eine Antwort, ins Log oder in `ai-usage.jsonl`.
+ * Zwei Anbieter, beide mit der OpenAI-Schnittstelle (`POST <url>/chat/completions`):
  *
- * Welches Modell antwortet, entscheidet `router.js` ohne Modellaufruf. Der
- * Anbieter spricht die OpenAI-Schnittstelle: `POST <url>/chat/completions`.
+ * - **Safe Swiss Cloud** („Private AI“, Modelle in der Schweiz, kostet) —
+ *   `SAFESWISSCLOUD_API_KEY` / `SAFESWISSCLOUD_API_URL` oder die Dateien
+ *   `safeswisscloud.key` / `safeswisscloud.url` im Datenordner. Welches Modell
+ *   antwortet, entscheidet `router.js` ohne Modellaufruf.
+ * - **Groq** (gratis, `openai/gpt-oss-20b` fuer alles, keine Bilder) —
+ *   `GROQ_API_KEY` oder `groq.key` im Datenordner. Kostet nichts, darum
+ *   zaehlt es nicht gegen das Kontingent; die Grenzen setzt Groq selbst (429).
+ *
+ * Ohne `BETTER_AI_PROVIDER` antwortet Safe Swiss Cloud, wenn eingerichtet,
+ * sonst Groq.
+ *
+ * Mit `tools: true` bekommt das Modell die Funktionen der App (`tools.js`) und
+ * mit `context` eine kurze Liste der Daten (`context.js`). Was es aufruft, geht
+ * geprueft als `actions` an die App zurueck — ausgefuehrt wird dort. Schluessel werden bei jeder Anfrage neu gelesen und gehen nie in
+ * eine Antwort, ins Log oder in `ai-usage.jsonl`.
  */
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -17,11 +26,26 @@ const { affordableTokens, estimatePromptTokens, worstCaseChf } = require('../bil
 const { accountInStore, createBilling } = require('../billing/service.js');
 const { MAX_TEXT: SPEECH_MAX_TEXT } = require('../speech/service.js');
 const { readUpload: readStoredUpload } = require('../uploads.js');
+const { cleanContext, contextText } = require('./context.js');
 const { APPS, COST_LEVELS, MAX_CHARS, routeRequest } = require('./router.js');
-const { limitChars, spokenText, stripReasoning } = require('./text.js');
+const { limitChars, plainText, spokenText, stripReasoning } = require('./text.js');
+const { actionsOf, toolsFor } = require('./tools.js');
 const { recordUsage, tokensOf } = require('./usage.js');
 
 const PROVIDER = 'safeswisscloud';
+/** Die beiden Anbieter, in der Reihenfolge, in der sie ohne Vorgabe gefragt werden. */
+const PROVIDERS = ['safeswisscloud', 'groq'];
+/**
+ * Gratis bei Groq: das kleinste Modell, das Groq noch fuehrt — die Llama-Modelle
+ * sind dort weg. Es denkt kurz nach; `low` haelt das knapp und schnell.
+ */
+const GROQ_BASE = 'https://api.groq.com/openai/v1';
+const GROQ_MODEL = 'openai/gpt-oss-20b';
+const GROQ_LOW_EFFORT = /(^|\/)gpt-oss/i;
+/** Mit `low` denkt es nur kurz nach — mehr Platz dafuer kostet bei Groq nur Minuten-Tokens. */
+const GROQ_THINKING_BUDGET = 384;
+/** So lange wartet der Dienst hoechstens, wenn der Anbieter „gleich nochmal“ sagt. */
+const MAX_RETRY_WAIT_MS = 8000;
 /** Nur fuer Tests: ein nachgebauter Anbieter auf dem eigenen Rechner. */
 const TEST_BASE = /^http:\/\/127\.0\.0\.1:\d{1,5}$/;
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
@@ -42,6 +66,8 @@ const MODEL_ENV = {
 };
 
 const MAX_MESSAGES = 20;
+/** Mehr Funktionen hat keine App. */
+const MAX_TOOL_NAMES = 30;
 const MAX_MESSAGE_TEXT = 4000;
 const HISTORY = 12;
 const CHARS_PER_TOKEN = 3;
@@ -51,12 +77,21 @@ const MIN_TOKENS = 64;
  * `max_tokens`. Ohne Zuschlag kaeme bei kurzen Grenzen eine leere Antwort. Die
  * Grenze deckelt nur — abgerechnet wird, was wirklich entsteht.
  */
-const THINKING_MODEL = /^(gpt-oss|deepseek-v4|deepseek-r|qwq|qwen3(?!-vl))/i;
+const THINKING_MODEL = /^(?:[a-z0-9-]+\/)?(gpt-oss|deepseek-v4|deepseek-r|qwq|qwen3(?!-vl))/i;
 const THINKING_BUDGET = 1024;
 
-function tokenBudget(model, maxChars) {
+function tokenBudget(model, maxChars, thinking = THINKING_BUDGET) {
   const answer = Math.max(MIN_TOKENS, Math.ceil(maxChars / CHARS_PER_TOKEN));
-  return THINKING_MODEL.test(model) ? answer + THINKING_BUDGET : answer;
+  return THINKING_MODEL.test(model) ? answer + thinking : answer;
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** `retry-after` in Millisekunden — nur Sekunden als Zahl, sonst null. */
+function retryAfterOf(response) {
+  const raw = response.headers.get('retry-after');
+  const seconds = raw === null ? Number.NaN : Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds * 1000) : null;
 }
 
 /**
@@ -89,6 +124,7 @@ const STATUS = {
   account_not_found: 404,
   upload_not_found: 404,
   not_configured: 503,
+  vision_unavailable: 400,
   auth_failed: 502,
   rate_limited: 429,
   timeout: 504,
@@ -147,7 +183,7 @@ function turnOf(message) {
 /** Die Anfrage in sauberer Form oder null (-> 400). */
 function requestOf(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
-  const { accountId, app, messages, voice, imageUploadId } = input;
+  const { accountId, app, messages, voice, imageUploadId, tools, toolNames, context } = input;
   if (typeof accountId !== 'string' || accountId.trim().length === 0) return null;
   if (!APPS.includes(app)) return null;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > MAX_MESSAGES) {
@@ -156,9 +192,30 @@ function requestOf(input) {
   const turns = messages.map(turnOf);
   if (turns.some((turn) => turn === null) || turns.at(-1).role !== 'user') return null;
   if (voice !== undefined && typeof voice !== 'boolean') return null;
+  if (tools !== undefined && typeof tools !== 'boolean') return null;
+  const named = toolNames !== undefined && toolNames !== null;
+  if (
+    named &&
+    (!Array.isArray(toolNames) ||
+      toolNames.length > MAX_TOOL_NAMES ||
+      toolNames.some((name) => typeof name !== 'string' || name.length > 40))
+  ) {
+    return null;
+  }
   const hasUpload = imageUploadId !== undefined && imageUploadId !== null;
   if (hasUpload && (typeof imageUploadId !== 'string' || imageUploadId.length === 0)) return null;
-  return { accountId, app, turns, voice: voice === true, imageUploadId: hasUpload ? imageUploadId : null };
+  return {
+    accountId,
+    app,
+    turns,
+    voice: voice === true,
+    imageUploadId: hasUpload ? imageUploadId : null,
+    // BetterAi hat keine Funktionen und sieht keine Daten.
+    tools: tools === true && toolsFor(app).length > 0,
+    // Nur diese Funktionen anbieten — die App waehlt, was zum Satz passt.
+    toolNames: named ? toolNames : null,
+    context: app === 'betterai' || context === undefined || context === null ? null : cleanContext(context),
+  };
 }
 
 /**
@@ -200,10 +257,31 @@ const INTENT_HINTS = {
   vision: 'Sag, was auf dem Bild für die Frage wichtig ist, und beantworte sie.',
 };
 
+/**
+ * Was er mit Funktionen tun darf — und was nicht. Kurz gehalten: jede Zeile
+ * geht bei jeder Frage mit hinaus.
+ */
+const TOOL_RULES = [
+  'Bediene die App mit den Funktionen: Will die Person etwas eintragen, ändern, löschen, abhaken, öffnen oder umstellen — auch beiläufig („ich muss morgen um 3 zum Zahnarzt“) —, rufe die Funktion auf und schreib nichts dazu. Sag nie, du hättest etwas getan — das sagt die App.',
+  'Löschen, verschieben und abhaken gilt nur für Einträge aus den Listen, über ihre Kennung. Ist nicht eindeutig, welcher gemeint ist, frag kurz nach und nenne die Möglichkeiten. Leg nie etwas an, wenn die Person etwas löschen, verschieben oder abhaken will, und nie etwas, das wie der Befehl selbst heisst.',
+  'Fragen beantwortest du mit Text aus den Listen unten, ohne Funktion. Erfinde nichts; fehlt der Tag, frag kurz nach. Ohne Uhrzeit wird ein Termin ganztägig.',
+  'Tage als YYYY-MM-DD aus der Liste der nächsten Tage, Uhrzeiten als HH:MM, Kennungen wie [T1] nur aus den Listen — nenne sie nie in der Antwort.',
+].join('\n');
+
+const NO_TOOLS =
+  'Du kannst in den Apps nichts ausführen, eintragen, ändern oder löschen. Behaupte nie, etwas getan zu haben, und du siehst die Daten der Person nur, wenn sie im Gespräch stehen.';
+
+const TOOL_HINT = 'Die Person möchte etwas erledigt haben: ruf die passende Funktion auf.';
+
 /** Deutsch als Grundlage; geantwortet wird in der Sprache der Person. */
-function systemPrompt(app, route) {
+function systemPrompt(app, route, { tools = false, context = null } = {}) {
   const inApps = app !== 'betterai';
-  const hint = route.intent === 'command' && !inApps ? null : INTENT_HINTS[route.intent];
+  const hint =
+    route.intent === 'command' && tools
+      ? TOOL_HINT
+      : route.intent === 'command' && !inApps
+        ? null
+        : INTENT_HINTS[route.intent];
   return [
     APP_ROLES[app],
     'Antworte immer in der Sprache der letzten Nachricht der Person, auch wenn sie nicht Deutsch ist.',
@@ -211,12 +289,16 @@ function systemPrompt(app, route) {
     `Deine ganze Antwort hat höchstens ${route.maxChars} Zeichen.`,
     route.tts
       ? 'Deine Antwort wird laut vorgelesen: nur schlichte, gesprochene Sätze. Kein Markdown, keine Listen, keine Emojis, keine Links oder Webadressen.'
-      : 'Schreib klar und knapp; Markdown nur, wo es wirklich hilft.',
-    inApps
-      ? 'Du kannst in den Apps nichts ausführen, eintragen, ändern oder löschen. Behaupte nie, etwas getan zu haben, und du siehst die Daten der Person nur, wenn sie im Gespräch stehen.'
-      : null,
+      : tools
+        ? // Der Assistent zeigt schlichten Text — Sternchen stuenden dort wortwoertlich.
+          'Schreib klar und knapp, als schlichten Text ohne Markdown und ohne Sternchen.'
+        : 'Schreib klar und knapp; Markdown nur, wo es wirklich hilft.',
+    inApps ? (tools ? TOOL_RULES : NO_TOOLS) : null,
     APP_LIMITS[app] ?? null,
     hint ?? null,
+    context
+      ? `Was du über die Person weisst — nur das, alles andere weisst du nicht:\n${contextText(context)}`
+      : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -236,7 +318,7 @@ function messagesFor(request, route, image) {
         }
       : { role: turn.role, content: turn.text },
   );
-  return [{ role: 'system', content: systemPrompt(request.app, route) }, ...turns];
+  return [{ role: 'system', content: systemPrompt(request.app, route, request) }, ...turns];
 }
 
 /** Der Text der Antwort — `reasoning_content` bleibt bewusst liegen. */
@@ -250,7 +332,16 @@ function contentOf(data) {
 const failureOfThrown = (error) =>
   error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'timeout' : 'unreachable';
 
-/** Ein Aufruf beim Anbieter -> `{ content, usage }` oder `{ error, usage: null }`. */
+/** Die Funktionsaufrufe der Antwort — oder eine leere Liste. */
+function toolCallsOf(data) {
+  const calls = data?.choices?.[0]?.message?.tool_calls;
+  return Array.isArray(calls) ? calls : [];
+}
+
+/**
+ * Ein Aufruf beim Anbieter -> `{ content, toolCalls, usage }` oder
+ * `{ error, status?, usage: null }`. Mit Funktionen darf der Text fehlen.
+ */
 async function complete({ apiKey, base }, body, timeoutMs) {
   const signal = AbortSignal.timeout(timeoutMs);
   let response;
@@ -271,7 +362,12 @@ async function complete({ apiKey, base }, body, timeoutMs) {
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
-    return { error: upstreamError(response.status), usage: null };
+    return {
+      error: upstreamError(response.status),
+      status: response.status,
+      retryAfterMs: response.status === 429 ? retryAfterOf(response) : null,
+      usage: null,
+    };
   }
   let data;
   try {
@@ -280,9 +376,10 @@ async function complete({ apiKey, base }, body, timeoutMs) {
     return { error: signal.aborted ? failureOfThrown(error) : 'upstream_failed', usage: null };
   }
   const content = contentOf(data);
-  return content === null
+  const toolCalls = toolCallsOf(data);
+  return content === null && toolCalls.length === 0
     ? { error: 'upstream_failed', usage: data?.usage ?? null }
-    : { content, usage: data?.usage ?? null };
+    : { content: content ?? '', toolCalls, usage: data?.usage ?? null };
 }
 
 /**
@@ -302,16 +399,32 @@ function reserveFor(billing, { account, app, model, messages, desiredTokens }) {
   return { maxTokens, hold: { id: billing.ledger.hold(account.id, app, chf), chf } };
 }
 
+/** `BETTER_AI_PROVIDER` -> ein bekannter Anbieter oder null (dann der erste eingerichtete). */
+function providerFromEnv() {
+  const wanted = process.env.BETTER_AI_PROVIDER?.trim().toLowerCase();
+  return PROVIDERS.includes(wanted) ? wanted : null;
+}
+
+/** Bei Groq antwortet auf jeder Stufe dasselbe Modell (`BETTER_AI_GROQ_MODEL`). */
+function groqModels() {
+  const model = modelOrNull(process.env.BETTER_AI_GROQ_MODEL) ?? GROQ_MODEL;
+  return Object.fromEntries(Object.keys(DEFAULT_MODELS).map((tier) => [tier, model]));
+}
+
 /**
- * `createAiService({ dataDir, baseUrl?, readKey?, readUrl?, models?, timeouts?,
- * findAccount?, readUpload?, record?, billing? })` — alles ausser `dataDir` nur
- * fuer Tests. `billing` teilt der Dienst mit den Stimmen (ein Kassenbuch).
+ * `createAiService({ dataDir, baseUrl?, readKey?, readUrl?, readGroqKey?,
+ * groqBaseUrl?, provider?, models?, timeouts?, findAccount?, readUpload?,
+ * record?, billing? })` — alles ausser `dataDir` nur fuer Tests. `billing`
+ * teilt der Dienst mit den Stimmen (ein Kassenbuch).
  */
 function createAiService({
   dataDir,
   baseUrl,
   readKey,
   readUrl,
+  readGroqKey,
+  groqBaseUrl,
+  provider,
   models,
   timeouts,
   findAccount = accountInStore,
@@ -324,15 +437,36 @@ function createAiService({
     readKey ?? (() => fromEnvOrFile('SAFESWISSCLOUD_API_KEY', path.join(dataDir, 'safeswisscloud.key')));
   const url =
     readUrl ?? (() => fromEnvOrFile('SAFESWISSCLOUD_API_URL', path.join(dataDir, 'safeswisscloud.url')));
+  const groqKey = readGroqKey ?? (() => fromEnvOrFile('GROQ_API_KEY', path.join(dataDir, 'groq.key')));
+  const groqBase =
+    typeof groqBaseUrl === 'string' && TEST_BASE.test(groqBaseUrl) ? groqBaseUrl : GROQ_BASE;
+  const forced = PROVIDERS.includes(provider) ? provider : null;
   const limits = { ...TIMEOUTS, ...timeouts };
   const write = record ?? ((entry) => recordUsage(dataDir, entry));
   let lastError = null;
 
-  async function settings() {
+  async function swissSettings() {
     const apiKey = String((await key()) ?? '').trim();
     if (!KEY_PATTERN.test(apiKey)) return null;
     const base = testBase ?? normaliseBaseUrl(await url());
-    return base ? { apiKey, base } : null;
+    return base
+      ? { name: 'safeswisscloud', apiKey, base, free: false, vision: true, models: currentModels() }
+      : null;
+  }
+
+  async function groqSettings() {
+    const apiKey = String((await groqKey()) ?? '').trim();
+    if (!KEY_PATTERN.test(apiKey)) return null;
+    return { name: 'groq', apiKey, base: groqBase, free: true, vision: false, models: groqModels() };
+  }
+
+  /** Der vorgegebene Anbieter — sonst Safe Swiss Cloud, wenn eingerichtet, und dann Groq. */
+  async function settings() {
+    const wanted = forced ?? providerFromEnv();
+    if (wanted === 'groq') return groqSettings();
+    const swiss = await swissSettings();
+    if (swiss || wanted === 'safeswisscloud') return swiss;
+    return groqSettings();
   }
 
   function currentModels() {
@@ -345,12 +479,13 @@ function createAiService({
   }
 
   async function status() {
-    const configured = (await settings()) !== null;
+    const config = await settings();
+    const wanted = forced ?? providerFromEnv();
     return reply(200, {
-      provider: PROVIDER,
-      configured,
-      models: currentModels(),
-      lastError: configured ? lastError : null,
+      provider: config?.name ?? wanted ?? PROVIDER,
+      configured: config !== null,
+      models: config?.models ?? (wanted === 'groq' ? groqModels() : currentModels()),
+      lastError: config !== null ? lastError : null,
     });
   }
 
@@ -401,6 +536,8 @@ function createAiService({
     if (prepared.error) return prepared;
     const config = await settings();
     if (!config) return { error: 'not_configured' };
+    // Das Gratis-Modell sieht keine Bilder.
+    if (prepared.image !== null && !config.vision) return { error: 'vision_unavailable' };
     await billing.ledger.ready();
 
     const routed = routeFor(request, prepared);
@@ -409,33 +546,64 @@ function createAiService({
       return { error: routed.error, refusal: billing.refusalOf(routed.error, standing) };
     }
     const { route } = routed;
-    const model = currentModels()[route.tier];
+    const model = config.models[route.tier];
     const messages = messagesFor(request, route, prepared.image);
-    const budget = reserveFor(billing, {
-      account: prepared.account,
-      app: request.app,
+    const offered = request.tools
+      ? toolsFor(request.app).filter(
+          (tool) => request.toolNames === null || request.toolNames.includes(tool.function.name),
+        )
+      : [];
+    const tools = offered.length > 0 ? offered : null;
+    const desiredTokens = tokenBudget(
       model,
-      messages,
-      desiredTokens: tokenBudget(model, route.maxChars),
-    });
+      route.maxChars,
+      config.name === 'groq' && GROQ_LOW_EFFORT.test(model) ? GROQ_THINKING_BUDGET : THINKING_BUDGET,
+    );
+    // Gratis kostet nichts: kein Kontingent, nichts zu reservieren. Sonst zaehlen
+    // die Funktionen mit, sie gehen ja mit hinaus.
+    const budget = config.free
+      ? { maxTokens: desiredTokens, hold: null }
+      : reserveFor(billing, {
+          account: prepared.account,
+          app: request.app,
+          model,
+          messages: tools ? [...messages, { role: 'system', content: JSON.stringify(tools) }] : messages,
+          desiredTokens,
+        });
     if (budget.error) return { route, model, error: budget.error, refusal: budget.refusal };
 
     const reasoning = route.tier === 'reasoning_model';
-    const result = await complete(
-      config,
-      {
-        model,
-        messages,
-        max_tokens: budget.maxTokens,
-        temperature: reasoning ? TEMPERATURE.reasoning : TEMPERATURE.standard,
-      },
-      reasoning ? limits.reasoning : limits.standard,
-    );
-    const known = { route, model, usage: result.usage, hold: budget.hold };
+    const body = {
+      model,
+      messages,
+      max_tokens: budget.maxTokens,
+      temperature: reasoning ? TEMPERATURE.reasoning : TEMPERATURE.standard,
+      ...(config.name === 'groq' && GROQ_LOW_EFFORT.test(model) ? { reasoning_effort: 'low' } : {}),
+    };
+    const timeout = reasoning ? limits.reasoning : limits.standard;
+    const full = tools ? { ...body, tools, tool_choice: 'auto' } : body;
+    let result = await complete(config, full, timeout);
+    // „Gleich nochmal“ (429 mit kurzem retry-after): einmal warten statt aufgeben.
+    if (result.status === 429 && result.retryAfterMs !== null && result.retryAfterMs <= MAX_RETRY_WAIT_MS) {
+      await wait(result.retryAfterMs);
+      result = await complete(config, full, timeout);
+    }
+    // Verhaspelt sich das Modell beim Funktionsaufruf, lehnt der Anbieter mit
+    // 400 ab — dann einmal ohne Funktionen, damit wenigstens eine Antwort kommt.
+    if (tools && result.status === 400) result = await complete(config, body, timeout);
+    const known = { route, model, free: config.free, usage: result.usage, hold: budget.hold };
     if (result.error) return { ...known, error: result.error, upstream: true };
-    const response = limitChars(stripReasoning(result.content), route.maxChars);
-    if (response.length === 0) return { ...known, error: 'upstream_failed', upstream: true };
-    return { ...known, response };
+    // Der Assistent zeigt schlichten Text: ohne Sternchen und Kennungen.
+    const cleaned = stripReasoning(result.content);
+    const refs = (request.context?.items ?? []).map((item) => item.ref).filter(Boolean);
+    const response = limitChars(tools ? plainText(cleaned, refs) : cleaned, route.maxChars);
+    const { actions } = tools
+      ? actionsOf(result.toolCalls, request.app, tools.map((tool) => tool.function.name))
+      : { actions: [] };
+    if (response.length === 0 && actions.length === 0) {
+      return { ...known, error: 'upstream_failed', upstream: true };
+    }
+    return { ...known, response, actions };
   }
 
   /**
@@ -467,6 +635,7 @@ function createAiService({
         voice: request ? request.voice : input?.voice === true,
         ok: !outcome.error,
         error: outcome.error ?? null,
+        free: outcome.free === true,
         ...tokensOf(outcome.usage),
         durationMs: Date.now() - startedAt,
       });
@@ -475,15 +644,16 @@ function createAiService({
     }
 
     if (outcome.error) return failure(outcome.error, outcome.refusal);
-    const { route, model, response } = outcome;
+    const { route, model, response, actions } = outcome;
     return reply(200, {
       selected_model: route.tier,
       model,
       intent: route.intent,
       response,
-      ...(route.tts
+      ...(route.tts && response.length > 0
         ? { voice_text: spokenText(response, Math.min(route.maxChars, SPEECH_MAX_TEXT)) }
         : {}),
+      ...(actions.length > 0 ? { actions } : {}),
       estimated_cost_level: route.costLevel,
     });
   }
@@ -493,8 +663,11 @@ function createAiService({
 
 module.exports = {
   DEFAULT_MODELS,
+  GROQ_BASE,
+  GROQ_MODEL,
   MIN_ANSWER_TOKENS,
   PROVIDER,
+  PROVIDERS,
   createAiService,
   normaliseBaseUrl,
   upstreamError,

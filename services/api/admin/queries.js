@@ -6,7 +6,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const { kindMatches, ownerOf, readActivity } = require('../activity.js');
+const { ownerOf, readActivity } = require('../activity.js');
 const { PRICES, readUsage, summarizeUsage } = require('../ai/usage.js');
 const { zurichMonthOf } = require('../billing/month.js');
 const { pendingRequests } = require('../billing/requests.js');
@@ -76,14 +76,24 @@ const cacheOptions = () => ({
 });
 
 /** `status()` liefert `{ status, body }` wie jede Route; scheitert es, gilt „nicht eingerichtet“. */
-async function isConfigured(status) {
-  if (typeof status !== 'function') return false;
+async function statusBodyOf(status) {
+  if (typeof status !== 'function') return null;
   try {
     const result = await status();
-    return (result?.body ?? result)?.configured === true;
+    return result?.body ?? result ?? null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function isConfigured(status) {
+  return (await statusBodyOf(status))?.configured === true;
+}
+
+/** Wer die KI beantwortet: `safeswisscloud`, `groq` oder null, solange keiner eingerichtet ist. */
+async function providerOf(status) {
+  const body = await statusBodyOf(status);
+  return body?.configured === true && typeof body.provider === 'string' ? body.provider : null;
 }
 
 /** Je Tag ab `from` (UTC) `{ day, requests, costChf }`, auch Tage ohne Anfrage. */
@@ -277,30 +287,15 @@ async function listAccounts(dataDir, now = Date.now()) {
 
 const byNewest = (a, b) => (timeOf(b.at) ?? 0) - (timeOf(a.at) ?? 0);
 
-/** Eine KI-Anfrage als Ereignis — ohne Text, nur was sie kostete und ob sie ging. */
-const aiReplyOf = (entry) => ({
-  at: entry.at,
-  accountId: entry.accountId ?? null,
-  kind: 'ai.reply',
-  detail: {
-    app: entry.app ?? null,
-    tier: entry.tier ?? null,
-    model: entry.model ?? null,
-    costChf: Number.isFinite(entry.costChf) ? entry.costChf : null,
-    ok: entry.ok === true,
-    error: entry.error ?? null,
-  },
-});
-
-/** `activity.jsonl` und die KI-Anfragen zusammen, neueste zuerst. */
+/**
+ * Der Verlauf aus `activity.jsonl`, neueste zuerst. Die KI-Anfragen stehen
+ * bewusst nicht darin, sondern unter Kosten und im Konto.
+ */
 async function activityEntries(dataDir, { accountId, kind, before, limit }) {
   const db = await load();
   const emails = new Map(rowsOf(db, 'accounts').map((row) => [row.id, row.email ?? null]));
   const logged = await readActivity(dataDir, { accountId, kind, before, limit });
-  const wantsAi = kind === undefined || kindMatches('ai.reply', kind);
-  const usage = wantsAi ? await readUsage(dataDir, { to: before, accountId }) : [];
-  const merged = [...logged, ...usage.reverse().map(aiReplyOf)].sort(byNewest).slice(0, limit);
-  return merged.map((entry) => ({
+  return logged.map((entry) => ({
     at: entry.at,
     accountId: entry.accountId ?? null,
     email: emails.get(entry.accountId) ?? null,
@@ -346,6 +341,7 @@ async function aiOverview(dataDir, aiStatus, now) {
   const cheap = last30.filter((entry) => entry.tier === CHEAP_TIER).length;
   return {
     configured: await isConfigured(aiStatus),
+    provider: await providerOf(aiStatus),
     requests30: last30.length,
     costChf30: sumCost(last30),
     costChfMonth: sumCost(since(entries, monthFrom)),

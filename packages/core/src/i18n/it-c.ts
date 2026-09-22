@@ -421,6 +421,7 @@ export const itC = {
   // Neues
   'news.title': 'Novità',
   'news.empty': 'Nessuna novità',
+  'news.unread': 'Non letto',
   'news.more': '+{count} altre',
   'news.bell.label': 'Notifiche, {count} nuove',
   'news.bell.many': '{count}+',
@@ -512,7 +513,9 @@ export const itC = {
   'settings.nickname.hint': 'Così ti chiama l’app.',
   'settings.nickname.none': 'Ancora nessuno',
   'settings.username': 'Nome utente',
-  'settings.username.hint': 'In minuscolo, senza @ — così ti trovano gli altri.',
+  'settings.username.hint': 'In minuscolo, senza @ — così ti trovano gli altri. Puoi cambiarlo una volta al mese.',
+  'settings.username.cooldown': 'Puoi cambiare il nome utente solo una volta al mese.',
+  'settings.username.locked': 'Potrai cambiare di nuovo il nome utente il {date}.',
   'settings.username.empty': 'Senza un nome nessuno ti trova. Scrivi qualcosa.',
   'settings.username.taken': 'È già preso. Scegline un altro.',
   'settings.username.invalid':

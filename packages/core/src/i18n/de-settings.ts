@@ -9,7 +9,9 @@ export const deSettings = {
   'settings.nickname.hint': 'So spricht dich die App an.',
   'settings.nickname.none': 'Noch keiner',
   'settings.username': 'Benutzername',
-  'settings.username.hint': 'Klein geschrieben, ohne @ — so finden dich andere.',
+  'settings.username.hint': 'Klein geschrieben, ohne @ — so finden dich andere. Ändern geht einmal im Monat.',
+  'settings.username.cooldown': 'Den Benutzernamen kannst du nur einmal im Monat ändern.',
+  'settings.username.locked': 'Deinen Benutzernamen kannst du am {date} wieder ändern.',
   'settings.username.empty': 'Ohne Namen findet dich niemand. Schreib etwas hinein.',
   'settings.username.taken': 'Den hat schon jemand. Nimm einen anderen.',
   'settings.username.invalid':

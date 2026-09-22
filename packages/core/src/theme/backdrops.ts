@@ -194,8 +194,13 @@ export function uploadIdOf(backdrop: string | null | undefined): string | null {
   return isUploadId(id) ? id : null;
 }
 
+/** Wo ein eigenes Bild beim Dienst liegt. */
+export function uploadUrl(id: string): string {
+  return `${serviceUrl()}/v1/uploads/${encodeURIComponent(id)}`;
+}
+
 export function uploadSource(id: string): ImageSourcePropType {
-  return { uri: `${serviceUrl()}/v1/uploads/${encodeURIComponent(id)}` };
+  return { uri: uploadUrl(id) };
 }
 
 /**

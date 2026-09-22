@@ -19,7 +19,9 @@ import { relativeDay } from '@/features/shared/days';
 import { useI18n, type Language, type Translate, type TranslationKey } from '@/i18n';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Card, Icon, SwipeRow, Text, type IconName } from '@/ui';
+import { Button, Card, Icon, IconButton, SwipeRow, Text, type IconName } from '@/ui';
+
+import { STACK_CARD_HEIGHT } from './stack';
 
 /**
  * Wo die Mitteilung steht. In „Was gibt's Neues“ heisst gelesen: aus den
@@ -35,6 +37,10 @@ const FAILED: Outcome = { ok: false, problem: { key: 'news.error.failed' } };
 
 const ICON_BOX = 36;
 const ICON_SIZE = 18;
+/** Jede schmale Kachel gleich hoch — E-Mails ueberall, im Stapel alle. */
+const MAIL_ROW_HEIGHT = STACK_CARD_HEIGHT;
+/** Der rote Punkt: noch nicht gelesen. */
+const UNREAD_DOT = 8;
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 
@@ -166,17 +172,28 @@ async function respondTo(
 export type NotificationItemProps = {
   notification: NotificationRow;
   place: NotificationPlace;
+  /**
+   * Im Stapel von „Was gibt's Neues“: jede Karte eine schmale Zeile, genau gleich
+   * hoch (`STACK_CARD_HEIGHT`), und nach rechts wie nach links wischen raeumt sie
+   * weg — rechts heisst gelesen, links weg damit. Knoepfe nur fuer Anfragen.
+   */
+  stacked?: boolean;
 };
 
 /**
  * Eine Mitteilung fuer „Was gibt's Neues“ und die Glocke. Anfragen und alles
  * andere stehen als Karte mit Knoepfen: annehmen oder ablehnen, gelesen oder weg.
  *
- * Eine E-Mail ist eine schmale Zeile ohne Knoepfe: antippen oeffnet die Mail
- * selbst, nach rechts wischen heisst gesehen, nach links wischen loescht die
- * E-Mail. Die anderen Karten tragen eigene Knoepfe und sind darum nicht drueckbar.
+ * Eine E-Mail ist eine schmale Zeile ohne Knoepfe, immer genau gleich hoch:
+ * antippen oeffnet die Mail selbst, nach rechts wischen heisst gesehen, nach
+ * links wischen loescht die E-Mail. Die anderen Karten tragen eigene Knoepfe
+ * und sind darum nicht drueckbar.
+ *
+ * Damit Neues auffaellt, steht jedes Zeichen rot auf hellem Rot (`danger` auf
+ * `dangerSoft`, im Kontrast-Test), und eine ungelesene E-Mail traegt dazu den
+ * roten Punkt.
  */
-export function NotificationItem({ notification, place }: NotificationItemProps) {
+export function NotificationItem({ notification, place, stacked = false }: NotificationItemProps) {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
@@ -237,6 +254,14 @@ export function NotificationItem({ notification, place }: NotificationItemProps)
     router.push(mailId ? `/run/mail?message=${encodeURIComponent(mailId)}` : '/run/mail');
   }
 
+  const noticeIcon = (
+    <View
+      style={[styles.iconBox, { borderRadius: theme.radii.pill, backgroundColor: theme.colors.dangerSoft }]}
+    >
+      <Icon name={iconOf(kind)} size={ICON_SIZE} color={theme.colors.danger} />
+    </View>
+  );
+
   const problemText = problem ? (
     <Text variant="caption" tone="danger">
       {t(problem.key, problem.values)}
@@ -268,14 +293,13 @@ export function NotificationItem({ notification, place }: NotificationItemProps)
               {
                 gap: theme.spacing.md,
                 paddingHorizontal: theme.spacing.md,
-                paddingVertical: theme.spacing.sm,
                 borderRadius: theme.radii.md,
                 borderColor: theme.colors.border,
                 backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
               },
             ]}
           >
-            <Icon name="mail" size={ICON_SIZE} color={theme.colors.textMuted} />
+            {noticeIcon}
             <View style={styles.grow}>
               <View style={[styles.mailLine, { gap: theme.spacing.sm }]}>
                 <Text
@@ -285,17 +309,30 @@ export function NotificationItem({ notification, place }: NotificationItemProps)
                 >
                   {sender}
                 </Text>
-                <Text variant="caption" tone="faint">
+                <Text variant="caption" tone="faint" numberOfLines={1}>
                   {ago}
                 </Text>
+                {notification.readAt ? null : (
+                  <View
+                    accessibilityLabel={t('news.unread')}
+                    style={[
+                      styles.dot,
+                      { borderRadius: theme.radii.pill, backgroundColor: theme.colors.danger },
+                    ]}
+                  />
+                )}
               </View>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                {text.detail}
-              </Text>
+              {stacked && problemText ? (
+                problemText
+              ) : (
+                <Text variant="caption" tone="muted" numberOfLines={1}>
+                  {text.detail}
+                </Text>
+              )}
             </View>
           </Pressable>
         </SwipeRow>
-        {problemText}
+        {stacked ? null : problemText}
       </View>
     );
   }
@@ -349,6 +386,78 @@ export function NotificationItem({ notification, place }: NotificationItemProps)
     );
   }
 
+  if (stacked) {
+    // Schmal und schlicht wie eine E-Mail: Zeichen, Satz, Zeit. Gelesen und weg
+    // gehen ueber das Wischen; nur eine Anfrage traegt ✓ und ✕. Ein Fehler steht
+    // an Stelle der zweiten Zeile.
+    const second =
+      problemText ??
+      (text.detail ? (
+        <Text variant="caption" tone="muted" numberOfLines={1}>
+          {text.detail}
+        </Text>
+      ) : null);
+    return (
+      <SwipeRow
+        radius={theme.radii.md}
+        leading={{
+          key: 'read',
+          label: t('news.action.read'),
+          icon: 'check',
+          tone: 'accent',
+          onPress: () => void run(read),
+        }}
+        deleteLabel={t('news.action.dismiss')}
+        onDelete={() => void run(dismiss)}
+      >
+        <View
+          style={[
+            styles.mailRow,
+            {
+              gap: theme.spacing.md,
+              paddingHorizontal: theme.spacing.md,
+              borderRadius: theme.radii.md,
+              borderColor: theme.colors.border,
+              backgroundColor: theme.colors.surface,
+            },
+          ]}
+        >
+          {noticeIcon}
+          <View style={styles.grow}>
+            <View style={[styles.mailLine, { gap: theme.spacing.sm }]}>
+              <Text
+                variant="label"
+                numberOfLines={second ? 1 : 2}
+                style={[styles.grow, { fontWeight: theme.fontWeight.semibold }]}
+              >
+                {text.headline}
+              </Text>
+              <Text variant="caption" tone="faint" numberOfLines={1}>
+                {ago}
+              </Text>
+            </View>
+            {second}
+          </View>
+          {isRequest(kind) ? (
+            <View style={[styles.mailLine, { gap: theme.spacing.xs }]}>
+              <IconButton
+                icon="check"
+                tone="accent"
+                label={t('news.action.accept')}
+                onPress={() => void run(() => answer(true))}
+              />
+              <IconButton
+                icon="close"
+                label={t('news.action.decline')}
+                onPress={() => void run(() => answer(false))}
+              />
+            </View>
+          ) : null}
+        </View>
+      </SwipeRow>
+    );
+  }
+
   return (
     <SwipeRow
       radius={theme.radii.md}
@@ -357,14 +466,7 @@ export function NotificationItem({ notification, place }: NotificationItemProps)
     >
       <Card>
         <View style={[styles.row, { gap: theme.spacing.md }]}>
-          <View
-            style={[
-              styles.iconBox,
-              { borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceMuted },
-            ]}
-          >
-            <Icon name={iconOf(kind)} size={ICON_SIZE} color={theme.colors.text} />
-          </View>
+          {noticeIcon}
           <View style={[styles.grow, { gap: theme.spacing.xs }]}>
             <Text variant="body" style={{ fontWeight: theme.fontWeight.semibold }}>
               {text.headline}
@@ -391,6 +493,14 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   iconBox: { width: ICON_BOX, height: ICON_BOX, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
-  mailRow: { flexDirection: 'row', alignItems: 'center', borderWidth: StyleSheet.hairlineWidth },
-  mailLine: { flexDirection: 'row', alignItems: 'baseline' },
+  // Feste Hoehe: jede E-Mail-Kachel gleich gross, Ueberlanges wird abgeschnitten.
+  mailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: MAIL_ROW_HEIGHT,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  mailLine: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: UNREAD_DOT, height: UNREAD_DOT },
 });

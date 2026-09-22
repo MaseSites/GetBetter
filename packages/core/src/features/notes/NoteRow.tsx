@@ -14,6 +14,26 @@ import type { NoteMatch } from './search';
 
 /** Eine Zeile der Liste ist 64 hoch: Titel, Zeit und Textanfang, allenfalls der Ordner. */
 export const NOTE_ROW_HEIGHT = 64;
+
+/**
+ * Jede Notiz steht als eigene Karte: weiss, runde Ecken, Luft innen — und
+ * etwas breiter als die Spalte darueber (`noteCardsStyle` in der Liste).
+ */
+export function useNoteCard() {
+  const theme = useTheme();
+  return {
+    radius: theme.radii.md,
+    face: {
+      minHeight: NOTE_ROW_HEIGHT,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.surface,
+    },
+    /** Die Karten untereinander: mit Abstand, ein Stueck ueber die Spalte hinaus. */
+    list: { gap: theme.spacing.sm, marginHorizontal: -theme.spacing.sm },
+  };
+}
 /** Kacheln im Raster sind alle gleich hoch. */
 const TILE_HEIGHT = 188;
 const TILE_IMAGE_HEIGHT = 80;
@@ -27,6 +47,8 @@ export type NoteItemHandlers = {
   toggleSelect: (note: NoteRow) => void;
   startSelect: (note: NoteRow) => void;
   togglePin: (note: NoteRow) => void;
+  /** An die Startseite heften oder davon nehmen. */
+  toggleHome: (note: NoteRow) => void;
   move: (note: NoteRow) => void;
   trash: (note: NoteRow) => void;
   share: (note: NoteRow) => void;
@@ -60,6 +82,12 @@ function useMenuItems({ note, handlers }: Pick<NoteItemProps, 'note' | 'handlers
       label: note.pinned ? t('notes.action.unpin') : t('notes.pin'),
       icon: note.pinned ? 'pinFilled' : 'pin',
       onPress: () => handlers.togglePin(note),
+    },
+    {
+      key: 'home',
+      label: note.homeAt ? t('notes.home.unpin') : t('notes.home.pin'),
+      icon: 'home',
+      onPress: () => handlers.toggleHome(note),
     },
     {
       key: 'share',
@@ -127,15 +155,11 @@ function Preview({ note, match, now }: Pick<NoteItemProps, 'note' | 'match' | 'n
 function RowContent({ note, folderName, match, now, selecting, selected }: NoteItemProps) {
   const { t } = useI18n();
   const theme = useTheme();
+  const card = useNoteCard();
   const [thumb] = imageIdsOf(blocksOf(note));
 
   return (
-    <View
-      style={[
-        styles.row,
-        { minHeight: NOTE_ROW_HEIGHT, paddingVertical: theme.spacing.sm, gap: theme.spacing.md },
-      ]}
-    >
+    <View style={[styles.row, card.face, { gap: theme.spacing.md }]}>
       {selecting ? <SelectCircle selected={selected} /> : null}
       <View style={[styles.grow, { gap: 2 }]}>
         <Text variant="body" numberOfLines={1} style={{ fontWeight: theme.fontWeight.semibold }}>
@@ -162,6 +186,7 @@ export function NoteListItem(props: NoteItemProps) {
   const theme = useTheme();
   const { note, handlers, selecting, selected } = props;
   const items = useMenuItems(props);
+  const card = useNoteCard();
   const title = note.title.trim() || t('notes.untitled');
 
   if (selecting) {
@@ -187,7 +212,8 @@ export function NoteListItem(props: NoteItemProps) {
 
   return (
     <SwipeRow
-      backgroundColor={theme.colors.background}
+      backgroundColor={theme.colors.surface}
+      radius={card.radius}
       leading={{
         key: 'pin',
         label: note.pinned ? t('notes.action.unpin') : t('notes.pin'),

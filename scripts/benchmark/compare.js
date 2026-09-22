@@ -15,7 +15,8 @@ const pct = (value) => (value === null || value === undefined || !Number.isFinit
 /** Was verglichen wird: Titel, Wert aus der Zusammenfassung, Anzeige, Richtung. */
 const ROWS = [
   ['Gerichte ok', (s) => s.ok, (v) => String(v), 'up'],
-  ['Erfolgsquote', (s) => s.successRate, pct, 'up'],
+  // Aeltere Laeufe kennen `successRate` noch nicht — dann aus ok/Gerichte rechnen.
+  ['Erfolgsquote', (s) => s.successRate ?? (s.dishes ? s.ok / s.dishes : null), pct, 'up'],
   ['kcal-Fehler Median %', (s) => s.kcal.medianPct, (v) => f(v), 'down'],
   ['kcal-Fehler Mittel %', (s) => s.kcal.meanPct, (v) => f(v), 'down'],
   ['kcal-Fehler p90 %', (s) => s.kcal.p90Pct, (v) => f(v), 'down'],

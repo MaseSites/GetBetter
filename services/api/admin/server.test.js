@@ -264,6 +264,14 @@ async function seed() {
     JSON.stringify({ at: ago(5 * SECOND), accountId: 'acc_anna', kind: 'session.created', detail: {} }),
     '{kaputt',
     JSON.stringify({ at: ago(4 * SECOND), accountId: 'acc_ben', kind: 'session.blocked', detail: {} }),
+    // Aus der Zeit, als jede Aenderung mitgeschrieben wurde — der Verlauf zeigt sie nicht mehr.
+    JSON.stringify({
+      at: ago(3.5 * SECOND),
+      accountId: 'acc_anna',
+      kind: 'collection.changed',
+      detail: { collection: 'tasks', added: 1, updated: 0, removed: 0 },
+    }),
+    JSON.stringify({ at: ago(3.2 * SECOND), accountId: 'acc_anna', kind: 'profile.updated', detail: { fields: ['firstName'] } }),
   ];
   await fs.writeFile(path.join(DATA_DIR, 'activity.jsonl'), `${activity.join('\n')}\n`);
 }
@@ -521,6 +529,7 @@ describe('admin server', () => {
 
       const { ai } = data;
       assert.equal(ai.configured, false);
+      assert.equal(ai.provider, null);
       assert.equal(ai.requests30, 3);
       assert.equal(ai.costChf30, 0.001323);
       assert.equal(ai.costChfMonth, 0.001323);
@@ -652,19 +661,10 @@ describe('admin server', () => {
       assert.equal(count('betterfamily', 'chores').items, 1);
       assert.equal(count('getbetter', 'notes').items, 0);
 
-      assert.deepEqual(
-        activity.map((entry) => entry.kind),
-        ['ai.reply', 'ai.reply', 'session.created', 'ai.reply'],
-      );
-      assert.ok(activity.every((entry) => entry.accountId === 'acc_anna' && entry.email === 'anna@test.ch'));
-      assert.deepEqual(activity[0].detail, {
-        app: 'betterai',
-        tier: 'chat_model',
-        model: 'gpt-oss-120b',
-        costChf: null,
-        ok: false,
-        error: 'timeout',
-      });
+      // Nur der Verlauf — die KI-Anfragen stehen unter `ai`, alte Datenaenderungen gar nicht.
+      assert.deepEqual(activity, [
+        { at: ago(5 * SECOND), accountId: 'acc_anna', email: 'anna@test.ch', kind: 'session.created', detail: {} },
+      ]);
 
       assert.deepEqual(ai.totals, { requests: 3, costChf: 0.500323, promptTokens: 1010, completionTokens: 510 });
       assert.deepEqual(ai.byApp.find((entry) => entry.app === 'getbetter'), { app: 'getbetter', requests: 2, costChf: 0.500323 });
@@ -689,44 +689,24 @@ describe('admin server', () => {
       assert.deepEqual([missing.status, missing.data], [404, { error: 'not_found' }]);
     });
 
-    test('GET /api/activity merges the log with AI replies', async () => {
+    test('GET /api/activity lists only the log, without AI replies or old data changes', async () => {
       const all = await get('/api/activity');
       assert.equal(all.status, 200);
-      assert.deepEqual(
-        all.data.entries.map((entry) => [entry.kind, entry.accountId]),
-        [
-          ['ai.reply', 'acc_ben'],
-          ['ai.reply', 'acc_anna'],
-          ['ai.reply', 'acc_anna'],
-          ['session.blocked', 'acc_ben'],
-          ['session.created', 'acc_anna'],
-          ['ai.reply', 'acc_anna'],
-        ],
-      );
-      assert.deepEqual(all.data.entries[0], {
-        at: ago(SECOND),
-        accountId: 'acc_ben',
-        email: 'ben@test.ch',
-        kind: 'ai.reply',
-        detail: {
-          app: 'bettergym',
-          tier: 'reasoning_model',
-          model: 'deepseek-v4-flash',
-          costChf: 0.001,
-          ok: true,
-          error: null,
-        },
-      });
+      assert.deepEqual(all.data.entries, [
+        { at: ago(4 * SECOND), accountId: 'acc_ben', email: 'ben@test.ch', kind: 'session.blocked', detail: {} },
+        { at: ago(5 * SECOND), accountId: 'acc_anna', email: 'anna@test.ch', kind: 'session.created', detail: {} },
+      ]);
 
       const entries = async (query) => (await get(`/api/activity?${query}`)).data.entries;
-      assert.equal((await entries('accountId=acc_ben')).length, 2);
+      assert.equal((await entries('accountId=acc_ben')).length, 1);
       assert.deepEqual((await entries('kind=session')).map((entry) => entry.kind), ['session.blocked', 'session.created']);
-      assert.equal((await entries('kind=ai.reply')).length, 4);
-      assert.equal((await entries('kind=ai')).length, 4);
-      assert.equal((await entries('limit=2')).length, 2);
-      assert.equal((await entries('limit=9999')).length, 6);
-      const before = await entries(`before=${encodeURIComponent(ago(2.5 * SECOND))}`);
-      assert.deepEqual(before.map((entry) => entry.kind), ['ai.reply', 'session.blocked', 'session.created', 'ai.reply']);
+      for (const kind of ['ai', 'ai.reply', 'collection', 'collection.changed', 'profile.updated']) {
+        assert.deepEqual(await entries(`kind=${kind}`), [], kind);
+      }
+      assert.equal((await entries('limit=1')).length, 1);
+      assert.equal((await entries('limit=9999')).length, 2);
+      const before = await entries(`before=${encodeURIComponent(ago(4.5 * SECOND))}`);
+      assert.deepEqual(before.map((entry) => entry.kind), ['session.created']);
 
       for (const query of ['limit=0', 'limit=abc', 'limit=1.5', 'before=gestern']) {
         const refused = await get(`/api/activity?${query}`);

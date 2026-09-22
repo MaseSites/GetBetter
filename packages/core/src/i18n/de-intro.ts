@@ -99,6 +99,6 @@ export const deIntro = {
   'intro.tutorial.chats.title': 'Deine Gespräche',
   'intro.tutorial.chats.body':
     'Jedes Gespräch bleibt gespeichert, das Neueste steht oben. Ein Anfang-Chip startet ein neues.',
-  'intro.tutorial.art.news': 'Was gibt’s Neues',
+  'intro.tutorial.art.news': 'Neuigkeiten',
   'intro.tutorial.art.inbox': 'Posteingang',
 } as const;

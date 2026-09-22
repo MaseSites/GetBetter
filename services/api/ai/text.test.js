@@ -82,3 +82,16 @@ describe('Antworten nachbearbeiten', () => {
     assert.equal(spokenText('', 300), '');
   });
 });
+
+test('plainText: ohne Fett, Ueberschriften und Kennungen — Zeilen bleiben', () => {
+  const { plainText } = require('./text.js');
+  assert.equal(
+    plainText('## Diese Woche\n\n**Kalender:**\n- Mi 23.09. 14:00 Zahnarzt ([T1])\n- Do *Fussball* [T2]\n\n\n\nSonst nichts.'),
+    'Diese Woche\n\nKalender:\n- Mi 23.09. 14:00 Zahnarzt\n- Do Fussball\n\nSonst nichts.',
+  );
+  assert.equal(plainText('* Punkt eins\n* Punkt zwei'), '* Punkt eins\n* Punkt zwei');
+  assert.equal(plainText('3 * 4 = 12'), '3 * 4 = 12');
+  // Kennungen aus dem Kontext auch ohne Klammern — andere bleiben (die A1 ist eine Autobahn).
+  assert.equal(plainText('Welche? T1 Coiffeur oder T2: Zahnarzt?', ['T1', 'T2']), 'Welche? Coiffeur oder Zahnarzt?');
+  assert.equal(plainText('Stau auf der A1.', ['T1']), 'Stau auf der A1.');
+});

@@ -30,6 +30,7 @@ export function createBillingUi(ui) {
     isNum,
     clamp,
     fmtChf,
+    signedChf,
     fmtPct,
     fmtInt,
     fmtDayLong,
@@ -52,22 +53,21 @@ export function createBillingUi(ui) {
   function usageMeter(usage) {
     const share = isNum(usage.usedShare) ? clamp(usage.usedShare, 0, 1) : 0;
     const over = share >= 1;
-    const labelId = uid('budget');
     const amounts = `${fmtChf(usage.spentChf)} von ${fmtChf(usage.budgetChf)}`;
     return h(
       'div',
-      { class: 'budget' },
+      { class: 'budget', title: `Diesen Monat, wieder voll am ${fmtDayLong(usage.resetsOn)}` },
       h(
         'div',
         { class: 'budget__head' },
-        h('span', { id: labelId, class: 'budget__label', text: 'Diesen Monat' }),
+        h('span', { class: 'budget__label num', text: amounts }),
         h('span', { class: over ? 'budget__value num num-negative' : 'budget__value num', text: fmtPct(share) }),
       ),
       h(
         'div',
         {
           role: 'meter',
-          'aria-labelledby': labelId,
+          'aria-label': 'Kontingent diesen Monat',
           'aria-valuemin': '0',
           'aria-valuemax': '100',
           'aria-valuenow': String(Math.round(share * 100)),
@@ -88,7 +88,6 @@ export function createBillingUi(ui) {
             : null,
         ),
       ),
-      h('div', { class: 'budget__foot num', text: `${amounts} · voll am ${fmtDayLong(usage.resetsOn)}` }),
     );
   }
 
@@ -156,8 +155,8 @@ export function createBillingUi(ui) {
         const usage = billing.get(row.app.id);
         const hasPrice = isNum(usage?.priceChf);
         row.meta.textContent = [
-          seen ? `zuletzt ${fmtRelative(seen.lastSeenAt)}` : 'noch nie geöffnet',
-          hasPrice ? `Abo ${fmtChf(usage.priceChf)} im Monat` : 'noch kein Abo-Preis',
+          seen ? `aktiv ${fmtRelative(seen.lastSeenAt)}` : 'nie geöffnet',
+          hasPrice ? `${fmtChf(usage.priceChf)} / Monat` : 'ohne Preis',
         ].join(' · ');
         row.badge.replaceChildren(planBadge(usage?.plan) ?? '');
         row.request.replaceChildren(...[requestControls?.(store, row.app.id)].filter(Boolean));
@@ -192,14 +191,7 @@ export function createBillingUi(ui) {
     draw(store.get());
     store.subscribe(draw);
     return card(
-      {
-        title: 'Apps: Zugang und Abo',
-        note:
-          'Gesperrt lässt das Konto nicht mehr in die App. Mit Abo gilt das Kontingent des Abos, ohne Abo ein kleines ' +
-          'Gratis-Kontingent: nur die günstige KI, keine Stimmen von ElevenLabs. Ein Abo irgendeiner App schaltet das ' +
-          'Aussehen in allen Apps frei; das Abo einschalten erledigt auch eine offene Anfrage. Die App merkt es beim ' +
-          'nächsten Abgleich.',
-      },
+      { title: 'Apps', hint: 'Zugang aus: kein Zutritt. Abo an: volles Kontingent. Die App merkt es beim nächsten Abgleich.' },
       list,
     );
   }
@@ -219,7 +211,6 @@ export function createBillingUi(ui) {
   // Marge
   // -------------------------------------------------------------------------
 
-  const signedChf = (value) => h('span', { class: isNum(value) && value < 0 ? 'num-negative' : null, text: fmtChf(value) });
   const signedPct = (value) =>
     isNum(value) ? h('span', { class: value < 0 ? 'num-negative' : null, text: fmtPct(value) }) : '—';
   const chfColumn = (key, label) => ({ key, label, type: 'num', sortValue: (r) => r[key], render: (r) => fmtChf(r[key]) });
@@ -253,16 +244,11 @@ export function createBillingUi(ui) {
     const divisor = isNum(margin.vat) ? (1 + margin.vat).toFixed(3) : '1.081';
     const keep = isNum(margin.storeFee) ? (1 - margin.storeFee).toFixed(2) : '0.85';
     return card(
-      {
-        title,
-        note:
-          `Netto = Abos × Preis ÷ ${divisor} (MwSt) × ${keep} (Store). Variable Kosten = KI und Stimmen aller Konten ` +
-          'der App, die der Gratis-Konten stehen zusätzlich einzeln. Abos nach heutigem Stand, Monat in Zürich.',
-      },
+      { title, hint: `Netto = Abos × Preis ÷ ${divisor} (MwSt) × ${keep} (Store). Monat in Zürich.` },
       stats(
         [
-          ['Nettoeinnahmen', fmtChf(totals.netRevenueChf)],
-          ['Variable Kosten', fmtChf(totals.variableCostChf)],
+          ['Netto', fmtChf(totals.netRevenueChf)],
+          ['Kosten', fmtChf(totals.variableCostChf)],
           ['Marge', signedChf(totals.marginChf), totals.marginChf < 0 ? 'danger' : null],
           ['Mit Fixkosten', signedChf(totals.marginWithFixedChf), totals.marginWithFixedChf < 0 ? 'danger' : 'strong'],
         ],
@@ -271,14 +257,13 @@ export function createBillingUi(ui) {
       table.el,
       stats(
         [
-          ['Abos zusammen', fmtInt(totals.paidAccounts)],
-          ['Kosten der Gratis-Konten', fmtChf(totals.trialCostChf)],
+          ['Gratis-Konten', fmtChf(totals.trialCostChf)],
           ['Stimmen ohne Konto', fmtChf(totals.unassignedChf)],
-          ['Safe Swiss Cloud: zu zahlen (mind. ' + fmtChf(totals.aiMinimumChf) + ')', fmtChf(totals.aiBillableChf)],
+          [`Safe Swiss Cloud (mind. ${fmtChf(totals.aiMinimumChf)})`, fmtChf(totals.aiBillableChf)],
           ['Plan ElevenLabs', fmtChf(totals.speechFixedChf)],
-          ['Fixkosten, die der Verbrauch nicht deckt', fmtChf(totals.fixedChf)],
+          ['Fixkosten ungedeckt', fmtChf(totals.fixedChf)],
         ],
-        'stats stats--list',
+        'stats stats--small',
       ),
     );
   }

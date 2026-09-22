@@ -119,4 +119,34 @@ function spokenText(text, max) {
   return limitChars(spoken, max);
 }
 
-module.exports = { limitChars, spokenText, stripReasoning };
+/** Kennungen aus dem Kontext wie [T1] — die gehoeren nicht in eine Antwort. */
+const REF_TAG = /[ \t]*\(?\[[A-Z]\d{1,3}\]\)?/g;
+const STRONG = /(\*\*|__)(.+?)\1/g;
+const EMPHASIS = /\*(\S[^*\n]*?)\*/g;
+
+/** Die Kennungen, die im Kontext standen, auch ohne Klammern: „T1 Coiffeur“ ist „Coiffeur“. */
+function bareRefs(refs) {
+  const known = refs.filter((ref) => /^[A-Z]\d{1,3}$/.test(ref));
+  if (known.length === 0) return null;
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${known.join('|')})(?![\\p{L}\\p{N}])[:.]?[ \\t]*`, 'gu');
+}
+
+/**
+ * Fuer den Assistenten, der schlichten Text zeigt: ohne Fett, Kursiv und
+ * Ueberschriften, ohne Kennungen wie [T1] — und ohne die Kennungen `refs` aus
+ * dem Kontext, auch ohne Klammern. Zeilen und Aufzaehlungen bleiben.
+ */
+function plainText(text, refs = []) {
+  const bare = bareRefs(refs);
+  return text
+    .split('\n')
+    .map((line) => {
+      const plain = line.replace(HEADING, '').replace(STRONG, '$2').replace(EMPHASIS, '$1').replace(REF_TAG, '');
+      return (bare ? plain.replace(bare, '') : plain).trimEnd();
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+module.exports = { limitChars, plainText, spokenText, stripReasoning };

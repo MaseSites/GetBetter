@@ -145,7 +145,7 @@ export const frC = {
   'intro.tutorial.chats.title': 'Tes conversations',
   'intro.tutorial.chats.body':
     'Chaque conversation reste enregistrée, la plus récente en haut. Touche une suggestion pour en commencer une nouvelle.',
-  'intro.tutorial.art.news': 'Quoi de neuf',
+  'intro.tutorial.art.news': 'Nouveautés',
   'intro.tutorial.art.inbox': 'Boîte de réception',
 
   // E-Mail
@@ -424,8 +424,9 @@ export const frC = {
   'aiChat.starter.ideas': 'Donne-moi trois idées',
 
   // Neues
-  'news.title': 'Quoi de neuf',
+  'news.title': 'Nouveautés',
   'news.empty': 'Rien de nouveau',
+  'news.unread': 'Non lu',
   'news.more': '+{count} autres',
   'news.bell.label': 'Notifications, {count} nouvelles',
   'news.bell.many': '{count}+',
@@ -517,7 +518,9 @@ export const frC = {
   'settings.nickname.hint': 'C’est ainsi que l’app s’adresse à toi.',
   'settings.nickname.none': 'Aucun pour l’instant',
   'settings.username': 'Nom d’utilisateur',
-  'settings.username.hint': 'En minuscules, sans @ — c’est ainsi que les autres te trouvent.',
+  'settings.username.hint': 'En minuscules, sans @ — c’est ainsi que les autres te trouvent. Tu peux le changer une fois par mois.',
+  'settings.username.cooldown': 'Tu ne peux changer ton nom d’utilisateur qu’une fois par mois.',
+  'settings.username.locked': 'Tu pourras changer ton nom d’utilisateur le {date}.',
   'settings.username.empty': 'Sans nom, personne ne te trouve. Écris quelque chose.',
   'settings.username.taken': 'Il est déjà pris. Choisis-en un autre.',
   'settings.username.invalid':

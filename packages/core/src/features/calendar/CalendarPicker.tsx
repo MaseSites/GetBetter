@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { CalendarSource } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Checkbox, Divider, Icon, Input, Segmented, Sheet, Text } from '@/ui';
+import { Button, Checkbox, Icon, Input, Segmented, Sheet, Text } from '@/ui';
 
 export type CalendarMode = 'day' | 'week' | 'month';
 
@@ -22,6 +22,15 @@ export type PickerGroup = {
   entries: readonly PickerEntry[];
 };
 
+/** Eine offene Anfrage: jemand will deinen Kalender sehen, oder du bist eingeladen. */
+export type PickerRequest = {
+  key: string;
+  title: string;
+  body: string;
+  onAccept: () => void;
+  onDecline: () => void;
+};
+
 export type CalendarPickerProps = {
   visible: boolean;
   onClose: () => void;
@@ -31,17 +40,20 @@ export type CalendarPickerProps = {
   people: readonly PickerGroup[];
   /** Namen, deren Anfrage noch offen ist. */
   waiting: readonly string[];
+  /** Was auf eine Antwort wartet — steht zuoberst. */
+  requests: readonly PickerRequest[];
   selected: readonly CalendarSource[];
   onToggle: (source: CalendarSource) => void;
-  onAll: (all: boolean) => void;
   onAsk: (username: string) => void;
   /** Rueckmeldung auf die letzte Anfrage. */
   askMessage?: { tone: 'ok' | 'error'; text: string } | null;
 };
 
 /**
- * Das aufklappbare Menue: oben die Ansicht, darunter die eigenen Kalender
- * mit Haekchen, ganz unten die Personen, deren Kalender man dazunehmen kann.
+ * Das eine Menue des Kalenders, hinter dem Knopf oben rechts: zuoberst, was
+ * auf eine Antwort wartet, dann die Ansicht (Tag, Woche, Monat), die eigenen
+ * Kalender — nur, wenn es mehr als einen gibt — und die Kalender anderer, die
+ * man sich anzeigen lassen kann. Anlegen und Verwalten gibt es hier nicht.
  */
 export function CalendarPicker({
   visible,
@@ -51,9 +63,9 @@ export function CalendarPicker({
   calendars,
   people,
   waiting,
+  requests,
   selected,
   onToggle,
-  onAll,
   onAsk,
   askMessage = null,
 }: CalendarPickerProps) {
@@ -62,11 +74,42 @@ export function CalendarPicker({
   const [asking, setAsking] = useState(false);
   const [username, setUsername] = useState('');
 
-  const allOn = calendars.length > 0 && calendars.every((entry) => selected.includes(entry.source));
-
   return (
     <Sheet visible={visible} onClose={onClose} title={t('calendar.picker.title')}>
       <View style={{ gap: theme.spacing.xl, paddingBottom: theme.spacing.lg }}>
+        {requests.length > 0 ? (
+          <View style={{ gap: theme.spacing.md }}>
+            {requests.map((request) => (
+              <View key={request.key} style={{ gap: theme.spacing.sm }}>
+                <View style={{ gap: theme.spacing.xs }}>
+                  <Text variant="label" style={{ fontWeight: theme.fontWeight.semibold }}>
+                    {request.title}
+                  </Text>
+                  <Text variant="caption" tone="muted">
+                    {request.body}
+                  </Text>
+                </View>
+                <View style={[styles.row, { gap: theme.spacing.sm }]}>
+                  <Button
+                    label={t('calendars.invites.accept')}
+                    size="sm"
+                    icon="check"
+                    fullWidth={false}
+                    onPress={request.onAccept}
+                  />
+                  <Button
+                    label={t('calendars.invites.decline')}
+                    size="sm"
+                    variant="ghost"
+                    fullWidth={false}
+                    onPress={request.onDecline}
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <View style={{ gap: theme.spacing.sm }}>
           <Text variant="section" tone="muted">
             {t('calendar.view')}
@@ -83,28 +126,23 @@ export function CalendarPicker({
           />
         </View>
 
-        <View style={{ gap: theme.spacing.xs }}>
-          <Text variant="section" tone="muted">
-            {t('calendar.picker.calendars')}
-          </Text>
-
-          <CheckRow
-            label={t('calendar.picker.all')}
-            checked={allOn}
-            onPress={() => onAll(!allOn)}
-          />
-          <Divider />
-
-          {calendars.map((entry) => (
-            <CheckRow
-              key={entry.source}
-              label={entry.label}
-              {...(entry.color ? { color: entry.color } : {})}
-              checked={selected.includes(entry.source)}
-              onPress={() => onToggle(entry.source)}
-            />
-          ))}
-        </View>
+        {/* Mit nur einem eigenen Kalender gibt es nichts an- oder abzuwaehlen. */}
+        {calendars.length > 1 ? (
+          <View style={{ gap: theme.spacing.xs }}>
+            <Text variant="section" tone="muted">
+              {t('calendar.picker.calendars')}
+            </Text>
+            {calendars.map((entry) => (
+              <CheckRow
+                key={entry.source}
+                label={entry.label}
+                {...(entry.color ? { color: entry.color } : {})}
+                checked={selected.includes(entry.source)}
+                onPress={() => onToggle(entry.source)}
+              />
+            ))}
+          </View>
+        ) : null}
 
         <View style={{ gap: theme.spacing.xs }}>
           <Text variant="section" tone="muted">

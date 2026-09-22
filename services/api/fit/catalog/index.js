@@ -430,24 +430,17 @@ function createCatalog({ dataDir, mode }) {
     const best = scored
       .sort((a, b) => b.score - a.score || Number(b.remembered) - Number(a.remembered))
       .slice(0, limit);
-    // Gesucht ist gekocht, gefunden nur roh oder trocken: aus dem rohen Datensatz
-    // den gekochten rechnen (`cooking.js`). Erst nach dem Sortieren, damit ein
-    // echter gekochter Datensatz immer vorgeht — umgerechnet wird nur, was sonst
-    // als rohes Gewicht auf dem Teller laege.
+    // Gesucht gekocht, gefunden nur roh: umrechnen (`cooking.js`). Erst nach dem
+    // Sortieren, damit ein echter gekochter Datensatz immer vorgeht — und mit dem
+    // Abzug zurueck, denn der Zustand stimmt danach.
     if (wantedState !== 'cooked') return best;
     const { cookedVariant } = require('./cooking.js');
     return best.map((entry) => {
-      if (!entry.stateMismatch || entry.food.state !== 'raw') return entry;
-      const cooked = cookedVariant(entry.food);
-      if (!cooked) return entry;
-      return {
-        ...entry,
-        food: cooked,
-        // Der Abzug fuer den falschen Zustand faellt weg: der Zustand stimmt jetzt.
-        score: Math.min(1, entry.score + 0.25),
-        stateMismatch: false,
-        converted: true,
-      };
+      const cooked =
+        entry.stateMismatch && entry.food.state === 'raw' ? cookedVariant(entry.food) : null;
+      return cooked
+        ? { ...entry, food: cooked, score: Math.min(1, entry.score + 0.25), stateMismatch: false, converted: true }
+        : entry;
     });
   }
 

@@ -199,12 +199,14 @@ async function main() {
   }
   if (waiting) console.warn(`Hinweis: ${waiting} Gerichte der Reihenfolge ohne Bild übersprungen (Download läuft?). Die Stichprobe ist erst mit allen Bildern stabil.`);
 
-  // Fortsetzen: nur fertige Gerichte bleiben, Gescheiterte werden neu geholt.
+  // Fortsetzen: alles Bekannte bleibt stehen, damit auch die Fehler im Bericht
+  // bleiben — geholt werden aber nur die, die noch nicht geklappt haben.
   const previous = fs.existsSync(outFile) ? JSON.parse(fs.readFileSync(outFile, 'utf8')) : null;
-  const records = new Map((previous?.records ?? []).filter((record) => record.status === 'ok').map((record) => [record.dishId, record]));
-  const todo = sample.filter((dish) => !records.has(dish.id));
+  const records = new Map((previous?.records ?? []).map((record) => [record.dishId, record]));
+  const todo = sample.filter((dish) => records.get(dish.id)?.status !== 'ok');
   const priorCost = [...records.values()].reduce((sum, record) => sum + (record.costChf ?? 0), 0);
-  console.log(`${sample.length} Gerichte, ${records.size} schon fertig, ${todo.length} offen. Kostendeckel CHF ${args.maxChf}, Modell ${mainModel}${args.allowFallback ? '' : ' (kein Ersatzmodell)'}.`);
+  const doneCount = [...records.values()].filter((record) => record.status === 'ok').length;
+  console.log(`${sample.length} Gerichte, ${doneCount} schon fertig, ${todo.length} offen. Kostendeckel CHF ${args.maxChf}, Modell ${mainModel}${args.allowFallback ? '' : ' (kein Ersatzmodell)'}.`);
 
   const meta = { label: args.label, variant: args.variant, date, split: args.split, seed: args.seed, n: args.n, language: args.language, concurrency: args.concurrency, pauseMs: args.pauseMs, retries: args.retries, minKcal: args.minKcal, mainModel, allowFallback: args.allowFallback, sample: sample.map((dish) => dish.id), models: [], startedAt: previous?.meta?.startedAt ?? new Date().toISOString() };
   const save = () => {

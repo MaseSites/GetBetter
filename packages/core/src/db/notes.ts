@@ -1,3 +1,5 @@
+import { byHomeAt, isOnHome } from '../features/notes/home';
+
 import { notifyDataChanged } from './events';
 import { noteTextOf } from './noteBlocks';
 import { db, newId } from './store';
@@ -47,6 +49,14 @@ export const notes = {
     });
   },
 
+  /** Was an der Startseite haengt: das zuletzt Angeheftete zuerst. */
+  listOnHome(accountId: string) {
+    return db.notes.list({
+      where: (row) => row.accountId === accountId && isOnHome(row),
+      sort: byHomeAt,
+    });
+  },
+
   /** „Zuletzt gelöscht“: das zuletzt Geloeschte zuerst. */
   listDeleted(accountId: string) {
     return db.notes.list({
@@ -91,6 +101,11 @@ export const notes = {
 
   setPinned(ids: readonly string[], pinned: boolean) {
     return patchQuietly(ids, { pinned });
+  },
+
+  /** An die Startseite heften oder davon nehmen — keine Bearbeitung. */
+  setOnHome(ids: readonly string[], onHome: boolean) {
+    return patchQuietly(ids, { homeAt: onHome ? now() : null });
   },
 
   moveToFolder(ids: readonly string[], folderId: string | null) {

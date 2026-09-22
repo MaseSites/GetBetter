@@ -326,3 +326,76 @@ Tests liegen neben dem Code und kommen ohne die 3 MB aus:
 ```bash
 npx -y node@24 --import ./scripts/test-setup.mjs --test "services/api/fit/reference/*.test.js"
 ```
+
+## Foto-Benchmark gegen Nutrition5k (22.09.2026)
+
+Wie genau schätzt die Foto-Analyse? Gemessen wird über die **echte Pipeline**:
+ein eigener Dienst im Temp-Ordner (`services/api/test/fitHarness.js`,
+`MEAL_ANALYSIS_MODE=live`, Schweizer Katalog, Referenzdaten), ein Konto, ein
+Profil, dann je Gericht `POST /v1/fit/meal-analysis/start` — genau wie die App.
+Wahrheit sind die Nutrition5k-Gerichte (Google Research, CC BY 4.0) aus
+`services/api/data/fit-reference/nutrition5k/`; keine Rückfrage wird
+beantwortet, es zählt die erste Antwort.
+
+```bash
+npx -y node@24 scripts/fit-benchmark.js --n 40 --split test --seed 1 \
+  --label baseline2 --max-chf 1.0 --concurrency 1
+npx -y node@24 scripts/fit-benchmark.js --compare a.json b.json
+```
+
+Ergebnis je Lauf: `services/api/data/fit-reference/benchmarks/<datum>-<label>.json`
+und `.md` daneben. `scripts/benchmark/` hält die Teile: `nutrition5k.js` (lesen),
+`metrics.js` (Kennzahlen), `report.js` (Markdown), `compare.js` (zwei Läufe
+nebeneinander), `preflight.js` (Kontingent vorab fragen).
+
+| Option | |
+| --- | --- |
+| `--n` `--split` `--seed` | Stichprobe; der Seed mischt den Split deterministisch |
+| `--label` | Name der Ausgabedatei — **derselbe Name setzt einen Lauf fort** |
+| `--variant <text>` | Freitext in die JSON, um Läufe später zu unterscheiden |
+| `--concurrency` | Standard **1**; mehr heisst 429 und falsch gemessenes Modell |
+| `--pause-ms` `--retries` | Pause zwischen Gerichten (2000), Wiederholungen (3) |
+| `--vision-model` | ein anderes Modell messen, statt dem aus `fit/config.js` |
+| `--allow-fallback` | das Ersatzmodell des Dienstes wieder zulassen |
+| `--max-chf` | Kostendeckel; auch Fehlversuche zählen mit |
+
+**Sequenziell und ohne Ersatzmodell, mit Absicht.** Parallele Anfragen laufen
+bei Gemini reihenweise in 429; der Dienst weicht dann still auf
+`GEMINI_FALLBACK_MODEL` aus, und gemessen wäre das falsche Modell. Darum setzt
+der Benchmark `GEMINI_FALLBACK_MODEL=''`, wiederholt selbst mit 5 s / 15 s / 40 s
+und schreibt **je Gericht, welches Modell geantwortet hat**; die Zusammenfassung
+zählt, wie oft ausgewichen wurde (mit `--allow-fallback` auch wirklich mehr als 0).
+
+**Fortsetzbar:** derselbe `--label` schreibt dieselbe Datei weiter. Fertige
+Gerichte bleiben stehen, nur die offenen und die gescheiterten werden neu geholt.
+
+### Das Tageskontingent ist die Grenze, nicht der Code
+
+Der Gratis-Zugang von Gemini erlaubt **20 Anfragen je Modell und Tag**
+(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`). Ein Lauf über 40 Gerichte
+geht damit **nicht** — und weil der Dienst nur `provider_busy` meldet, sah das
+vorher nach Überlastung aus. Darum fragt `preflight.js` vor dem Lauf einmal beim
+Modell nach und bricht sofort ab, statt eine halbe Stunde ins Leere zu laufen;
+scheitern mitten im Lauf drei Gerichte hintereinander, wird nochmal nachgefragt
+und Schluss gemacht. Für einen vollen Lauf braucht es die Abrechnung bei Google
+— sonst geht es nur in Tagesportionen über `--label`.
+
+### Stand (22.09.2026)
+
+`2026-09-22-baseline.json` (n=40, `gemini-3.5-flash`, parallel) taugt nur als
+Warnung: 12 von 40 Gerichten, der Rest 429, und gemessen wurde das Ersatzmodell.
+`2026-09-22-baseline2-36flash.json` (n=12, `gemini-3.6-flash`, sequenziell) ist
+der erste saubere Lauf: 10 von 12, kcal-Fehler Median 23 %, innerhalb ±15 % erst
+30 %, Zutaten-Recall 74 %, CHF 0.006 je Gericht, 5 s je Gericht.
+
+Was durchgehend auffällt und die Priors angehen sollen:
+
+- **Dichte schlägt Volumen.** Was klein und fett ist, wird unterschätzt
+  (118 g Mandeln → 80 g geschätzt, −72 % kcal), was gross und luftig ist,
+  überschätzt. Das Modell schätzt Fläche, nicht Masse.
+- **Erfundene Beilagen.** Öl, Dressing und Butter werden dazugedichtet, wo die
+  Wahrheit nichts davon kennt (Wurst 60 g → „Wurst 120 g + Öl 8 g“, +55 %).
+- **Verdeckte Zutaten fehlen.** Was unter anderem liegt, fällt weg
+  (67 g Oliven übersehen) — der Recall hängt an der Sicht von oben.
+- **Runde Zahlen.** Geschätzt wird in 10-g-Schritten; bei kleinen Gerichten ist
+  das allein schon zweistellig Prozent.

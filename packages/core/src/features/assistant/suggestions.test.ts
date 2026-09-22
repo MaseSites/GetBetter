@@ -16,6 +16,14 @@ test('poolFor: die laufende App zuerst, dann die besuchten — Unbekanntes faell
   assert.equal(new Set(withFamily).size, withFamily.length);
 });
 
+test('poolFor: ein Auftrag nur dort, wo die KI ihn ausfuehren kann', () => {
+  assert.equal(poolFor('bettergym', ['betterfamily']).includes('assistant.chip.shopping'), false);
+  assert.equal(poolFor('bettermoney', ['betterfamily']).includes('assistant.chip.chore'), false);
+  // Fragen aus der anderen App bleiben.
+  assert.ok(poolFor('bettergym', ['betterfamily']).includes('assistant.chip.dinner'));
+  assert.ok(poolFor('betterfamily', []).includes('assistant.chip.shopping'));
+});
+
 test('suggestionsFor: drei verschiedene, derselbe Startwert gibt dieselben', () => {
   const args = { current: 'getbetter', seen: ['betterfamily', 'bettergym'] } as const;
   const first = suggestionsFor({ ...args, seed: 0.42 });

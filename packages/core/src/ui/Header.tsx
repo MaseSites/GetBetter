@@ -18,6 +18,8 @@ export type HeaderAction = {
   onPress: () => void;
   /** Hebt den Knopf hervor, z.B. ein gesetzter Favoritenstern. */
   active?: boolean;
+  /** Ein roter Punkt am Knopf: dahinter wartet etwas auf eine Antwort. */
+  badge?: boolean;
 };
 
 export type HeaderProps = {
@@ -116,6 +118,7 @@ export function Header({
             icon={action.icon}
             label={action.label}
             active={action.active}
+            badge={action.badge}
             onPress={action.onPress}
           />
         ))}
@@ -280,11 +283,13 @@ function RoundButton({
   icon,
   label,
   active = false,
+  badge = false,
   onPress,
 }: {
   icon: IconName;
   label: string;
   active?: boolean;
+  badge?: boolean | undefined;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -315,6 +320,14 @@ function RoundButton({
           size={18}
           color={active ? theme.colors.accentStrong : theme.colors.text}
         />
+        {badge ? (
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: theme.colors.danger, borderColor: theme.colors.surface },
+            ]}
+          />
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -322,6 +335,15 @@ function RoundButton({
 
 const styles = StyleSheet.create({
   crumbMark: { width: 8, height: 8, borderRadius: 2 },
+  badge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+  },
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1, minWidth: 0 },

@@ -75,21 +75,19 @@ function analysisRoutes(ctx) {
   }
 
   /**
-   * Zuordnen: erst der Katalog, fuer Unsicheres USDA (live, mit Schluessel).
-   * Neue USDA-Zeilen landen danach im gemeinsamen Zwischenspeicher. Danach
-   * kommt dazu, was die Kamera nicht sieht (Standardrezept des Gerichts), und
-   * zuletzt zaehlt, was diese Person sonst bestaetigt hat.
+   * Zuordnen: erst der Katalog, fuer Unsicheres USDA (live, mit Schluessel);
+   * neue USDA-Zeilen landen im gemeinsamen Zwischenspeicher. Danach kommt dazu,
+   * was die Kamera nicht sieht (Standardrezept), und zuletzt zaehlt die eigene Portion.
    */
   async function match(auth, vision, language = 'de') {
-    const { customFoods, cacheRows, confirmed } = await store.read((tx) => {
-      const own = tx.forOwner(auth.accountId);
-      return {
-        customFoods: own.list('customFoods'),
-        cacheRows: tx.shared('foodCache'),
-        // Nur das eigene Konto: `forOwner` kennt keine fremde Zeile.
-        confirmed: own.list('mealAnalyses', (row) => row.status === 'confirmed'),
-      };
-    });
+    // `forOwner` kennt keine fremde Zeile: die eigene Portion bleibt die eigene.
+    const { customFoods, cacheRows, confirmed } = await store.read((tx) => ({
+      customFoods: tx.forOwner(auth.accountId).list('customFoods'),
+      cacheRows: tx.shared('foodCache'),
+      confirmed: tx
+        .forOwner(auth.accountId)
+        .list('mealAnalyses', (row) => row.status === 'confirmed'),
+    }));
     const found = new Map();
     if (usda.enabled) {
       for (const entry of vision.foods) {
@@ -132,11 +130,8 @@ function analysisRoutes(ctx) {
       }
       return local;
     };
-    const items = matchFoods(vision, matcher);
-    const withDish = applyDish(vision, items, {
-      match: (term) => catalog.match(term, { customFoods }),
-      language,
-    });
+    const plain = (term) => catalog.match(term, { customFoods });
+    const withDish = applyDish(vision, matchFoods(vision, matcher), { match: plain, language });
     return applyPersonal(withDish, personalFactors(confirmed));
   }
 
@@ -158,14 +153,13 @@ function analysisRoutes(ctx) {
       matchUncertain: item.matchUncertain,
       stateMismatch: item.stateMismatch,
       added: item.added,
-      // Aus dem Standardrezept ergaenzt (Öl, Butter, Rahm, Käse) statt auf dem Foto gesehen.
+      // `from: 'dish'` aus dem Standardrezept ergaenzt, `cooked` die Umrechnung
+      // („gekocht 200 g ≈ 77 g trocken“), `personal` die eigene Portion,
+      // `alternatives` die naechstbesten Begriffe fuer die Korrektur mit einem Tipp.
       from: item.from ?? null,
-      // „gekocht 200 g ≈ 77 g trocken“, wenn aus einem rohen Datensatz gerechnet wurde.
       cooked: item.cooked ?? null,
-      // Auf die eigene Portion angepasst.
       personal: item.personal === true,
       personalFactor: item.personalFactor ?? null,
-      // Die naechstbesten Suchbegriffe des Modells, fuer die Korrektur mit einem Tipp.
       alternatives: item.alternatives ?? [],
       food: item.food ? publicFood(item.food, language) : null,
       nutrients: item.nutrients,

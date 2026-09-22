@@ -4,6 +4,7 @@ import { enAvatar } from './en-avatar';
 import { enB } from './en-b';
 import { enBirthdays } from './en-birthdays';
 import { enC } from './en-c';
+import { enHome } from './en-home';
 import { enMailUi } from './en-mailui';
 import { enNotes } from './en-notes';
 import { enFit } from './en-fit';
@@ -26,6 +27,7 @@ export const en: Readonly<Record<TranslationKey, string>> = {
   ...enA,
   ...enB,
   ...enC,
+  ...enHome,
   ...enVoice,
   ...enAvatar,
   ...enShell,

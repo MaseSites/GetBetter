@@ -54,22 +54,25 @@ export function createPlanRequestsUi(ui) {
     );
   }
 
-  const openCount = (count) => (count === 1 ? '1 offen' : `${count} offen`);
-
-  /** Der Block in der Übersicht: wer wartet, die älteste Anfrage zuerst. */
+  /**
+   * Der Block in der Übersicht: wer wartet, die älteste Anfrage zuerst — je
+   * eine Zeile. Wartet niemand, gibt es ihn nicht; nach der letzten
+   * Entscheidung verschwindet er.
+   */
   function requestsCard(requests) {
-    const count = h('span', { class: 'num' });
+    const open = asArray(requests);
+    if (open.length === 0) return null;
+    const count = h('span', { class: 'count-badge num' });
     const list = h('ul', { class: 'request-list' });
-    const empty = h('p', { class: 'empty-note', text: 'Keine offenen Anfragen.' });
+    let section = null;
 
     function sync() {
       const left = list.children.length;
-      count.textContent = openCount(left);
-      list.hidden = left === 0;
-      empty.hidden = left > 0;
+      count.textContent = String(left);
+      if (section) section.hidden = left === 0;
     }
 
-    for (const request of asArray(requests)) {
+    for (const request of open) {
       const who = displayName(request);
       const handle = [request.username ? `@${request.username}` : null, request.email].filter(Boolean).join(' · ');
       const item = h(
@@ -78,18 +81,13 @@ export function createPlanRequestsUi(ui) {
         h(
           'div',
           { class: 'request-row__who' },
-          h('a', { class: 'request-row__name', href: accountHref(request.accountId), text: who }),
-          handle ? h('span', { class: 'request-row__meta', text: handle }) : null,
-        ),
-        h(
-          'div',
-          { class: 'request-row__app' },
-          h('span', { class: 'request-row__title', text: appName(request.app) }),
+          h('a', { class: 'request-row__name', href: accountHref(request.accountId), title: handle, text: who }),
+          h('span', { class: 'request-row__app', text: appName(request.app) }),
           h('time', {
             class: 'request-row__meta',
             datetime: request.createdAt ?? '',
             title: fmtDateTime(request.createdAt),
-            text: `angefragt ${fmtRelative(request.createdAt)}`,
+            text: fmtRelative(request.createdAt),
           }),
         ),
         decisionButtons(request, who, () => {
@@ -99,19 +97,17 @@ export function createPlanRequestsUi(ui) {
       );
       list.append(item);
     }
-    sync();
 
-    return card(
+    section = card(
       {
-        title: 'Abo-Anfragen',
-        actions: [count],
-        note:
-          'Freischalten setzt das Abo für diese App (paidApps), Ablehnen lässt es, wie es ist — beide Male bekommt das ' +
-          'Konto eine Mitteilung. Später ersetzt der Kauf im Store diesen Schritt.',
+        title: ['Abo-Anfragen ', count],
+        className: 'card--attention',
+        hint: 'Freischalten setzt das Abo, beide Male bekommt das Konto eine Mitteilung',
       },
       list,
-      empty,
     );
+    sync();
+    return section;
   }
 
   /** Im Konto neben dem Abo-Schalter: „Angefragt vor …“ mit denselben zwei Knöpfen. */

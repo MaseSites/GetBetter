@@ -17,7 +17,6 @@ import {
   IconButton,
   Input,
   Loading,
-  PlainList,
   Screen,
   SectionHeader,
   Text,
@@ -33,7 +32,7 @@ import { MenuButton, TextButton } from './HeaderButtons';
 import { NOTE_ICONS } from './icons';
 import { removeNoteImages } from './images';
 import { MoveSheet } from './MoveSheet';
-import { NoteListItem, NoteTile, type NoteItemHandlers } from './NoteRow';
+import { NoteListItem, NoteTile, useNoteCard, type NoteItemHandlers } from './NoteRow';
 import { newNoteHref, noteHref } from './routes';
 import { notesInScope, sameScope, type NoteScope } from './scope';
 import { matchNote, type NoteMatch } from './search';
@@ -67,6 +66,7 @@ function pairsOf<T>(rows: readonly T[]): T[][] {
 export function NotesList({ initialFolderId, initialTag }: NotesListProps) {
   const { t, language } = useI18n();
   const theme = useTheme();
+  const card = useNoteCard();
   const router = useRouter();
   const account = useAccount();
   const undo = useUndo();
@@ -159,6 +159,7 @@ export function NotesList({ initialFolderId, initialTag }: NotesListProps) {
       }),
     startSelect: (note) => setSelection([note.id]),
     togglePin: (note) => actions.togglePin(note),
+    toggleHome: (note) => actions.setOnHome([note.id], !note.homeAt),
     move: (note) => setMoving([note]),
     trash: (note) => actions.trash([note.id]),
     share: (note) => actions.share(noteToText(blocksOf(note)), note.title),
@@ -293,11 +294,11 @@ export function NotesList({ initialFolderId, initialTag }: NotesListProps) {
       );
     }
     return (
-      <PlainList separatorInset="none">
+      <View style={card.list}>
         {rows.map((note) => (
           <NoteListItem key={note.id} {...itemProps(note)} />
         ))}
-      </PlainList>
+      </View>
     );
   }
 

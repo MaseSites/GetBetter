@@ -78,6 +78,10 @@ async function mirror(remote: RemoteAccount): Promise<Account> {
     ...(remote.assistantAvatar !== undefined
       ? { assistantAvatar: normalizeAvatar(remote.assistantAvatar) }
       : {}),
+    ...(remote.usernameChangedAt !== undefined
+      ? { usernameChangedAt: remote.usernameChangedAt }
+      : {}),
+    ...(remote.photoUploadId !== undefined ? { photoUploadId: remote.photoUploadId } : {}),
   };
 
   if (existing) {
@@ -176,7 +180,7 @@ export async function findByUsername(username: string): Promise<Account | undefi
 }
 
 /** Wie das Umbenennen ausgegangen ist — genug, um es der Person zu sagen. */
-export type UsernameSave = 'ok' | 'taken' | 'invalid' | 'offline';
+export type UsernameSave = 'ok' | 'taken' | 'invalid' | 'cooldown' | 'offline';
 
 /**
  * Den Benutzernamen aendern. Erst der Dienst, dann die Abschrift: er kennt
@@ -194,6 +198,8 @@ export async function changeUsername(id: string, wanted: string): Promise<Userna
   }
   if (pushed.error === 'username_taken') return 'taken';
   if (pushed.error === 'username_invalid') return 'invalid';
+  // Einmal im Monat — die App sagt vorher, ab wann; der Dienst entscheidet.
+  if (pushed.error === 'username_cooldown') return 'cooldown';
   return 'offline';
 }
 
@@ -215,6 +221,7 @@ export async function updateAccount(
     ...(patch.assistantName !== undefined ? { assistantName: patch.assistantName } : {}),
     ...(patch.assistantAvatar !== undefined ? { assistantAvatar: patch.assistantAvatar } : {}),
     ...(patch.backdrop !== undefined ? { backdrop: patch.backdrop } : {}),
+    ...(patch.photoUploadId !== undefined ? { photoUploadId: patch.photoUploadId } : {}),
   };
   if (Object.keys(shared).length > 0) void pushProfile(id, shared);
 

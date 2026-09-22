@@ -13,7 +13,7 @@ npm test            # prüft auch services/api/**/*.test.js
 | ------------------------- | ------------------- | --------------------------------------------------------------------- |
 | `PORT`                    | `8090`              | Port des Dienstes                                                     |
 | `BETTER_DATA_DIR`         | `services/api/data` | Datenbank, Bilder, Mail-Tresor und Abgleich-Zustand                   |
-| `BETTER_MAIL_SYNC_MS`     | `120000`            | Takt des Mail-Abgleichs, `0` schaltet ihn ab                          |
+| `BETTER_MAIL_SYNC_MS`     | `10000`             | Takt des Mail-Abgleichs, `0` schaltet ihn ab                          |
 | `BETTER_MAIL_ALLOW_PLAIN` | —                   | Nur für Tests: `1` erlaubt unverschlüsselte Verbindungen zu 127.0.0.1 |
 | `ELEVENLABS_API_KEY`      | —                   | Schlüssel für echt klingende Stimmen (sonst `elevenlabs.key`)         |
 | `BETTER_SPEECH_MODEL`     | `eleven_multilingual_v2` | Modell von ElevenLabs, z.B. `eleven_flash_v2_5` (schneller, günstiger) |
@@ -23,6 +23,9 @@ npm test            # prüft auch services/api/**/*.test.js
 | `BETTER_SPEECH_MONTHLY_CREDITS` | `10000`       | Kontingent von ElevenLabs im Monat, für den Admin (Gratis-Plan: 10’000) |
 | `SAFESWISSCLOUD_API_KEY`  | —                   | Schlüssel für die KI bei Safe Swiss Cloud (sonst `safeswisscloud.key`) |
 | `SAFESWISSCLOUD_API_URL`  | —                   | Eigene Basisadresse, `https://…/v1` (sonst `safeswisscloud.url`)      |
+| `GROQ_API_KEY`            | —                   | Schlüssel für die Gratis-KI bei Groq (sonst `groq.key`)                |
+| `BETTER_AI_PROVIDER`      | —                   | `safeswisscloud` oder `groq` erzwingen; leer: Safe Swiss Cloud, wenn eingerichtet, sonst Groq |
+| `BETTER_AI_GROQ_MODEL`    | `openai/gpt-oss-20b` | Modell bei Groq, für jede Stufe dasselbe                             |
 | `BETTER_AI_MODEL_CHEAP`   | `gemma4-31b`        | Modell der günstigen Stufe                                            |
 | `BETTER_AI_MODEL_CHAT`    | `gpt-oss-120b`      | Modell für Gespräche und Coaching                                     |
 | `BETTER_AI_MODEL_REASONING` | `deepseek-v4-flash` | Modell für Pläne und Analysen (BetterAi, BetterGym)                 |
@@ -66,6 +69,7 @@ speech-usage.jsonl Verbrauch der Stimmen, eine JSON-Zeile je Wiedergabe oder Erz
 speech-usage.1.jsonl die vorige Fassung, sobald speech-usage.jsonl über 5 MB wuchs
 safeswisscloud.key der Schlüssel für die KI bei Safe Swiss Cloud, eine Zeile (optional)
 safeswisscloud.url die eigene Basisadresse dort, eine Zeile, z.B. https://…/v1 (optional)
+groq.key           der Schlüssel für die Gratis-KI bei Groq, eine Zeile (optional)
 ai-usage.jsonl     Verbrauch und Kosten jeder KI-Anfrage, eine JSON-Zeile je Anfrage
 ai-usage.1.jsonl   die vorige Fassung, sobald ai-usage.jsonl über 5 MB wuchs
 sessions.json      Sitzungs-Tokens, nur als SHA-256
@@ -73,7 +77,8 @@ fit.json           Better Fit: Profile, Tagebuch, Vorrat, Rezepte, Pläne, Train
 fit-tmp/           Fotos einer laufenden Analyse, ohne Metadaten, höchstens 1 Stunde
 fit-images/        nur mit ausdrücklicher Zustimmung behaltene Fotos
 fit-catalog-swiss.json  importierte Schweizer Nährwertdatenbank (scripts/import-swiss-foods.js)
-activity.jsonl     was mit den Konten geschah (Anmelden, Profil, Änderungen), eine JSON-Zeile je Ereignis
+fit-reference/     Referenzwissen der Foto-Analyse (Nutrition5k, FNDDS, menuCH) und Prüfläufe
+activity.jsonl     was mit den Konten geschah (Konto, Anmelden, Abo, Admin), eine JSON-Zeile je Ereignis
 activity.1.jsonl   die vorige Fassung, sobald activity.jsonl über 5 MB wuchs
 ```
 
@@ -94,7 +99,7 @@ die Revision, damit die Apps neu laden.
 | `/v1/fit/…`                            | Better Fit, nur mit `Authorization: Bearer <token>` — siehe `docs/better-fit.md` |
 | `GET /v1/accounts/:id`                 | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`   | Konto über den Benutzernamen finden                              |
-| `PATCH /v1/accounts/:id`               | Spitzname, Sprache, Benutzername, Aussehen, Assistent, Hintergrund — ohne Abo nur der Modus (`403 plan_required`) |
+| `PATCH /v1/accounts/:id`               | Spitzname, Sprache, Benutzername, Profilbild (`photoUploadId`, nur ein Bild, das es gibt — sonst `400 photo_invalid`), Aussehen, Assistent, Hintergrund — ohne Abo nur der Modus (`403 plan_required`). Den Benutzernamen gibt es einmal in 30 Tagen neu (`usernameChangedAt`, sonst `409 username_cooldown` mit `nextChangeAt`); `PUT /v1/db/accounts` ändert ihn nie |
 | `POST /v1/notifications`               | Mitteilung anlegen                                               |
 | `POST /v1/notifications/:id/read`      | Als gelesen markieren                                            |
 | `DELETE /v1/notifications/:id`         | Löschen                                                          |
@@ -123,7 +128,7 @@ die Revision, damit die Apps neu laden.
 | `POST /v1/speech/sample`               | `{ voice, language, accountId?, app? }` → `{ id, url }` — der Satz kommt vom Dienst |
 | `GET /v1/speech/<id>.mp3?play=<ticket>` | das Audio, im Strom oder aus dem Zwischenspeicher               |
 | `GET /v1/ai/status`                    | `{ provider, configured, models, lastError }` — nie Schlüssel oder Adresse |
-| `POST /v1/ai/reply`                    | `{ accountId, app, messages, voice?, imageUploadId? }` → Antwort der günstigsten passenden Stufe |
+| `POST /v1/ai/reply`                    | `{ accountId, app, messages, voice?, imageUploadId?, tools?, toolNames?, context? }` → Antwort der günstigsten passenden Stufe, mit `tools` auch `actions` |
 | `GET /v1/ai/budget?accountId=&app=`    | `{ plan, budgetChf, spentChf, remainingShare, resetsOn, priceChf }` |
 | `GET /v1/plans?accountId=&app=`        | `{ app, priceChf, plan, canPersonalize, request: 'pending'\|null, pricedApps }` |
 | `POST /v1/plans/requests`              | `{ accountId, app }` → `201 { request }`, offen schon da → `200` dieselbe |
@@ -367,7 +372,27 @@ Adresse. Über 5 MB wird die Datei zu `speech-usage.1.jsonl`. Lesen:
 sampleCredits }` (`characters` nur erzeugte, `savedCredits` was die Sätze aus
 dem Speicher sonst gekostet hätten).
 
-## KI (Safe Swiss Cloud)
+## KI (Safe Swiss Cloud oder gratis über Groq)
+
+Zwei Anbieter, beide OpenAI-kompatibel. Ohne `BETTER_AI_PROVIDER` antwortet
+Safe Swiss Cloud, wenn Schlüssel und Adresse da sind, sonst Groq, wenn sein
+Schlüssel da ist, sonst `503 not_configured`. `GET /v1/ai/status` sagt in
+`provider`, wer es ist.
+
+**Groq (gratis).** `GROQ_API_KEY` oder `groq.key` im Datenordner (eine Zeile,
+`gsk_…`, bei jeder Anfrage neu gelesen, nie in einer Antwort oder im Log).
+Die Adresse ist fest `https://api.groq.com/openai/v1`. Auf jeder Stufe antwortet
+dasselbe kleine Modell, `openai/gpt-oss-20b` (`BETTER_AI_GROQ_MODEL`; die
+Llama-Modelle führt Groq nicht mehr). Es denkt vor der Antwort kurz nach —
+`reasoning_effort: low`, dazu 1024 Tokens Zuschlag wie bei jedem denkenden
+Modell; das Nachdenken kommt getrennt zurück und bleibt liegen. Es
+kostet nichts: kein Kontingent, keine Reservierung, in `ai-usage.jsonl` mit
+`costChf: 0`. Die Grenzen setzt Groq selbst — zu viele Anfragen werden `429
+rate_limited` („zu viel los“). Bilder kann das Modell nicht: `400
+vision_unavailable`, ohne Aufruf. Die Nachrichten gehen dabei an Groq in den
+USA, nicht in die Schweiz.
+
+**Safe Swiss Cloud.**
 
 `ai/service.js` spricht mit „Private AI“ von Safe Swiss Cloud — Modelle in der
 Schweiz, OpenAI-kompatibel: `POST <basisadresse>/chat/completions` mit
@@ -416,7 +441,19 @@ nie behaupten, etwas getan zu haben) und die letzten 12 Züge — beginnend mit
 der Person, zwei Züge derselben Rolle werden einer. `imageUploadId` ist ein
 Bild aus `/v1/uploads`; es geht als data-URL an das Vision-Modell.
 
-Antwort `200 { selected_model, model, intent, response, voice_text?,
+Mit `tools: true` (nicht in BetterAi) bekommt das Modell die Funktionen der App
+aus `ai/tools.js` (`tool_choice: auto`) — mit `toolNames` (bis 30 Namen) nur
+diese, und nur deren Aufrufe zählen; passt keine, geht die Frage ohne
+Funktionen hinaus —, mit `context` eine kurze Liste der
+Daten (`ai/context.js`: `{ now, items: [{ ref?, kind, title, date?, time?, end?,
+note? }], facts }`, aufgeräumt, gekürzt, höchstens 80 Einträge — kaputter
+Kontext fällt nur weg). Die Aufrufe des Modells kommen geprüft als
+`actions: [{ name, args }]` zurück, höchstens fünf; ausgeführt wird in der App.
+Mit Aufrufen darf `response` leer sein, dann gibt es auch kein `voice_text`.
+Lehnt der Anbieter mit `400` ab (ein verhaspelter Aufruf), fragt der Dienst
+einmal ohne Funktionen.
+
+Antwort `200 { selected_model, model, intent, response, voice_text?, actions?,
 estimated_cost_level }`. `response` ist ohne `<think>…</think>` und
 `reasoning_content`, gekürzt am letzten Satzende vor der Höchstlänge (sonst an
 einer Wortgrenze mit „…“). `voice_text` gibt es nur mit `voice: true`: ohne
@@ -562,7 +599,7 @@ admin/queries.js   Übersicht, Konten, Aktivität, Kosten (nur lesen)
 admin/catalog.js   Apps, Funktionen je App und ihre Sammlungen (spiegelt identity.ts)
 admin/deletion.js  Konto löschen als reiner Plan: was wegfällt, was sich ändert, welche Bilder frei werden
 admin/public/      index.html und die .js/.css der Seite — fehlt index.html, antwortet `/` mit 503
-activity.js        activity.jsonl schreiben, lesen, Änderungen je Konto zählen
+activity.js        activity.jsonl schreiben und lesen, alte Arten beim Lesen auslassen
 auth.js            Passwort-Hash, Benutzernamen — für Dienst und Admin
 ```
 
@@ -610,7 +647,11 @@ gespeicherten Werte und wirft mitgeschickte weg, `PATCH /v1/accounts/:id`
 | `GET /api/activity?accountId=&kind=&limit=&before=` | `{ entries: [{ at, accountId, email, kind, detail }] }` |
 | `GET /api/costs?month=YYYY-MM`         | `{ month, totalChf, monthlyMinimumChf, billableChf, byApp, byAccount, byTier, byDay, prices, speech, margin }` |
 
-- **Übersicht:** Nutzer einer App = Konten mit einer Zeile in `appAccess`;
+- **Übersicht:** Die Seite zeigt oben nur die Kacheln (Konten, aktiv, Abos =
+  `margin.totals.paidAccounts`, Marge = `margin.totals.marginChf`, KI =
+  `ai.costChfMonth`), die offenen Abo-Anfragen und je App eine Zeile aus `apps`
+  und `margin.byApp`; KI, Stimme, `ai.byDay`, `modules` und `storage` liegen
+  zugeklappt unter „Details“. Nutzer einer App = Konten mit einer Zeile in `appAccess`;
   aktiv = `lastSeenAt` in den letzten 7 bzw. 30 Tagen (das späteste über alle
   Apps); `newThisWeek` = angelegt in den letzten 7 Tagen. `modules` zählt die
   Zeilen je Funktion (`catalog.js`: der private Kalender sind Termine ohne
@@ -677,8 +718,8 @@ gespeicherten Werte und wirft mitgeschickte weg, `PATCH /v1/accounts/:id`
   Eine offene Sitzung des Kontos meldet sich beim nächsten Abgleich ab.
 - **Aktivität:** `limit` 1–500 (Standard 100), `before` ein Zeitpunkt
   (ausschliesslich), `kind` genau oder als Anfang (`session` passt auf
-  `session.failed`). Zusammen mit den KI-Anfragen als `ai.reply` (`detail:
-  { app, tier, model, costChf, ok, error }`), neueste zuerst.
+  `session.failed`), neueste zuerst. Nur `activity.jsonl` — die KI-Anfragen
+  stehen nicht darin, sondern unter `costs` und in `accounts/:id` (`ai`).
 - **Kosten:** Monat in UTC, Standard der laufende. `billableChf` =
   `max(totalChf, monthlyMinimumChf)`, sobald Kosten anfallen oder die KI
   eingerichtet ist, sonst 0. `byDay` hat jeden Tag des Monats.
@@ -691,7 +732,9 @@ gespeicherten Werte und wirft mitgeschickte weg, `PATCH /v1/accounts/:id`
   — nie ein Satz, nie eine Id. `monthlyCredits` aus
   `BETTER_SPEECH_MONTHLY_CREDITS` (Standard 10’000).
 
-**Ereignisse** (`activity.jsonl`, `{ at, accountId, kind, detail }`). Nie ein
+**Ereignisse** (`activity.jsonl`, `{ at, accountId, kind, detail }`). Nur,
+was zählt: Konten, Anmelden, Abo und was der Admin tut — was die Nutzer in den
+Apps eintragen oder am Profil ändern, steht hier nicht. Nie ein
 Passwort, ein Nachrichtentext, der Inhalt einer Notiz oder Mail oder eine
 Adresse ohne Konto. Über 5 MB wird die Datei zu `activity.1.jsonl`. Scheitert
 das Schreiben, läuft die Anfrage trotzdem.
@@ -702,16 +745,22 @@ das Schreiben, läuft die Anfrage trotzdem.
 | `session.created`    | Anmelden geglückt                                       | `{}`                                      |
 | `session.failed`     | falsches Passwort zu einem bestehenden Konto            | `{}`                                      |
 | `session.blocked`    | richtiges Passwort, Konto gesperrt                      | `{}`                                      |
-| `profile.updated`    | `PATCH /v1/accounts/:id`                                | `{ fields }`                              |
-| `collection.changed` | `PUT /v1/db/:collection`, je Konto mit geänderten Zeilen | `{ collection, added, updated, removed }` |
+| `plan.requested`     | `POST /v1/plans/requests`                               | `{ app, term }`                           |
+| `plan.cancelled`     | `POST /v1/plans/cancel`                                 | `{ app }`                                 |
+| `plan.resumed`       | `POST /v1/plans/resume`                                 | `{ app }`                                 |
 | `admin.updated`      | `PATCH /api/accounts/:id`                               | `{ fields }`                              |
 | `admin.password`     | `POST /api/accounts/:id/password`                       | `{}`                                      |
 | `admin.deleted`      | `DELETE /api/accounts/:id`                              | `{ username }`                            |
 | `admin.viewed`       | `POST /api/accounts/:id/view`                           | `{ app }` — nie das Ticket                |
+| `admin.planApproved` | Abo-Anfrage freigeschaltet, auch über den Abo-Schalter   | `{ app }`                                 |
+| `admin.planDeclined` | Abo-Anfrage abgelehnt                                   | `{ app }`                                 |
 
-Eine unbekannte Adresse beim Anmelden hinterlässt nichts. `collection.changed`
-vergleicht die Zeilen über ihre Id (Reihenfolge der Felder zählt nicht, bei
-Konten Salt und Hash nicht); Zeilen ohne Besitzer zählen niemandem.
+Eine unbekannte Adresse beim Anmelden hinterlässt nichts. `PUT
+/v1/db/:collection` und `PATCH /v1/accounts/:id` schreiben **nichts** mehr in
+den Verlauf. Zeilen der früheren Arten `collection.changed` und
+`profile.updated` (und `ai.reply`) bleiben in der Datei, `readActivity` lässt
+sie aber weg (`IGNORED_KINDS` in `activity.js`), und `recordActivity` nimmt sie
+nicht mehr an.
 
 ## Was hier bewusst fehlt
 

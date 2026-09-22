@@ -5,6 +5,7 @@ export { Badge } from './Badge';
 export { Button } from './Button';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
+export { Toggle } from './Toggle';
 export { ComposeBar, SuggestionChip } from './ComposeBar';
 export type { ComposeBarProps } from './ComposeBar';
 export { Chip } from './Chip';
@@ -50,6 +51,7 @@ export { AfterClose, Overlay, useOverlayBounds } from './Overlay';
 export { ListSeparator, PlainList, PlainRow, SectionHeader } from './PlainList';
 export { UNDO_DURATION_MS, UndoProvider, useUndo } from './UndoToast';
 export { useReducedMotion } from './useReducedMotion';
+export { FlashRing } from './FlashRing';
 export {
   FLOATING_BUTTON_SIZE,
   HIT_TARGET,
@@ -66,6 +68,7 @@ export type { BadgeProps, BadgeTone } from './Badge';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export type { CardProps } from './Card';
 export type { CheckboxProps } from './Checkbox';
+export type { ToggleProps } from './Toggle';
 export type { ChipProps } from './Chip';
 export type { DividerProps } from './Divider';
 export type { EmptyStateProps } from './EmptyState';

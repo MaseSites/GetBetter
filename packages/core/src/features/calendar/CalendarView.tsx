@@ -19,14 +19,12 @@ import {
 } from '@/features/birthdays/birthdays';
 import { parseDay } from '@/features/shared/days';
 import { events as eventRepo, type CalendarSource } from '@/db/repositories';
-import { useI18n, type TranslationKey } from '@/i18n';
+import { formatMonthName, formatWeekdayLong, localeFor, useI18n } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
-  Button,
-  Card,
   FloatingButton,
   type FloatingButtonMenuItem,
   Header,
@@ -48,14 +46,15 @@ import {
   startOfWeek,
   weekDays,
 } from './dates';
-import { CalendarManager } from './CalendarManager';
 import {
   CalendarPicker,
   type CalendarMode,
   type PickerEntry,
   type PickerGroup,
+  type PickerRequest,
 } from './CalendarPicker';
 import { EventEditor, type EventDraft } from './EventEditor';
+import { calendarFocusOf } from './links';
 import { useCalendarAccess } from './useCalendarAccess';
 import { MonthView } from './MonthView';
 import { GUTTER_WIDTH, TimeGrid } from './TimeGrid';
@@ -74,13 +73,14 @@ export type CalendarViewProps = {
  * Kalendern; in BetterFamily nur der des Haushalts. Welcher es ist, sagt
  * `hasHouseholds()` — die App, in der er laeuft.
  *
- * Gestaltet wie im Entwurf: gross der Zeitraum als Titel, ein Tipp darauf
- * oeffnet Ansicht und Kalenderauswahl; darunter die Woche als Leiste und
- * das Zeitraster mit weissen Terminkarten.
+ * Oben gross der Zeitraum, daneben Blaettern und „Heute“; alles andere —
+ * Ansicht, welche Kalender, die Kalender anderer und offene Anfragen — liegt
+ * hinter dem einen Menue-Knopf oben rechts (`CalendarPicker`). Darunter die
+ * Woche als Leiste und das Zeitraster mit weissen Terminkarten.
  */
 export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const family = hasHouseholds();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
@@ -88,7 +88,6 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const { access, calendars: myCalendars, households, sharedBy } = useCalendarAccess();
   // Wie im Entwurf beginnt der Kalender beim heutigen Tag, nicht beim Monat.
   const [mode, setMode] = useState<CalendarMode>('day');
-  const [managing, setManaging] = useState(false);
   const [picking, setPicking] = useState(false);
   // Leer heisst: kein eigener Kalender abgewaehlt, also alle zeigen.
   const [hidden, setHidden] = useState<readonly CalendarSource[]>([]);
@@ -96,9 +95,17 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   // sie ausdruecklich anhakt.
   const [shownPeople, setShownPeople] = useState<readonly CalendarSource[]>([]);
   const [askMessage, setAskMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
-  const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
-  // Vertrag fuer andere Bildschirme: `?new=1` oeffnet gleich einen neuen Termin fuer heute.
-  const params = useLocalSearchParams<{ new?: string }>();
+  // Vertrag fuer andere Bildschirme: `?new=1` oeffnet gleich einen neuen Termin
+  // fuer heute; `?day=YYYY-MM-DD&at=HH:MM&event=<id>` oeffnet diesen Tag, rollt
+  // zur Uhrzeit und hebt den Termin hervor.
+  const params = useLocalSearchParams<{
+    new?: string;
+    day?: string;
+    at?: string;
+    event?: string;
+  }>();
+  const [focus] = useState(() => calendarFocusOf(params));
+  const [anchor, setAnchor] = useState(() => focus?.day ?? startOfDay(new Date()));
   const [draft, setDraft] = useState<EventDraft | null>(() =>
     params.new === '1' ? { day: startOfDay(new Date()) } : null,
   );
@@ -282,6 +289,26 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   const inviteList = useLiveQuery(() => calendarRepo.invitesFor(account.id), [account.id]);
   const invites = inviteList.data ?? [];
 
+  // Was auf eine Antwort wartet, steht im Menue — am Knopf ein roter Punkt.
+  const pickerRequests: PickerRequest[] = [
+    ...requests.map((person) => ({
+      key: `share:${person.share.id}`,
+      title: t('calendars.share.incoming', { name: person.displayName }),
+      body: t('calendars.share.incomingBody'),
+      onAccept: () => void shareRepo.respond(person.share.id, true),
+      onDecline: () => void shareRepo.respond(person.share.id, false),
+    })),
+    ...invites.map((invite) => ({
+      key: `invite:${invite.membership.id}`,
+      title: t('calendars.invites.title', {
+        name: invite.calendar?.name ?? t('calendars.invites.unknown'),
+      }),
+      body: t('calendars.invites.body', { name: invite.invitedByName }),
+      onAccept: () => void calendarRepo.respond(invite.membership.id, true),
+      onDecline: () => void calendarRepo.respond(invite.membership.id, false),
+    })),
+  ];
+
   function step(direction: number) {
     if (mode === 'month') setAnchor((current) => addMonths(current, direction));
     else if (mode === 'week') setAnchor((current) => addDays(current, direction * 7));
@@ -291,20 +318,18 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
   // Wischen blaettert wie die Pfeile: nach links weiter, nach rechts zurueck.
   const swipe = useSwipeSteps(step);
 
+  // Oben nur Worte, keine Zahlen: das Datum steht in der Wochenleiste darunter.
   const periodLabel = useMemo(() => {
-    if (mode === 'month') {
-      return new Intl.DateTimeFormat('de-CH', { month: 'long', year: 'numeric' }).format(anchor);
-    }
-    if (mode === 'day') {
-      // Das Datum steht in der Wochenleiste darunter — oben reicht der Wochentag.
-      return new Intl.DateTimeFormat('de-CH', { weekday: 'long' }).format(anchor);
-    }
+    if (mode === 'day') return formatWeekdayLong(language, anchor);
+    if (mode === 'month') return formatMonthName(language, anchor);
     const week = weekDays(anchor);
     const first = week[0] ?? anchor;
     const last = week[6] ?? anchor;
-    const dayMonth = new Intl.DateTimeFormat('de-CH', { day: 'numeric', month: 'short' });
-    return `${dayMonth.format(first)} – ${dayMonth.format(last)}`;
-  }, [mode, anchor]);
+    if (first.getMonth() === last.getMonth()) return formatMonthName(language, first);
+    // Eine Woche ueber zwei Monate: beide kurz, „Sep. – Okt.“.
+    const short = new Intl.DateTimeFormat(localeFor(language), { month: 'short' });
+    return `${short.format(first)} – ${short.format(last)}`;
+  }, [mode, anchor, language]);
 
   return (
     <Screen
@@ -314,48 +339,28 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         <Header
           showBack={showBack}
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          actions={
-            family
-              ? []
-              : [
-                  {
-                    icon: 'settings',
-                    label: t('calendars.manage'),
-                    onPress: () => setManaging(true),
-                  },
-                ]
-          }
+          actions={[
+            {
+              icon: 'menu',
+              label: `${moduleName(t, module.id)}: ${t('calendar.picker.title')}`,
+              onPress: () => setPicking(true),
+              badge: pickerRequests.length > 0,
+            },
+          ]}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${moduleName(t, module.id)}: ${t('calendar.picker.title')}`}
-            accessibilityState={{ expanded: picking }}
-            onPress={() => setPicking(true)}
-            style={[styles.titleRow, { gap: theme.spacing.sm }]}
-          >
+          {/* Eine Zeile: links der Zeitraum, rechts Blaettern und „Heute“. */}
+          <View style={[styles.toolbar, { gap: theme.spacing.sm }]}>
             <Text
               variant="display"
               numberOfLines={1}
               style={[
                 styles.shrink,
+                styles.grow,
                 { fontSize: theme.fontSize.title, lineHeight: theme.lineHeight.title },
               ]}
             >
               {periodLabel}
             </Text>
-            <Icon name="down" size={18} color={theme.colors.textFaint} />
-            <Text
-              variant="label"
-              tone="faint"
-              numberOfLines={1}
-              style={[styles.shrink, { fontWeight: theme.fontWeight.semibold }]}
-            >
-              {`${t(`calendar.view.${mode}` as TranslationKey)} · ${t('calendar.picker.selected', { count: selected.length })}`}
-            </Text>
-          </Pressable>
-
-          <View style={[styles.toolbar, { gap: theme.spacing.sm }]}>
-            <View style={styles.grow} />
             <StepButton label={t('calendar.previous')} icon="back" onPress={() => step(-1)} />
             <Pressable
               accessibilityRole="button"
@@ -379,66 +384,6 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         </Header>
       }
     >
-      {invites.length > 0 ? (
-        <View style={{ padding: theme.spacing.edge, gap: theme.spacing.sm }}>
-          {invites.map((invite) => (
-            <Card
-              key={invite.membership.id}
-              title={t('calendars.invites.title', {
-                name: invite.calendar?.name ?? t('calendars.invites.unknown'),
-              })}
-              subtitle={t('calendars.invites.body', { name: invite.invitedByName })}
-            >
-              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                <Button
-                  label={t('calendars.invites.accept')}
-                  size="sm"
-                  icon="check"
-                  fullWidth={false}
-                  onPress={() => calendarRepo.respond(invite.membership.id, true)}
-                />
-                <Button
-                  label={t('calendars.invites.decline')}
-                  size="sm"
-                  variant="ghost"
-                  fullWidth={false}
-                  onPress={() => calendarRepo.respond(invite.membership.id, false)}
-                />
-              </View>
-            </Card>
-          ))}
-        </View>
-      ) : null}
-
-      {requests.length > 0 ? (
-        <View style={{ paddingHorizontal: theme.spacing.edge, gap: theme.spacing.sm }}>
-          {requests.map((person) => (
-            <Card
-              key={person.share.id}
-              title={t('calendars.share.incoming', { name: person.displayName })}
-              subtitle={t('calendars.share.incomingBody')}
-            >
-              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                <Button
-                  label={t('calendars.invites.accept')}
-                  size="sm"
-                  icon="check"
-                  fullWidth={false}
-                  onPress={() => shareRepo.respond(person.share.id, true)}
-                />
-                <Button
-                  label={t('calendars.invites.decline')}
-                  size="sm"
-                  variant="ghost"
-                  fullWidth={false}
-                  onPress={() => shareRepo.respond(person.share.id, false)}
-                />
-              </View>
-            </Card>
-          ))}
-        </View>
-      ) : null}
-
       {/* Nimmt den Platz ein, den Monat und Zeitraster vorher selbst hatten. */}
       <Animated.View style={[styles.fill, swipe.style]} {...swipe.panHandlers}>
         {mode === 'month' ? (
@@ -465,6 +410,11 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
               days={days}
               events={events}
               compact={mode === 'week'}
+              focus={
+                focus?.minutes === undefined
+                  ? null
+                  : { minutes: focus.minutes, eventId: focus.eventId }
+              }
               onPressSlot={(day, hour) => setDraft({ day, hour })}
               onPressEvent={openEvent}
             />
@@ -512,6 +462,7 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
         calendars={calendarEntries}
         people={peopleGroups}
         waiting={waiting}
+        requests={pickerRequests}
         selected={selected}
         onToggle={(source) => {
           const inGroups = peopleGroups.some((group) =>
@@ -531,15 +482,8 @@ export function CalendarView({ module, showBack = true }: CalendarViewProps) {
               : [...current, source],
           );
         }}
-        onAll={(all) => setHidden(all ? [] : calendarEntries.map((entry) => entry.source))}
         onAsk={(username) => void askPerson(username)}
         askMessage={askMessage}
-      />
-
-      <CalendarManager
-        visible={managing}
-        onClose={() => setManaging(false)}
-        calendars={myCalendars}
       />
     </Screen>
   );
@@ -717,7 +661,10 @@ function AllDayRow({
       {days.map((day) => (
         <View
           key={day.toISOString()}
-          style={[styles.allDayColumn, { gap: theme.spacing.xs, paddingHorizontal: single ? 0 : 1 }]}
+          style={[
+            styles.allDayColumn,
+            { gap: theme.spacing.xs, paddingHorizontal: single ? 0 : 1 },
+          ]}
         >
           {onDay(day).map((event) => (
             <Pressable
@@ -755,7 +702,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   grow: { flex: 1 },
   shrink: { flexShrink: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
   toolbar: { flexDirection: 'row', alignItems: 'center' },
   todayButton: { minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   stepButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
