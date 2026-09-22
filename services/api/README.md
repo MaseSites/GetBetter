@@ -38,6 +38,14 @@ npm test            # prüft auch services/api/**/*.test.js
 | `BETTER_SPEECH_USD_PER_1K_CHARS` | `0.10`       | Was 1000 Credits von ElevenLabs höchstens kosten (bewusst zu hoch)    |
 | `BETTER_USD_CHF`          | `0.92`              | Wechselkurs für die Stimmen                                           |
 | `BETTER_SPEECH_MONTHLY_FIXED_USD` | `0`         | Monatsgebühr des ElevenLabs-Plans, für die Marge im Admin             |
+| `MEAL_ANALYSIS_MODE`      | `mock`              | Better Fit: `mock` ohne jeden Aufruf nach aussen, `live` mit Gemini/USDA/Open Food Facts |
+| `GEMINI_API_KEY`, `GEMINI_VISION_MODEL`, `GEMINI_CHEAP_MODEL` | —, `gemini-3.8-flash`, `gemini-3.5-flash-lite` | Bildanalyse und Nährwerttabelle (nur live) |
+| `USDA_FDC_API_KEY`        | —                   | USDA FoodData Central (nur live)                                      |
+| `MAX_MEAL_ANALYSES_PER_USER_PER_DAY`, `MONTHLY_AI_BUDGET_CHF`, `FIT_AI_DISABLED` | `10`, `250`, `0` | Tageslimit, Monatsbudget, Kill-Switch — alle Variablen in `.env.example`, Details in `docs/better-fit.md` |
+| `BETTER_SKIP_ENV_FILE`    | —                   | `1`: `.env.local` nicht lesen (die Tests setzen es)                  |
+
+Schlüssel gehören in `services/api/.env.local` (nie ins Git, Vorlage `.env.example`);
+beim Start liest der Dienst sie ein, was in der Umgebung steht, gewinnt.
 
 Im Datenordner (nie ins Git):
 
@@ -60,6 +68,11 @@ safeswisscloud.key der Schlüssel für die KI bei Safe Swiss Cloud, eine Zeile (
 safeswisscloud.url die eigene Basisadresse dort, eine Zeile, z.B. https://…/v1 (optional)
 ai-usage.jsonl     Verbrauch und Kosten jeder KI-Anfrage, eine JSON-Zeile je Anfrage
 ai-usage.1.jsonl   die vorige Fassung, sobald ai-usage.jsonl über 5 MB wuchs
+sessions.json      Sitzungs-Tokens, nur als SHA-256
+fit.json           Better Fit: Profile, Tagebuch, Vorrat, Rezepte, Pläne, Training, Coach — je Konto getrennt
+fit-tmp/           Fotos einer laufenden Analyse, ohne Metadaten, höchstens 1 Stunde
+fit-images/        nur mit ausdrücklicher Zustimmung behaltene Fotos
+fit-catalog-swiss.json  importierte Schweizer Nährwertdatenbank (scripts/import-swiss-foods.js)
 activity.jsonl     was mit den Konten geschah (Anmelden, Profil, Änderungen), eine JSON-Zeile je Ereignis
 activity.1.jsonl   die vorige Fassung, sobald activity.jsonl über 5 MB wuchs
 ```
@@ -76,7 +89,9 @@ die Revision, damit die Apps neu laden.
 | `GET /v1/revision`                     | Hat sich etwas geändert?                                         |
 | `PUT /v1/db/:collection`               | Eine Sammlung ersetzen — nicht die vier des Dienstes (`403`)     |
 | `POST /v1/accounts`                    | Registrieren — `{ email, password, username? }`                  |
-| `POST /v1/sessions`                    | Anmelden — `{ email, password }`; gesperrt → `403 account_disabled` |
+| `POST /v1/sessions`                    | Anmelden — `{ email, password }`; gesperrt → `403 account_disabled`; gibt ein `token` |
+| `DELETE /v1/sessions/current`          | Abmelden: das Token gilt nirgends mehr                           |
+| `/v1/fit/…`                            | Better Fit, nur mit `Authorization: Bearer <token>` — siehe `docs/better-fit.md` |
 | `GET /v1/accounts/:id`                 | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`   | Konto über den Benutzernamen finden                              |
 | `PATCH /v1/accounts/:id`               | Spitzname, Sprache, Benutzername, Aussehen, Assistent, Hintergrund — ohne Abo nur der Modus (`403 plan_required`) |

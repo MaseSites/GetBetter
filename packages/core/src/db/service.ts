@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 import { refusesCall, reportReadOnly, viewHeaders } from '@/app/viewMode';
 import type { AvatarStyle } from '@/features/avatar/style';
 
+import { authHeaders, setSessionToken } from './sessionToken';
+
 /**
  * Der Draht zur gemeinsamen Datenbank (`services/api`). Dort liegen die
  * Profile und die Daten aller Better-Apps — deshalb gilt dieselbe Anmeldung
@@ -62,9 +64,14 @@ export type ServiceResult =
  * ansehen“) traegt jede Anfrage `X-Better-View: 1` — dann lehnt der Dienst
  * jede Aenderung selbst ab.
  */
-function requestInit(method: string, body: unknown): RequestInit {
-  const json: Record<string, string> = body === undefined ? {} : { 'Content-Type': 'application/json' };
-  const headers: Record<string, string> = { ...viewHeaders(), ...json };
+function requestInit(
+  method: string,
+  body: unknown,
+  extra: Record<string, string> = {},
+): RequestInit {
+  const json: Record<string, string> =
+    body === undefined ? {} : { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { ...viewHeaders(), ...authHeaders(), ...json, ...extra };
   return {
     method,
     headers,
@@ -85,7 +92,9 @@ async function call(
   try {
     const response = await fetch(`${serviceUrl()}${path}`, requestInit(method, init?.body));
     const data: unknown = await response.json();
-    const payload = data as { account?: RemoteAccount; error?: ServiceError };
+    const payload = data as { account?: RemoteAccount; error?: ServiceError; token?: string };
+    // Anmelden und Registrieren bringen ein Token fuer die persoenlichen Routen mit.
+    if (payload.account && typeof payload.token === 'string') await setSessionToken(payload.token);
     if (payload.account) return { ok: true, account: payload.account };
     return { ok: false, error: payload.error ?? 'offline' };
   } catch {
@@ -135,7 +144,8 @@ export function pushProfile(
 }
 
 /** Ein Fehler traegt in `details` die ganze Antwort — etwa Plan und Datum beim Kontingent. */
-export type ServiceCall<T> = { ok: true; data: T } | { ok: false; error: string; details?: unknown };
+export type ServiceCall<T> =
+  { ok: true; data: T } | { ok: false; error: string; details?: unknown };
 
 /**
  * Fuer alle Schnittstellen jenseits der Konten: Mitteilungen, E-Mail, Bilder.
@@ -148,7 +158,11 @@ export type ServiceCall<T> = { ok: true; data: T } | { ok: false; error: string;
  */
 export async function callService<T>(
   path: string,
-  init?: { method: 'GET' | 'POST' | 'DELETE' | 'PATCH'; body?: unknown },
+  init?: {
+    method: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT';
+    body?: unknown;
+    headers?: Record<string, string>;
+  },
 ): Promise<ServiceCall<T>> {
   const method = init?.method ?? 'GET';
   if (refusesCall(method, path)) {
@@ -156,7 +170,10 @@ export async function callService<T>(
     return { ok: false, error: 'read_only' };
   }
   try {
-    const response = await fetch(`${serviceUrl()}${path}`, requestInit(method, init?.body));
+    const response = await fetch(
+      `${serviceUrl()}${path}`,
+      requestInit(method, init?.body, init?.headers),
+    );
     const data = (await response.json()) as T & { error?: string };
     if (!response.ok || typeof data.error === 'string') {
       return { ok: false, error: data.error ?? `http_${response.status}`, details: data };

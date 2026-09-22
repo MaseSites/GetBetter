@@ -462,7 +462,8 @@ export type WorkoutRow = Row & {
   kind: string;
   minutes: number;
   notes: string | null;
-  createdAt: string;
+  createdAt: string; /** Aus Better Fit abgeschlossen: das Training dort — so gibt es je Training nur eine Zeile. */
+  fitWorkoutId?: string | null;
 };
 
 /** Ein Satz in einem Training: Uebung, Gewicht, Wiederholungen. */

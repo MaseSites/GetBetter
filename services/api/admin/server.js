@@ -273,7 +273,7 @@ async function decidePlanRequest({ dataDir, plans }, id, decision, body) {
   return reply(200, { ...result.body, account: await accountView(dataDir, result.account) });
 }
 
-async function setPassword(dataDir, id, body) {
+async function setPassword(dataDir, id, body, revokeSessions) {
   if (!isPlainObject(body) || typeof body.password !== 'string') {
     return reply(400, { error: 'bad_request' });
   }
@@ -291,6 +291,8 @@ async function setPassword(dataDir, id, body) {
     entry.id === id ? { ...entry, passwordSalt: salt, passwordHash: hash } : entry,
   );
   await save();
+  // Ein neues Passwort meldet alle offenen Sitzungen ab — auch ein gestohlenes Token.
+  if (typeof revokeSessions === 'function') await revokeSessions(id);
   await track(dataDir, { accountId: id, kind: 'admin.password', detail: {} });
   return reply(200, { ok: true });
 }
@@ -354,7 +356,7 @@ async function removeUploads(ids) {
  * des Kontos sein, Gross und klein egal. Erst die Sicherung, dann der Plan mit
  * einem `save()`, dann die Postfaecher ueber den Mail-Dienst und die Bilder.
  */
-async function deleteAccount({ dataDir, mail }, id, body) {
+async function deleteAccount({ dataDir, mail, fit }, id, body) {
   const db = await load();
   const row = rowsOf(db, 'accounts').find((entry) => entry.id === id);
   if (!row) return reply(404, { error: 'not_found' });
@@ -379,6 +381,8 @@ async function deleteAccount({ dataDir, mail }, id, body) {
     await mailService.removeAccount(mailboxId);
   }
   await removeUploads(plan.uploadIds);
+  // Better Fit liegt getrennt (fit.json, Fotos, Tokens) — auch das geht mit.
+  if (typeof fit?.removeAccount === 'function') await fit.removeAccount(id);
   await track(dataDir, { accountId: id, kind: 'admin.deleted', detail: { username: row.username ?? null } });
   return reply(200, { ok: true, removed: countsOf(plan) });
 }
@@ -402,7 +406,7 @@ function readActivityQuery(url) {
   };
 }
 
-function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans }) {
+function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans, fit, revokeSessions }) {
   return [
     {
       method: 'POST',
@@ -444,13 +448,19 @@ function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans }) {
       method: 'POST',
       path: /^\/api\/accounts\/([^/]+)\/password$/,
       body: true,
-      handler: ({ params: [id], body }) => setPassword(dataDir, id, body),
+      handler: ({ params: [id], body }) => setPassword(dataDir, id, body, revokeSessions),
     },
     {
       method: 'DELETE',
       path: /^\/api\/accounts\/([^/]+)$/,
       body: true,
-      handler: ({ params: [id], body }) => deleteAccount({ dataDir, mail }, id, body),
+      handler: ({ params: [id], body }) => deleteAccount({ dataDir, mail, fit }, id, body),
+    },
+    {
+      // Better Fit: Analysen, Ampel, Fehler, Korrekturen und Kosten — nur Zahlen, nie Inhalte.
+      method: 'GET',
+      path: /^\/api\/fit$/,
+      handler: async ({ url }) => (typeof fit?.stats === 'function' ? reply(200, await fit.stats(url.searchParams.get('month'))) : reply(200, { available: false })),
     },
     {
       method: 'GET',
@@ -489,7 +499,8 @@ function writeLog(text) {
  * `startAdminServer({ port, dataDir, aiStatus, speechStatus?, mail?, tickets?, publicDir?, log? })` —
  * lauscht nur auf 127.0.0.1 und gibt den `http.Server` zurueck. `aiStatus` ist
  * `ai.status` des Dienstes, `speechStatus` `speech.status`, `mail` sein
- * Mail-Dienst (fuer `removeAccount` beim Loeschen; fehlt er, fallen nur die
+ * `fit` gibt Better Fit dazu: `removeAccount(id)` beim Loeschen, `stats(month)` fuer
+ * die Kosten. Der Mail-Dienst (fuer `removeAccount` beim Loeschen; fehlt er, fallen nur die
  * Zeilen weg). `tickets` ist das Buch fuer „App ansehen“ (Standard: das des
  * Prozesses, das auch der Dienst liest). `publicDir` und `log` nur fuer Tests.
  */
@@ -499,12 +510,14 @@ function startAdminServer({
   aiStatus,
   speechStatus,
   mail,
+  fit,
+  revokeSessions = null,
   tickets = viewTickets,
   publicDir = path.join(__dirname, 'public'),
   log = writeLog,
 }) {
   const plans = createPlanRequests({ dataDir });
-  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans });
+  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans, fit, revokeSessions });
 
   const server = http.createServer(async (req, res) => {
     const boundPort = server.address()?.port ?? port;

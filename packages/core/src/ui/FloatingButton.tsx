@@ -7,7 +7,7 @@ import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
 
 import { Icon, type IconName } from './Icon';
-import { FLOATING_BUTTON_SIZE, HIT_TARGET } from './layout';
+import { FLOATING_BUTTON_COMPACT, FLOATING_BUTTON_SIZE, HIT_TARGET } from './layout';
 import { measureAnchor, type MenuAnchor } from './Menu';
 import { AfterClose, Overlay } from './Overlay';
 import { Text } from './Text';
@@ -36,12 +36,16 @@ export type FloatingButtonProps = {
   menu?: readonly FloatingButtonMenuItem[];
   /** Auf einem Bildschirm mit Tab-Leiste: 16 ueber der Leiste statt ueber dem unteren Rand. */
   aboveTabBar?: boolean;
+  /** Die Pille aus «Better Fit — Vision»: 52 hoch, ohne Ring, 20/32 vom Rand, kleineres Symbol. */
+  compact?: boolean;
 };
 
 /** Der helle Ring, der den Knopf vom Inhalt darunter absetzt. */
 const RING_WIDTH = 4;
 /** So breit darf das Wort neben dem Symbol hoechstens werden. */
 const TEXT_MAX_WIDTH = 160;
+const ICON_SIZE = 24;
+const ICON_COMPACT = 18;
 
 const useNativeDriver = Platform.OS !== 'web';
 
@@ -60,6 +64,7 @@ export function FloatingButton({
   collapsed = false,
   menu,
   aboveTabBar = false,
+  compact = false,
 }: FloatingButtonProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -110,8 +115,9 @@ export function FloatingButton({
         style={[
           styles.place,
           {
-            right: theme.spacing.lg,
-            bottom: theme.spacing.lg + (aboveTabBar ? 0 : insets.bottom),
+            right: compact ? theme.spacing.edge : theme.spacing.lg,
+            bottom:
+              (compact ? theme.spacing.xxl : theme.spacing.lg) + (aboveTabBar ? 0 : insets.bottom),
           },
         ]}
       >
@@ -126,18 +132,22 @@ export function FloatingButton({
             styles.button,
             theme.elevation.raised,
             {
-              minWidth: FLOATING_BUTTON_SIZE,
-              height: FLOATING_BUTTON_SIZE,
-              paddingHorizontal: theme.spacing.md,
+              minWidth: compact ? FLOATING_BUTTON_COMPACT : FLOATING_BUTTON_SIZE,
+              height: compact ? FLOATING_BUTTON_COMPACT : FLOATING_BUTTON_SIZE,
+              paddingHorizontal: compact ? theme.spacing.edge : theme.spacing.md,
               borderRadius: theme.radii.pill,
               backgroundColor: theme.colors.inverse,
-              borderWidth: RING_WIDTH,
+              borderWidth: compact ? 0 : RING_WIDTH,
               borderColor: theme.colors.background,
               transform: [{ scale: press.scale }],
             },
           ]}
         >
-          <Icon name={icon} size={24} color={theme.colors.onInverse} />
+          <Icon
+            name={icon}
+            size={compact ? ICON_COMPACT : ICON_SIZE}
+            color={theme.colors.onInverse}
+          />
           {text ? (
             <Animated.View
               style={[

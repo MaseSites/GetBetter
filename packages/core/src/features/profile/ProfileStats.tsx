@@ -8,7 +8,6 @@ import {
   drinks as drinkRepo,
   expenses as expenseRepo,
   habits as habitRepo,
-  meals as mealRepo,
   monthKey,
   notes as noteRepo,
   recipes as recipeRepo,
@@ -25,7 +24,9 @@ import {
   events as eventRepo,
   shopping as shoppingRepo,
 } from '@/db/repositories';
+import { fit } from '@/db/fit';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { useFit } from '@/features/fit/useFit';
 import { shiftDay } from '@/features/shared/days';
 import { formatMoney, formatNumber, useI18n } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
@@ -189,7 +190,9 @@ function GymStats() {
     () => workoutRepo.minutesSince(accountId, shiftDay(-6)),
     [accountId, today],
   );
-  const kcal = useLiveQuery(() => mealRepo.kcalOf(accountId, today), [accountId, today]);
+  // Gegessen zaehlt Better Fit (geschuetzt im Dienst), nicht mehr der fruehere Menueplan.
+  const fitDay = useFit(() => fit.day(), [accountId, today]);
+  const kcal = Math.round(fitDay.data?.total.kcal ?? 0);
   const drunk = useLiveQuery(() => drinkRepo.ofDay(accountId, today), [accountId, today]);
   const nights = useLiveQuery(() => sleepRepo.list(accountId, 1), [accountId]);
 
@@ -200,16 +203,16 @@ function GymStats() {
     <StatGrid
       tiles={[
         {
-          module: 'fitness',
+          module: 'trainingplan',
           icon: 'fitness',
-          label: moduleName(t, 'fitness'),
+          label: moduleName(t, 'trainingplan'),
           value: t('gym.minutes', { minutes: minutes.data ?? 0 }),
         },
         {
-          module: 'meals',
+          module: 'nutrition',
           icon: 'meal',
-          label: moduleName(t, 'meals'),
-          value: t('meals.kcal', { kcal: kcal.data ?? 0 }),
+          label: moduleName(t, 'nutrition'),
+          value: t('meals.kcal', { kcal }),
         },
         {
           module: 'water',

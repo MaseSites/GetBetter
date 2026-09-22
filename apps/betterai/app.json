@@ -44,6 +44,13 @@
             "backgroundColor": "#7043AA"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Damit du ein eigenes Bild als Hintergrund wählen kannst.",
+          "cameraPermission": false
+        }
       ]
     ],
     "experiments": {

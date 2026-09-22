@@ -7,6 +7,11 @@ import { BirthdaysView } from '@/features/birthdays/BirthdaysView';
 import { MailView } from '@/features/mail/MailView';
 import { CalendarView } from '@/features/calendar/CalendarView';
 import { ChoresView } from '@/features/chores/ChoresView';
+import { CoachView } from '@/features/fit/CoachView';
+import { KitchenView } from '@/features/fit/KitchenView';
+import { NutritionView } from '@/features/fit/NutritionView';
+import { ProgressView } from '@/features/fit/ProgressView';
+import { TrainingPlanView } from '@/features/fit/TrainingPlanView';
 import { FitnessView } from '@/features/gym/FitnessView';
 import { MealsView } from '@/features/gym/MealsView';
 import { MedsView } from '@/features/gym/MedsView';
@@ -48,6 +53,11 @@ const BUILT: Record<string, (module: ModuleDefinition) => React.ReactElement> = 
   weather: (module) => <WeatherView module={module} />,
   chores: (module) => <ChoresView module={module} />,
   ai: (module) => <AiChatView module={module} />,
+  nutrition: (module) => <NutritionView module={module} />,
+  kitchen: (module) => <KitchenView module={module} />,
+  coach: (module) => <CoachView module={module} />,
+  trainingplan: (module) => <TrainingPlanView module={module} />,
+  progress: (module) => <ProgressView module={module} />,
   fitness: (module) => <FitnessView module={module} />,
   meals: (module) => <MealsView module={module} />,
   water: (module) => <WaterView module={module} />,

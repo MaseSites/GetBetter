@@ -11,6 +11,7 @@ export { Chip } from './Chip';
 export { Divider } from './Divider';
 export { EmptyState } from './EmptyState';
 export { FloatingButton } from './FloatingButton';
+export { GLASS_COUNT, GlassTiles, PanelAction } from './GlassTiles';
 export { Header } from './Header';
 export { HeaderCrumbProvider, useHeaderCrumb } from './HeaderCrumb';
 export { Icon, ICONS, isIconName } from './Icon';

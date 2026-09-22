@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { dayKey, useLiveQuery, vitals as vitalRepo, type VitalKind, type VitalRow } from '@/db';
+import { fit } from '@/db/fit';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { parseAmount } from '@/features/money/amount';
 import { relativeDay } from '@/features/shared/days';
@@ -190,6 +191,9 @@ function VitalAdd({
       return;
     }
     await vitalRepo.add({ accountId, kind, day, value: first, value2: second });
+    // Gewicht an einer Stelle: auch in Better Fit, dort rechnen Trend und Ziele damit.
+    // Ohne Better-Fit-Konto scheitert das still — der Wert steht dann nur hier.
+    if (kind === 'weight' && first >= 30 && first <= 350) void fit.logWeight(first, day);
     setValue('');
     setValue2('');
     setError(false);
@@ -219,6 +223,11 @@ function VitalAdd({
             onChangeText={setValue2}
             keyboardType="number-pad"
           />
+        ) : null}
+        {kind === 'weight' ? (
+          <Text variant="caption" tone="muted">
+            {t('fit6.vitals.weightFit')}
+          </Text>
         ) : null}
         <DayPicker value={day} onChange={setDay} allowNone={false} />
         <Button label={t('common.done')} icon="check" onPress={save} />

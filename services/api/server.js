@@ -10,6 +10,9 @@
  * JSON-Datei im Datenordner. Das ist ein Dienst fuer die Entwicklung — was
  * ihm fehlt, steht in der README des Ordners.
  */
+// Zuerst die Schluessel aus `.env.local` — alles darunter liest die Umgebung.
+if (process.env.BETTER_SKIP_ENV_FILE !== '1') require('./env.js').loadEnvFile();
+
 const http = require('node:http');
 const crypto = require('node:crypto');
 
@@ -31,7 +34,11 @@ const { canPersonalize, planSettings } = require('./billing/plans.js');
 const { createPlanRequests } = require('./billing/requests.js');
 const { createBilling } = require('./billing/service.js');
 const { adminPort, dataDir, mailSyncMs } = require('./config.js');
+const { createFitService } = require('./fit/service.js');
+const { languageOf } = require('./fit/lang.js');
 const { createMailService } = require('./mail/service.js');
+const { createRateLimiter } = require('./rateLimit.js');
+const { bearerOf, createSessions } = require('./sessions.js');
 const { createSpeechService } = require('./speech/service.js');
 const {
   createNotification,
@@ -91,6 +98,9 @@ const PROFILE_FIELDS = [
 const PROFILE_TEXT_LIMITS = { assistantName: 60, backdrop: 200 };
 
 const mail = createMailService({ dataDir: dataDir() });
+
+// Tokens fuer die Routen mit persoenlichen Daten.
+const sessions = createSessions({ dataDir: dataDir() });
 
 // ------------------------------------------------------------------ Konten
 
@@ -306,7 +316,7 @@ const CORS = {
   // Die Apps laufen im Browser auf eigenen Ports.
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Better-View',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Better-View, Authorization, Idempotency-Key, Accept-Language',
 };
 
 /** Im Nur-Lesen-Modus ist alles ausser Lesen und dem Einloesen verboten. */
@@ -322,7 +332,9 @@ async function redeemView(body) {
   if (!redeemed) return { status: 404, body: { error: 'not_found' } };
   const row = (await load()).tables.accounts.find((entry) => entry.id === redeemed.accountId);
   if (!row) return { status: 404, body: { error: 'not_found' } };
-  return { status: 200, body: { account: withoutSecrets(row), app: redeemed.app } };
+  // Ein Token nur zum Lesen: damit zeigt die Ansicht auch Better Fit, aendern geht nicht.
+  const token = await sessions.issue(row.id, { readOnly: true });
+  return { status: 200, body: { account: withoutSecrets(row), app: redeemed.app, token } };
 }
 
 function send(res, status, body, extraHeaders = {}) {
@@ -401,6 +413,19 @@ const speech = createSpeechService({
 // KI ueber Safe Swiss Cloud. `BETTER_AI_TEST_URL` gilt nur fuer 127.0.0.1 (Tests).
 const ai = createAiService({ dataDir: dataDir(), baseUrl: process.env.BETTER_AI_TEST_URL, billing });
 
+/** Titel der eigenen Termine an einem Tag — Better Fit prueft damit, wohin ein Training passt. */
+async function calendarTitles(accountId, day) {
+  const db = await load();
+  return rowsOf(db, 'events')
+    .filter((row) => row.accountId === accountId && typeof row.startsAt === 'string' && row.startsAt.slice(0, 10) === day)
+    .map((row) => String(row.title ?? '').slice(0, 60));
+}
+
+// Better Fit: freie Fragen an den Coach ueber denselben KI-Dienst, mit Kontingent je Konto.
+const fit = createFitService({ dataDir: dataDir(), ai, calendar: calendarTitles });
+const fitLimiter = createRateLimiter({ perMinute: fit.config.rateLimitPerMinute });
+const ipLimiter = createRateLimiter({ perMinute: fit.config.rateLimitPerMinute * 3 });
+
 /** `accountId` und `app` aus der Adresse — geprueft wird im Dienst. */
 const speakerQuery = (url) => ({
   accountId: url.searchParams.get('accountId') ?? undefined,
@@ -435,7 +460,7 @@ const ROUTES = [
     body: true,
     handler: async ({ body }) => {
       const result = await register(body.email, body.password, body.username);
-      if (!result.error) return ok(201, result);
+      if (!result.error) return ok(201, { ...result, token: await sessions.issue(result.account.id) });
       // Ein vergebener Name ist kein Formfehler, sondern eine Kollision.
       return ok(result.error === 'username_taken' ? 409 : 400, result);
     },
@@ -446,10 +471,19 @@ const ROUTES = [
     body: true,
     handler: async ({ body }) => {
       const result = await authenticate(body.email, body.password);
-      if (!result.error) return ok(200, result);
+      if (!result.error) return ok(200, { ...result, token: await sessions.issue(result.account.id) });
       return ok(result.error === 'account_disabled' ? 403 : 401, result);
     },
   },
+  {
+    // Abmelden: das Token gilt danach nirgends mehr.
+    method: 'DELETE',
+    path: /^\/v1\/sessions\/current$/,
+    handler: async ({ req }) => ok(200, { ok: await sessions.revoke(bearerOf(req)) }),
+  },
+
+  // Better Fit — jede Route verlangt ein Token (`auth: true`).
+  ...fit.routes,
   {
     method: 'GET',
     path: /^\/v1\/accounts\/by-username\/([^/]+)$/,
@@ -667,6 +701,25 @@ const server = http.createServer(async (req, res) => {
     if (!route) return send(res, 404, { error: 'unknown_route' });
     const params = route.path.exec(url.pathname).slice(1).map(decodeParam);
 
+    // Persoenliche Routen: das Konto kommt nur aus dem Token, nie aus der Anfrage.
+    let auth = null;
+    if (route.auth) {
+      if (!ipLimiter.allow(req.socket.remoteAddress ?? 'unknown')) {
+        return send(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
+      }
+      auth = await sessions.resolve(bearerOf(req));
+      if (!auth) return send(res, 401, { error: 'auth_required' });
+      // Gesperrt oder geloescht gilt sofort — auch mit einem noch gueltigen Token.
+      const owner = (await load()).tables.accounts.find((entry) => entry.id === auth.accountId);
+      if (!owner) return send(res, 401, { error: 'auth_required' });
+      if (owner.disabled === true) return send(res, 403, { error: 'account_disabled' });
+      if (auth.readOnly && !READ_METHODS.has(req.method)) return send(res, 403, { error: 'read_only' });
+      if (!fitLimiter.allow(auth.accountId)) {
+        return send(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
+      }
+    }
+    const idempotencyKey = typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : null;
+
     let body = {};
     if (route.body) {
       body = await readBody(req);
@@ -675,8 +728,10 @@ const server = http.createServer(async (req, res) => {
       if (body === null || typeof body !== 'object')
         return send(res, 400, { error: 'bad_request' });
     }
-    if (route.raw) return await route.handler({ res, params, url });
-    const result = await route.handler({ params, url, body });
+    if (route.raw) return await route.handler({ res, params, url, auth });
+    // Inhalte (Lebensmittel, Rezepte, Uebungen) in der Sprache des Kontos.
+    const language = languageOf(req.headers['accept-language']);
+    const result = await route.handler({ params, url, body, auth, req, idempotencyKey, language });
     return send(res, result.status, result.body);
   } catch (error) {
     process.stderr.write(`[api] ${req.method} ${url.pathname}: ${error?.name ?? 'Error'}\n`);
@@ -707,6 +762,16 @@ server.listen(PORT, () => {
       aiStatus: () => ai.status(),
       speechStatus: () => speech.status(),
       mail,
+      // Ein neues Passwort im Admin meldet alle Sitzungen des Kontos ab.
+      revokeSessions: (id) => sessions.revokeAccount(id),
+      // Loeschen nimmt auch Better Fit und alle Tokens mit; dazu die Kosten fuer den Admin.
+      fit: {
+        removeAccount: async (id) => {
+          await fit.removeAccount(id);
+          await sessions.revokeAccount(id);
+        },
+        stats: (month) => fit.stats(month),
+      },
     });
   }
   mail.startScheduler(mailSyncMs());

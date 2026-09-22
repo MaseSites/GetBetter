@@ -44,6 +44,21 @@
             "backgroundColor": "#B03A31"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Damit du ein Foto deiner Mahlzeit oder einer Nährwerttabelle auswählen kannst.",
+          "cameraPermission": "Damit du deine Mahlzeit oder eine Nährwerttabelle fotografieren kannst. Das Bild wird nur für die Analyse verwendet und danach gelöscht."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Damit du deine Mahlzeit fotografieren und den Strichcode einer Verpackung scannen kannst. Bilder werden nur für die Analyse verwendet und danach gelöscht.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

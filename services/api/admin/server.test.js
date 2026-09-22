@@ -273,6 +273,7 @@ describe('admin server', () => {
   let port;
   let publicDir;
   let configured = false;
+  const revokedSessions = [];
   const removedMailboxes = [];
 
   /** Wie der Mail-Dienst: Postfach und seine Nachrichten weg. Tresor und Cache gibt es hier nicht. */
@@ -351,6 +352,9 @@ describe('admin server', () => {
       aiStatus: async () => ({ status: 200, body: { configured } }),
       speechStatus: async () => ({ status: 200, body: { configured: true } }),
       mail: fakeMail,
+      revokeSessions: async (id) => {
+        revokedSessions.push(id);
+      },
       publicDir,
       log: () => {},
     });
@@ -511,7 +515,9 @@ describe('admin server', () => {
       assert.equal(module('getbetter', 'contacts').items, 2);
       assert.equal(module('betterfamily', 'chores').items, 1);
       assert.deepEqual([module('getbetter', 'weather').collection, module('getbetter', 'weather').items], [null, 0]);
-      assert.equal(data.modules.length, 30);
+      // 28 Funktionen plus fuenf von Better Fit (Menüplan und Training sind darin aufgegangen).
+      assert.equal(data.modules.length, 33);
+      assert.deepEqual([module('bettergym', 'nutrition').collection, module('bettergym', 'nutrition').items], [null, 0]);
 
       const { ai } = data;
       assert.equal(ai.configured, false);
@@ -920,6 +926,8 @@ describe('admin server', () => {
 
       const done = await send('POST', '/api/accounts/acc_anna/password', { password: NEW_PASSWORD });
       assert.deepEqual([done.status, done.data], [200, { ok: true }]);
+      // Das neue Passwort meldet alle Sitzungen ab, die gescheiterten nicht.
+      assert.deepEqual(revokedSessions, ['acc_anna']);
 
       const anna = (await load()).tables.accounts.find((row) => row.id === 'acc_anna');
       assert.notEqual(anna.passwordSalt, 'salz-acc_anna');

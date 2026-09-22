@@ -10,6 +10,14 @@ import { deModules } from './de-modules';
 import { deNews } from './de-news';
 import { deNotes } from './de-notes';
 import { dePersonalize } from './de-personalize';
+import { deFit } from './de-fit';
+import { deFit2 } from './de-fit2';
+import { deFit3 } from './de-fit3';
+import { deFit4 } from './de-fit4';
+import { deFit5 } from './de-fit5';
+import { deFit6 } from './de-fit6';
+import { deFit7 } from './de-fit7';
+import { deFit8 } from './de-fit8';
 import { dePlan } from './de-plan';
 import { deQuick } from './de-quick';
 import { deSettings } from './de-settings';
@@ -43,6 +51,14 @@ export const de = {
   ...deMailUi,
   ...deUi,
   ...dePlan,
+  ...deFit,
+  ...deFit2,
+  ...deFit3,
+  ...deFit4,
+  ...deFit5,
+  ...deFit6,
+  ...deFit7,
+  ...deFit8,
 
   'app.tagline': 'Alles, was dein Alltag braucht — an einem Ort.',
   'apps.getbetter.tagline':

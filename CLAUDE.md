@@ -12,7 +12,7 @@ noch die Zeit, als alles eine App war.
 | ---------------- | ------------------- | ----------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **GetBetter**    | `apps/getbetter`    | `getbetter://`    | 8081 | Privater Kalender, Aufgaben, Notizen, Wecker, Wetter, Dokumente, Gewohnheiten, Reisen, Kontakte, Geburtstage, E-Mail — alles ausgebaut, dazu Assistent, Mitteilungen und App-Übersicht |
 | **BetterFamily** | `apps/betterfamily` | `betterfamily://` | 8082 | Familienkalender, Einkaufsliste, Ämtli, Rezepte, Pflanzen, Haustiere, Fahrzeuge — samt Haushalt, alles ausgebaut                                                                       |
-| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | Training mit Sätzen und Vorlagen, Menüplan, Trinken, Schlaf, Medikamente, Werte, Kopf frei — alles ausgebaut                                                                           |
+| **BetterGym**    | `apps/bettergym`    | `bettergym://`    | 8083 | **Better Fit**: Ernährung, Trainingsplan, Küche, Trinken, Coach, Fortschritt — dazu Schlaf, Medikamente, Werte, Kopf frei                                           |
 | **BetterAi**     | `apps/betterai`     | `betterai://`     | 8084 | Die Gespräche mit der KI, gespeichert und als Liste — sonst nichts                                                                                                                     |
 | **BetterMoney**  | `apps/bettermoney`  | `bettermoney://`  | 8085 | Budget, Rechnungen, Abos, Sparziele — alle vier ausgebaut                                                                                                                              |
 
@@ -759,8 +759,13 @@ Vorschau, kein Inhalt. Ein Tipp blättert zu diesem Tag.
 
 ## BetterGym
 
-`db/gym.ts`, `db/health.ts` und `features/gym/` — sieben Module, Vorbild sind
-Hevy und Streaks:
+`db/gym.ts`, `db/health.ts` und `features/gym/`, Vorbild sind Hevy und Streaks.
+Seit 22.09.2026 führt BetterGym **Training** und **Menüplan** nicht mehr als
+eigene Funktionen (`APP_MODULES`): sie sind in Trainingsplan, Ernährung und
+Küche von Better Fit aufgegangen. Code und Sammlungen bleiben — ein
+abgeschlossenes Better-Fit-Training schreibt eine Zeile in `workouts`
+(Minuten geschätzt aus den Sätzen), damit Woche, Profil und GetBetter-Karte
+weiter zählen. Das Trinkziel kommt aus Better Fit (35 ml/kg, Trainingstag +0.5 l).
 
 - **Training** (`workouts`, `workoutSets`, `routines`) — **Vorlagen** als Chips
   starten ein Training mit ihren Übungen; im Blatt je Übung die Sätze
@@ -784,6 +789,35 @@ Hevy und Streaks:
 `dayKey(date)` ist der Tagesschlüssel `YYYY-MM-DD`, nach dem gruppiert wird.
 Die Startseite zeigt die Zahl des Tages, die letzte Nacht, die nächste offene
 Einnahme (antippbar), das letzte Gewicht und die Laune von heute.
+
+## Better Fit (in BetterGym)
+
+Ernährung, Vorrat, Rezepte, Wochenplan, Einkauf, Training und Coach als ein
+verbundenes System. Alles Nähere in [docs/better-fit.md](docs/better-fit.md);
+der fachliche Plan liegt in `apps/bettergym/BETTER_FIT_FINALER_MASTERPLAN_FUER_CLAUDE_CODE.md`.
+
+- **Geschützt**: Daten in `data/fit.json`, nie in `GET /v1/db`. Routen `/v1/fit/…`
+  nur mit Token (`Authorization: Bearer`, `services/api/sessions.js`); das Konto
+  kommt nur aus dem Token. Routen sehen nur `store.forOwner(id)` — das ist die
+  RLS des lokalen Dienstes. Für die Produktion: `supabase/migrations/`.
+- **Rechnen tut der Dienst**: Nährwerte = Gramm × Katalog je 100 g. Die KI
+  (Gemini, im Mock-Modus Fixtures) liefert nur Lebensmittel und Gramm.
+- **Nichts ändert sich ungefragt**: Vorrat, Rezepte, Wochenplan, Einkaufsliste,
+  Trainingsplan, Verschieben, Gewicht über den Coach laufen als Vorschlag
+  (`/v1/fit/actions`) und werden erst nach „Bestätigen“ atomar gespeichert
+  (`fit/tools/engine.js`). Der Coach meldet nur, was wirklich gespeichert ist.
+- **Mock-Modus** ist Standard (`MEAL_ANALYSIS_MODE=mock`): kein Aufruf nach
+  aussen, Katalog mit Beispielwerten. Schlüssel in `services/api/.env.local`
+  (Vorlage `.env.example`, nie im Git).
+- **Oberfläche**: `packages/core/src/features/fit/`, Client `db/fit.ts` (Kern) aus
+  `fitDiary.ts`, `fitKitchen.ts`, `fitTraining.ts` (Typen `db/fitTypes.ts`), Texte
+  `i18n/*-fit.ts` bis `*-fit7.ts`.
+- **Neu laden nach Bereich**: `fitEvents.ts` meldet Änderungen als `diary`, `kitchen`,
+  `training`, `profile` oder `all`; `useFit(run, deps, topics)` hört nur auf seine.
+- **Sprache der Inhalte**: jede Fit-Anfrage trägt `Accept-Language` (gesetzt in `AppContext`
+  per Layout-Effekt); der Server reicht `language` an jeden Handler (`fit/lang.js`). Rezepte,
+  Übungen und Vorlagen kommen übersetzt, gespeichert bleibt Deutsch mit Ids.
+- **Stand und offene Punkte**: [docs/better-fit-100.md](docs/better-fit-100.md).
 
 ## BetterMoney
 
@@ -846,7 +880,7 @@ was sie gerade weiss — und mit dem, was man direkt tun kann:
 | Wecker                        | der nächste                                         |
 | Einkauf                       | offene Posten, antippen erledigt                    |
 | Ämtli                         | was ansteht                                         |
-| Training / Menüplan / Trinken | die Zahl des Tages                                  |
+| Ernährung / Training / Trinken | die Zahl des Tages (aus Better Fit)                |
 | Budget / Abos                 | die Summe des Monats                                |
 | Rechnungen                    | die nächsten drei, antippen heisst bezahlt          |
 | Sparziele                     | die ersten drei mit Stand                           |
@@ -1319,8 +1353,9 @@ Stufen von oben nach unten): an den schlechtesten 2 % der Bildpunkte jeder
 Höhe erreicht `textMuted` 4.5:1 und `textFaint` 3:1 — überall, weil der Inhalt
 über das stehende Bild rollt. Wer ein Bild tauscht, misst neu. Ein eigenes
 Bild wird im Browser per Canvas auf 1280 px verkleinert und an `/v1/uploads`
-geschickt; am Handy fehlt dafür noch `expo-image-picker`
-(`features/personalize/pickImage.ts` sagt das ehrlich).
+geschickt; am Handy wählt `expo-image-picker` das Bild (Kamera oder Fotos) und
+`expo-image-manipulator` verkleinert es ebenso, ohne EXIF
+(`features/personalize/pickImage.ts`).
 
 Jedes Modul hat eine eigene Farbe (`theme/modules.ts`); `moduleTint(theme, id)`
 und `hueTint(theme, hue)` machen daraus die gezeichnete Fassung eines Logos.

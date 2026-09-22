@@ -10,6 +10,9 @@ export const TAB_BAR_HEIGHT = 76;
 /** Der runde Knopf unten rechts. */
 export const FLOATING_BUTTON_SIZE = 56;
 
+/** Die schmalere Pille aus dem Entwurf «Better Fit — Vision»: 52 hoch, ohne Ring. */
+export const FLOATING_BUTTON_COMPACT = 52;
+
 /** Kleinste Trefferflaeche, auch fuer Kreise, die kleiner gezeichnet sind. */
 export const HIT_TARGET = 44;
 

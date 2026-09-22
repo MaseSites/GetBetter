@@ -16,6 +16,7 @@ export type CelebrationKind =
   | 'note'
   | 'water'
   | 'workout'
+  | 'record'
   | 'money'
   | 'birthday'
   | 'done';
@@ -35,6 +36,8 @@ const CELEBRATIONS: Readonly<Record<CelebrationKind, Celebration>> = {
   note: { carrier: 'note', items: ['lines', 'sparkles'] },
   water: { carrier: 'water', items: ['water', 'water'] },
   workout: { carrier: 'fitness', items: ['flame', 'sparkles'] },
+  // Ein neuer Rekord im Training: die Hantel mit einem Stern obendrauf.
+  record: { carrier: 'fitness', items: ['starFilled', 'sparkles', 'flame'] },
   money: { carrier: 'wallet', items: ['card', 'chart'] },
   birthday: { carrier: 'gift', items: ['sparkles', 'heart'] },
   done: { carrier: 'checkCircle', items: ['sparkles'] },

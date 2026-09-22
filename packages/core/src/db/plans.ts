@@ -55,8 +55,7 @@ export async function requestPlan(
 
 /** Wie eine Kuendigung ausging. */
 export type PlanCancelOutcome =
-  | { ok: true; cancelsOn: string | null }
-  | { ok: false; reason: 'readOnly' | 'notPaid' | 'failed' };
+  { ok: true; cancelsOn: string | null } | { ok: false; reason: 'readOnly' | 'notPaid' | 'failed' };
 
 async function changeCancel(
   path: '/v1/plans/cancel' | '/v1/plans/resume',

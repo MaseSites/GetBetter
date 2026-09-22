@@ -13,6 +13,7 @@
  */
 
 import { createBillingUi } from './billing.js';
+import { createFitUi } from './fit.js';
 import { createPlanRequestsUi } from './plans.js';
 
 // ===========================================================================
@@ -1550,8 +1551,17 @@ const VIEWS = {
   account: renderAccountDetail,
   activity: renderActivity,
   costs: renderCosts,
+  fit: (ctx) => fitUi().renderFit(ctx),
   notfound: renderNotFound,
 };
+
+/** Better Fit (fit.js): Analysen und Kosten, nur Zahlen. */
+let fitUiInstance = null;
+
+function fitUi() {
+  fitUiInstance = fitUiInstance ?? createFitUi({ h, page, card, stats, createTable, reloadButton, api, fmtInt, fmtChf, fmtPct, fmtDayShort, asArray });
+  return fitUiInstance;
+}
 
 let viewToken = 0;
 
@@ -1575,6 +1585,7 @@ function parseRoute() {
   if (first === 'accounts') return { name: 'accounts', query };
   if (first === 'activity') return { name: 'activity', query };
   if (first === 'costs') return { name: 'costs', query };
+  if (first === 'fit') return { name: 'fit', query };
   return { name: 'notfound', query };
 }
 

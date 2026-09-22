@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -34,6 +34,8 @@ export type ScreenProps = {
   padded?: boolean;
   gap?: number;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Rollt ans Ende, sobald Inhalt dazukommt — fuer Gespraeche wie den Coach. */
+  followEnd?: boolean;
 };
 
 export function Screen({
@@ -44,8 +46,10 @@ export function Screen({
   padded = true,
   gap,
   contentStyle,
+  followEnd = false,
 }: ScreenProps) {
   const theme = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const { personal } = useApp();
   const appId = currentApp().id;
@@ -78,8 +82,12 @@ export function Screen({
       {header}
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           style={styles.fill}
           contentContainerStyle={inner}
+          onContentSizeChange={
+            followEnd ? () => scrollRef.current?.scrollToEnd({ animated: true }) : undefined
+          }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

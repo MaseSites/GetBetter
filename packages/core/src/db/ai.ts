@@ -60,7 +60,5 @@ export const ai = {
   reply: (request: AiRequest): Promise<ServiceCall<AiReply>> =>
     callService<AiReply>('/v1/ai/reply', { method: 'POST', body: request }),
   budget: (accountId: string, app: AiApp): Promise<ServiceCall<AiBudget>> =>
-    callService<AiBudget>(
-      `/v1/ai/budget?${new URLSearchParams({ accountId, app }).toString()}`,
-    ),
+    callService<AiBudget>(`/v1/ai/budget?${new URLSearchParams({ accountId, app }).toString()}`),
 };

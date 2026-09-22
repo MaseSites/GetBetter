@@ -62,6 +62,11 @@ const MODULE_AREA: Readonly<Record<string, Area>> = {
   // Der Assistent steht quer ueber allem und traegt deshalb seine eigene Farbe.
   ai: 'ai',
   // Gesundheit
+  nutrition: 'health',
+  kitchen: 'health',
+  coach: 'health',
+  trainingplan: 'health',
+  progress: 'health',
   meals: 'health',
   fitness: 'health',
   sleep: 'health',

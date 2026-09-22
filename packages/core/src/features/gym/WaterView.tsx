@@ -1,7 +1,11 @@
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
-import { dayKey, drinks as drinkRepo, useLiveQuery } from '@/db';
+import { drinks as drinkRepo, useLiveQuery } from '@/db';
+import { fit } from '@/db/fit';
+import { formatsOf } from '@/features/fit/trainingText';
+import { useFit } from '@/features/fit/useFit';
+import { useZurichToday } from '@/features/fit/useZurichToday';
 import { useI18n } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
@@ -16,23 +20,32 @@ export const TARGET_DL = 20;
 
 /** Wie viel heute getrunken wurde. Zwei Knoepfe, mehr braucht es nicht. */
 export function WaterView({ module }: { module: ModuleDefinition }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const theme = useTheme();
   const celebrate = useCelebrate();
   const router = useRouter();
   const account = useAccount();
-  const today = dayKey();
+  // Der Tag endet in Zuerich um Mitternacht — wie beim Dienst und in Better Fit.
+  const today = useZurichToday();
+  const formats = formatsOf(language);
 
   const amount = useLiveQuery(() => drinkRepo.ofDay(account.id, today), [account.id, today]);
   const dl = amount.data ?? 0;
-  const share = Math.min(1, dl / TARGET_DL);
+  // Mit Better Fit ist das Ziel persoenlich: nach Gewicht, an Trainingstagen mehr.
+  const fitDay = useFit(
+    () => fit.day(today),
+    [account.id, today],
+    ['diary', 'training', 'profile'],
+  );
+  const target = fitDay.data?.hasProfile ? fitDay.data.waterTargetMl / 100 : TARGET_DL;
+  const share = Math.min(1, dl / target);
 
   return (
     <Screen
       header={
         <Header
           title={moduleName(t, module.id)}
-          subtitle={t('water.target', { target: TARGET_DL / 10 })}
+          subtitle={t('water.target', { target: formats.oneDecimal.format(target / 10) })}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         />
@@ -42,7 +55,7 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
           {PORTIONS.map((portion) => (
             <View key={portion} style={{ flex: 1 }}>
               <Button
-                label={t('water.add', { amount: portion })}
+                label={t('water.add', { amount: formats.oneDecimal.format(portion) })}
                 icon="plus"
                 onPress={() => {
                   celebrate('water');
@@ -56,10 +69,19 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
     >
       <Card>
         <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
-          <Text variant="display">{t('water.amount', { amount: (dl / 10).toFixed(1) })}</Text>
+          <Text variant="display">
+            {t('water.amount', { amount: formats.oneDecimal.format(dl / 10) })}
+          </Text>
 
-          {/* Ein einfacher Balken statt einer Zahl allein. */}
+          {/* Ein einfacher Balken statt einer Zahl allein — vorgelesen als Fortschritt. */}
           <View
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={t('fit6.water.a11y', {
+              amount: formats.oneDecimal.format(dl / 10),
+              target: formats.oneDecimal.format(target / 10),
+            })}
+            accessibilityValue={{ min: 0, max: 100, now: Math.round(share * 100) }}
             style={{
               width: '100%',
               height: 10,
@@ -78,7 +100,7 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
           </View>
 
           <Text variant="caption" tone="muted">
-            {t('water.ofTarget', { percent: Math.round(share * 100) })}
+            {t('water.ofTarget', { percent: formats.whole.format(Math.round(share * 100)) })}
           </Text>
         </View>
       </Card>

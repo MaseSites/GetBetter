@@ -90,7 +90,19 @@ export const APP_MODULES: Readonly<Record<AppId, readonly string[]>> = {
   ],
   // Der Familienkalender gehoert hierher; den privaten fuehrt GetBetter.
   betterfamily: ['calendar', 'shopping', 'chores', 'recipes', 'plants', 'pets', 'vehicles'],
-  bettergym: ['fitness', 'meals', 'sleep', 'water', 'meds', 'vitals', 'mind'],
+  // Better Fit vorne; das fruehere „Training“ und der „Menüplan“ sind in Trainingsplan, Ernährung und Küche aufgegangen.
+  bettergym: [
+    'nutrition',
+    'trainingplan',
+    'kitchen',
+    'water',
+    'coach',
+    'progress',
+    'sleep',
+    'meds',
+    'vitals',
+    'mind',
+  ],
   betterai: ['ai'],
   bettermoney: ['budget', 'bills', 'subscriptions', 'savings'],
 };

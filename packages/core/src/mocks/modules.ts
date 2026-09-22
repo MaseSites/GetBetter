@@ -112,6 +112,48 @@ export const MODULES: readonly ModuleDefinition[] = [
 
   // ---------- Gesundheit ----------
   {
+    // Better Fit: das Ernaehrungstagebuch. Daten im Dienst unter /v1/fit, nur mit Token.
+    id: 'nutrition',
+    area: 'health',
+    topic: 'nutrition',
+    icon: 'meal',
+    priority: 1,
+    permissions: { read: ['meals', 'recipes', 'health_metrics'], write: ['meals'] },
+  },
+  {
+    // Better Fit: Vorrat, Rezepte, Wochenplan, Einkauf — Aenderungen nur bestaetigt.
+    id: 'kitchen',
+    area: 'health',
+    topic: 'cooking',
+    icon: 'book',
+    priority: 1,
+    permissions: { read: ['meals', 'recipes', 'workouts'], write: ['meals', 'recipes'] },
+  },
+  {
+    id: 'coach',
+    area: 'health',
+    topic: 'assistant',
+    icon: 'sparkles',
+    priority: 1,
+    permissions: { read: ['meals', 'recipes', 'workouts', 'health_metrics', 'events'], write: ['meals', 'recipes', 'workouts', 'health_metrics'] },
+  },
+  {
+    id: 'trainingplan',
+    area: 'health',
+    topic: 'training',
+    icon: 'calendar',
+    priority: 1,
+    permissions: { read: ['workouts', 'events'], write: ['workouts'] },
+  },
+  {
+    id: 'progress',
+    area: 'health',
+    topic: 'body',
+    icon: 'chart',
+    priority: 2,
+    permissions: { read: ['health_metrics', 'workouts', 'meals'], write: ['health_metrics'] },
+  },
+  {
     id: 'meals',
     area: 'health',
     topic: 'nutrition',
@@ -286,6 +328,11 @@ export const BUILT_MODULE_IDS: readonly string[] = [
   'ai',
   'shopping',
   'chores',
+  'nutrition',
+  'kitchen',
+  'coach',
+  'trainingplan',
+  'progress',
   'fitness',
   'meals',
   'water',

@@ -33,6 +33,11 @@ export type SheetProps = {
    */
   header?: ReactNode;
   children: ReactNode;
+  /**
+   * Bleibt unten stehen, waehrend der Inhalt rollt — etwa der Pausentimer im
+   * Training. Ohne Angabe gibt es keinen Fuss.
+   */
+  footer?: ReactNode;
   /** Vollbild statt von unten eingeschobener Karte. Wirkt nicht zusammen mit `detent`. */
   fullScreen?: boolean;
   /**
@@ -171,6 +176,7 @@ export function Sheet({
   subtitle,
   header,
   children,
+  footer,
   fullScreen = false,
   detent,
   onDetentChange,
@@ -343,6 +349,18 @@ export function Sheet({
             >
               {children}
             </ScrollView>
+            {footer ? (
+              <View
+                style={{
+                  paddingHorizontal: theme.spacing.edge,
+                  paddingTop: theme.spacing.sm,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: theme.colors.border,
+                }}
+              >
+                {footer}
+              </View>
+            ) : null}
           </Animated.View>
         </View>
       </View>

@@ -22,6 +22,8 @@ export type InputProps = {
   onSubmitEditing?: () => void;
   returnKeyType?: 'done' | 'next' | 'send' | 'search';
   accessibilityLabel?: string;
+  /** Beim Verlassen des Felds — dort prueft eine Maske, nicht bei jedem Zeichen. */
+  onBlur?: () => void;
 };
 
 export function Input({
@@ -40,6 +42,7 @@ export function Input({
   onSubmitEditing,
   returnKeyType,
   accessibilityLabel,
+  onBlur,
 }: InputProps) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
@@ -90,7 +93,10 @@ export function Input({
           onSubmitEditing={onSubmitEditing}
           returnKeyType={returnKeyType}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            onBlur?.();
+          }}
           style={[
             styles.input,
             {

@@ -57,10 +57,15 @@ const MODULES = {
     { id: 'vehicles', name: 'Fahrzeuge', collection: 'vehicles' },
   ],
   bettergym: [
-    { id: 'fitness', name: 'Training', collection: 'workouts' },
-    { id: 'meals', name: 'Menüplan', collection: 'meals' },
-    { id: 'sleep', name: 'Schlaf', collection: 'sleeps' },
+    // Better Fit liegt geschuetzt in fit.json, nicht in db.json — der Admin zaehlt dort nichts.
+    // Ausnahme Trainingsplan: ein abgeschlossenes Training landet mit Minuten in `workouts`.
+    { id: 'nutrition', name: 'Ernährung', collection: null },
+    { id: 'trainingplan', name: 'Trainingsplan', collection: 'workouts' },
+    { id: 'kitchen', name: 'Küche', collection: null },
     { id: 'water', name: 'Trinken', collection: 'drinks' },
+    { id: 'coach', name: 'Coach', collection: null },
+    { id: 'progress', name: 'Fortschritt', collection: null },
+    { id: 'sleep', name: 'Schlaf', collection: 'sleeps' },
     { id: 'meds', name: 'Medikamente', collection: 'meds' },
     { id: 'vitals', name: 'Werte', collection: 'vitals' },
     { id: 'mind', name: 'Kopf frei', collection: 'moods' },

@@ -344,7 +344,8 @@ describe('Stimmen ueber ElevenLabs', () => {
     assert.equal(anna.status, 201);
     assert.equal(await playAll(anna), 'ID3-fake-mp3');
     assert.equal(fake.calls.at(-1).body.text, SAMPLE_TEXT.de);
-    assert.equal(await exists(path.join(dir, CACHE_DIR, SAMPLES_DIR, `${anna.body.id}.mp3`)), true);
+    // Die Datei wird nach dem Strom geschrieben — kurz darauf warten statt raten.
+    await eventually(() => exists(path.join(dir, CACHE_DIR, SAMPLES_DIR, `${anna.body.id}.mp3`)));
 
     const ben = await current.prepareSample({ voice: VOICE, language: 'de', accountId: 'acc_ben', app: 'betterfamily' });
     assert.equal(ben.body.id, anna.body.id);
@@ -510,6 +511,8 @@ describe('Stimmen ueber ElevenLabs', () => {
 
     const warm = await current.prepare({ text: 'Schon gesagt.', voice: VOICE, language: 'de', accountId: 'acc_anna', app: 'getbetter' });
     assert.equal(await playAll(warm), 'ID3-fake-mp3');
+    // Erst wenn der Satz im Zwischenspeicher steht, zaehlt er als schon gesagt.
+    await eventually(async () => (await indexOf(dir))?.entries[warm.body.id]);
     const before = fake.calls.length;
 
     const fresh = await current.prepare({ text: 'Ganz neu.', voice: VOICE, language: 'de', ...PAID });

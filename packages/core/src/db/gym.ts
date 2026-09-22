@@ -57,6 +57,52 @@ export const workouts = {
     return changed(await db.workouts.insert(row));
   },
 
+  /**
+   * Ein in Better Fit abgeschlossenes Training: genau eine Zeile je Training.
+   * Nochmal abschliessen (nach „Wieder öffnen“) ersetzt die Minuten, statt sie
+   * doppelt zu zaehlen.
+   */
+  async syncFromFit(input: {
+    accountId: string;
+    fitWorkoutId: string;
+    day: string;
+    kind: string;
+    minutes: number;
+  }): Promise<WorkoutRow | undefined> {
+    const [existing] = await db.workouts.list({
+      where: (row) => row.accountId === input.accountId && row.fitWorkoutId === input.fitWorkoutId,
+    });
+    if (!existing) {
+      const row: WorkoutRow = {
+        id: newId('wo'),
+        accountId: input.accountId,
+        day: input.day,
+        kind: input.kind.trim(),
+        minutes: Math.max(0, Math.round(input.minutes)),
+        notes: null,
+        fitWorkoutId: input.fitWorkoutId,
+        createdAt: now(),
+      };
+      return changed(await db.workouts.insert(row));
+    }
+    return changed(
+      await db.workouts.update(existing.id, {
+        day: input.day,
+        kind: input.kind.trim(),
+        minutes: Math.max(0, Math.round(input.minutes)),
+      }),
+    );
+  },
+
+  /** „Wieder öffnen“ in Better Fit: die Minuten zaehlen erst wieder nach dem Abschliessen. */
+  async removeFromFit(accountId: string, fitWorkoutId: string) {
+    const rows = await db.workouts.list({
+      where: (row) => row.accountId === accountId && row.fitWorkoutId === fitWorkoutId,
+    });
+    for (const row of rows) await db.workouts.remove(row.id);
+    if (rows.length > 0) changed(null);
+  },
+
   async update(id: string, patch: { kind?: string; minutes?: number; notes?: string | null }) {
     return changed(
       await db.workouts.update(id, {

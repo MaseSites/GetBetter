@@ -1,3 +1,5 @@
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 /** Laengste Seite nach dem Verkleinern — reicht fuer jeden Telefonbildschirm. */
@@ -14,12 +16,29 @@ export class ImageReadError extends Error {
   }
 }
 
+/** Woher das Bild kommt: Kamera (am Telefon direkt fotografieren) oder die Fotos. */
+export type ImageSource = 'camera' | 'library';
+
+/** Kamera oder Fotos haben keine Erlaubnis — die App sagt, wo man sie gibt. */
+export class ImagePermissionError extends Error {
+  constructor() {
+    super('image_permission');
+    this.name = 'ImagePermissionError';
+  }
+}
+
 /**
- * Ob es hier eine Bildauswahl gibt. Im Browser ja; auf dem Geraet braucht es
- * dafuer expo-image-picker, und das ist noch nicht dabei.
+ * Ob es hier eine Bildauswahl gibt: im Browser die Dateiwahl, auf iPhone und
+ * Android Kamera und Fotos ueber expo-image-picker.
  */
 export function canPickImage(): boolean {
-  return Platform.OS === 'web' && typeof document !== 'undefined';
+  if (Platform.OS === 'web') return typeof document !== 'undefined';
+  return Platform.OS === 'ios' || Platform.OS === 'android';
+}
+
+/** Ob es sich lohnt, „Foto machen“ und „Aus Fotos“ getrennt anzubieten — nur auf dem Telefon. */
+export function hasCamera(): boolean {
+  return Platform.OS === 'ios' || Platform.OS === 'android';
 }
 
 /**
@@ -32,19 +51,62 @@ export function canPickImage(): boolean {
  * Muss direkt aus einem Tipp heraus aufgerufen werden: der Browser oeffnet
  * den Dateidialog nur als Antwort auf eine Handlung.
  */
-export async function pickImage(): Promise<string | null> {
+export async function pickImage(source: ImageSource = 'library'): Promise<string | null> {
   if (!canPickImage()) return null;
-  const file = await chooseFile();
+  if (Platform.OS !== 'web') return pickNative(source);
+  const file = await chooseFile(source);
   if (!file) return null;
   if (!file.type.startsWith('image/')) throw new ImageReadError();
   return shrink(file);
 }
 
-function chooseFile(): Promise<File | null> {
+/**
+ * Auf dem Telefon: Kamera oder Fotos, dann auf `MAX_IMAGE_EDGE` verkleinert
+ * und neu als JPEG kodiert — ohne EXIF, also ohne Ort und Geraet.
+ */
+async function pickNative(source: ImageSource): Promise<string | null> {
+  const permission =
+    source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) throw new ImagePermissionError();
+  const options: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ['images'],
+    quality: 1,
+    exif: false,
+    allowsEditing: false,
+  };
+  const result =
+    source === 'camera'
+      ? await ImagePicker.launchCameraAsync(options)
+      : await ImagePicker.launchImageLibraryAsync(options);
+  const asset = result.canceled ? null : result.assets[0];
+  if (!asset) return null;
+  const context = ImageManipulator.manipulate(asset.uri);
+  if (Math.max(asset.width, asset.height) > MAX_IMAGE_EDGE) {
+    context.resize(
+      asset.width >= asset.height
+        ? { width: MAX_IMAGE_EDGE, height: null }
+        : { width: null, height: MAX_IMAGE_EDGE },
+    );
+  }
+  const image = await context.renderAsync();
+  const saved = await image.saveAsync({
+    format: SaveFormat.JPEG,
+    compress: IMAGE_QUALITY,
+    base64: true,
+  });
+  if (!saved.base64) throw new ImageReadError();
+  return `data:image/jpeg;base64,${saved.base64}`;
+}
+
+function chooseFile(source: ImageSource): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    // Auf dem Telefon oeffnet der Browser damit gleich die Kamera; am Rechner die Dateiwahl.
+    if (source === 'camera') input.setAttribute('capture', 'environment');
     input.style.display = 'none';
 
     let settled = false;

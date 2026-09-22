@@ -4,7 +4,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTranslate } from '@/i18n';
-import { useTheme } from '@/theme';
+import { hueTint, useTheme } from '@/theme';
 
 import { useHeaderCrumb } from './HeaderCrumb';
 import { Icon, type IconName } from './Icon';
@@ -47,9 +47,10 @@ export type HeaderProps = {
   /**
    * Bereichsmarke ohne Zurueck-Knopf — fuer die Startseiten von BetterGym,
    * BetterFamily und BetterMoney. Vollansichten einer Funktion zeigen keine
-   * Marke mehr: der Titel reicht.
+   * Marke mehr: der Titel reicht. Mit `hue` steht davor das kleine Quadrat
+   * des Bereichs ("health" …), wie im Entwurf — so auch in Better Fit.
    */
-  crumb?: { label: string } | null | undefined;
+  crumb?: { label: string; hue?: string } | null | undefined;
   children?: ReactNode;
 };
 
@@ -152,6 +153,11 @@ export function Header({
           ) : null}
           {crumb ? (
             <View style={[styles.row, styles.grow, { gap: theme.spacing.sm }]}>
+              {crumb.hue ? (
+                <View
+                  style={[styles.crumbMark, { backgroundColor: hueTint(theme, crumb.hue).base }]}
+                />
+              ) : null}
               <Text
                 variant="overline"
                 tone="faint"
@@ -315,6 +321,7 @@ function RoundButton({
 }
 
 const styles = StyleSheet.create({
+  crumbMark: { width: 8, height: 8, borderRadius: 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1, minWidth: 0 },

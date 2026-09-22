@@ -10,13 +10,21 @@ export type ChipProps = {
   selected?: boolean;
   disabled?: boolean;
   onPress: () => void;
+  /** Vorgelesen statt `label`, wenn der sichtbare Text allein zu knapp ist („2“ -> „Reserve 2 Wiederholungen“). */
+  accessibilityLabel?: string;
 };
 
 /**
  * Filter- und Auswahl-Chip. Gewaehlt heisst Tinte, nicht Signalgruen: das
  * Gruen bleibt fuer *jetzt*, *erledigt* und *Fortschritt* reserviert.
  */
-export function Chip({ label, selected = false, disabled = false, onPress }: ChipProps) {
+export function Chip({
+  label,
+  selected = false,
+  disabled = false,
+  onPress,
+  accessibilityLabel,
+}: ChipProps) {
   const theme = useTheme();
   const press = usePressScale();
 
@@ -30,7 +38,7 @@ export function Chip({ label, selected = false, disabled = false, onPress }: Chi
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       disabled={disabled}
       onPress={onPress}
       onPressIn={press.onPressIn}

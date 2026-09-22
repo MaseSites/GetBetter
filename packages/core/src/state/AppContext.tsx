@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -48,7 +49,9 @@ import {
 } from '@/app/viewMode';
 import { appAccess } from '@/db/appAccess';
 import { subscribeDataChanged } from '@/db/events';
+import { setFitLanguage } from '@/db/fitEvents';
 import { callService, fetchAccount, type RemoteAccount } from '@/db/service';
+import { clearSessionToken, restoreSessionToken, setSessionToken } from '@/db/sessionToken';
 import { setSpeaker } from '@/features/assistant/cloudVoice';
 import { normalizeAvatar, type AvatarStyle } from '@/features/avatar/style';
 import { effectivePersonalization, type Personalization } from '@/features/plan/entitlement';
@@ -91,12 +94,16 @@ function forgetViewTicket(): void {
  */
 async function redeemView(ticket: string | null): Promise<Account | null> {
   if (!ticket) return null;
-  const result = await callService<{ account: RemoteAccount }>(REDEEM_PATH, {
+  const result = await callService<{ account: RemoteAccount; token?: string }>(REDEEM_PATH, {
     method: 'POST',
     body: { ticket },
   });
   forgetViewTicket();
   if (!result.ok) return null;
+  // Nur lesen und nur im Arbeitsspeicher — die eigene Sitzung auf dem Geraet bleibt.
+  if (typeof result.data.token === 'string') {
+    await setSessionToken(result.data.token, { persist: false });
+  }
   return (await findAccount(result.data.account.id)) ?? null;
 }
 
@@ -240,6 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       const id = await AsyncStorage.getItem(SESSION_KEY);
+      await restoreSessionToken();
       if (id) {
         const found = await findAccount(id);
         if (!found) await AsyncStorage.removeItem(SESSION_KEY);
@@ -316,6 +324,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!isViewing()) {
       await flush();
       await AsyncStorage.removeItem(SESSION_KEY);
+      // Das Token gilt danach auch beim Dienst nicht mehr.
+      await callService('/v1/sessions/current', { method: 'DELETE' });
+      await clearSessionToken();
     }
     setAccount(null);
     setHousehold(null);
@@ -349,6 +360,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remote = await fetchAccount(accountId);
         if (!active || remote.ok || remote.error !== 'not_found') return;
         await AsyncStorage.removeItem(SESSION_KEY);
+        await clearSessionToken();
         setAccount(null);
         setHousehold(null);
         setRole(null);
@@ -549,6 +561,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [account, household, refreshHousehold]);
 
   const language = (account?.language ?? 'de') as Language;
+  // Better Fit nennt Lebensmittel, Rezepte und Uebungen in dieser Sprache — als
+  // Layout-Effekt, der vor den Effekten der Kinder laeuft; sonst ginge die erste
+  // Abfrage noch in der alten Sprache hinaus.
+  useLayoutEffect(() => {
+    setFitLanguage(language);
+  }, [language]);
 
   const t = useMemo<Translate>(() => (key, values) => translate(language, key, values), [language]);
 
