@@ -13,10 +13,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { currentApp, type AppId } from '@/app/identity';
+import { PillButton } from '@/features/auth/PillButton';
 import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Text } from '@/ui';
+import { Text } from '@/ui';
 
 import { TutorialArt, type TutorialArtKind } from './TutorialArt';
 import { useReducedMotion } from './useReducedMotion';
@@ -161,7 +162,11 @@ export function Tutorial({ onDone }: TutorialProps) {
       </ScrollView>
 
       <View style={{ paddingHorizontal: theme.spacing.edge }}>
-        <Button label={last ? t('intro.tutorial.done') : t('common.continue')} onPress={next} />
+        <PillButton
+          label={last ? t('intro.tutorial.done') : t('common.continue')}
+          variant="signal"
+          onPress={next}
+        />
       </View>
     </View>
   );

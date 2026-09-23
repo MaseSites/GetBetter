@@ -30,7 +30,14 @@ const { deleteUpload } = require('../uploads.js');
 const { viewTickets } = require('../viewTickets.js');
 const { APPS, appOrigin, isAppId } = require('./catalog.js');
 const { applyPlan, backupOf, countsOf, planAccountDeletion } = require('./deletion.js');
-const { accountDetail, accountView, activityEntries, costs, listAccounts, overview } = require('./queries.js');
+const {
+  accountDetail,
+  accountView,
+  activityEntries,
+  costs,
+  listAccounts,
+  overview,
+} = require('./queries.js');
 
 const BIND_HOST = '127.0.0.1';
 const MAX_BODY_BYTES = 100 * 1024;
@@ -145,7 +152,8 @@ function hostAllowed(req, port) {
 /** Ausser GET nur von der eigenen Seite und nur als JSON. */
 function writeAllowed(req, port) {
   const origin = req.headers.origin;
-  const sameOrigin = origin === `http://${BIND_HOST}:${port}` || origin === `http://localhost:${port}`;
+  const sameOrigin =
+    origin === `http://${BIND_HOST}:${port}` || origin === `http://localhost:${port}`;
   const type = String(req.headers['content-type'] ?? '')
     .split(';')[0]
     .trim()
@@ -199,7 +207,10 @@ function readPatch(body) {
   if (!isPlainObject(body)) return { error: 'bad_request' };
   if (Object.keys(body).some((key) => !PATCH_FIELDS.includes(key))) return { error: 'bad_request' };
   const { firstName, username, language, disabled, blockedApps, paidApps } = body;
-  if (firstName !== undefined && (typeof firstName !== 'string' || firstName.length > MAX_FIRST_NAME)) {
+  if (
+    firstName !== undefined &&
+    (typeof firstName !== 'string' || firstName.length > MAX_FIRST_NAME)
+  ) {
     return { error: 'bad_request' };
   }
   if (language !== undefined && !LANGUAGES.includes(language)) return { error: 'bad_request' };
@@ -257,7 +268,11 @@ async function patchAccount(dataDir, id, body) {
   await save();
   await track(dataDir, { accountId: id, kind: 'admin.updated', detail: { fields } });
   for (const request of settled.settled) {
-    await track(dataDir, { accountId: id, kind: 'admin.planApproved', detail: { app: request.app } });
+    await track(dataDir, {
+      accountId: id,
+      kind: 'admin.planApproved',
+      detail: { app: request.app },
+    });
   }
   return reply(200, { account: await accountView(dataDir, next) });
 }
@@ -277,7 +292,8 @@ async function setPassword(dataDir, id, body) {
   if (!isPlainObject(body) || typeof body.password !== 'string') {
     return reply(400, { error: 'bad_request' });
   }
-  if (body.password.length < MIN_PASSWORD_LENGTH) return reply(400, { error: 'password_too_short' });
+  if (body.password.length < MIN_PASSWORD_LENGTH)
+    return reply(400, { error: 'password_too_short' });
   if (body.password.length > MAX_PASSWORD_LENGTH) return reply(400, { error: 'bad_request' });
 
   const db = await load();
@@ -307,7 +323,8 @@ async function startView({ dataDir, tickets }, id, body) {
     return reply(400, { error: 'bad_request' });
   }
   const db = await load();
-  if (!rowsOf(db, 'accounts').some((entry) => entry.id === id)) return reply(404, { error: 'not_found' });
+  if (!rowsOf(db, 'accounts').some((entry) => entry.id === id))
+    return reply(404, { error: 'not_found' });
   const { ticket, expiresAt } = tickets.issue(id, body.app);
   await track(dataDir, { accountId: id, kind: 'admin.viewed', detail: { app: body.app } });
   return reply(200, {
@@ -326,15 +343,22 @@ const MAIL_COLLECTIONS = ['mailAccounts', 'mailMessages'];
 /** `<datenordner>/deleted-accounts/<konto>-<zeit>.json`; die Id wird fuer den Namen entschaerft. */
 async function writeBackup(dataDir, backup) {
   const directory = path.resolve(dataDir, BACKUP_DIR);
-  const safeId = String(backup.accountId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, MAX_BACKUP_ID);
+  const safeId = String(backup.accountId)
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .slice(0, MAX_BACKUP_ID);
   const file = path.join(directory, `${safeId}-${backup.deletedAt.replace(/[:.]/g, '-')}.json`);
   if (path.dirname(file) !== directory) throw new Error('backup_outside_data_dir');
   await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(backup, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+  await fs.writeFile(file, `${JSON.stringify(backup, null, 2)}\n`, {
+    encoding: 'utf8',
+    flag: 'wx',
+  });
 }
 
 function withoutCollections(plan, names) {
-  const remove = Object.fromEntries(Object.entries(plan.remove).filter(([name]) => !names.includes(name)));
+  const remove = Object.fromEntries(
+    Object.entries(plan.remove).filter(([name]) => !names.includes(name)),
+  );
   return { ...plan, remove };
 }
 
@@ -379,7 +403,11 @@ async function deleteAccount({ dataDir, mail }, id, body) {
     await mailService.removeAccount(mailboxId);
   }
   await removeUploads(plan.uploadIds);
-  await track(dataDir, { accountId: id, kind: 'admin.deleted', detail: { username: row.username ?? null } });
+  await track(dataDir, {
+    accountId: id,
+    kind: 'admin.deleted',
+    detail: { username: row.username ?? null },
+  });
   return reply(200, { ok: true, removed: countsOf(plan) });
 }
 
@@ -402,13 +430,14 @@ function readActivityQuery(url) {
   };
 }
 
-function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans }) {
+function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans, sessions = null }) {
   return [
     {
       method: 'POST',
       path: /^\/api\/plan-requests\/([^/]+)\/(approve|decline)$/,
       body: true,
-      handler: ({ params: [id, decision], body }) => decidePlanRequest({ dataDir, plans }, id, decision, body),
+      handler: ({ params: [id, decision], body }) =>
+        decidePlanRequest({ dataDir, plans }, id, decision, body),
     },
     {
       method: 'POST',
@@ -444,13 +473,22 @@ function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans }) {
       method: 'POST',
       path: /^\/api\/accounts\/([^/]+)\/password$/,
       body: true,
-      handler: ({ params: [id], body }) => setPassword(dataDir, id, body),
+      handler: async ({ params: [id], body }) => {
+        const result = await setPassword(dataDir, id, body);
+        // Ein neues Passwort meldet alle Geraete ab — wer es kennt, meldet sich neu an.
+        if (result.status === 200 && sessions) await sessions.revokeAccount(id);
+        return result;
+      },
     },
     {
       method: 'DELETE',
       path: /^\/api\/accounts\/([^/]+)$/,
       body: true,
-      handler: ({ params: [id], body }) => deleteAccount({ dataDir, mail }, id, body),
+      handler: async ({ params: [id], body }) => {
+        const result = await deleteAccount({ dataDir, mail }, id, body);
+        if (result.status === 200 && sessions) await sessions.revokeAccount(id);
+        return result;
+      },
     },
     {
       method: 'GET',
@@ -499,12 +537,14 @@ function startAdminServer({
   aiStatus,
   speechStatus,
   mail,
+  /** Zum Abmelden aller Geraete nach neuem Passwort oder Loeschen. */
+  sessions = null,
   tickets = viewTickets,
   publicDir = path.join(__dirname, 'public'),
   log = writeLog,
 }) {
   const plans = createPlanRequests({ dataDir });
-  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans });
+  const routes = routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans, sessions });
 
   const server = http.createServer(async (req, res) => {
     const boundPort = server.address()?.port ?? port;
@@ -517,14 +557,17 @@ function startAdminServer({
     try {
       const staticFile = req.method === 'GET' ? staticFileOf(url.pathname, publicDir) : null;
       if (staticFile) return await serveStatic(res, publicDir, staticFile);
-      const route = routes.find((entry) => entry.method === req.method && entry.path.test(url.pathname));
+      const route = routes.find(
+        (entry) => entry.method === req.method && entry.path.test(url.pathname),
+      );
       if (!route) return sendJson(res, 404, { error: 'unknown_route' });
       const params = route.path.exec(url.pathname).slice(1).map(decodeParam);
 
       let body;
       if (route.body) {
         body = await readJsonBody(req);
-        if (body === TOO_LARGE) return sendJson(res, 413, { error: 'too_large' }, { Connection: 'close' });
+        if (body === TOO_LARGE)
+          return sendJson(res, 413, { error: 'too_large' }, { Connection: 'close' });
         if (!isPlainObject(body)) return sendJson(res, 400, { error: 'bad_request' });
       }
       const result = await route.handler({ params, url, body });
@@ -538,7 +581,8 @@ function startAdminServer({
 
   // Ein belegter Port legt den Admin still, nie die Datenbank.
   server.on('error', (error) => {
-    const reason = error?.code === 'EADDRINUSE' ? `Port ${port} ist belegt` : (error?.name ?? 'Error');
+    const reason =
+      error?.code === 'EADDRINUSE' ? `Port ${port} ist belegt` : (error?.name ?? 'Error');
     process.stderr.write(`[admin] startet nicht: ${reason}\n`);
   });
   server.listen(port, BIND_HOST, () => {

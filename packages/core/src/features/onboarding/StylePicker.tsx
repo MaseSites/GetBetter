@@ -40,7 +40,8 @@ export type StylePickerProps = {
  * Hintergrund. Alles wirkt sofort — auch auf den Avatar oben.
  *
  * Ohne Abo bleibt nur hell oder dunkel frei. Der Rest zeigt den Standard mit
- * einem Schloss; ein Tipp darauf oeffnet das Abo.
+ * einem Schloss; ein Tipp darauf oeffnet das Abo. Beim Einrichten laeuft eine
+ * Anprobe — dann steht alles offen und wirkt sofort, gespeichert wird nichts.
  */
 export function StylePicker({ onLocked }: StylePickerProps = {}) {
   const t = useTranslate();

@@ -57,6 +57,13 @@ export const deTasks = {
   'tasks.postpone.today': 'Heute',
   'tasks.postpone.tomorrow': 'Morgen',
   'tasks.postpone.nextWeek': 'Nächste Woche',
+  'tasks.reminder.push': 'Deine Aufgabe ist bald fällig.',
+  'birthdays.import': 'Aus den Kontakten übernehmen',
+  'birthdays.import.done': '{count} Geburtstage übernommen',
+  'birthdays.import.none': 'In deinen Kontakten steht kein neuer Geburtstag.',
+  'birthdays.import.denied':
+    'Ohne Zugriff auf die Kontakte geht das nicht — du kannst ihn in den Einstellungen des Handys erlauben.',
+  'birthdays.import.failed': 'Das hat nicht geklappt. Versuch es später nochmal.',
 
   'tasks.priority.none': 'Keine',
   'tasks.priority.low': 'Niedrig',

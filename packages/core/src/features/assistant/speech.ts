@@ -1,9 +1,12 @@
+import * as Speech from 'expo-speech';
+import { ExpoSpeechRecognitionModule, ExpoWebSpeechRecognition } from 'expo-speech-recognition';
 import { Platform } from 'react-native';
 
 import { isViewing } from '@/app/viewMode';
 import type { Language } from '@/i18n';
 
 import { CloudPlayer, cloudVoiceFor, loadCloudVoices } from './cloudVoice';
+import { rawOfNative } from './nativeVoices';
 import { rankVoices, type RankedVoice, type RawVoice } from './voices';
 
 /**
@@ -78,8 +81,38 @@ function scope(): SpeechScope {
   return globalThis as unknown as SpeechScope;
 }
 
+/**
+ * Zuhoeren auf dem Geraet: `expo-speech-recognition` spricht dieselbe Sprache
+ * wie `SpeechRecognition` im Browser — nur die Erlaubnis fuer Mikrofon und
+ * Erkennung holt es nicht selbst. Darum fragt `start()` hier zuerst; ohne
+ * Erlaubnis meldet er `not-allowed` und das Ende, wie der Browser es taete.
+ */
+class DeviceRecogniser extends ExpoWebSpeechRecognition {
+  override start(): void {
+    void ExpoSpeechRecognitionModule.requestPermissionsAsync().then(
+      (permission) => {
+        if (permission.granted) {
+          super.start();
+          return;
+        }
+        this.refuse();
+      },
+      () => this.refuse(),
+    );
+  }
+
+  private refuse(): void {
+    this.onerror?.({ error: 'not-allowed' } as unknown as SpeechRecognitionErrorEvent);
+    this.onend?.({} as Event);
+  }
+}
+
 function recogniserClass(): RecogniserClass | null {
-  if (Platform.OS !== 'web') return null;
+  if (Platform.OS !== 'web') {
+    return ExpoSpeechRecognitionModule.isRecognitionAvailable()
+      ? (DeviceRecogniser as unknown as RecogniserClass)
+      : null;
+  }
   const found = scope();
   return found.SpeechRecognition ?? found.webkitSpeechRecognition ?? null;
 }
@@ -89,9 +122,33 @@ export function canListen(): boolean {
   return recogniserClass() !== null && !isViewing();
 }
 
-/** Ob hier vorgelesen werden kann. Fehlt das, bleibt die Antwort trotzdem lesbar. */
+/**
+ * Die Stimmen des Geraets (`expo-speech`) — einmal geladen, dann wie die des
+ * Browsers eingeordnet (`rawOfNative`, `rankVoices`). Wer zuhoert
+ * (`onVoicesChanged`), erfaehrt, wenn sie da sind.
+ */
+let deviceVoices: readonly RawVoice[] | null = null;
+let deviceVoicesLoading = false;
+const deviceVoiceListeners = new Set<() => void>();
+
+function loadDeviceVoices(): void {
+  if (Platform.OS === 'web' || deviceVoices !== null || deviceVoicesLoading) return;
+  deviceVoicesLoading = true;
+  Speech.getAvailableVoicesAsync().then(
+    (voices) => {
+      deviceVoices = voices.map(rawOfNative);
+      for (const listener of deviceVoiceListeners) listener();
+    },
+    () => {
+      deviceVoices = [];
+    },
+  );
+}
+
+/** Ob hier vorgelesen werden kann. Auf dem Geraet immer; im Browser, wenn er es kann. */
 export function canSpeak(): boolean {
-  if (Platform.OS !== 'web' || isViewing()) return false;
+  if (isViewing()) return false;
+  if (Platform.OS !== 'web') return true;
   const found = scope();
   return found.speechSynthesis !== undefined && found.SpeechSynthesisUtterance !== undefined;
 }
@@ -104,6 +161,14 @@ export function canSpeak(): boolean {
  * Aufruf, solange die Liste noch laedt (siehe `onVoicesChanged`).
  */
 export function listVoices(language: Language): readonly SpeechVoice[] {
+  if (Platform.OS !== 'web') {
+    loadDeviceVoices();
+    return rankVoices(deviceVoices ?? [], language, SPEECH_TAG[language]).map((voice) => ({
+      ...voice,
+      provider: 'browser' as const,
+      gender: null,
+    }));
+  }
   const synthesis = scope().speechSynthesis;
   if (!synthesis) return [];
   return rankVoices(synthesis.getVoices().map(rawOf), language, SPEECH_TAG[language]).map(
@@ -166,6 +231,13 @@ export function onSoundAllowed(listener: () => void): () => void {
  * nach. Gibt zurueck, wie man wieder aufhoert zuzuhoeren.
  */
 export function onVoicesChanged(listener: () => void): () => void {
+  if (Platform.OS !== 'web') {
+    deviceVoiceListeners.add(listener);
+    loadDeviceVoices();
+    return () => {
+      deviceVoiceListeners.delete(listener);
+    };
+  }
   const synthesis = scope().speechSynthesis;
   if (!synthesis) return () => undefined;
   synthesis.addEventListener('voiceschanged', listener);
@@ -240,7 +312,8 @@ export class Voice {
   private tag: string = SPEECH_TAG.de;
   private running: Running | null = null;
   private grace: ReturnType<typeof setTimeout> | null = null;
-  private saying: SpeechSynthesisUtterance | null = null;
+  /** Was gerade gesprochen wird — die Aeusserung des Browsers oder eine Marke auf dem Geraet. */
+  private saying: object | null = null;
   private watch: ReturnType<typeof setTimeout> | null = null;
   private voiceUri: string | null = null;
   private readonly cloud = new CloudPlayer();
@@ -413,7 +486,44 @@ export class Voice {
     });
   }
 
+  /** Auf dem Geraet spricht `expo-speech` — mit der gewaehlten Stimme, sonst der besten. */
+  private sayOnDevice(clean: string, onDone: () => void) {
+    const ranked = rankVoices(deviceVoices ?? [], this.language, this.tag);
+    const chosen =
+      (this.voiceUri ? ranked.find((voice) => voice.uri === this.voiceUri) : undefined) ??
+      ranked[0];
+    const marker = {};
+    this.saying = marker;
+    const finish = () => {
+      if (this.saying !== marker) return;
+      this.clearWatch();
+      this.saying = null;
+      onDone();
+    };
+    // Kein Ende in Sicht: weiter, statt stumm zu warten.
+    this.watch = setTimeout(
+      () => {
+        this.watch = null;
+        if (this.saying !== marker) return;
+        this.silence();
+        onDone();
+      },
+      SPEAK_START_MS + speakingMs(clean),
+    );
+    Speech.speak(clean, {
+      language: this.tag,
+      ...(chosen ? { voice: chosen.uri } : {}),
+      onDone: finish,
+      onStopped: finish,
+      onError: finish,
+    });
+  }
+
   private sayInBrowser(clean: string, onDone: () => void) {
+    if (Platform.OS !== 'web') {
+      this.sayOnDevice(clean, onDone);
+      return;
+    }
     const found = scope();
     const Utterance = found.SpeechSynthesisUtterance;
     const synthesis = found.speechSynthesis;
@@ -466,6 +576,10 @@ export class Voice {
     this.cloud.stop();
     this.clearWatch();
     this.saying = null;
+    if (Platform.OS !== 'web') {
+      void Speech.stop();
+      return;
+    }
     const synthesis = scope().speechSynthesis;
     // Nur abbrechen, wenn wirklich etwas laeuft: `cancel()` direkt vor
     // `speak()` verschluckt in manchen Browsern die naechste Antwort.

@@ -22,10 +22,22 @@ const FONTS =
 /**
  * Die Auswahlfarbe. Ohne sie waehlt der Browser kraeftig Blau aus, mitten in
  * einer sonst warmen Oberflaeche.
+ *
+ * Fuellt der Browser E-Mail und Passwort selbst aus (Autofill), malt er das
+ * Feld hellblau und die Schrift schwarz — mitten ins dunkle Feld der Anmeldung.
+ * Ueberschreiben laesst sich das nicht, aber verzoegern: der Uebergang dauert
+ * praktisch ewig, also bleiben Hintergrund und Schrift die des Feldes — in
+ * jedem Thema, ohne dass hier eine Farbe stehen muss.
  */
 const CSS = `
   ::selection { background: #C9F23F; color: #14150F; }
   * { -webkit-tap-highlight-color: transparent; }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill {
+    transition: background-color 600000s 0s, color 600000s 0s;
+  }
 `;
 
 const MARKER = 'getbetter-web-chrome';

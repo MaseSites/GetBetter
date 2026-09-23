@@ -59,6 +59,13 @@ export const itTasks = {
   'tasks.postpone.today': 'Oggi',
   'tasks.postpone.tomorrow': 'Domani',
   'tasks.postpone.nextWeek': 'Settimana prossima',
+  'tasks.reminder.push': 'La tua attività scade a breve.',
+  'birthdays.import': 'Importa dai contatti',
+  'birthdays.import.done': '{count} compleanni importati',
+  'birthdays.import.none': 'Nei tuoi contatti non c’è nessun nuovo compleanno.',
+  'birthdays.import.failed': 'Non ha funzionato. Riprova più tardi.',
+  'birthdays.import.denied':
+    'Serve l’accesso ai contatti — puoi consentirlo nelle impostazioni del telefono.',
 
   'tasks.priority.none': 'Nessuna',
   'tasks.priority.low': 'Bassa',

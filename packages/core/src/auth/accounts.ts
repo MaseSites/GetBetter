@@ -171,11 +171,29 @@ export async function findAccount(id: string): Promise<Account | undefined> {
   return local;
 }
 
-/** Fuer Einladungen: der Dienst kennt alle, die lokale Ablage nur die eigenen. */
+/**
+ * Fuer Einladungen: der Dienst kennt alle, gibt aber nur preis, was
+ * oeffentlich ist — Name und Bild, nie die Adresse. Das reicht, um jemanden
+ * einzuladen; in die Abschrift kommt ein fremdes Konto nicht.
+ */
 export async function findByUsername(username: string): Promise<Account | undefined> {
   const wanted = normaliseUsername(username);
   const remote = await fetchByUsername(wanted);
-  if (remote.ok) return mirror(remote.account);
+  if (remote.ok) {
+    const found = remote.account as Partial<RemoteAccount> & Pick<RemoteAccount, 'id'>;
+    return {
+      id: found.id,
+      email: found.email ?? '',
+      username: found.username ?? wanted,
+      firstName: found.firstName ?? '',
+      language: found.language ?? 'de',
+      onboarded: false,
+      selectedAreas: [],
+      householdId: null,
+      createdAt: found.createdAt ?? new Date().toISOString(),
+      ...(found.photoUploadId !== undefined ? { photoUploadId: found.photoUploadId } : {}),
+    };
+  }
   return db.accounts.findBy((row) => row.username === wanted);
 }
 

@@ -44,10 +44,51 @@
             "backgroundColor": "#C9F23F"
           }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GetBetter zeigt deine Fotos nur, wenn du ein Bild wählst — für Hintergrund, Profil oder Notiz.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "GetBetter liest deine Kontakte nur, um Geburtstage zu übernehmen."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#C9F23F"
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "GetBetter braucht das Mikrofon nur, wenn du dem Assistenten etwas vorsagst.",
+          "speechRecognitionPermission": "GetBetter wandelt Gesprochenes in Text um, wenn du dem Assistenten etwas vorsagst.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

@@ -153,6 +153,16 @@ export function removeBlock(layout: HomeLayout, id: string): HomeBlock[] {
   return layout.filter((block) => block.id !== id);
 }
 
+/** Ein Element kopieren — die Kopie liegt gleich darunter, sonst gleich. */
+export function duplicateBlock(layout: HomeLayout, id: string): HomeBlock[] {
+  const index = layout.findIndex((block) => block.id === id);
+  const block = layout[index];
+  if (!block) return [...layout];
+  counter += 1;
+  const copy = clampBlock({ ...block, id: `${block.kind}-${counter}`, y: block.y + block.h });
+  return [...layout.slice(0, index + 1), copy, ...layout.slice(index + 1)];
+}
+
 /** Die drei Vorlagen — dieselben Ansichten wie die drei festen Knoepfe. */
 export const TEMPLATES = ['list', 'grid', 'focus'] as const;
 export type TemplateKey = (typeof TEMPLATES)[number];

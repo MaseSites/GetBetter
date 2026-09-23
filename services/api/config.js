@@ -7,6 +7,9 @@
  * - `BETTER_MAIL_ALLOW_PLAIN` nur fuer Tests: `1` erlaubt unverschluesselte
  *                             Verbindungen zu 127.0.0.1
  * - `BETTER_ADMIN_PORT`       Port des Admins auf 127.0.0.1 (Standard 8091, 0 = aus)
+ * - `BETTER_API_TOKEN`        ein Geheimnis, das jede App mitschicken muss —
+ *                             sobald der Dienst im Netz steht (leer = offen,
+ *                             nur fuer die Entwicklung)
  */
 const path = require('node:path');
 
@@ -46,4 +49,15 @@ function allowsPlain(host) {
   return process.env.BETTER_MAIL_ALLOW_PLAIN === '1' && LOOPBACK_HOSTS.has(String(host));
 }
 
-module.exports = { adminPort, dataDir, mailSyncMs, allowsPlain };
+/**
+ * Der Zugriffsschutz: gesetzt, muss jede Anfrage an `/v1/…` (ausser
+ * `/v1/health`) das Geheimnis tragen — als `Authorization: Bearer <token>`
+ * oder, wo ein Browser keine Kopfzeile setzen kann (Bilder, Anhaenge,
+ * Audio), als `?token=`. Leer heisst offen: so laeuft die Entwicklung.
+ */
+function apiToken() {
+  const raw = process.env.BETTER_API_TOKEN;
+  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+module.exports = { adminPort, apiToken, dataDir, mailSyncMs, allowsPlain };

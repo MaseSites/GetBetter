@@ -16,7 +16,7 @@ export const frC = {
   'assistant.voice.speaking': 'Je réponds…',
   'assistant.voice.speakingNamed': '{name} répond…',
   'assistant.voice.soon':
-    'Tu pourras me parler dès que les apps seront dans le Store. Dans le navigateur, ça marche déjà.',
+    'Cet appareil n’a pas de reconnaissance vocale — je peux quand même lire à voix haute.',
   'assistant.voice.noBrowser':
     'Ce navigateur ne peut pas écouter — ça marche dans Chrome et Safari.',
   'assistant.voice.problem.denied':
@@ -40,18 +40,11 @@ export const frC = {
   'assistant.voice.sampleAnon': 'Salut, voici ma voix.',
 
   // Anmelden
-  'auth.start.note': 'Un seul compte pour toutes les apps Better.',
-  'auth.provider.apple': 'Apple',
-  'auth.provider.google': 'Google',
-  'auth.signUp.subtitleFull':
-    'E-mail, nom d’utilisateur et un mot de passe d’au moins huit caractères.',
   'auth.username': 'Nom d’utilisateur',
-  'auth.usernameHint':
-    'De trois à 24 caractères : minuscules, chiffres, point, tiret ou tiret bas.',
+  'auth.usernamePlaceholder': 'p. ex. anna.meier',
   'auth.usernameChecking': 'Je vérifie si le nom est encore libre…',
   'auth.usernameFree': 'Ce nom d’utilisateur est libre.',
   'auth.passwordRepeat': 'Répéter le mot de passe',
-  'auth.passwordRepeatPlaceholder': 'Le même mot de passe encore une fois',
   'auth.error.usernameInvalid':
     'Le nom d’utilisateur doit compter de trois à 24 caractères — minuscules, chiffres, point, tiret ou tiret bas.',
   'auth.error.usernameTaken':
@@ -64,31 +57,36 @@ export const frC = {
   'intro.start.signUp': 'Créer un compte',
   'intro.start.apple': 'Se connecter avec Apple',
   'intro.start.google': 'Se connecter avec Google',
+  'intro.start.or': 'ou continuer avec',
+  'auth.provider.apple': 'Apple',
+  'auth.provider.google': 'Google',
   'intro.start.soon.apple':
     'La connexion avec Apple arrivera dès que les apps seront dans le Store. D’ici là, ton adresse e-mail suffit.',
   'intro.start.soon.google':
     'La connexion avec Google arrivera dès que les apps seront dans le Store. D’ici là, ton adresse e-mail suffit.',
-  'intro.voice.mute': 'Couper le son',
-  'intro.voice.unmute': 'Activer le son',
-  'intro.voice.tapToHear': 'Touche, et je te parle',
-  'intro.signIn.bubble': 'Content de te revoir. Connecte-toi avec ton adresse e-mail.',
-  'intro.signUp.bubble': 'On crée ton compte. Ça prend un instant.',
+  'intro.signIn.bubble': 'Content de te revoir.',
+  'intro.signUp.bubble': 'Ravi que tu sois là !',
   'intro.arrive.question': 'Tu connais déjà bien {app} ?',
   'intro.arrive.questionNamed': '{name}, tu connais déjà bien {app} ?',
   'intro.arrive.yes': 'Oui, commencer directement',
   'intro.arrive.no': 'Non, une brève introduction',
-  'intro.setup.name.bubble': 'Ton compte est prêt. Comment veux-tu que je t’appelle ?',
-  'intro.setup.name.bubbleAfterVoice': 'Bien, voilà ma voix. Et comment veux-tu que je t’appelle ?',
-  'intro.setup.name.label': 'Surnom',
-  'intro.setup.name.hint':
-    'C’est ainsi que l’app s’adresse à toi — indépendamment de ton nom d’utilisateur. Tu peux le modifier à tout moment dans les réglages.',
-  'intro.setup.assistant.bubble': 'Je t’accompagne dans l’app, {name}. Je m’appelle…',
-  'intro.setup.assistant.bubbleNamed':
-    'Je t’accompagne dans l’app, {name}. Je m’appelle {assistant}.',
-  'intro.setup.assistant.label': 'Nom de l’assistant',
-  'intro.setup.assistant.hint': 'Tu me trouves sous ce nom dans toutes les apps Better.',
-  'intro.setup.voice.bubble':
-    'Ton compte est prêt. Désormais, je te parle — choisis la voix que tu préfères. Touche une voix, et tu m’entends.',
+  'intro.setup.title.personalize': 'Personnaliser',
+  'intro.setup.group.app': 'App',
+  'intro.setup.group.assistant': 'Assistant',
+  'intro.setup.offer.title': 'Tout débloquer',
+  'intro.setup.offer.price': '{price} par mois',
+  'intro.setup.personalize.bubble': 'Fais de l’app — et de moi — les tiens.',
+  'intro.setup.personalize.bubbleTrial': 'Essaie tout — tu le vois tout de suite.',
+  'intro.setup.withoutPlan': 'Continuer sans abonnement',
+  'intro.setup.title.voice': 'Voix',
+  'intro.setup.title.name': 'Surnom',
+  'intro.setup.title.ready': 'C’est parti',
+  'intro.setup.name.placeholder': 'Ton surnom',
+  'intro.setup.assistant.placeholder': 'Nom',
+  'intro.setup.assistant.ideas': 'Nova, Kai, Luna',
+  'intro.setup.name.bubble': 'Ton compte est prêt. Comment dois-je t’appeler ?',
+  'intro.setup.name.bubbleAfterVoice': 'Bien. Et comment dois-je t’appeler ?',
+  'intro.setup.voice.bubble': 'Quelle voix veux-tu ? Touche une voix.',
   'intro.setup.style.mode': 'Clair ou sombre',
   'intro.setup.style.mode.light': 'Clair',
   'intro.setup.style.mode.dark': 'Sombre',
@@ -97,8 +95,7 @@ export const frC = {
   'intro.setup.style.accentMono': 'En noir et blanc, tout reste sans couleur.',
   'intro.setup.style.preset': 'Combien de couleur',
   'intro.setup.style.backdrop': 'Fond',
-  'intro.setup.ready.bubble':
-    'Tout est prêt, {name}. Je te montre l’app en bref, ou tu préfères la découvrir par toi-même ?',
+  'intro.setup.ready.bubble': 'Tout est prêt, {name}. Je te fais faire un petit tour ?',
   'intro.setup.ready.tour': 'Brève introduction',
   'intro.setup.ready.explore': 'Je me débrouille',
   'intro.accent.signal': 'Vert signal',
@@ -518,7 +515,8 @@ export const frC = {
   'settings.nickname.hint': 'C’est ainsi que l’app s’adresse à toi.',
   'settings.nickname.none': 'Aucun pour l’instant',
   'settings.username': 'Nom d’utilisateur',
-  'settings.username.hint': 'En minuscules, sans @ — c’est ainsi que les autres te trouvent. Tu peux le changer une fois par mois.',
+  'settings.username.hint':
+    'En minuscules, sans @ — c’est ainsi que les autres te trouvent. Tu peux le changer une fois par mois.',
   'settings.username.cooldown': 'Tu ne peux changer ton nom d’utilisateur qu’une fois par mois.',
   'settings.username.locked': 'Tu pourras changer ton nom d’utilisateur le {date}.',
   'settings.username.empty': 'Sans nom, personne ne te trouve. Écris quelque chose.',

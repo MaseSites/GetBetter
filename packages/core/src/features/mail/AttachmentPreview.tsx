@@ -1,5 +1,6 @@
 import { createElement, useState } from 'react';
 import { Image, Linking, Modal, Platform, Share, StyleSheet, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 import { mail, type MailMessage } from '@/db/mail';
 import { useI18n } from '@/i18n';
@@ -46,7 +47,7 @@ export function AttachmentPreview({ message, index, onClose }: AttachmentPreview
   const file = message && index !== null ? message.attachments[index] : undefined;
   const url = message && index !== null ? mail.attachmentUrl(message.id, index) : '';
   const name = file ? file.filename.trim() || t('mail.attachments.unnamed') : '';
-  const pdf = file?.mime === 'application/pdf' && Platform.OS === 'web';
+  const pdf = file?.mime === 'application/pdf';
   const image = file ? isImage(file) && failed !== url : false;
 
   return (
@@ -71,12 +72,14 @@ export function AttachmentPreview({ message, index, onClose }: AttachmentPreview
                 onError={() => setFailed(url)}
                 style={styles.full}
               />
-            ) : file && pdf ? (
+            ) : file && pdf && Platform.OS === 'web' ? (
               createElement('iframe', {
                 title: name,
                 src: url,
                 style: { border: 0, width: '100%', height: '100%' },
               })
+            ) : file && pdf ? (
+              <WebView source={{ uri: url }} accessibilityLabel={name} style={styles.full} />
             ) : file ? (
               <View style={[styles.center, { gap: theme.spacing.sm }]}>
                 <Icon name={attachmentIcon(file.mime)} size={48} color={theme.colors.textMuted} />

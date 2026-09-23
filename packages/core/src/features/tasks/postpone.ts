@@ -31,9 +31,11 @@ export function postponeSchedule(
   return { day: postponeTarget(kind, today), time };
 }
 
-/** „Heute“ steht nur bei Ueberfaelligem zur Wahl — sonst ist die Aufgabe schon dort oder spaeter. */
+/**
+ * Was im Verschieben-Menue steht. „Heute“ fehlt nur, wenn die Aufgabe schon
+ * heute faellig ist — dann waere es keine Verschiebung. Ueberfaelliges,
+ * Spaeteres und Aufgaben ohne Datum lassen sich damit auf heute holen.
+ */
 export function postponeKindsFor(dueDay: string | null, today: string): PostponeKind[] {
-  return dueDay !== null && dueDay < today
-    ? ['today', 'tomorrow', 'nextWeek']
-    : ['tomorrow', 'nextWeek'];
+  return dueDay === today ? ['tomorrow', 'nextWeek'] : ['today', 'tomorrow', 'nextWeek'];
 }

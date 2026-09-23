@@ -284,6 +284,7 @@ describe('service endpoints', () => {
         BETTER_MAIL_SYNC_MS: '0',
         BETTER_MAIL_ALLOW_PLAIN: '1',
         BETTER_ADMIN_PORT: String(adminPort),
+        BETTER_RATE_LIMIT_OFF: '1',
         BETTER_TRIAL_BUDGET_CHF: '',
         BETTER_PRICE_GETBETTER_CHF: '',
         // Die KI bleibt unkonfiguriert, auch wenn der Rechner einen Schluessel kennt.

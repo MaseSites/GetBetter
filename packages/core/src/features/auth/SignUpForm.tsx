@@ -33,7 +33,6 @@ type NameAnswer = { name: string; taken: boolean };
 
 export type SignUpFormProps = {
   title: string;
-  subtitle: string;
   submitLabel: string;
   switchLabel: string;
   onSubmit: (email: string, password: string, username: string) => Promise<AuthResult>;
@@ -54,7 +53,6 @@ export type SignUpFormProps = {
  */
 export function SignUpForm({
   title,
-  subtitle,
   submitLabel,
   switchLabel,
   onSubmit,
@@ -132,16 +130,16 @@ export function SignUpForm({
     };
   }
 
-  function nameHint(): string {
-    if (checking) return t('auth.usernameChecking');
-    if (nameFree) return t('auth.usernameFree');
-    return t('auth.usernameHint');
+  /** Nur ein Hinweis, wenn es etwas zu sagen gibt — die Regel steht erst im Fehler. */
+  function nameHint(): { hint?: string } {
+    if (checking) return { hint: t('auth.usernameChecking') };
+    if (nameFree) return { hint: t('auth.usernameFree') };
+    return {};
   }
 
   return (
     <AuthShell
       title={title}
-      subtitle={subtitle}
       submitLabel={submitLabel}
       switchLabel={switchLabel}
       onSubmit={submit}
@@ -163,6 +161,7 @@ export function SignUpForm({
       />
       <Input
         label={t('auth.username')}
+        placeholder={t('auth.usernamePlaceholder')}
         value={username}
         onChangeText={change(setUsername)}
         icon="at"
@@ -172,7 +171,7 @@ export function SignUpForm({
           ? { error: t(ERROR_KEY[error]) }
           : nameTaken
             ? { error: t('auth.error.usernameTaken') }
-            : { hint: nameHint() })}
+            : nameHint())}
       />
       <Input
         label={t('auth.password')}
@@ -183,13 +182,10 @@ export function SignUpForm({
         secureTextEntry
         autoCapitalize="none"
         editable={!busy}
-        {...(isPasswordError(error) && error
-          ? { error: t(ERROR_KEY[error]) }
-          : { hint: t('auth.passwordHint') })}
+        {...(isPasswordError(error) && error ? { error: t(ERROR_KEY[error]) } : {})}
       />
       <Input
         label={t('auth.passwordRepeat')}
-        placeholder={t('auth.passwordRepeatPlaceholder')}
         value={repeat}
         onChangeText={change(setRepeat)}
         icon="lock"

@@ -68,8 +68,6 @@ export const itPlan = {
   'plan.locked': 'Abbonamento',
   'plan.hint': 'Personalizzabile con l’abbonamento',
   'plan.see': 'Vedi abbonamento',
-  'plan.setup.bubble':
-    'Chiaro o scuro? Lo scegli qui. Colori, sfondo, avatar e voce li regoli con l’abbonamento.',
 
   'news.planApproved': 'Il tuo abbonamento {app} è attivo',
   'news.planApproved.body': 'Ora puoi personalizzare tutto.',

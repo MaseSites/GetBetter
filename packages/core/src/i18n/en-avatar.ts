@@ -41,8 +41,4 @@ export const enAvatar = {
 
   'avatar.selected': '{label}, selected',
 
-  'intro.setup.avatar.bubble':
-    'Nice to meet you! This is how I look as {assistant}. Pick a character and a colour — I’ll change right away.',
-  'intro.setup.style.bubbleAfterAvatar':
-    'I like it. Now for the app — every change applies right away.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

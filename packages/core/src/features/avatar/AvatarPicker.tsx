@@ -32,7 +32,7 @@ export function AvatarPicker({ value, onChange, compact = false }: AvatarPickerP
       <Section title={t('avatar.kind')}>
         <AvatarKindChooser value={value} onChange={onChange} />
       </Section>
-      <Section title={t('avatar.color')} hint={mono ? t('avatar.color.mono') : undefined}>
+      <Section title={t('avatar.color')} hint={mono && !compact ? t('avatar.color.mono') : undefined}>
         <AvatarColorChooser value={value} onChange={onChange} />
       </Section>
       {compact ? null : (

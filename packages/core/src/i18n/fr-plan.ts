@@ -68,8 +68,6 @@ export const frPlan = {
   'plan.locked': 'Abonnement',
   'plan.hint': 'Personnalisable avec l’abonnement',
   'plan.see': 'Voir l’abonnement',
-  'plan.setup.bubble':
-    'Clair ou sombre ? Tu choisis ici. Les couleurs, le fond, l’avatar et la voix se règlent avec l’abonnement.',
 
   'news.planApproved': 'Ton abonnement {app} est actif',
   'news.planApproved.body': 'Tu peux maintenant tout personnaliser.',

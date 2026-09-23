@@ -72,6 +72,7 @@ describe('registering with a username', () => {
         BETTER_DATA_DIR: dataDir,
         BETTER_MAIL_SYNC_MS: '0',
         BETTER_ADMIN_PORT: '0',
+        BETTER_RATE_LIMIT_OFF: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -106,7 +107,9 @@ describe('registering with a username', () => {
 
     const found = await call('GET', '/v1/accounts/by-username/ninab');
     assert.equal(found.status, 200);
-    assert.equal(found.data.account.email, 'nina@test.ch');
+    assert.equal(found.data.account.id, created.data.account.id);
+    // Fuer Einladungen reicht der Name — die Adresse geht niemanden etwas an.
+    assert.equal(found.data.account.email, undefined);
   });
 
   test('answers 409 when the username is taken', async () => {

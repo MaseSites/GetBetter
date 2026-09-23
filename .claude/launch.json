@@ -2,50 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "all",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "all"
-      ],
-      "port": 8090
-    },
-    {
       "name": "getbetter-web",
-      "url": "http://localhost:8081",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web"],
       "port": 8081
     },
     {
-      "name": "family-web",
-      "url": "http://localhost:8082",
-      "port": 8082
-    },
-    {
-      "name": "gym-web",
-      "url": "http://localhost:8083",
-      "port": 8083
-    },
-    {
-      "name": "ai-web",
-      "url": "http://localhost:8084",
-      "port": 8084
-    },
-    {
-      "name": "money-web",
-      "url": "http://localhost:8085",
-      "port": 8085
-    },
-    {
-      "name": "design-preview",
-      "runtimeExecutable": "python",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8123",
-        "--directory",
-        "design/canvas/preview"
-      ],
-      "port": 8123
+      "name": "server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "server"],
+      "port": 8090
     }
   ]
 }

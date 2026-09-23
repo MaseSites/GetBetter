@@ -18,7 +18,7 @@ export const deAssistant = {
 
   // Wenn es nicht geht — lieber ein ehrlicher Satz als ein toter Knopf
   'assistant.voice.soon':
-    'Mit mir reden kannst du, sobald die Apps im Store sind. Im Browser geht es jetzt schon.',
+    'Auf diesem Gerät gibt es keine Spracherkennung — vorlesen kann ich trotzdem.',
   'assistant.voice.noBrowser': 'Dieser Browser kann nicht zuhören — in Chrome und Safari geht es.',
   'assistant.voice.problem.denied':
     'Ohne Erlaubnis fürs Mikrofon kann ich nicht zuhören. Du kannst sie in den Einstellungen des Browsers wieder geben.',

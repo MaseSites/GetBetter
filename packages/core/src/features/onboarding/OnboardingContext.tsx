@@ -2,6 +2,8 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 
 import { useApp } from '@/state/AppContext';
 
+import { nicknameSuggestion } from './steps';
+
 type OnboardingValue = {
   firstName: string;
   setFirstName: (value: string) => void;
@@ -18,7 +20,13 @@ const OnboardingContext = createContext<OnboardingValue | null>(null);
  */
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { account } = useApp();
-  const [firstName, setFirstName] = useState(() => account?.firstName ?? '');
+  // Ohne Spitznamen steht der Vorschlag aus dem Benutzernamen schon im Feld.
+  const [firstName, setFirstName] = useState(
+    () =>
+      account?.firstName ||
+      nicknameSuggestion(account?.username ?? '', account?.email ?? '') ||
+      '',
+  );
   const [assistantName, setAssistantName] = useState(() => account?.assistantName ?? '');
 
   const value = useMemo<OnboardingValue>(

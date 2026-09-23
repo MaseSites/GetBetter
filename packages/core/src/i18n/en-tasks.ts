@@ -59,6 +59,13 @@ export const enTasks = {
   'tasks.postpone.today': 'Today',
   'tasks.postpone.tomorrow': 'Tomorrow',
   'tasks.postpone.nextWeek': 'Next week',
+  'tasks.reminder.push': 'Your task is due soon.',
+  'birthdays.import': 'Import from contacts',
+  'birthdays.import.done': '{count} birthdays imported',
+  'birthdays.import.none': 'There is no new birthday in your contacts.',
+  'birthdays.import.denied':
+    'This needs access to your contacts — you can allow it in your phone settings.',
+  'birthdays.import.failed': 'That did not work. Try again later.',
 
   'tasks.priority.none': 'None',
   'tasks.priority.low': 'Low',

@@ -31,7 +31,11 @@ const { keepLockedFields, lockedChangesOf } = require('./billing/entitlement.js'
 const { canPersonalize, planSettings } = require('./billing/plans.js');
 const { createPlanRequests } = require('./billing/requests.js');
 const { createBilling } = require('./billing/service.js');
-const { adminPort, dataDir, mailSyncMs } = require('./config.js');
+const { adminPort, apiToken, dataDir, mailSyncMs } = require('./config.js');
+const { dataKey } = require('./crypt.js');
+const { createLimiter } = require('./ratelimit.js');
+const { mergeCollection, publicAccount, visibleTables } = require('./scope.js');
+const { createSessions } = require('./sessions.js');
 const { createMailService } = require('./mail/service.js');
 const { createSpeechService } = require('./speech/service.js');
 const {
@@ -57,6 +61,124 @@ const PORT = Number(process.env.PORT ?? 8090);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const TOO_LARGE = Symbol('too_large');
+
+/**
+ * Sitzungen: beim Anmelden bekommt ein Konto ein Geheimnis, das jede Anfrage
+ * traegt (`X-Better-Session`, oder `?session=` fuer Bilder, Anhaenge und
+ * Audio, die ein Browser als Adresse laedt). Damit sieht ein Konto nur noch
+ * seine eigenen Daten (`scope.js`) und handelt nur fuer sich. Im Netz — mit
+ * `BETTER_API_TOKEN` — ist die Sitzung Pflicht; lokal darf die Entwicklung
+ * ohne, dann sieht sie wie bisher alles (`BETTER_REQUIRE_SESSION=1` erzwingt).
+ */
+const SESSIONS_REQUIRED = apiToken() !== null || process.env.BETTER_REQUIRE_SESSION === '1';
+const SESSION_HEADER = 'x-better-session';
+const sessions = createSessions({ dataDir: dataDir(), key: dataKey() });
+
+/** Bremsen gegen Raten: je E-Mail und je Adresse beim Anmelden, je Adresse beim Registrieren. */
+const loginByEmail = createLimiter({ limit: 10, windowMs: 15 * 60_000 });
+const loginByAddress = createLimiter({ limit: 30, windowMs: 15 * 60_000 });
+const signupByAddress = createLimiter({ limit: 10, windowMs: 60 * 60_000 });
+
+/** Was auch ohne Sitzung geht: leben, anmelden, registrieren, ein Ticket einloesen, Anbieter raten. */
+function isOpenRoute(method, pathname) {
+  if (pathname === '/v1/health' || pathname === '/v1/revision') return true;
+  if (method === 'POST' && (pathname === '/v1/accounts' || pathname === '/v1/sessions'))
+    return true;
+  if (method === 'POST' && pathname === REDEEM_PATH) return true;
+  if (method === 'GET' && pathname.startsWith('/v1/accounts/by-username/')) return true;
+  return method === 'GET' && pathname === '/v1/mail/providers';
+}
+
+/** Die Adresse des Anrufers — hinter einem Proxy nur mit `BETTER_TRUST_PROXY=1` aus dessen Kopfzeile. */
+function clientIp(req) {
+  if (process.env.BETTER_TRUST_PROXY === '1') {
+    const forwarded = req.headers['x-forwarded-for'];
+    const first = String(Array.isArray(forwarded) ? forwarded[0] : (forwarded ?? ''))
+      .split(',')[0]
+      .trim();
+    if (first) return first;
+  }
+  return req.socket?.remoteAddress ?? 'unbekannt';
+}
+
+function sessionTokenOf(req, url) {
+  const header = req.headers[SESSION_HEADER];
+  if (typeof header === 'string' && header.length > 0) return header;
+  return url.searchParams.get('session');
+}
+
+/** Der Besitzer einer Zeile — fuer Routen, die eine Id tragen. */
+async function ownerOfRow(name, id) {
+  const row = rowsOf(await load(), name).find((entry) => entry.id === id);
+  return typeof row?.accountId === 'string' ? row.accountId : null;
+}
+
+const tooMany = (gate) => ({
+  status: 429,
+  body: { error: 'too_many_attempts', retryAfterMs: gate.retryAfterMs },
+});
+
+/** Nur fuer Tests, die viele Konten anlegen: `BETTER_RATE_LIMIT_OFF=1` schaltet die Bremsen ab. */
+const limitsOff = process.env.BETTER_RATE_LIMIT_OFF === '1';
+const gateOf = (limiter, key) =>
+  limitsOff ? { allowed: true, retryAfterMs: 0 } : limiter.hit(key);
+
+/** Ein Konto darf in so vielen Haushalten sein — dieselbe Zahl wie `MAX_HOUSEHOLDS` in der App. */
+const MAX_HOUSEHOLDS = 3;
+const normaliseInviteCode = (input) =>
+  String(input ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s/g, '');
+
+/**
+ * Per Code in einen Haushalt: das prueft der Dienst, denn mit Sitzung sieht
+ * eine App fremde Haushalte nicht mehr — auch nicht den, dem sie beitreten
+ * will. Eine offene Einladung wird dabei zur Mitgliedschaft.
+ */
+async function joinHousehold(body) {
+  const accountId = typeof body.accountId === 'string' ? body.accountId : '';
+  const code = normaliseInviteCode(body.code);
+  if (!accountId || code.length === 0) return { status: 400, body: { error: 'bad_request' } };
+  const db = await load();
+  if (!rowsOf(db, 'accounts').some((row) => row.id === accountId)) {
+    return { status: 404, body: { error: 'not_found' } };
+  }
+  const household = rowsOf(db, 'households').find((row) => row.inviteCode === code);
+  if (!household) return { status: 404, body: { error: 'code_unknown' } };
+
+  const members = rowsOf(db, 'householdMembers');
+  const mine = members.filter((row) => row.accountId === accountId);
+  const existing = mine.find((row) => row.householdId === household.id);
+  if (existing && existing.status !== 'pending') {
+    return { status: 409, body: { error: 'already_member' } };
+  }
+  const accepted = mine.filter((row) => row.status !== 'pending').length;
+  if (accepted >= MAX_HOUSEHOLDS) return { status: 409, body: { error: 'limit' } };
+
+  const joinedAt = new Date().toISOString();
+  db.tables.householdMembers = existing
+    ? members.map((row) =>
+        row.id === existing.id ? { ...row, status: 'accepted', joinedAt } : row,
+      )
+    : [
+        ...members,
+        {
+          id: `hm_${crypto.randomBytes(8).toString('hex')}`,
+          householdId: household.id,
+          accountId,
+          role: 'member',
+          status: 'accepted',
+          invitedBy: accountId,
+          joinedAt,
+        },
+      ];
+  db.tables.accounts = rowsOf(db, 'accounts').map((row) =>
+    row.id === accountId ? { ...row, householdId: household.id } : row,
+  );
+  await save();
+  return { status: 200, body: { household } };
+}
 
 /** Was nur der Dienst kennt und niemals herausgibt. */
 const SECRET_FIELDS = ['passwordHash', 'passwordSalt'];
@@ -234,7 +356,8 @@ async function patchProfile(id, changes) {
     }
     if (wanted !== row.username) {
       const freeAt = usernameFreeAt(row);
-      if (freeAt) return { status: 409, body: { error: 'username_cooldown', nextChangeAt: freeAt } };
+      if (freeAt)
+        return { status: 409, body: { error: 'username_cooldown', nextChangeAt: freeAt } };
       renamedAt = new Date().toISOString();
     }
     patch = { ...changes, username: wanted };
@@ -254,12 +377,17 @@ async function patchProfile(id, changes) {
 
 // ------------------------------------------------------------------ Sammlungen
 
-/** Alles, was die Apps lesen duerfen — ohne Salt und Hash. */
-async function snapshot() {
+/**
+ * Alles, was diese App lesen darf — ohne Salt und Hash. Mit Sitzung nur die
+ * Zeilen dieses Kontos samt Haushalt und Freigaben (`visibleTables`); ohne
+ * Sitzung (nur lokal moeglich) wie bisher alles.
+ */
+async function snapshot(session) {
   const db = await load();
+  const source = session ? visibleTables(db.tables, session.accountId) : db.tables;
   const tables = {};
-  for (const name of Object.keys(db.tables)) {
-    tables[name] = name === 'accounts' ? db.tables.accounts.map(withoutSecrets) : db.tables[name];
+  for (const name of Object.keys(source)) {
+    tables[name] = name === 'accounts' ? source.accounts.map(withoutSecrets) : source[name];
   }
   return { revision: db.revision, tables };
 }
@@ -276,14 +404,18 @@ async function snapshot() {
  * gespeichert sind (`billing/entitlement.js`). Mitteilungen, Mail und
  * Abo-Anfragen gehoeren dem Dienst und lassen sich so gar nicht ersetzen.
  */
-async function replaceCollection(name, rows) {
+async function replaceCollection(name, rows, session) {
   if (!isCollectionName(name)) return { status: 400, body: { error: 'unknown_collection' } };
   if (SERVER_OWNED.has(name)) return { status: 403, body: { error: 'server_owned' } };
   if (!Array.isArray(rows)) return { status: 400, body: { error: 'bad_request' } };
 
   const db = await load();
   // Was der Admin mit einem Konto geloescht hat, bringt ein alter Stand nicht zurueck.
-  const incomingRows = withoutDeleted(db, name, rows);
+  // Und mit Sitzung ersetzt die App nur, was sie sehen darf — der Rest bleibt (`mergeCollection`).
+  const cleaned = withoutDeleted(db, name, rows);
+  const incomingRows = session
+    ? mergeCollection(db.tables, name, session.accountId, cleaned)
+    : cleaned;
   if (name === 'accounts') {
     const stored = new Map(rowsOf(db, name).map((row) => [row.id, row]));
     const settings = planSettings();
@@ -313,12 +445,37 @@ const CORS = {
   // Die Apps laufen im Browser auf eigenen Ports.
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Better-View',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Better-View, X-Better-Session, Authorization',
 };
 
-/** Im Nur-Lesen-Modus ist alles ausser Lesen und dem Einloesen verboten. */
-function refusedInView(req, pathname) {
-  if (req.headers[VIEW_HEADER] !== '1') return false;
+/** Offen bleibt nur, ob der Dienst lebt — so sieht ein Tester, ob die Adresse stimmt. */
+const OPEN_PATHS = new Set(['/v1/health']);
+
+/** Gleich lang und gleich, in konstanter Zeit — kein Raten Zeichen fuer Zeichen. */
+function sameSecret(given, expected) {
+  if (typeof given !== 'string') return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Traegt die Anfrage das Geheimnis? Ohne `BETTER_API_TOKEN` ist der Dienst
+ * offen (Entwicklung). Mit: `Authorization: Bearer …` — oder `?token=` fuer
+ * alles, was ein Browser als Adresse laedt (Bilder, Anhaenge, Audio).
+ */
+function refusedWithoutToken(req, url) {
+  const expected = apiToken();
+  if (!expected || OPEN_PATHS.has(url.pathname)) return false;
+  const header = req.headers.authorization;
+  const bearer =
+    typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  return !sameSecret(bearer ?? url.searchParams.get('token'), expected);
+}
+
+/** Im Nur-Lesen-Modus — per Kopfzeile oder als Sitzung aus dem Admin — ist alles ausser Lesen und dem Einloesen verboten. */
+function refusedInView(req, pathname, session) {
+  if (req.headers[VIEW_HEADER] !== '1' && session?.view !== true) return false;
   if (READ_METHODS.has(req.method)) return false;
   return !(req.method === 'POST' && pathname === REDEEM_PATH);
 }
@@ -329,7 +486,9 @@ async function redeemView(body) {
   if (!redeemed) return { status: 404, body: { error: 'not_found' } };
   const row = (await load()).tables.accounts.find((entry) => entry.id === redeemed.accountId);
   if (!row) return { status: 404, body: { error: 'not_found' } };
-  return { status: 200, body: { account: withoutSecrets(row), app: redeemed.app } };
+  // Die Sitzung dazu darf nie schreiben — auch ohne die Kopfzeile.
+  const session = await sessions.issue(row.id, { view: true });
+  return { status: 200, body: { account: withoutSecrets(row), app: redeemed.app, session } };
 }
 
 function send(res, status, body, extraHeaders = {}) {
@@ -337,6 +496,9 @@ function send(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(text),
+    // Nichts raten, nichts zwischenspeichern: Antworten sind persoenlich.
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
     ...CORS,
     ...extraHeaders,
   });
@@ -406,7 +568,11 @@ const speech = createSpeechService({
 });
 
 // KI ueber Safe Swiss Cloud oder gratis ueber Groq. `BETTER_AI_TEST_URL` gilt nur fuer 127.0.0.1 (Tests).
-const ai = createAiService({ dataDir: dataDir(), baseUrl: process.env.BETTER_AI_TEST_URL, billing });
+const ai = createAiService({
+  dataDir: dataDir(),
+  baseUrl: process.env.BETTER_AI_TEST_URL,
+  billing,
+});
 
 /** `accountId` und `app` aus der Adresse — geprueft wird im Dienst. */
 const speakerQuery = (url) => ({
@@ -429,20 +595,28 @@ const ROUTES = [
     path: /^\/v1\/revision$/,
     handler: async () => ok(200, { revision: (await load()).revision }),
   },
-  { method: 'GET', path: /^\/v1\/db$/, handler: async () => ok(200, await snapshot()) },
+  {
+    method: 'GET',
+    path: /^\/v1\/db$/,
+    handler: async ({ session }) => ok(200, await snapshot(session)),
+  },
   {
     method: 'PUT',
     path: /^\/v1\/db\/([^/]+)$/,
     body: true,
-    handler: ({ params: [name], body }) => replaceCollection(name, body.rows),
+    handler: ({ params: [name], body, session }) => replaceCollection(name, body.rows, session),
   },
   {
     method: 'POST',
     path: /^\/v1\/accounts$/,
     body: true,
-    handler: async ({ body }) => {
+    handler: async ({ body, req }) => {
+      const gate = gateOf(signupByAddress, clientIp(req));
+      if (!gate.allowed) return tooMany(gate);
       const result = await register(body.email, body.password, body.username);
-      if (!result.error) return ok(201, result);
+      if (!result.error) {
+        return ok(201, { ...result, session: await sessions.issue(result.account.id) });
+      }
       // Ein vergebener Name ist kein Formfehler, sondern eine Kollision.
       return ok(result.error === 'username_taken' ? 409 : 400, result);
     },
@@ -451,23 +625,42 @@ const ROUTES = [
     method: 'POST',
     path: /^\/v1\/sessions$/,
     body: true,
-    handler: async ({ body }) => {
+    handler: async ({ body, req }) => {
+      const email = normaliseEmail(String(body.email ?? ''));
+      const byAddress = gateOf(loginByAddress, clientIp(req));
+      const byEmail = gateOf(loginByEmail, email);
+      if (!byAddress.allowed) return tooMany(byAddress);
+      if (!byEmail.allowed) return tooMany(byEmail);
       const result = await authenticate(body.email, body.password);
-      if (!result.error) return ok(200, result);
+      if (!result.error) {
+        loginByEmail.reset(email);
+        return ok(200, { ...result, session: await sessions.issue(result.account.id) });
+      }
       return ok(result.error === 'account_disabled' ? 403 : 401, result);
     },
   },
   {
+    // Abmelden: die Sitzung gilt danach nirgends mehr.
+    method: 'DELETE',
+    path: /^\/v1\/sessions$/,
+    handler: async ({ token }) => {
+      if (token) await sessions.revoke(token);
+      return ok(200, { ok: true });
+    },
+  },
+  {
+    // Fuer Einladungen: nur, was von einem Konto oeffentlich ist.
     method: 'GET',
     path: /^\/v1\/accounts\/by-username\/([^/]+)$/,
     handler: async ({ params: [name] }) => {
       const row = (await load()).tables.accounts.find((entry) => entry.username === name);
-      return row ? ok(200, { account: withoutSecrets(row) }) : ok(404, { error: 'not_found' });
+      return row ? ok(200, { account: publicAccount(row) }) : ok(404, { error: 'not_found' });
     },
   },
   {
     method: 'GET',
     path: /^\/v1\/accounts\/([^/]+)$/,
+    owner: async ([id]) => id,
     handler: async ({ params: [id] }) => {
       const row = (await load()).tables.accounts.find((entry) => entry.id === id);
       return row ? ok(200, { account: withoutSecrets(row) }) : ok(404, { error: 'not_found' });
@@ -477,30 +670,43 @@ const ROUTES = [
     method: 'PATCH',
     path: /^\/v1\/accounts\/([^/]+)$/,
     body: true,
+    owner: async ([id]) => id,
     handler: ({ params: [id], body }) => patchProfile(id, body),
   },
 
-  // Mitteilungen
+  // Haushalt
+  {
+    method: 'POST',
+    path: /^\/v1\/households\/join$/,
+    body: true,
+    handler: ({ body }) => joinHousehold(body),
+  },
+
+  // Mitteilungen — anlegen darf man auch fuer andere (Einladungen), lesen und loeschen nur eigene.
   {
     method: 'POST',
     path: /^\/v1\/notifications$/,
     body: true,
+    foreignAccountOk: true,
     handler: ({ body }) => createNotification(body),
   },
   {
     method: 'POST',
     path: /^\/v1\/notifications\/remove-by-ref$/,
     body: true,
+    foreignAccountOk: true,
     handler: ({ body }) => removeNotificationsByRef(body),
   },
   {
     method: 'POST',
     path: /^\/v1\/notifications\/([^/]+)\/read$/,
+    owner: ([id]) => ownerOfRow('notifications', id),
     handler: ({ params: [id] }) => markNotificationRead(id),
   },
   {
     method: 'DELETE',
     path: /^\/v1\/notifications\/([^/]+)$/,
+    owner: ([id]) => ownerOfRow('notifications', id),
     handler: ({ params: [id] }) => deleteNotification(id),
   },
 
@@ -514,10 +720,19 @@ const ROUTES = [
   },
 
   // Nur ansehen (Admin)
-  { method: 'POST', path: /^\/v1\/view\/redeem$/, body: true, handler: ({ body }) => redeemView(body) },
+  {
+    method: 'POST',
+    path: /^\/v1\/view\/redeem$/,
+    body: true,
+    handler: ({ body }) => redeemView(body),
+  },
 
   // Abo
-  { method: 'GET', path: /^\/v1\/plans$/, handler: ({ url }) => planRequests.status(speakerQuery(url)) },
+  {
+    method: 'GET',
+    path: /^\/v1\/plans$/,
+    handler: ({ url }) => planRequests.status(speakerQuery(url)),
+  },
   {
     method: 'POST',
     path: /^\/v1\/plans\/requests$/,
@@ -587,6 +802,7 @@ const ROUTES = [
   {
     method: 'DELETE',
     path: /^\/v1\/mail\/accounts\/([^/]+)$/,
+    owner: ([id]) => ownerOfRow('mailAccounts', id),
     handler: ({ params: [id] }) => mail.removeAccount(id),
   },
   {
@@ -605,16 +821,19 @@ const ROUTES = [
     method: 'POST',
     path: /^\/v1\/mail\/messages\/([^/]+)\/seen$/,
     body: true,
+    owner: ([id]) => ownerOfRow('mailMessages', id),
     handler: ({ params: [id], body }) => mail.markSeen(id, body),
   },
   {
     method: 'POST',
     path: /^\/v1\/mail\/messages\/([^/]+)\/delete$/,
+    owner: ([id]) => ownerOfRow('mailMessages', id),
     handler: ({ params: [id] }) => mail.deleteMessage(id),
   },
   {
     method: 'GET',
     path: /^\/v1\/mail\/messages\/([^/]+)\/body$/,
+    owner: ([id]) => ownerOfRow('mailMessages', id),
     handler: ({ params: [id], url }) =>
       mail.messageBody(id, url.searchParams.get('images') === '1'),
   },
@@ -622,6 +841,7 @@ const ROUTES = [
     method: 'GET',
     path: /^\/v1\/mail\/messages\/([^/]+)\/attachments\/([^/]+)$/,
     raw: true,
+    owner: ([id]) => ownerOfRow('mailMessages', id),
     handler: ({ res, params: [id, index] }) => mail.serveAttachment(res, id, index, CORS),
   },
   {
@@ -665,9 +885,17 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, {});
 
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
-  // Nur ansehen: noch vor jeder Route, damit keine einzige etwas aendert.
-  if (refusedInView(req, url.pathname)) return send(res, 403, { error: 'read_only' });
+  // Zuerst das Geheimnis der App, dann die Sitzung des Kontos, dann Nur-ansehen — alles vor jeder Route.
+  if (refusedWithoutToken(req, url)) return send(res, 401, { error: 'unauthorized' });
   try {
+    const token = sessionTokenOf(req, url);
+    const session = token ? await sessions.lookup(token) : null;
+    if (token && !session) return send(res, 401, { error: 'session_invalid' });
+    if (!session && SESSIONS_REQUIRED && !isOpenRoute(req.method, url.pathname)) {
+      return send(res, 401, { error: 'session_required' });
+    }
+    if (refusedInView(req, url.pathname, session)) return send(res, 403, { error: 'read_only' });
+
     const route = ROUTES.find(
       (entry) => entry.method === req.method && entry.path.test(url.pathname),
     );
@@ -682,8 +910,22 @@ const server = http.createServer(async (req, res) => {
       if (body === null || typeof body !== 'object')
         return send(res, 400, { error: 'bad_request' });
     }
-    if (route.raw) return await route.handler({ res, params, url });
-    const result = await route.handler({ params, url, body });
+
+    // Wer eine Sitzung hat, handelt nur fuer sich: kein fremdes Konto, keine fremde Zeile.
+    if (session) {
+      const claimed = body.accountId ?? url.searchParams.get('accountId');
+      if (!route.foreignAccountOk && typeof claimed === 'string' && claimed !== session.accountId) {
+        return send(res, 403, { error: 'forbidden' });
+      }
+      if (route.owner) {
+        const owner = await route.owner(params);
+        if (owner === null) return send(res, 404, { error: 'not_found' });
+        if (owner !== session.accountId) return send(res, 403, { error: 'forbidden' });
+      }
+    }
+
+    if (route.raw) return await route.handler({ res, params, url, req, session, token });
+    const result = await route.handler({ params, url, body, req, session, token });
     return send(res, result.status, result.body);
   } catch (error) {
     process.stderr.write(`[api] ${req.method} ${url.pathname}: ${error?.name ?? 'Error'}\n`);
@@ -714,6 +956,7 @@ server.listen(PORT, () => {
       aiStatus: () => ai.status(),
       speechStatus: () => speech.status(),
       mail,
+      sessions,
     });
   }
   mail.startScheduler(mailSyncMs());

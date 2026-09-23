@@ -112,3 +112,48 @@ export function effectivePersonalization(
     assistantName: account?.assistantName?.trim() ?? '',
   };
 }
+
+/**
+ * Die Anprobe beim Einrichten: ohne Abo darf man alles ausprobieren und sieht
+ * es sofort in der ganzen App — gespeichert wird davon nichts (der Dienst
+ * wiese es ohne Abo ab). Nur, was man angefasst hat, steht darin.
+ */
+export type Trial = Readonly<{
+  accent?: AccentKey;
+  preset?: ThemePreset;
+  /** `null` heisst: das Bild der App. */
+  backdrop?: string | null;
+  avatar?: AvatarStyle;
+  assistantName?: string;
+}>;
+
+/**
+ * Was gilt, mit der Anprobe darueber. Solange sie laeuft, ist alles waehlbar
+ * (`canPersonalize`), damit die Auswahlen offen stehen statt mit Schloss.
+ */
+export function withTrial(personal: Personalization, trial: Trial | null): Personalization {
+  if (!trial) return personal;
+  return {
+    ...personal,
+    canPersonalize: true,
+    ...(trial.accent ? { accent: trial.accent } : {}),
+    ...(trial.preset ? { preset: trial.preset } : {}),
+    ...(trial.backdrop === undefined ? {} : { backdrop: trial.backdrop ?? undefined }),
+    ...(trial.avatar ? { avatar: normalizeAvatar(trial.avatar) } : {}),
+    ...(trial.assistantName === undefined ? {} : { assistantName: trial.assistantName.trim() }),
+  };
+}
+
+/** Ob die Anprobe etwas enthaelt, das es nur mit Abo gibt — dann geht es ohne nicht weiter. */
+export function trialNeedsPlan(trial: Trial | null): boolean {
+  if (!trial) return false;
+  const standard = effectivePersonalization(null);
+  const tried = withTrial(standard, trial);
+  return (
+    tried.accent !== standard.accent ||
+    tried.preset !== standard.preset ||
+    tried.backdrop !== standard.backdrop ||
+    tried.assistantName !== standard.assistantName ||
+    JSON.stringify(tried.avatar) !== JSON.stringify(standard.avatar)
+  );
+}

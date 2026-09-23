@@ -9,6 +9,10 @@ npm run server      # aus dem Projektstamm, Port 8090
 npm test            # prüft auch services/api/**/*.test.js
 ```
 
+Im Netz läuft er als Container (`Dockerfile`, Daten unter `/data`, Admin aus)
+— **nur mit `BETTER_API_TOKEN`** und hinter HTTPS. Wie das geht, steht in
+[docs/veroeffentlichen.md](../../docs/veroeffentlichen.md).
+
 | Umgebungsvariable         | Standard            | Wofür                                                                 |
 | ------------------------- | ------------------- | --------------------------------------------------------------------- |
 | `PORT`                    | `8090`              | Port des Dienstes                                                     |
@@ -32,6 +36,11 @@ npm test            # prüft auch services/api/**/*.test.js
 | `BETTER_AI_MODEL_VISION`  | `gemma4-31b`        | Modell für Fragen mit Bild                                            |
 | `BETTER_AI_TEST_URL`      | —                   | Nur für Tests: ein nachgebauter Anbieter auf `http://127.0.0.1:<port>` |
 | `BETTER_ADMIN_PORT`       | `8091`              | Port des Admins, nur auf `127.0.0.1`; `0` schaltet ihn ab             |
+| `BETTER_DATA_KEY`         | —                   | 64 Hex-Zeichen (`openssl rand -hex 32`): `db.json` und `sessions.json` liegen dann verschlüsselt (AES-256-GCM). Ohne: Klartext. Falscher Schlüssel: der Dienst startet nicht |
+| `BETTER_REQUIRE_SESSION`  | —                   | `1`: jede Anfrage ausser Leben, Anmelden, Registrieren braucht die Sitzung eines Kontos — im Netz gilt das mit `BETTER_API_TOKEN` automatisch |
+| `BETTER_TRUST_PROXY`      | —                   | `1`: hinter einem Reverse-Proxy zählt `X-Forwarded-For` als Adresse (Bremse gegen Raten) |
+| `BETTER_RATE_LIMIT_OFF`   | —                   | Nur für Tests: `1` schaltet die Bremse gegen Passwort-Raten ab |
+| `BETTER_API_TOKEN`        | —                   | **Sobald der Dienst im Netz steht:** ein langes Geheimnis; jede App schickt es als `Authorization: Bearer …` (in der App `EXPO_PUBLIC_API_TOKEN`), Bilder und Audio als `?token=`. Ohne Token antwortet alles ausser `/v1/health` mit `401 unauthorized`. Leer = offen, nur lokal |
 | `BETTER_AI_MONTHLY_MINIMUM_CHF` | `95`          | Mindestbetrag im Monat bei Safe Swiss Cloud, für die Kosten im Admin  |
 | `BETTER_PRICE_<APP>_CHF`  | GetBetter `1`, BetterFamily `3`, BetterGym `5`, BetterAi `8`, BetterMoney — | Abo im Monat inkl. MwSt, z.B. `BETTER_PRICE_BETTERMONEY_CHF=4`; nur Zahlen über 0 |
 | `BETTER_VAT`              | `0.081`             | Mehrwertsteuer als Anteil                                             |

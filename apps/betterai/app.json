@@ -44,10 +44,38 @@
             "backgroundColor": "#7043AA"
           }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BetterAi zeigt deine Fotos nur, wenn du ein Bild wählst — für Hintergrund, Profil oder Notiz.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "BetterAi braucht das Mikrofon nur, wenn du dem Assistenten etwas vorsagst.",
+          "speechRecognitionPermission": "BetterAi wandelt Gesprochenes in Text um, wenn du dem Assistenten etwas vorsagst.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

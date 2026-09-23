@@ -59,6 +59,13 @@ export const frTasks = {
   'tasks.postpone.today': 'Aujourd’hui',
   'tasks.postpone.tomorrow': 'Demain',
   'tasks.postpone.nextWeek': 'Semaine prochaine',
+  'tasks.reminder.push': 'Ta tâche arrive bientôt à échéance.',
+  'birthdays.import': 'Reprendre des contacts',
+  'birthdays.import.done': '{count} anniversaires repris',
+  'birthdays.import.none': 'Aucun nouvel anniversaire dans tes contacts.',
+  'birthdays.import.denied':
+    'Il faut l’accès aux contacts — tu peux l’autoriser dans les réglages du téléphone.',
+  'birthdays.import.failed': 'Ça n’a pas marché. Réessaie plus tard.',
 
   'tasks.priority.none': 'Aucune',
   'tasks.priority.low': 'Basse',

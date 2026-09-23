@@ -9,12 +9,15 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { noDragScrollId } from '@/app/webDragScroll';
 import { useI18n } from '@/i18n';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Button, Chip, Icon, Sheet, Text, type IconName } from '@/ui';
+import { Chip, Icon, Sheet, Text } from '@/ui';
 
-import { blockIcon, blockName, HomeBlockView, variantLabel } from './HomeBlockView';
+import { blockColor, blockIcon, blockName, HomeBlockView } from './HomeBlockView';
+import { HomeInspector } from './HomeInspector';
+import { HomeTemplates } from './HomeTemplates';
 import {
   BLOCK_KINDS,
   CORNERS,
@@ -22,42 +25,41 @@ import {
   GRID_ROW,
   blockScale,
   canvasRows,
+  duplicateBlock,
   moveTo,
   newBlock,
   patchBlock,
   removeBlock,
   resizeBy,
   templateLayout,
-  variantsOf,
-  type BlockVariant,
   type Corner,
   type HomeBlock,
-  type TemplateKey,
 } from './homeLayout';
 import { useHomeLayout } from './useHomeLayout';
 
-/** Die drei Vorlagen heissen wie die drei festen Ansichten. */
-const TEMPLATE_LABELS = {
-  list: 'today.view.list',
-  grid: 'today.view.grid',
-  focus: 'today.view.focus',
-} as const;
-
 /** So gross ist ein Eckgriff. */
-const HANDLE = 26;
-/** Die runden Knoepfe am Element: gross genug fuer den Daumen. */
-const BUTTON = 36;
+const HANDLE = 28;
+/** Der sichtbare Punkt darin. */
+const DOT = 14;
 /** So viele leere Zeilen stehen beim Bearbeiten unten bereit. */
-const SPARE_ROWS = 3;
+const SPARE_ROWS = 2;
+/** So viel Platz braucht die Karte unter dem gewaehlten Element. */
+const INSPECTOR_ROWS = 5;
 
 type Gesture = { id: string; corner: Corner | null };
 
 /**
  * Die eigene Ansicht: eine freie Flaeche. Die Elemente liegen auf einem Raster
- * von vier Spalten und lassen sich im Bearbeiten **hinschieben, wohin man
- * will**, und **an den Ecken** groesser und kleiner ziehen; je Element gibt es
- * Stile. Man landet gleich hier, ohne vorher eine Vorlage zu waehlen — eine
- * Vorlage ist nur ein Angebot. Gemerkt wird alles je Konto auf dem Geraet.
+ * von vier Spalten; man landet gleich hier, ohne vorher eine Vorlage zu
+ * waehlen — eine Vorlage ist nur ein Angebot.
+ *
+ * **Erst antippen, dann schieben.** Ein Tipp waehlt ein Element aus: es
+ * bekommt einen Rahmen, die vier Eckgriffe und darunter seine Karte (Stil,
+ * Groesse, Duplizieren, Entfernen). Erst jetzt faengt der Finger auf dem
+ * Element an zu schieben statt zu rollen — so bleibt die Seite ueberall sonst
+ * ganz normal zu rollen. Ein Tipp neben die Elemente hebt die Wahl wieder auf.
+ *
+ * Gemerkt wird alles je Konto auf dem Geraet.
  */
 export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
   const { t } = useI18n();
@@ -66,7 +68,7 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
   const store = useHomeLayout(account.id);
   const [editing, setEditing] = useState(false);
   const [sheet, setSheet] = useState<'add' | 'template' | null>(null);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
   // Was gerade am Finger haengt.
   const [gesture, setGesture] = useState<Gesture | null>(null);
@@ -86,8 +88,9 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
   const editMode = editing || empty;
   const gap = theme.spacing.sm;
   const cell = width > 0 ? width / GRID_COLUMNS : 0;
-  const rows = canvasRows(layout) + (editMode ? SPARE_ROWS : 0);
-  const block = layout.find((entry) => entry.id === chosen) ?? null;
+  const chosen = editMode ? (layout.find((entry) => entry.id === selected) ?? null) : null;
+  // Beim Bearbeiten ein paar leere Zeilen, und Platz fuer die Karte darunter.
+  const rows = canvasRows(layout) + (editMode ? SPARE_ROWS : 0) + (chosen ? INSPECTOR_ROWS : 0);
 
   const rest = () => {
     moveX.setValue(0);
@@ -107,6 +110,12 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
         : next,
     );
 
+  /** Bearbeiten an oder aus — die Wahl gilt nur beim Bearbeiten. */
+  const toggleEditing = () => {
+    setEditing((value) => !value);
+    setSelected(null);
+  };
+
   return (
     <View style={{ gap: theme.spacing.sm }}>
       <View style={[styles.row, { gap: theme.spacing.sm }]}>
@@ -121,17 +130,45 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
           <Chip
             label={editing ? t('home.build.done') : t('home.build.edit')}
             selected={editing}
-            onPress={() => setEditing((value) => !value)}
+            onPress={toggleEditing}
           />
         )}
       </View>
 
+      {editMode && !empty ? (
+        <Text variant="caption" tone="muted">
+          {chosen ? t('home.build.hintSelected') : t('home.build.hintIdle')}
+        </Text>
+      ) : null}
+
       {empty ? (
-        <View style={{ gap: theme.spacing.xs, paddingVertical: theme.spacing.lg }}>
-          <Text variant="title">{t('home.build.startTitle')}</Text>
-          <Text variant="label" tone="muted">
-            {t('home.build.startBody')}
-          </Text>
+        <View style={{ gap: theme.spacing.md, paddingTop: theme.spacing.sm }}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <Text variant="title">{t('home.build.startTitle')}</Text>
+            <Text variant="label" tone="muted">
+              {t('home.build.startBody')}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('home.build.addFirst')}
+            onPress={() => setSheet('add')}
+            style={({ pressed }) => [
+              styles.drop,
+              {
+                gap: theme.spacing.xs,
+                paddingVertical: theme.spacing.xl,
+                borderRadius: theme.radii.lg,
+                borderColor: theme.colors.border,
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Icon name="plus" size={22} color={theme.colors.textMuted} />
+            <Text variant="label" tone="muted">
+              {t('home.build.addFirst')}
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -139,9 +176,20 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
         onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
         style={{ height: rows * GRID_ROW }}
       >
+        {/* Ein Tipp neben die Elemente hebt die Wahl auf. */}
+        {editMode && chosen ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            onPress={() => setSelected(null)}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+
         {/* Beim Bearbeiten liegt das Raster blass darunter — man sieht, wohin es rastet. */}
-        {editMode && cell > 0
-          ? Array.from({ length: rows + 1 }, (_, row) => (
+        {editMode && cell > 0 ? (
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {Array.from({ length: rows + 1 }, (_, row) => (
               <View
                 key={`line-${row}`}
                 style={[
@@ -149,76 +197,52 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
                   { top: row * GRID_ROW, backgroundColor: theme.colors.border },
                 ]}
               />
-            ))
-          : null}
+            ))}
+            {Array.from({ length: GRID_COLUMNS - 1 }, (_, column) => (
+              <View
+                key={`column-${column}`}
+                style={[
+                  styles.gridColumn,
+                  { left: (column + 1) * cell, backgroundColor: theme.colors.border },
+                ]}
+              />
+            ))}
+          </View>
+        ) : null}
 
         {cell > 0
           ? layout.map((stored) => {
               // Waehrend des Ziehens gilt der Entwurf — Lage, Groesse und Inhalt.
               const entry = draft?.id === stored.id ? draft : stored;
-              const active = gesture?.id === entry.id;
-              const moving = active && gesture?.corner === null;
+              const picked = chosen?.id === entry.id;
+              const dragging = gesture?.id === entry.id;
+              const name = blockName(t, entry.kind);
               return (
                 <Animated.View
                   key={entry.id}
                   style={[
                     styles.slot,
-                    active ? theme.elevation.raised : null,
+                    dragging ? theme.elevation.raised : null,
                     {
                       left: entry.x * cell + gap / 2,
                       top: entry.y * GRID_ROW + gap / 2,
                       width: entry.w * cell - gap,
                       height: entry.h * GRID_ROW - gap,
-                      transform: active ? [{ translateX: moveX }, { translateY: moveY }] : [],
-                      zIndex: active ? 2 : 1,
-                      opacity: moving ? 0.9 : 1,
+                      transform: dragging ? [{ translateX: moveX }, { translateY: moveY }] : [],
+                      zIndex: picked ? 3 : 1,
+                      opacity: dragging ? 0.95 : 1,
                     },
                   ]}
                 >
-                  {/* Die Schiebeflaeche liegt unter der Karte: so bleiben die
-                      Knoepfe oben rechts drueckbar. */}
-                  {editMode ? (
-                    <BlockGrip
-                      label={t('home.build.move', { name: blockName(t, entry.kind) })}
-                      style={styles.moveArea}
-                      onStart={() => {
-                        rest();
-                        setGesture({ id: stored.id, corner: null });
-                      }}
-                      onMove={(dx, dy) => {
-                        const next = moveTo(
-                          stored,
-                          stored.x + Math.round(dx / cell),
-                          stored.y + Math.round(dy / GRID_ROW),
-                        );
-                        show(next);
-                        // Das Element steht schon im Zielfeld; der Rest folgt dem Finger.
-                        moveX.setValue(dx - (next.x - stored.x) * cell);
-                        moveY.setValue(dy - (next.y - stored.y) * GRID_ROW);
-                      }}
-                      onEnd={(dx, dy) => {
-                        const next = moveTo(
-                          stored,
-                          stored.x + Math.round(dx / cell),
-                          stored.y + Math.round(dy / GRID_ROW),
-                        );
-                        setGesture(null);
-                        setDraft(null);
-                        rest();
-                        store.save(patchBlock(layout, stored.id, next));
-                      }}
-                    />
-                  ) : null}
                   <View
-                    pointerEvents={editMode ? 'box-none' : 'auto'}
                     style={[
                       styles.face,
                       {
                         borderRadius: theme.radii.md,
                         ...(editMode
                           ? {
-                              borderWidth: 1.5,
-                              borderColor: active ? theme.colors.accentMark : theme.colors.border,
+                              borderWidth: picked ? 2 : StyleSheet.hairlineWidth,
+                              borderColor: picked ? theme.colors.accentMark : theme.colors.border,
                               padding: theme.spacing.xs,
                             }
                           : {}),
@@ -230,28 +254,20 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
                         <Icon
                           name={blockIcon(entry.kind)}
                           size={14}
-                          color={theme.colors.textMuted}
+                          color={blockColor(theme, entry.kind)}
                         />
                         <Text variant="caption" tone="muted" numberOfLines={1} style={styles.grow}>
-                          {blockName(t, entry.kind)}
+                          {name}
                         </Text>
-                        <RoundButton
-                          icon="settings"
-                          label={t('home.build.settings', { name: blockName(t, entry.kind) })}
-                          onPress={() => setChosen(entry.id)}
-                        />
-                        <RoundButton
-                          icon="trash"
-                          danger
-                          label={t('home.build.removeName', { name: blockName(t, entry.kind) })}
-                          onPress={() => store.save(removeBlock(layout, entry.id))}
-                        />
+                        {picked ? (
+                          <Icon name="move" size={14} color={theme.colors.accentMark} />
+                        ) : null}
                       </View>
                     ) : null}
-                    {/* Im Bearbeiten ist der Inhalt nur Bild — der Finger schiebt.
-                        Ein schmales Element baut seinen Inhalt in voller Breite
-                        und zieht ihn dann zusammen: so werden Formen und Schrift
-                        mit kleiner, statt nur enger zu stehen. */}
+                    {/* Im Bearbeiten ist der Inhalt nur Bild — der Finger waehlt und
+                        schiebt. Ein schmales Element baut seinen Inhalt in voller
+                        Breite und zieht ihn dann zusammen: so werden Formen und
+                        Schrift mit kleiner, statt nur enger zu stehen. */}
                     <View style={styles.clip} pointerEvents={editMode ? 'none' : 'auto'}>
                       <View
                         style={{
@@ -266,20 +282,62 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
                     </View>
                   </View>
 
-                  {editMode ? (
+                  {/* Nicht gewaehlt: ein Tipp waehlt aus — und die Seite rollt weiter. */}
+                  {editMode && !picked ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('home.build.selectName', { name })}
+                      onPress={() => setSelected(stored.id)}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  ) : null}
+
+                  {/* Gewaehlt: der Finger schiebt das Element, die Ecken ziehen es gross. */}
+                  {picked ? (
                     <>
-                      {/* Die Ecken ziehen die Groesse. */}
+                      <BlockGrip
+                        id={noDragScrollId(`move-${stored.id}`)}
+                        label={t('home.build.move', { name })}
+                        style={StyleSheet.absoluteFill}
+                        onStart={() => {
+                          rest();
+                          setGesture({ id: stored.id, corner: null });
+                        }}
+                        onMove={(dx, dy) => {
+                          const next = moveTo(
+                            stored,
+                            stored.x + Math.round(dx / cell),
+                            stored.y + Math.round(dy / GRID_ROW),
+                          );
+                          show(next);
+                          // Das Element steht schon im Zielfeld; der Rest folgt dem Finger.
+                          moveX.setValue(dx - (next.x - stored.x) * cell);
+                          moveY.setValue(dy - (next.y - stored.y) * GRID_ROW);
+                        }}
+                        onEnd={(dx, dy) => {
+                          const next = moveTo(
+                            stored,
+                            stored.x + Math.round(dx / cell),
+                            stored.y + Math.round(dy / GRID_ROW),
+                          );
+                          setGesture(null);
+                          setDraft(null);
+                          rest();
+                          store.save(patchBlock(layout, stored.id, next));
+                        }}
+                      />
                       {CORNERS.map((corner) => {
                         const left = corner === 'tl' || corner === 'bl';
                         const top = corner === 'tl' || corner === 'tr';
                         return (
                           <BlockGrip
                             key={corner}
-                            label={t('home.build.resize', { name: blockName(t, entry.kind) })}
+                            id={noDragScrollId(`${corner}-${stored.id}`)}
+                            label={t('home.build.resize', { name })}
                             style={[
                               styles.handle,
-                              left ? { left: -2 } : { right: -2 },
-                              top ? { top: -2 } : { bottom: -2 },
+                              left ? { left: -HANDLE / 3 } : { right: -HANDLE / 3 },
+                              top ? { top: -HANDLE / 3 } : { bottom: -HANDLE / 3 },
                             ]}
                             dot={{
                               backgroundColor: theme.colors.surface,
@@ -321,71 +379,67 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
               );
             })
           : null}
-      </View>
 
-      {/* Ein Element aendern: Stil — oder weg damit. */}
-      <Sheet
-        visible={block !== null}
-        onClose={() => setChosen(null)}
-        title={block ? blockName(t, block.kind) : ''}
-      >
-        {block ? (
-          <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.lg }}>
-            <View style={{ gap: theme.spacing.sm }}>
-              <Text variant="section" tone="muted">
-                {t('home.build.style')}
-              </Text>
-              <View style={[styles.wrap, { gap: theme.spacing.sm }]}>
-                {variantsOf(block.kind).map((variant) => (
-                  <Chip
-                    key={variant}
-                    label={variantLabel(t, block.kind, variant)}
-                    selected={variant === block.variant}
-                    onPress={() =>
-                      store.save(patchBlock(layout, block.id, { variant: variant as BlockVariant }))
-                    }
-                  />
-                ))}
-              </View>
-            </View>
-
-            <Text variant="label" tone="faint">
-              {t('home.build.hint')}
-            </Text>
-
-            <Button
-              label={t('home.build.remove')}
-              icon="trash"
-              variant="danger"
-              onPress={() => {
-                const next = removeBlock(layout, block.id);
-                setChosen(null);
-                store.save(next);
+        {/* Was mit dem gewaehlten Element geht — gleich darunter. */}
+        {chosen && cell > 0 ? (
+          <View
+            style={[
+              styles.inspector,
+              {
+                left: gap / 2,
+                right: gap / 2,
+                top: (chosen.y + chosen.h) * GRID_ROW + gap / 2,
+              },
+            ]}
+          >
+            <HomeInspector
+              block={chosen}
+              onVariant={(variant) => store.save(patchBlock(layout, chosen.id, { variant }))}
+              onResize={(dw, dh) =>
+                store.save(patchBlock(layout, chosen.id, resizeBy(chosen, 'br', dw, dh)))
+              }
+              onDuplicate={() => store.save(duplicateBlock(layout, chosen.id))}
+              onRemove={() => {
+                setSelected(null);
+                store.save(removeBlock(layout, chosen.id));
               }}
+              onClose={() => setSelected(null)}
             />
           </View>
         ) : null}
-      </Sheet>
+      </View>
 
       {/* Ein Element dazulegen. */}
       <Sheet visible={sheet === 'add'} onClose={() => setSheet(null)} title={t('home.build.add')}>
-        <View style={{ gap: theme.spacing.sm, paddingBottom: theme.spacing.lg }}>
+        <View style={{ gap: theme.spacing.xs, paddingBottom: theme.spacing.lg }}>
           {BLOCK_KINDS.map((kind) => (
             <Pressable
               key={kind}
               accessibilityRole="button"
               accessibilityLabel={blockName(t, kind)}
               onPress={() => {
+                const block = newBlock(kind, layout);
                 setSheet(null);
-                store.save([...layout, newBlock(kind, layout)]);
+                setSelected(block.id);
+                setEditing(true);
+                store.save([...layout, block]);
               }}
               style={({ pressed }) => [
                 styles.row,
-                { minHeight: 44, gap: theme.spacing.md, opacity: pressed ? 0.6 : 1 },
+                {
+                  minHeight: 52,
+                  gap: theme.spacing.md,
+                  paddingHorizontal: theme.spacing.md,
+                  borderRadius: theme.radii.md,
+                  backgroundColor: theme.colors.surfaceMuted,
+                  opacity: pressed ? 0.6 : 1,
+                },
               ]}
             >
-              <Icon name={blockIcon(kind)} size={18} color={theme.colors.textMuted} />
-              <Text variant="body">{blockName(t, kind)}</Text>
+              <Icon name={blockIcon(kind)} size={18} color={blockColor(theme, kind)} />
+              <Text variant="body" style={{ fontWeight: theme.fontWeight.medium }}>
+                {blockName(t, kind)}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -397,65 +451,27 @@ export function HomeCustom({ onAddTask }: { onAddTask: () => void }) {
         onClose={() => setSheet(null)}
         title={t('home.build.template')}
       >
-        <View style={{ gap: theme.spacing.sm, paddingBottom: theme.spacing.lg }}>
-          <Text variant="label" tone="muted">
-            {t('home.build.templateBody')}
-          </Text>
-          {(Object.keys(TEMPLATE_LABELS) as TemplateKey[]).map((template) => (
-            <Button
-              key={template}
-              label={t(TEMPLATE_LABELS[template])}
-              variant="secondary"
-              onPress={() => {
-                setSheet(null);
-                store.save(templateLayout(template));
-              }}
-            />
-          ))}
-        </View>
+        <HomeTemplates
+          onPick={(template) => {
+            setSheet(null);
+            setSelected(null);
+            store.save(templateLayout(template));
+          }}
+        />
       </Sheet>
     </View>
-  );
-}
-
-/** Ein runder Knopf am Element — gross genug, um ihn zu treffen. */
-function RoundButton({
-  icon,
-  label,
-  danger = false,
-  onPress,
-}: {
-  icon: IconName;
-  label: string;
-  danger?: boolean;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={theme.spacing.xs}
-      style={({ pressed }) => [
-        styles.button,
-        {
-          borderRadius: theme.radii.pill,
-          backgroundColor: danger ? theme.colors.dangerSoft : theme.colors.surfaceMuted,
-          opacity: pressed ? 0.6 : 1,
-        },
-      ]}
-    >
-      <Icon name={icon} size={18} color={danger ? theme.colors.danger : theme.colors.text} />
-    </Pressable>
   );
 }
 
 /**
  * Eine Flaeche, an der der Finger zieht: die ganze Karte zum Schieben, die
  * Ecken zum Groesserziehen. Mit `dot` ist sie ein sichtbarer Eckgriff.
+ *
+ * `id` sagt dem Browser, dass hier **nicht gerollt** wird
+ * (`noDragScrollId`) — sonst zoege die Maus die Seite mit.
  */
 function BlockGrip({
+  id,
   label,
   style,
   dot,
@@ -463,6 +479,7 @@ function BlockGrip({
   onMove,
   onEnd,
 }: {
+  id: string;
   label: string;
   style: StyleProp<ViewStyle>;
   dot?: { backgroundColor: string; borderColor: string };
@@ -477,7 +494,8 @@ function BlockGrip({
 
   return (
     <View
-      accessibilityRole="button"
+      nativeID={id}
+      accessibilityRole="adjustable"
       accessibilityLabel={label}
       style={style}
       {...drag.responder.panHandlers}
@@ -503,6 +521,8 @@ class DragGesture {
   readonly responder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
+    // Solange hier gezogen wird, rollt die Liste darunter nicht mit.
+    onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: () => this.handlers?.onStart(),
     onPanResponderMove: (_event, state) => this.handlers?.onMove(state.dx, state.dy),
     onPanResponderRelease: (_event, state) => this.handlers?.onEnd(state.dx, state.dy),
@@ -520,14 +540,13 @@ class DragGesture {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap' },
   slot: { position: 'absolute' },
   face: { flex: 1, overflow: 'hidden' },
   clip: { flex: 1, overflow: 'hidden' },
+  drop: { borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   gridLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth },
-  // Schieben faengt ueberall auf der Karte an, ausser an den Ecken.
-  moveArea: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  button: { width: BUTTON, height: BUTTON, alignItems: 'center', justifyContent: 'center' },
+  gridColumn: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
+  inspector: { position: 'absolute', zIndex: 4 },
   handle: {
     position: 'absolute',
     width: HANDLE,
@@ -535,5 +554,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
+  dot: { width: DOT, height: DOT, borderRadius: DOT / 2, borderWidth: 2.5 },
 });

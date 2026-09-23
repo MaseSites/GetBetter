@@ -45,6 +45,9 @@ export const ICONS = {
   settings: 'options-outline',
   logout: 'log-out-outline',
   plus: 'add',
+  minus: 'remove',
+  copy: 'duplicate-outline',
+  move: 'move-outline',
   download: 'download-outline',
   trash: 'trash-outline',
   send: 'arrow-up',
@@ -109,6 +112,8 @@ export const ICONS = {
   tag: 'pricetag-outline',
   select: 'checkmark-done-outline',
   happy: 'happy-outline',
+  /** Nur fuer „Mit Apple anmelden“ — das Zeichen, wie Apple es dort verlangt. */
+  apple: 'logo-apple',
 } as const satisfies Record<string, IonName>;
 
 export type IconName = keyof typeof ICONS;

@@ -71,8 +71,6 @@ export const dePlan = {
   'plan.locked': 'Abo',
   'plan.hint': 'Mit Abo personalisierbar',
   'plan.see': 'Abo ansehen',
-  'plan.setup.bubble':
-    'Hell oder dunkel? Das wählst du hier. Farben, Hintergrund, Avatar und Stimme passt du mit dem Abo an.',
 
   // Mitteilungen aus dem Admin
   'news.planApproved': 'Dein {app}-Abo ist aktiv',

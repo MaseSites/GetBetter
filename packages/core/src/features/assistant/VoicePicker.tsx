@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { useI18n, useTranslate, type TranslationKey } from '@/i18n';
@@ -49,6 +49,8 @@ export type VoicePickerProps = {
    * heraus schliesst der Aufrufer erst sein Blatt.
    */
   onPlan?: () => void;
+  /** Nur die Stimmen, ohne Hinweise darunter — fuers Einrichten, wo die Blase alles sagt. */
+  bare?: boolean;
 };
 
 /**
@@ -60,7 +62,7 @@ export type VoicePickerProps = {
  * Sprachausgabe, oder wenn es nur eine einzige Stimme gibt), steht statt einer
  * halbleeren Liste ein Satz, der das sagt.
  */
-export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
+export function VoicePicker({ value, onChange, onPlan, bare = false }: VoicePickerProps) {
   const t = useTranslate();
   const theme = useTheme();
   const { language } = useI18n();
@@ -85,7 +87,7 @@ export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
   // Beim Verlassen ist Ruhe: kein Satz redet auf dem naechsten Bildschirm weiter.
   useEffect(() => () => player.release(), [player]);
 
-  const note = Platform.OS === 'web' ? cloudNote(cloud) : null;
+  const note = cloudNote(cloud);
   // „Echte Stimmen gibt es mit dem Abo.“ fuehrt direkt dorthin.
   const noteText =
     note === 'assistant.cloud.planRequired' ? (
@@ -93,7 +95,10 @@ export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
         accessibilityRole="button"
         accessibilityLabel={`${t(note)} ${t('plan.see')}`}
         onPress={showPlan}
-        style={({ pressed }) => [styles.note, { gap: theme.spacing.xs, opacity: pressed ? 0.6 : 1 }]}
+        style={({ pressed }) => [
+          styles.note,
+          { gap: theme.spacing.xs, opacity: pressed ? 0.6 : 1 },
+        ]}
       >
         <Text variant="caption" tone="faint">
           {t(note)}
@@ -114,7 +119,7 @@ export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
         <Text variant="label" tone="muted">
           {voices.length === 1
             ? t('assistant.voice.pick.onlyOne', { voice: voices[0]?.label ?? '' })
-            : t(Platform.OS === 'web' ? 'assistant.voice.pick.none' : 'assistant.voice.soon')}
+            : t('assistant.voice.pick.none')}
         </Text>
         {noteText}
       </View>
@@ -165,11 +170,13 @@ export function VoicePicker({ value, onChange, onPlan }: VoicePickerProps) {
           onPress={() => play(voice)}
         />
       ))}
-      <Text variant="caption" tone="faint">
-        {t('assistant.voice.pick.hint')}
-      </Text>
+      {bare ? null : (
+        <Text variant="caption" tone="faint">
+          {t('assistant.voice.pick.hint')}
+        </Text>
+      )}
       {/* Ehrlich: ohne ElevenLabs klingen die Stimmen des Browsers eher technisch. */}
-      {noteText}
+      {bare ? null : noteText}
     </View>
   );
 }

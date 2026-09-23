@@ -105,7 +105,8 @@ Stand nichts überschreibt.
 | `PUT /v1/db/:collection`                            | Eine Sammlung ersetzen                                           |
 | `GET /v1/revision`                                  | Hat sich etwas geändert?                                         |
 | `POST /v1/accounts`                                 | Registrieren, mit Wunsch-Benutzernamen                           |
-| `POST /v1/sessions`                                 | Anmelden                                                         |
+| `POST /v1/sessions` · `DELETE /v1/sessions`         | Anmelden (gibt Konto **und Sitzung**) · abmelden                 |
+| `POST /v1/households/join`                          | per Code in einen Haushalt — den Code prüft der Dienst           |
 | `GET /v1/accounts/:id`                              | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`                | Für Einladungen                                                  |
 | `PATCH /v1/accounts/:id`                            | Spitzname, Sprache, Benutzername (einmal im Monat), Profilbild, Aussehen, Assistent, Hintergrund |
@@ -140,6 +141,52 @@ Passwörter prüft nur der Dienst, mit scrypt über Salt und Passwort; Salt und
 Hash verlassen ihn nie. Konten-Ids sind aus der E-Mail abgeleitet, damit jede
 App dasselbe Konto meint.
 
+**Sitzungen und Sichtbarkeit.** Beim Anmelden, Registrieren und beim Einlösen
+eines Admin-Tickets gibt der Dienst eine **Sitzung** mit (`session`, 48 Hex-
+Zeichen; er merkt sich nur den SHA-256 in `sessions.json`,
+`services/api/sessions.js`). Die App schickt sie bei jeder Anfrage als
+`X-Better-Session` (`serviceHeaders` in `db/service.ts`), Adressen, die ein
+Bild oder der Browser lädt, tragen sie als `?session=` (`withToken`). Gemerkt
+wird sie je Gerät in `auth/sessionStore.ts` (dort kommt auf dem Handy der
+Schlüsselbund hin); `endSession` meldet ab, `onSessionLost` meldet die App ab,
+wenn der Dienst die Sitzung nicht mehr kennt (`401 session_invalid` — neues
+Passwort oder gelöscht im Admin). **Mit Sitzung sieht ein Konto nur noch
+Seines** (`services/api/scope.js`, getestet): das eigene Konto ganz, andere nur
+öffentlich (Name, Bild, seit wann — nie die E-Mail), seine Haushalte samt
+Mitgliedern und allem mit `householdId`, seine Kalender, Freigaben, die nicht
+privaten Termine von Haushaltsmitgliedern und Freigebenden; Kinderzeilen
+folgen ihrer Elternzeile. `PUT /v1/db/:collection` ersetzt nur, was die App
+sehen darf (`mergeCollection`): Fremdes bleibt, Untergeschobenes fällt weg,
+eine bekannte Zeile zählt nach dem, was gespeichert ist — kein Kapern durch
+ein behauptetes `accountId`. Neu anlegen darf man nur, was einem danach
+gehört: eigenen Haushalt oder Kalender, Einladungen im eigenen Haushalt,
+offene (nie erteilte) Freigaben. Darum prüft der **Beitritt per Code** der
+Dienst (`POST /v1/households/join`) — die App sieht fremde Haushalte nicht.
+Wer eine Sitzung hat, handelt nur für sich: ein fremdes `accountId` in Body
+oder Adresse gibt `403 forbidden`, fremde Mitteilungen, Postfächer und
+Nachrichten auch (`owner` an der Route); Mitteilungen *anlegen* darf man für
+andere (Einladungen). **Ohne Sitzung** geht es nur lokal — dann sieht die App
+wie früher alles; im Netz (mit `BETTER_API_TOKEN`, oder mit
+`BETTER_REQUIRE_SESSION=1`) antwortet alles ausser Leben, Anmelden,
+Registrieren, Einlösen und `by-username` mit `401 session_required`.
+`test/sessions.test.js` prüft das von aussen.
+
+**Auf der Platte verschlüsselt** (`services/api/crypt.js`, getestet): mit
+`BETTER_DATA_KEY` (64 Hex-Zeichen, `openssl rand -hex 32`) liegen `db.json`
+und `sessions.json` als AES-256-GCM da (`{"sealed":1,…}`), geschrieben über
+eine Zwischendatei. Ohne Schlüssel Klartext wie bisher. Lässt sich die Datei
+nicht lesen — kaputt, falscher oder fehlender Schlüssel —, **startet der
+Dienst nicht**, statt leer weiterzumachen und beim nächsten Speichern alles zu
+überschreiben. Das Mail-Passwort-Tresor bleibt wie gehabt (`mail.key`).
+
+**Bremse gegen Raten** (`services/api/ratelimit.js`, getestet): Anmelden
+höchstens 10-mal je E-Mail und 30-mal je Adresse in 15 Minuten, Registrieren
+10-mal je Adresse in der Stunde — danach `429 too_many_attempts` mit
+`retryAfterMs`. Hinter einem Proxy zählt die echte Adresse nur mit
+`BETTER_TRUST_PROXY=1`. Ein neues Passwort oder ein gelöschtes Konto im Admin
+beendet alle Sitzungen des Kontos. Jede Antwort trägt `nosniff` und
+`Cache-Control: no-store`.
+
 Die Sammlung `appAccess` merkt sich, in welcher App ein Konto schon einmal war
 (`appAccess.markSeen`). Darauf beruht in GetBetter der Unterschied zwischen
 „freigeschaltet“ und „Installieren“.
@@ -164,9 +211,9 @@ Tresor, Abgleich) — alles nur mit Node-Kernmodulen. Der Datenordner lässt sic
 mit `BETTER_DATA_DIR` umlenken (die Tests tun das immer), der Abgleich-Takt mit
 `BETTER_MAIL_SYNC_MS`. Nach Änderungen am Dienst muss er neu starten.
 
-Der Dienst ist für die Entwicklung gedacht: kein HTTPS, keine Zugriffstoken,
-keine Ratenbegrenzung (siehe `services/api/README.md`). Vor einer echten
-Veröffentlichung gehört die Datenbank hinter einen richtigen Server.
+Lokal läuft der Dienst offen (kein HTTPS, keine Sitzung nötig). Im Netz
+gehört er hinter HTTPS, mit `BETTER_API_TOKEN`, `BETTER_DATA_KEY` und damit
+Sitzungspflicht — siehe „Veröffentlichen“ und `services/api/README.md`.
 
 ## Admin (nur auf diesem Rechner)
 
@@ -393,10 +440,24 @@ getestet; `2026-09-30T22:30Z` zählt schon zum Oktober).
   `aiFailureOffersPlan` es sagt (Gratis aufgebraucht in einer App mit Preis,
   oder `plan_required`). Aus einem offenen Blatt schliesst die Einstellung
   erst ihr Blatt — nie zwei übereinander.
-- **Einrichten ohne Abo** (jede neue Registrierung): `setupSteps` lässt Stimme,
-  Namen des Assistenten und Avatar weg — Spitzname, „Aussehen“ (hell/dunkel,
-  der Rest mit Schloss und Hinweis), fertig. Er sagt dazu, dass Farben,
-  Hintergrund, Avatar und Stimme mit dem Abo gehen. Nichts blockiert.
+- **Einrichten ohne Abo — die Anprobe** (jede neue Registrierung): auf der
+  Seite **Personalisieren** darf man alles ausprobieren — Farbe,
+  Voreinstellung, Hintergrund, Name und Avatar des Assistenten — und sieht es
+  sofort in der ganzen App (auch das dunkle Feld nimmt die Farbe an).
+  Gespeichert wird davon nichts: die Anprobe (`Trial`, `withTrial` in
+  `features/plan/entitlement.ts`, getestet) lebt nur in `AppContext` und gilt
+  nur, solange das Einrichten offen ist (`openTrialGate` in
+  `state/trialGate.ts`) und das Konto kein Abo hat. So lange schreiben die
+  gesperrten Setter (`setAppearance`, `setBackdrop`, `setAssistantAvatar`,
+  `setAssistantName`) in die Anprobe statt nichts zu tun, und `personal`
+  zeigt sie mit `canPersonalize: true` — darum stehen die Auswahlen offen
+  statt mit Schloss; `entitled` sagt, ob wirklich ein Abo da ist. Oben steht
+  das Angebot „Alles freischalten · CHF 1.– im Monat“. Enthält die Anprobe
+  etwas vom Standard Abweichendes (`trialNeedsPlan`), öffnet **Weiter** das
+  Abo-Fenster und bleibt auf der Seite; darunter steht **Ohne Abo weiter**,
+  das die Anprobe verwirft (`endTrial`) und im Standard weitergeht. Hell oder
+  dunkel wird wie immer gleich gespeichert. Die Stimme gibt es nur mit Abo
+  (dort als eigener erster Schritt).
 - **Gezählt** nach `app` in `ai-usage.jsonl` (`costChf`) und
   `speech-usage.jsonl` (Credits × `BETTER_SPEECH_USD_PER_1K_CHARS` / 1000 ×
   `BETTER_USD_CHF`, bewusst zu hoch; aus dem Zwischenspeicher 0). Das
@@ -591,9 +652,18 @@ Modell, Tokens, CHF) — daraus rechnet der Admin die Kosten.
 `VoiceControls.tsx`): **Sprechen** legt das Gesagte ins Feld — nicht direkt
 abschicken, die Erkennung irrt sich. **Gespräch** hört zu, antwortet, liest vor
 und hört wieder zu; nach zwei stummen Runden legt er auf, damit das Mikrofon
-nicht ewig läuft. Beides gibt es **nur im Browser**, über `SpeechRecognition`
-und `speechSynthesis` — ohne Paket geht es auf dem Gerät nicht, und dort sagt
-ein Tipp das ehrlich. Beim Verlassen des Bildschirms **und** beim Tabwechsel
+nicht ewig läuft. **Zuhören** geht überall: im Browser über `SpeechRecognition`, auf dem Gerät
+über `expo-speech-recognition` (Community-Modul mit Config-Plugin; seine
+`ExpoWebSpeechRecognition` spricht dieselbe Sprache wie der Browser, darum
+bleibt `Voice.listen` eine Logik — `DeviceRecogniser` holt vorher nur die
+Erlaubnis für Mikrofon und Erkennung, `isRecognitionAvailable` sagt, ob das
+Gerät es kann; sonst ein ehrlicher Satz). **Vorlesen** geht
+überall: im Browser über `speechSynthesis`, auf dem Gerät über `expo-speech`
+(`sayOnDevice` in `speech.ts`; die Stimmen des Geräts liest `nativeVoices.ts`
+in dieselbe Form wie die des Browsers, getestet — „Enhanced“ zählt als
+natürlich, `…-network` als sauber). Audio von ElevenLabs spielt `playback.ts`:
+im Browser ein `Audio`-Element, auf dem Gerät `expo-audio`, auch bei
+stummgeschaltetem iPhone. Beim Verlassen des Bildschirms **und** beim Tabwechsel
 (`useIsFocused`, `AppState`) hört das Zuhören auf; Expo Router hängt einen Tab
 nicht aus, ein Effekt allein reicht also nicht.
 
@@ -797,9 +867,10 @@ einem Monat, dahinter ein Feld für alles andere.
     wischen heisst erledigt, nach links **Morgen** · Planen · Löschen.
   - **Verschieben** (`postpone.ts`, getestet): „Morgen“ im Wisch schiebt mit
     einem Tipp auf morgen, die Uhrzeit bleibt, mit „Verschoben: Morgen ·
-    Rückgängig“. Der lange Druck hat die Gruppe Heute (nur überfällig) ·
-    Morgen · Nächste Woche (nächster Montag) · Datum wählen …. Gerechnet wird
-    ab dem echten Heute; bei wiederkehrenden ändert sich nur diese Frist.
+    Rückgängig“. Der lange Druck hat die Gruppe Heute (ausser sie ist schon
+    heute fällig, `postponeKindsFor`) · Morgen · Nächste Woche (nächster
+    Montag) · Datum wählen …. Gerechnet wird ab dem echten Heute; bei
+    wiederkehrenden ändert sich nur diese Frist.
   - **Langer Druck**: öffnet das Kontextmenü; Ziehen sortiert um (`order`).
   - **Schnelleingabe**: „+“ öffnet sie über der Tastatur. Die Satz-Erkennung
     (`parse.ts`, getestet) versteht „morgen 14 Uhr“, „jeden Montag“, „!!“,
@@ -809,8 +880,12 @@ einem Monat, dahinter ein Feld für alles andere.
     Teilaufgaben (`parentId`), Notiz, Bilder.
   - **Speicherung**: Ein Fälligkeitstag liegt als 12:00 Ortszeit
     (`dueAtOfDay`/`dueDayOf`), die Uhrzeit in `dueTime`.
-  - **Erinnerungen** werden gespeichert, aber noch nicht zugestellt; dafür
-    fehlt `expo-notifications`.
+  - **Erinnerungen** kommen auf dem Handy als Mitteilung
+    (`expo-notifications`, lokal geplant): `features/tasks/reminders.ts`
+    (getestet) rechnet aus den offenen Aufgaben mit Tag, Uhrzeit und Vorlauf
+    die nächsten 60, `pushReminders.ts` stellt sie neu, sobald sich etwas
+    ändert (`useTaskReminders`, einmal in `RootShell`). Im Browser gibt es
+    keine Mitteilungen — dort steht die Erinnerung nur an der Aufgabe.
   - **Links**: `/run/tasks?new=1`, `?task=<id>`.
 - **Notizen** (`notes`, `noteFolders`, `features/notes/`):
   - **Liste**: nach Datum gruppiert (Angeheftet, Heute, Letzte 7 Tage,
@@ -832,8 +907,9 @@ einem Monat, dahinter ein Feld für alles andere.
     dort nicht; ein Anheften ändert `updatedAt` nicht.
   - **Tags** sind `#wort` im Text.
   - **Löschen** setzt `deletedAt`; nach 30 Tagen ist die Notiz weg.
-  - **Grenzen**: Bilder nur im Browser. Fett und kursiv, Anhänge,
-    Sprachaufnahmen und Sperren fehlen, weil sie Pakete brauchen.
+  - **Grenzen**: Fett und kursiv, Anhänge, Sprachaufnahmen und Sperren
+    fehlen, weil sie Pakete brauchen. Bilder gehen überall (siehe „Bilder
+    wählen“ unter Einstellungen).
   - **Links**: `/run/notes?new=1`, `?note=<id>`, `folder=`, `tag=`, `q=`.
 - **Dokumente** (`documents`, `db/organizer.ts`) — Art (Vertrag, Versicherung,
   Garantie, Ausweis, Anderes), Ablaufdatum, Notiz. Was in 60 Tagen abläuft,
@@ -860,7 +936,11 @@ einem Monat, dahinter ein Feld für alles andere.
     entfernen). Keine Telefonnummer, Notiz, Geschenkideen oder Erinnerungen —
     die Felder `gifts` und `birthdayReminders` bleiben in den Daten, aber ohne
     Oberfläche.
-  - **Noch nicht**: der Import aus Kontakten braucht `expo-contacts`.
+  - **Aus den Kontakten übernehmen** (`importContacts.ts`, `expo-contacts`,
+    nur auf dem Handy; der Knopf oben rechts): wer im Adressbuch einen
+    Geburtstag hat, kommt als neuer Kontakt dazu oder bekommt das Datum an
+    einen Kontakt gleichen Namens ohne Datum; wer schon eines hat, bleibt.
+    Danach „N Geburtstage übernommen“, ohne Zugriff ein ehrlicher Satz.
   - **Links**: `/run/birthdays?new=1`, `?person=<id>`.
 - **Wetter** (`features/weather/`), über Open-Meteo ohne Schlüssel:
   - **Orte**: bis 20 (`weatherPlaces`; `weatherPlace` ist immer der erste),
@@ -973,9 +1053,12 @@ Rand; links davon der Kreis, rechts davon der Text.
   fällig ist. Höchstens sechs, der Rest als „+N weitere Aufgaben“.
 - **Je Aufgabe:** der Kreis hakt ab (mit kleiner Feier und „Rückgängig“),
   „!!“ vor dem Titel, darunter Uhrzeit, ↻ oder wie lange sie schon wartet.
-  Rechts **ein Knopf**: heute „Morgen“, an jedem anderen Tag „Heute“ (holt sie
-  vor). Ein Tipp auf den Text öffnet die Aufgabe. Nach rechts wischen heisst
-  erledigt, nach links „Nächste Woche“ (bzw. „Morgen“) und Löschen. Alles über
+  Rechts **ein Knopf: „Verschieben“**. Ein Tipp öffnet ein kleines Menü neben
+  dem Knopf (`Menu`, `measureAnchor`): Heute (ausser sie ist schon heute
+  fällig) · Morgen · Nächste Woche — und darunter **Datum wählen …**, das
+  dieselbe `DateSheet` wie in den Aufgaben öffnet (Tag und Uhrzeit). Ein Tipp
+  auf den Text öffnet die Aufgabe. Nach rechts wischen heisst erledigt, nach
+  links „Nächste Woche“ (bzw. „Morgen“) und Löschen. Alles über
   `useTaskActions` — dasselbe Verschieben ab dem echten Heute und dasselbe
   „Rückgängig“ wie in den Aufgaben.
 - **Die letzte Zeile** „Neue Aufgabe für heute“ bzw. „· Morgen“ öffnet unten
@@ -1078,15 +1161,26 @@ steht nur ein Satz und die Leiste; eine Vorlage ist ein Angebot, kein Schritt.
 
 Die Fläche ist ein **Raster mit vier Spalten** (`GRID_COLUMNS`) und Zeilen von
 56 pt (`GRID_ROW`); jedes Element hat `{ x, y, w, h }` in Rasterfeldern. Im
-**Bearbeiten** (ohne Elemente immer an) liegt das Raster blass darunter, jedes
-Element trägt seinen Namen und ein Zahnrad (Stil wählen, Entfernen):
+**Bearbeiten** (ohne Elemente immer an) liegt das Raster blass darunter —
+Linien und Spalten —, und jedes Element trägt oben seinen Namen mit seinem
+Zeichen in seiner Farbe. Über der Fläche steht eine Zeile, was jetzt geht.
 
-- **Schieben:** irgendwo auf dem Element mit dem Finger ziehen. Es rastet
-  **schon beim Ziehen** ins Zielfeld (`moveTo`), der Rest zwischen zwei Feldern
-  folgt dem Finger.
-- **Grösse:** an einer der **vier Ecken** ziehen (`resizeBy`); links und oben
-  wandert dabei der Anfang mit. Kleiner als ein Feld wird nichts, über den Rand
-  geht nichts.
+- **Erst antippen, dann schieben.** Ein Tipp wählt ein Element aus: Rahmen im
+  Akzent, vier Eckgriffe, und darunter erscheint seine Karte. **Erst jetzt**
+  schiebt der Finger auf dem Element, statt die Seite zu rollen — überall sonst
+  rollt sie ganz normal weiter. Ein Tipp daneben oder das Kreuz in der Karte
+  hebt die Wahl auf.
+- **Nie gegen die Seite kämpfen:** Am Gerät gibt der Griff die Geste nicht mehr
+  her (`onPanResponderTerminationRequest`), im Browser trägt er eine Kennung
+  (`noDragScrollId` in `app/webDragScroll.ts`), auf die das Ziehen mit der Maus
+  nicht anspringt.
+- **Die Karte darunter** (`HomeInspector.tsx`) ist die eine Stelle für alles:
+  **Stil** als `Segmented` (kein Blatt mehr), **Grösse** als zwei Regler
+  (Breite `2/4`, Höhe, je mit − und +), **Duplizieren** und **Entfernen**. Sie
+  steht immer gleich unter dem gewählten Element, die Fläche macht dafür Platz.
+- **Grösse:** wahlweise an einer der **vier Ecken** ziehen (`resizeBy`; links
+  und oben wandert der Anfang mit) oder mit − und + in der Karte. Kleiner als
+  ein Feld wird nichts, über den Rand geht nichts.
 - **Alles live:** Lage, Grösse und der Inhalt ändern sich während des Ziehens,
   nicht erst beim Loslassen — der Entwurf (`draft`) liegt im Bildschirm,
   gespeichert wird erst am Schluss.
@@ -1094,20 +1188,28 @@ Element trägt seinen Namen und ein Zahnrad (Stil wählen, Entfernen):
   in voller Breite und zieht ihn dann zusammen (`blockScale`, getestet:
   ein volles ist 1, ein halbes 0.5, nie unter 0.4) — so schrumpfen Formen und
   Schrift mit, statt nur enger zu stehen.
-- **Oben rechts** zwei runde Knöpfe von 36 pt: das Zahnrad öffnet die Stile,
-  der rote Mülleimer nimmt das Element weg. Sie liegen über der Schiebefläche,
-  darum fängt das Ziehen sie nicht ab.
+- **Ohne Element** steht ein Satz und eine gestrichelte Fläche „Element
+  hinzufügen“; ein neues Element ist gleich ausgewählt, damit man es sofort
+  einrichten kann. `duplicateBlock` (getestet) legt eine Kopie darunter.
 - Elemente dürfen sich überlappen — es ist die eigene Ansicht.
 - Der Inhalt wird auf die Höhe des Elements **beschnitten**, steht also nie
   darüber hinaus.
 
-**Elemente und ihre Stile** (`HomeBlockView.tsx`): Tagesstrahl (Band ·
-Jetzt-Karte · Liste), Aufgaben (Heft · Liste), Notizen (Karten · Liste),
-Neuigkeiten (Stapel · Zahl), Schnellzugriff (Karussell · Symbole),
-Better-Apps (Karten). Wie viel ein Element zeigt, sagt seine Höhe. Die grossen Stile sind genau die Bausteine der anderen
-Ansichten — `DayThread`, `DayTasks`, `HomeNotes`, `NewsSection`,
-`QuickAccess`, `AppFamily` —, die kleinen kurze Fassungen für halbe Breite.
-Gemerkt wird das Ganze je Konto auf dem Gerät (`useHomeLayout`).
+**Elemente und ihre Varianten** (`HomeBlockView.tsx`): Tagesstrahl, Aufgaben,
+Notizen und Schnellzugriff haben je zwei, der Tagesstrahl drei, Better-Apps
+eine. Sie heissen schlicht **„Variante 1“, „Variante 2“ …**
+(`home.style.variant`, `variantLabel`) — wie sie aussehen, sieht man am
+Element selbst; eigene Namen wie „Band“ oder „Heft“ sagten weniger, als sie
+versprachen. Wie viel ein Element zeigt, sagt seine Höhe. Die grossen
+Varianten sind genau die Bausteine der anderen Ansichten — `DayThread`,
+`DayTasks`, `HomeNotes`, `NewsSection`, `QuickAccess`, `AppFamily` —, die
+kleinen kurze Fassungen für halbe Breite. Gemerkt wird das Ganze je Konto auf
+dem Gerät (`useHomeLayout`).
+
+**Eine Vorlage wählt man als Bild** (`HomeTemplates.tsx`): drei Karten
+nebeneinander, jede mit einer kleinen Zeichnung ihrer Elemente in deren Farben
+(dasselbe Raster, nur winzig) und dem Namen darunter — Alles · Übersicht ·
+Jetzt. Ein Tipp ersetzt, was da ist.
 
 Übersicht und Jetzt zeigen immer **heute**; ein Umschalten setzt einen
 gewischten Tag zurück. Jede Kachel ist als Ganzes ein Knopf und führt in ihre
@@ -1206,8 +1308,8 @@ Wahrheit.
   `AccountPhoto.tsx`): gewählt und verkleinert wie ein eigener Hintergrund
   (`pickImage`, `/v1/uploads`), das alte Bild räumt die App danach weg; „Foto
   entfernen“ nimmt es ganz. Der Dienst nimmt nur ein Bild, das es gibt (sonst
-  `400 photo_invalid`). Frei, ohne Abo. Am Handy fehlt die Auswahl noch
-  (`expo-image-picker`) — das Blatt sagt es ehrlich.
+  `400 photo_invalid`). Frei, ohne Abo. Auf dem Handy kommt das Bild aus den
+  Fotos (`expo-image-picker`), verkleinert wie im Browser.
 
 **Kein Aussehen, kein Abo und keine KI im Profil**: hell/dunkel, Farben,
 Hintergrund, das Abo und das KI-Kontingent stehen alle in den Einstellungen —
@@ -1277,7 +1379,10 @@ Zusatzpaket) und teilen sich die Masse in `ui/gestures.ts`.
 | Nach links/rechts → weiter/zurück      | Kalender, Budget, Tagesstrahl        | `ui/useSwipeSteps.ts`   |
 | Blatt am Griff/Kopf nach unten wischen | jedes `Sheet`, auch mit `header`     | `ui/Sheet.tsx`          |
 | Vom linken Rand nach rechts → zurück   | iOS vom Stapel, im Browser selbst    | `app/EdgeSwipeBack.tsx` |
-| Mit der Maus ziehen und werfen         | nur im Browser, alle Rollflächen     | `app/webDragScroll.ts`  |
+| Mit der Maus ziehen und werfen         | nur im Browser, alle Rollflächen\*    | `app/webDragScroll.ts`  |
+
+\* Ausser wo der Zug selbst etwas bewegt: ein Element im Baukasten trägt eine
+Kennung (`noDragScrollId`), auf die das Ziehen mit der Maus nicht anspringt.
 
 Ein Blatt lässt sich nur am Griff und an der Kopfzeile herunterziehen, nicht im
 Inhalt — dort stecken Felder und das Wecker-Rad. Wer eine eigene Kopfzeile
@@ -1297,7 +1402,10 @@ Löschen auch als Aktion der Bedienungshilfe; bestehende Papierkörbe bleiben.
   (`accent`) mit Knopf in `textOnAccent`, aus grau mit hellem Knopf, gleitend
   (bei reduzierter Bewegung springend); `accessibilityRole="switch"`
 - `useUndo()` für die Leiste „Rückgängig“ (5 s; `UndoProvider` sitzt in
-  `RootShell`)
+  `RootShell`). Sie steht **ganz unten**, direkt über der Tab-Leiste, im
+  Vollbild am unteren Rand — nie irgendwo in der Mitte. Solange sie steht,
+  tritt der Knopf unten rechts zurück (`useToastVisible`), damit sich nichts
+  überdeckt
 
 Löschen, Archivieren und Abhaken fragen nicht nach, sie lassen sich
 zurücknehmen. Eine Rückfrage kommt nur, wo nichts mehr zurückgeht.
@@ -1468,9 +1576,10 @@ und Apple Mail:
 - **Unterhaltung** (Vollbild):
   - ˄ ˅ springen zur nächsten Unterhaltung; jede Nachricht hat Kopf und
     „an mich ▾“, ab vier Nachrichten sind die mittleren gebündelt.
-  - Das HTML steht im Browser in einem iframe mit `sandbox` ohne Skripte und
-    einer strengen CSP, auf dem Gerät nur als Text. Die Höhe ist geschätzt,
-    weil das iframe nicht messbar ist.
+  - Das gesäuberte HTML steht im Browser in einem iframe mit `sandbox` ohne
+    Skripte und einer strengen CSP, auf dem Gerät in einer `WebView` ohne
+    JavaScript (`react-native-webview`); PDF-Anhänge ebenso. Die Höhe ist
+    geschätzt, weil der Rahmen nicht messbar ist.
   - Blockierte Bilder lassen sich nachladen. Anhänge stehen als Kacheln mit
     Vorschau.
   - Leiste unten: Archivieren · Verschieben · Antworten · Markieren · Löschen.
@@ -1560,22 +1669,53 @@ Im **leeren Assistenten** steht er über dem Gespräch
 abschickt, zerfällt er wellenförmig und fliegt in die eigene Nachricht. Bei
 reduzierter Bewegung blendet er nur aus.
 
-**Er redet laut mit** (`features/intro/narration.ts`, `narrator.ts`,
-`NarrationButton.tsx`): auf dem Startbildschirm, beim Anmelden und
-Registrieren, beim Einrichten und bei „Kennst du dich schon aus?“ sagt er, was
-in seiner Blase steht — einmal je Satz, nie beim Tippen, eine Drittelsekunde
-nach dem Erscheinen. Vor dem ersten Tipp auf der Seite erlauben Browser keinen
-Ton (`navigator.userActivation`); solange bittet der Startbildschirm darum
-(„Antippen, dann rede ich mit dir“). Der Lautsprecher neben der Blase schaltet
-ihn stumm, und das bleibt so (`AsyncStorage`). Ohne Konto spricht die beste
-Stimme des Browsers, mit Konto `assistantVoice`.
+**Er redet laut mit** (`features/intro/narration.ts`, `narrator.ts`): auf dem
+Startbildschirm, beim Anmelden und Registrieren, beim Einrichten und bei
+„Kennst du dich schon aus?“ sagt er, was in seiner Blase steht — **einmal**
+je Satz, eine Drittelsekunde nach dem Erscheinen, und dann ist Ruhe. **Kein
+Lautsprecher-Knopf** mehr, weder zum Wiederholen noch zum Stummschalten. Vor
+dem ersten Tipp auf der Seite erlauben Browser keinen Ton
+(`navigator.userActivation`); bis dahin bleibt er still und sagt danach den
+Satz, der gerade in der Blase steht. Ohne Konto spricht die beste Stimme des
+Browsers, mit Konto `assistantVoice`.
 
-- **Erstes Öffnen (alle Apps, `StartScreen`):** „Bist du schon Mitglied im
-  Better-Club?“ — darunter die Pille zum Einloggen, der zweite Weg zum
-  Registrieren, eine „oder“-Linie und zwei runde Anbieter-Knöpfe (Apple und
-  Google sagen ehrlich, dass sie mit den Store-Apps kommen). Anmelden und
-  Registrieren teilen sich `features/auth/AuthShell.tsx` und zeigen den kleinen
-  Avatar mit eigener Sprechblase.
+- **Erstes Öffnen (alle Apps, `StartScreen`):** oben der Avatar mit „Bist du
+  schon Mitglied im Better-Club?“, unten fährt ein **dunkles Feld** mit runden
+  Ecken herein — immer dunkel, auch im hellen Modus (`ThemeProvider` mit
+  `darkTheme`), mit einem Hauch Signalgrün oben (`accentSoft` → `background`).
+  Darin **eine** Haupthandlung, **Anmelden** im Signalgrün (`variant="signal"`),
+  darunter **Konto erstellen** als Umriss (`variant="outline"`: Rand in
+  `textFaint`, Schrift voll), dann „oder weiter mit“ und **Apple** und
+  **Google** klein nebeneinander (`features/auth/SocialButton.tsx`): echtes
+  Zeichen — Apple aus Ionicons, das bunte „G“ als PNG aus `scripts/brands.js` —
+  auf dunkler Pille mit Rand. Ein Tipp darauf sagt noch ehrlich, dass sie mit
+  den Store-Apps kommen. Knöpfe in Pillenform macht `Button` selbst (`pill`),
+  damit auch ein Rand den runden Enden folgt (`PillButton`).
+- **Anmelden und Registrieren** (`features/auth/AuthShell.tsx`) tragen denselben
+  Stil: oben auf hellem Grund der kleine Avatar mit kurzer Blase („Schön, dich
+  wiederzusehen.“ / „Schön, dass du dabei bist!“), darunter das dunkle Feld bis
+  unten, das beim Öffnen hereinfährt — Titel, die Felder direkt darauf (keine
+  Karte), **Anmelden** bzw. **Konto erstellen** im Signalgrün und leise der
+  Weg zur anderen Maske. **Kein erklärender Text**: kein Untertitel, kein
+  Hinweis zum Konto, keine Hinweise unter den Feldern — was die Regel ist,
+  sagt der Platzhalter („Mindestens acht Zeichen“, „z. B. anna.meier“) oder
+  erst der Fehler; unter dem Benutzernamen steht nur „wird geprüft“ bzw.
+  „frei“.
+- **Das dunkle Feld ist ein Baustein** (`features/intro/StagePanel.tsx`):
+  Anmelden, Registrieren und Einrichten nutzen ihn; mit `scroll` rollt der
+  Inhalt im Feld und die Knöpfe stehen fest unten.
+- **Einrichten** (`SetupScreen`) sieht aus wie Anmelden: oben hell zurück, der
+  Fortschritt und der Avatar mit Blase, darunter das dunkle Feld mit einem
+  grossen Titel je Schritt, der Eingabe und **Weiter** fest unten. So wenig
+  Text wie möglich: kurze Blasen, keine Hinweise unter den Feldern, die
+  Stimmenwahl ohne Hinweise (`VoicePicker bare`), zum Schluss nur Logo und
+  Name der App. Der Spitzname ist schlicht wie Anmelden — Titel, ein Feld,
+  **Weiter** gleich darunter (kurze Schritte ohne `scroll`) — und steht schon
+  vorbelegt mit dem Vorschlag aus dem Benutzernamen (`nicknameSuggestion`,
+  getestet: „matteo.cocetrone“ → „Matteo“, sonst die E-Mail;
+  `OnboardingContext`).
+- **Tutorial und „Kennst du dich schon aus?“** nehmen dieselben Knöpfe: die
+  Haupthandlung als Pille im Signalgrün, die zweite als Umriss.
 - **Registrieren (`features/auth/SignUpForm.tsx`):** E-Mail, **Benutzername**,
   Passwort, Passwort wiederholen. Der Benutzername steht also schon hier fest;
   die Form prüft `^[a-z0-9][a-z0-9._-]{2,23}$` (dieselbe Regel in
@@ -1586,12 +1726,15 @@ Stimme des Browsers, mit Konto `assistantVoice`.
   weg, die App fliegt an, dann „Kennst du dich mit der App schon aus?“ (Ja /
   Tutorial). Nur wenn nach dem Laden ein Konto dazukommt, nie beim Neustart.
 - **Nach dem Registrieren (GetBetter):** ein Gespräch in Schritten
-  (`SetupScreen.tsx`), das er auch laut spricht. Darum zuerst seine **Stimme** (`assistantVoice`, ein `voiceURI` aus
-  `speechSynthesis` — der Schritt fällt weg, wo es nichts zu wählen gibt), dann
-  der **Spitzname** (`firstName` — nur, wie die App dich anspricht, nicht der
-  Benutzername), der **Name des Assistenten** (`assistantName`), sein
-  **Avatar** (Figur und Farbe), Personalisieren (Modus, Akzent, Voreinstellung, Hintergrund), „Kennst du dich
-  schon aus?“ — dann `completeOnboarding`. Sobald man einmal weiter ist, stehen
+  (`SetupScreen.tsx`, `steps.ts`, getestet), das er auch laut spricht: mit
+  Abo zuerst seine **Stimme** (`assistantVoice` — der Schritt fällt weg, wo es
+  nichts zu wählen gibt), dann der **Spitzname** (`firstName` — nur, wie die
+  App dich anspricht, nicht der Benutzername), dann **Personalisieren** auf
+  einer Seite (`PersonalizeStep`): unter **App** hell/dunkel, Akzent,
+  Voreinstellung und Hintergrund (`StylePicker`), unter **Assistent** sein Name
+  mit drei Ideen zum Antippen und sein Avatar — ohne Abo als Anprobe (siehe
+  „Abo und Kontingent“), dann „Kennst du dich schon aus?“ und
+  `completeOnboarding`. Sobald man einmal weiter ist, stehen
   die Schritte fest, auch wenn der Browser die Stimmen erst später nachreicht.
   Die anderen Apps laufen beim Registrieren wie beim Einloggen. Alles davon
   ändert man später in den Einstellungen.
@@ -1659,28 +1802,62 @@ Stufen von oben nach unten): an den schlechtesten 2 % der Bildpunkte jeder
 Höhe erreicht `textMuted` 4.5:1 und `textFaint` 3:1 — überall, weil der Inhalt
 über das stehende Bild rollt. Wer ein Bild tauscht, misst neu. Ein eigenes
 Bild wird im Browser per Canvas auf 1280 px verkleinert und an `/v1/uploads`
-geschickt; am Handy fehlt dafür noch `expo-image-picker`
-(`features/personalize/pickImage.ts` sagt das ehrlich).
+geschickt; auf dem Handy wählt `expo-image-picker` aus den Fotos und
+`expo-image-manipulator` verkleinert es genauso (`features/personalize/pickImage.ts`,
+beide Wege liefern dieselbe JPEG-Data-URL).
 
 Jedes Modul hat eine eigene Farbe (`theme/modules.ts`); `moduleTint(theme, id)`
 und `hueTint(theme, hue)` machen daraus die gezeichnete Fassung eines Logos.
 
 ## Veröffentlichen
 
-Jede App ist für den Store vorbereitet:
+Die Schritt-für-Schritt-Anleitung — Konten, Dienst ins Netz, EAS, TestFlight,
+Google Play — steht in [docs/veroeffentlichen.md](docs/veroeffentlichen.md).
+Was im Code dafür vorbereitet ist:
 
 - `app.json` — Name, `version` 1.0.0, `ios.bundleIdentifier` und
   `android.package` `ch.better.<slug>`, Splash in der App-Farbe, adaptive
-  Android-Icons, Favicon. `buildNumber` / `versionCode` je Release erhöhen.
-- `eas.json` — Profile `development`, `preview`, `production`.
-- `EXPO_PUBLIC_API_URL` beim Bauen setzen: das ist die eine Stelle, an der aus
-  dem Entwicklungsdienst der echte wird.
+  Android-Icons, Favicon, `ITSAppUsesNonExemptEncryption: false` (keine
+  Verschlüsselungs-Rückfrage bei TestFlight). `extra.eas.projectId` schreibt
+  `eas init` — einmal je App, dann einchecken.
+- `eas.json` — `development` (Dev-Client), `preview` (intern: iOS ad hoc,
+  Android als APK zum Weitergeben), `production` (Store; Build-Nummern zählt
+  EAS selbst, `appVersionSource: remote`, `autoIncrement`), je mit `channel`
+  für Updates ohne Store (`expo-updates`, `runtimeVersion` folgt der
+  Versionsnummer; einmal `eas update:configure`, dann `eas update --channel
+  production`). `submit` legt Android auf die Schiene **Interner Test**. Je App
+  die Skripte `build:preview`, `build:production`, `submit:ios`, `submit:android`.
+- **Alles nativ mit Expo-Modulen** (`app.json` → `plugins`, mit den Texten für
+  die Erlaubnis): `expo-secure-store` (Sitzung im Schlüsselbund),
+  `expo-image-picker` + `expo-image-manipulator` (Bilder), `expo-speech`
+  (Vorlesen), `expo-audio` (ElevenLabs), `react-native-webview` (Mail-HTML,
+  PDF), `expo-speech-recognition` (Zuhören: Vorsagen und Gespräch); nur
+  GetBetter dazu `expo-contacts` (Geburtstage) und `expo-notifications`
+  (Erinnerungen an Aufgaben). Nach neuen Modulen muss ein neuer Store-Bau
+  her, kein Update.
+- **Vor jedem Bau prüft `scripts/release-check.js`** (getestet, `npm run
+  release:check`; auf EAS als `eas-build-pre-install`): Kennungen, Version,
+  Bilder — und für `preview`/`production`, dass `EXPO_PUBLIC_API_URL` mit
+  `https://` beginnt und `EXPO_PUBLIC_API_TOKEN` gesetzt ist. Beides liegt bei
+  EAS (`eas env:create`), nie in den Dateien.
+- **Der Dienst im Netz braucht ein Geheimnis:** `BETTER_API_TOKEN` beim Dienst,
+  `EXPO_PUBLIC_API_TOKEN` in der App (`apiToken` in `db/service.ts`). Jede
+  Anfrage trägt `Authorization: Bearer …` (`serviceHeaders`), Adressen, die
+  der Browser oder ein Bild selbst lädt — Anhänge, Hintergründe, Audio —
+  hängen es als `?token=` an (`withToken`). Der Dienst weist ohne Geheimnis
+  alles ausser `/v1/health` mit `401 unauthorized` ab (`test/token.test.js`);
+  leer bleibt er offen, wie in der Entwicklung.
+- `services/api/Dockerfile` — der Dienst als Container: Daten unter `/data`
+  (Volume!), Admin aus, `/v1/health` als Healthcheck. HTTPS davor macht ein
+  Reverse-Proxy oder der Anbieter. Mitgeben: `BETTER_API_TOKEN` (damit ist
+  die Sitzung Pflicht), `BETTER_DATA_KEY` (Platte verschlüsselt) und hinter
+  einem Proxy `BETTER_TRUST_PROXY=1` (für die Bremse gegen Raten).
 - Sobald eine App im Store ist, ihren `packageName` in `APPS` eintragen — dann
   führt der Installieren-Knopf in GetBetter dorthin.
 
 ```bash
 cd apps/getbetter
-EXPO_PUBLIC_API_URL=https://api.example.ch eas build --profile production
+eas init && npm run build:production && npm run submit:ios
 ```
 
 ## Regeln
