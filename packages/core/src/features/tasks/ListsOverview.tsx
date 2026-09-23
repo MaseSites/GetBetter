@@ -43,18 +43,21 @@ export function ListsOverview({
         <ActionRow
           icon="inbox"
           label={t('tasks.view.inbox')}
+          detail={t('tasks.view.inbox.detail')}
           value={countText(counts.inbox)}
           onPress={() => onOpenList('inbox')}
         />
         <ActionRow
           icon="sun"
           label={t('tasks.view.today')}
+          detail={t('tasks.view.today.detail')}
           value={countText(counts.today)}
           onPress={() => onOpenList('today')}
         />
         <ActionRow
           icon="calendar"
           label={t('tasks.view.planned')}
+          detail={t('tasks.view.planned.detail')}
           value={countText(counts.planned)}
           onPress={() => onOpenList('planned')}
         />

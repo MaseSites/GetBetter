@@ -858,9 +858,12 @@ ein Tipp fürs Wichtigste. Alles je Konto, Tage als `YYYY-MM-DD`
 einem Monat, dahinter ein Feld für alles andere.
 
 - **Aufgaben** (`tasks`, `projects`, `features/tasks/`):
-  - **Ansichten** im Titelmenü „Heute ▾“: Eingang, Heute, Geplant, Projekte,
-    Alle Listen. Eine durchgehende Liste mit Abschnittsköpfen; „Überfällig“ ist
-    rot und ab drei Aufgaben eingeklappt.
+  - **Ansichten** im Titelmenü „Heute ▾“: Heute, Ohne Datum, Geplant,
+    Projekte, Übersicht — **jede mit einem Satz darunter**, was drin ist
+    („Fällig heute, dazu Überfälliges“, „Noch nicht eingeplant“ …; `detail` am
+    `MenuItem`, dasselbe in der Übersicht als `ActionRow detail`). Nichts heisst
+    mehr „Eingang“. Eine durchgehende Liste mit Abschnittsköpfen; „Überfällig“
+    ist rot und ab drei Aufgaben eingeklappt.
   - **Zeile**: Kreis, „!!“ vor dem Titel, Metazeile nur mit dem, was da ist
     (Zeit · ↻ · Erinnerung · 2/5 · Projekt · Tags).
   - **Abhaken**: Der Kreis hakt nach 1,2 s ab, mit Rückgängig. Nach rechts
@@ -874,10 +877,22 @@ einem Monat, dahinter ein Feld für alles andere.
   - **Langer Druck**: öffnet das Kontextmenü; Ziehen sortiert um (`order`).
   - **Schnelleingabe**: „+“ öffnet sie über der Tastatur. Die Satz-Erkennung
     (`parse.ts`, getestet) versteht „morgen 14 Uhr“, „jeden Montag“, „!!“,
-    „#tag“ und „@Projekt“.
-  - **Detail** als Blatt: Datum, Uhrzeit, Erinnerung, Wiederholen (auch ab
-    Erledigung), Priorität 0–3 (immer über `priorityOf` lesen), Projekt, Tags,
-    Teilaufgaben (`parentId`), Notiz, Bilder.
+    „#tag“ und „@Projekt“; solange nichts dasteht, sagt eine Zeile das. Unter
+    dem Feld stehen **Knöpfe mit Wort** (`FieldButton`) — Datum · Priorität ·
+    Projekt · #Tag · Erinnerung —, in denen das Gewählte steht, sobald es
+    etwas gibt („Morgen 18:00“, „Hoch“); abwählen geht im Menü des Knopfs
+    („Kein Datum“, „Keine“, „Kein Projekt“). Kein Symbol ohne Wort.
+  - **Detail** als Blatt, in Zeilen „Name · Wert“, die sich aufklappen
+    (`FieldRow`): unter **Wann** Datum, Uhrzeit, Erinnerung („Pünktlich zur
+    Uhrzeit“, „10 Min vorher“, „Am Vortag 18:00“; ohne Uhrzeit sagt eine Zeile,
+    dass erst eine her muss; im Browser, dass die Mitteilung in der Handy-App
+    kommt) und Wiederholen („Alle 2 Wochen“ mit − und + statt Wörtern, „Ab dem
+    Abhaken zählen“ mit Erklärung darunter); unter **Projekt und Tags**
+    Priorität in Worten (Keine · Niedrig · Mittel · Hoch, mit Erklärung — nie
+    nur Ausrufezeichen; gelesen immer über `priorityOf`), Projekt, Abschnitt,
+    Tags mit Erklärung; dann Teilaufgaben (`parentId`), Notiz, Bilder. Im
+    Kontextmenü heisst es „Datum setzen …“ und „In ein Projekt …“, nie
+    „Verschieben nach“.
   - **Speicherung**: Ein Fälligkeitstag liegt als 12:00 Ortszeit
     (`dueAtOfDay`/`dueDayOf`), die Uhrzeit in `dueTime`.
   - **Erinnerungen** kommen auf dem Handy als Mitteilung
@@ -1149,8 +1164,8 @@ vier Knöpfe in der Kopfzeile, gleich unter dem Gruss rechts
 | Ansicht | Knopf | Was sie zeigt |
 | ------- | ----- | ------------- |
 | **Alles** (`list`) | ≡ | wie beschrieben: Neuigkeiten, Tagesstrahl, Aufgaben, Notizen, Schnellzugriff, Better-Apps |
-| **Übersicht** (`grid`) | ⊞ | kürzer und an einem Ort (`HomeGrid.tsx`): oben **Heute** mit dem **echten Tagesstrahl** über die ganze Breite (`DayThread`, nur was noch kommt, auf ruhiger Fläche; seine Karten sind eigene Knöpfe, darum führt nur die Kopfzeile weiter), darunter die **Aufgaben** als dasselbe Heft wie überall (`DayTasks keepEmpty`), dann **Notizen** und **Neuigkeiten** als zwei halbe Kacheln, zuunterst der **Schnellzugriff**. Alles steht **immer** da, auch leer |
-| **Jetzt** (`focus`) | ⏱ | nur der Moment (`HomeFocus.tsx`): oben das Ganztägige, dann gross, was gerade läuft (Better-Grün, „noch 40 Min.“) oder als Nächstes kommt („in 20 Min.“) — sonst „Heute steht nichts mehr an.“ —, darunter die Aufgaben von heute |
+| **Übersicht** (`grid`) | ⊞ | **die nächsten sieben Tage** (`HomeGrid.tsx`, Rechnung in `weekAgenda.ts`, getestet): oben der **Wochenstreifen** — je Tag Wochentag und Zahl, heute im Tintenkreis, darunter bis drei Farbpunkte für das, was ansteht; ein Tipp öffnet den Tag im grossen Zeitstrahl —, darunter die **Liste** dieser Tage: je Tag eine Kopfzeile („Heute · 23. September“, heute im Akzent), dann die Zeilen nach Uhrzeit — Termine mit ihrer Terminfarbe als Balken, Geburtstage mit Geschenk, Aufgaben mit Frist und Kreis, Ganztägiges zuerst, Aufgaben ohne Zeit zuletzt. Tage ohne Eintrag fehlen; ohne alles „Nichts geplant in den nächsten sieben Tagen.“ |
+| **Jetzt** (`focus`) | ⏱ | **eine dunkle Bühne**, wie das Feld im Intro (`HomeFocus.tsx`: `ThemeProvider` mit `createTheme('dark', …)`, Verlauf `accentSoft` → `background`, immer dunkel): oben „Jetzt“ mit grünem Punkt, wenn etwas läuft, dann gross die Uhrzeit (`hero`, tickt alle zehn Sekunden), darunter der laufende Termin im Signalgrün mit „noch 40 Min. · 14:00–15:00“ und einer Linie, die mit der Zeit wandert — oder der nächste („in 20 Min.“), sonst „Heute steht nichts mehr an.“ —, das Ganztägige als kleine Zeilen, **Danach** der Eintrag dahinter, eine feine Linie, und **Heute erledigen**: drei Aufgaben mit Kreis zum Abhaken, Überfällige zuerst, rechts „+N weitere“ |
 | **Eigene** (`custom`) | + | eine freie Fläche (`HomeCustom.tsx`, Modell in `homeLayout.ts`, getestet): Elemente liegen auf einem Raster, lassen sich hinschieben, wohin man will, und an den Ecken grösser ziehen |
 
 **Die eigene Ansicht ist eine Sandbox** (`HomeCustom.tsx`; das Modell

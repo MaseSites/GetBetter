@@ -11,23 +11,19 @@ import {
 import { priorityOf } from '@/db/taskFields';
 import { useI18n } from '@/i18n';
 import { useTheme } from '@/theme';
-import {
-  Chip,
-  Input,
-  measureAnchor,
-  Segmented,
-  type MenuAnchor,
-  type MenuEntry,
-  type SegmentedOption,
-} from '@/ui';
+import { Chip, Input, measureAnchor, Text, type MenuAnchor, type MenuEntry } from '@/ui';
 
 import { ChipRow, FieldRow, TokenChip } from './fields';
-import { PRIORITY_MARKS } from './labels';
+import { priorityName } from './labels';
 import { uniqueTags } from './lists';
 
-type PriorityValue = '0' | '1' | '2' | '3';
+type Open = 'priority' | 'section' | 'tags' | null;
 
-/** Priorität als Segment, Projekt, Abschnitt und Tags. Jede Wahl gilt sofort. */
+/**
+ * Priorität, Projekt, Abschnitt und Tags — jede als Zeile mit Namen und Wert,
+ * wie bei „Wann“: ein Tipp klappt die Auswahl auf, jede Wahl gilt sofort.
+ * Keine Ausrufezeichen, keine Chips ohne Ueberschrift.
+ */
 export function DetailOrganize({
   task,
   projects,
@@ -40,17 +36,15 @@ export function DetailOrganize({
   const { t } = useI18n();
   const theme = useTheme();
   const projectNode = useRef<View>(null);
+  const [open, setOpen] = useState<Open>(null);
   const [tagDraft, setTagDraft] = useState('');
 
   const priority = priorityOf(task.priority);
   const project = projects.find((entry) => entry.id === task.projectId);
   const sections = project?.sections ?? [];
+  const section = task.section && sections.includes(task.section) ? task.section : null;
   const tags = task.tags ?? [];
-
-  const options: SegmentedOption<PriorityValue>[] = TASK_PRIORITIES.map((level) => ({
-    value: String(level) as PriorityValue,
-    label: level === 0 ? t('tasks.priority.none') : PRIORITY_MARKS[level],
-  }));
+  const toggle = (key: Exclude<Open, null>) => setOpen((current) => (current === key ? null : key));
 
   async function pickProject() {
     const anchor = await measureAnchor(projectNode.current);
@@ -82,19 +76,32 @@ export function DetailOrganize({
   }
 
   return (
-    <View style={{ gap: theme.spacing.md }}>
-      <Segmented
-        accessibilityLabel={t('tasks.field.priority')}
-        options={options}
-        value={String(priority) as PriorityValue}
-        onChange={(value) =>
-          void taskRepo.update(task.id, { priority: Number(value) as TaskPriority })
-        }
-      />
+    <View>
+      <FieldRow
+        separator={false}
+        icon="flag"
+        label={t('tasks.field.priority')}
+        value={priorityName(t, priority)}
+        expanded={open === 'priority'}
+        onPress={() => toggle('priority')}
+      >
+        <ChipRow>
+          {TASK_PRIORITIES.map((level) => (
+            <Chip
+              key={level}
+              label={priorityName(t, level)}
+              selected={priority === level}
+              onPress={() => void taskRepo.update(task.id, { priority: level as TaskPriority })}
+            />
+          ))}
+        </ChipRow>
+        <Text variant="caption" tone="faint">
+          {t('tasks.priority.hint')}
+        </Text>
+      </FieldRow>
 
       <View ref={projectNode} collapsable={false}>
         <FieldRow
-          separator={false}
           icon="briefcase"
           label={t('tasks.field.project')}
           value={project?.name ?? t('tasks.project.none')}
@@ -103,45 +110,64 @@ export function DetailOrganize({
       </View>
 
       {sections.length > 0 ? (
-        <ChipRow>
-          <Chip
-            label={t('tasks.project.noSection')}
-            selected={!task.section || !sections.includes(task.section)}
-            onPress={() => void taskRepo.update(task.id, { section: null })}
-          />
-          {sections.map((section) => (
+        <FieldRow
+          icon="lines"
+          label={t('tasks.field.section')}
+          value={section ?? t('tasks.project.noSection')}
+          expanded={open === 'section'}
+          onPress={() => toggle('section')}
+        >
+          <ChipRow>
             <Chip
-              key={section}
-              label={section}
-              selected={task.section === section}
-              onPress={() => void taskRepo.update(task.id, { section })}
+              label={t('tasks.project.noSection')}
+              selected={section === null}
+              onPress={() => void taskRepo.update(task.id, { section: null })}
             />
-          ))}
-        </ChipRow>
+            {sections.map((entry) => (
+              <Chip
+                key={entry}
+                label={entry}
+                selected={section === entry}
+                onPress={() => void taskRepo.update(task.id, { section: entry })}
+              />
+            ))}
+          </ChipRow>
+        </FieldRow>
       ) : null}
 
-      {tags.length > 0 ? (
-        <ChipRow>
-          {tags.map((tag) => (
-            <TokenChip
-              key={tag}
-              label={`#${tag}`}
-              onRemove={() =>
-                void taskRepo.update(task.id, { tags: tags.filter((entry) => entry !== tag) })
-              }
-            />
-          ))}
-        </ChipRow>
-      ) : null}
-      <Input
-        value={tagDraft}
-        onChangeText={setTagDraft}
-        placeholder={t('tasks.detail.addTag')}
-        accessibilityLabel={t('tasks.field.tags')}
-        autoCapitalize="none"
-        returnKeyType="done"
-        onSubmitEditing={addTags}
-      />
+      <FieldRow
+        icon="tag"
+        label={t('tasks.field.tags')}
+        value={tags.length > 0 ? tags.map((tag) => `#${tag}`).join(' ') : t('tasks.tags.none')}
+        expanded={open === 'tags'}
+        onPress={() => toggle('tags')}
+      >
+        {tags.length > 0 ? (
+          <ChipRow>
+            {tags.map((tag) => (
+              <TokenChip
+                key={tag}
+                label={`#${tag}`}
+                onRemove={() =>
+                  void taskRepo.update(task.id, { tags: tags.filter((entry) => entry !== tag) })
+                }
+              />
+            ))}
+          </ChipRow>
+        ) : null}
+        <Input
+          value={tagDraft}
+          onChangeText={setTagDraft}
+          placeholder={t('tasks.detail.addTag')}
+          accessibilityLabel={t('tasks.field.tags')}
+          autoCapitalize="none"
+          returnKeyType="done"
+          onSubmitEditing={addTags}
+        />
+        <Text variant="caption" tone="faint" style={{ paddingTop: theme.spacing.xs }}>
+          {t('tasks.tags.hint')}
+        </Text>
+      </FieldRow>
     </View>
   );
 }

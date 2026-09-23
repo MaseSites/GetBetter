@@ -9,10 +9,14 @@ import { Icon, Text } from '@/ui';
 
 import { spanText, type DayEntry } from './DayThread';
 import { focusOf } from './homeView';
-import { minutesLeftOf, minutesUntilOf } from './threadState';
+import { minutesLeftOf, minutesUntilOf, progressOf } from './threadState';
 import { useDayThread } from './useDayThread';
 
 const NOW_TICK_MS = 10_000;
+/** Der Fortschrittsbalken in der laufenden Karte. */
+const PROGRESS = 4;
+/** Die Spur des Balkens: die Schriftfarbe, fast durchsichtig (`#RRGGBBAA`). */
+const TRACK_ALPHA = '33';
 
 type Timed = DayEntry & { at: string };
 
@@ -63,6 +67,7 @@ export function FocusNow() {
   }
 
   const minutes = running ? minutesLeftOf(entry, now) : minutesUntilOf(entry, now);
+  const progress = running ? progressOf(entry, now) : null;
   const span = minutes === null ? null : spanText(t, minutes, running ? 'left' : 'in');
   const time = entry.until
     ? `${formatTime(language, entry.at)}–${formatTime(language, entry.until)}`
@@ -121,10 +126,33 @@ export function FocusNow() {
       >
         {detail}
       </Text>
+      {/* Wie weit der Termin ist — die Linie wandert wie im Zeitstrahl. */}
+      {progress === null ? null : (
+        <View
+          style={[
+            styles.track,
+            {
+              height: PROGRESS,
+              marginTop: theme.spacing.xs,
+              borderRadius: theme.radii.pill,
+              backgroundColor: `${ink}${TRACK_ALPHA}`,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.fill,
+              { width: `${Math.round(progress * 100)}%`, borderRadius: theme.radii.pill, backgroundColor: ink },
+            ]}
+          />
+        </View>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  track: { overflow: 'hidden', alignSelf: 'stretch' },
+  fill: { height: '100%' },
 });

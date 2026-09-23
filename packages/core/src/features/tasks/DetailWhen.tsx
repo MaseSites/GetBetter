@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { tasks as taskRepo, type TaskRepeat, type TaskRepeatUnit, type TaskRow } from '@/db';
 import { dueDayOf } from '@/db/taskFields';
@@ -7,7 +7,7 @@ import type { TaskPatch } from '@/db/tasks';
 import { DayPicker } from '@/features/shared/DayPicker';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Chip, HIT_TARGET, Text, Toggle } from '@/ui';
+import { Chip, HIT_TARGET, IconButton, Text, Toggle } from '@/ui';
 
 import { weekdayOf } from './days';
 import { ChipRow, FieldRow, TimeField } from './fields';
@@ -69,17 +69,27 @@ function RepeatEditor({
       </ChipRow>
       {repeat ? (
         <>
-          <ChipRow>
-            <Chip
-              label={t('tasks.repeat.more')}
-              disabled={repeat.every <= 1}
+          {/* „Alle 2 Wochen“: minus und plus statt Woerter, die keiner versteht. */}
+          <View style={[styles.switchRow, { gap: theme.spacing.sm }]}>
+            <IconButton
+              icon="minus"
+              label={t('tasks.repeat.lessOften')}
+              tone={repeat.every <= 1 ? 'faint' : 'default'}
               onPress={() => onChange({ ...repeat, every: Math.max(1, repeat.every - 1) })}
             />
-            <Chip
-              label={t('tasks.repeat.fewer')}
+            <Text variant="body" style={styles.grow}>
+              {repeatLabel(t, language, {
+                every: repeat.every,
+                unit: repeat.unit,
+                fromCompletion: repeat.fromCompletion,
+              })}
+            </Text>
+            <IconButton
+              icon="plus"
+              label={t('tasks.repeat.moreOften')}
               onPress={() => onChange({ ...repeat, every: repeat.every + 1 })}
             />
-          </ChipRow>
+          </View>
           {repeat.unit === 'week' ? (
             <ChipRow>
               {WEEK.map((weekday) => {
@@ -101,9 +111,12 @@ function RepeatEditor({
             </ChipRow>
           ) : null}
           <View style={[styles.switchRow, { gap: theme.spacing.md }]}>
-            <Text variant="body" style={styles.grow}>
-              {t('tasks.repeat.fromCompletion')}
-            </Text>
+            <View style={styles.grow}>
+              <Text variant="body">{t('tasks.repeat.fromCompletion')}</Text>
+              <Text variant="caption" tone="faint">
+                {t('tasks.repeat.fromCompletion.hint')}
+              </Text>
+            </View>
             <Toggle
               accessibilityLabel={t('tasks.repeat.fromCompletion')}
               value={repeat.fromCompletion}
@@ -182,13 +195,16 @@ export function DetailWhen({ task, today }: { task: TaskRow; today: string }) {
               ))}
             </ChipRow>
           </FieldRow>
-          <Text
-            variant="caption"
-            tone="faint"
-            style={{ paddingLeft: HIT_TARGET, paddingBottom: theme.spacing.sm }}
-          >
-            {t('tasks.reminder.pending')}
-          </Text>
+          {/* Ohne Uhrzeit gibt es keine Erinnerung; im Browser keine Mitteilung. */}
+          {time === null || Platform.OS === 'web' ? (
+            <Text
+              variant="caption"
+              tone="faint"
+              style={{ paddingLeft: HIT_TARGET, paddingBottom: theme.spacing.sm }}
+            >
+              {time === null ? t('tasks.reminder.needsTime.hint') : t('tasks.reminder.webOnly')}
+            </Text>
+          ) : null}
 
           <FieldRow
             icon="repeat"

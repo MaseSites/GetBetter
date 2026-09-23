@@ -2,11 +2,11 @@ import type { TranslationKey } from './de';
 
 /** Französisch: die Aufgaben (de-tasks.ts). Teil von `fr`. */
 export const frTasks = {
-  'tasks.view.inbox': 'Boîte de réception',
+  'tasks.view.inbox': 'Sans date',
   'tasks.view.today': 'Aujourd’hui',
   'tasks.view.planned': 'Planifié',
   'tasks.view.projects': 'Projets',
-  'tasks.view.lists': 'Toutes les listes',
+  'tasks.view.lists': 'Vue d’ensemble',
   'tasks.new': 'Nouvelle tâche',
   'tasks.more': 'Plus d’options',
   'tasks.menu.showDone': 'Afficher les tâches terminées',
@@ -23,7 +23,7 @@ export const frTasks = {
   'tasks.empty.today': 'Plus rien pour aujourd’hui.',
   'tasks.empty.tomorrow': 'Demain : {count} tâches',
   'tasks.empty.tomorrowOne': 'Demain : 1 tâche',
-  'tasks.empty.inbox': 'La boîte de réception est vide.',
+  'tasks.empty.inbox': 'Tout a une date.',
   'tasks.empty.projects': 'Pas encore de projets.',
 
   'tasks.search.placeholder': 'Rechercher des tâches',
@@ -38,13 +38,13 @@ export const frTasks = {
 
   'tasks.action.done': 'Terminé',
   'tasks.action.reopen': 'Rouvrir',
-  'tasks.action.plan': 'Planifier',
-  'tasks.action.planMore': 'Planifier …',
+  'tasks.action.plan': 'Date',
+  'tasks.action.planMore': 'Choisir une date …',
   'tasks.action.priorityMore': 'Priorité …',
-  'tasks.action.moveMore': 'Déplacer vers …',
+  'tasks.action.moveMore': 'Dans un projet …',
   'tasks.action.move': 'Déplacer',
   'tasks.action.duplicate': 'Dupliquer',
-  'tasks.action.select': 'Sélectionner',
+  'tasks.action.select': 'Sélectionner plusieurs',
   'tasks.action.moveUp': 'Monter',
   'tasks.action.moveDown': 'Descendre',
 
@@ -119,7 +119,7 @@ export const frTasks = {
   'tasks.field.attachments': 'Pièces jointes',
 
   'tasks.detail.when': 'Quand',
-  'tasks.detail.organize': 'Classement',
+  'tasks.detail.organize': 'Projet et tags',
   'tasks.detail.titlePlaceholder': 'Titre',
   'tasks.detail.notesPlaceholder': 'Note',
   'tasks.detail.addSubtask': 'Ajouter une sous-tâche',
@@ -136,12 +136,10 @@ export const frTasks = {
   'tasks.time.error': 'Merci d’utiliser HH:MM.',
 
   'tasks.reminder.none': 'Aucun',
-  'tasks.reminder.atDue': 'À l’échéance',
+  'tasks.reminder.atDue': 'Pile à l’heure',
   'tasks.reminder.before': '{count} min avant',
   'tasks.reminder.dayBefore': 'La veille à 18:00',
-  'tasks.reminder.needsTime': 'Seulement avec une heure',
-  'tasks.reminder.pending':
-    'Les rappels arriveront dès que l’app pourra envoyer des notifications.',
+  'tasks.reminder.needsTime': 'Il faut d’abord une heure',
 
   'tasks.repeat.never': 'Jamais',
   'tasks.repeat.daily': 'Tous les jours',
@@ -154,9 +152,7 @@ export const frTasks = {
   'tasks.repeat.everyYears': 'Tous les {count} ans',
   'tasks.repeat.weeklyOn': 'Chaque {days}',
   'tasks.repeat.everyWeeksOn': 'Toutes les {count} semaines le {days}',
-  'tasks.repeat.fromCompletion': 'Compter à partir de l’achèvement',
-  'tasks.repeat.fewer': 'Moins souvent',
-  'tasks.repeat.more': 'Plus souvent',
+  'tasks.repeat.fromCompletion': 'Compter à partir du moment où tu coches',
 
   'tasks.selection.count': '{count} sélectionnées',
   'tasks.selection.close': 'Terminer la sélection',
@@ -170,4 +166,18 @@ export const frTasks = {
   'tasks.a11y.attachment': 'avec pièce jointe',
   'tasks.a11y.note': 'avec note',
   'tasks.a11y.subtasks': '{done} sur {total} sous-tâches',
+  'tasks.view.inbox.detail': 'Pas encore planifié',
+  'tasks.view.today.detail': 'À faire aujourd’hui, plus les retards',
+  'tasks.view.planned.detail': 'Tout ce qui a une date, par jour',
+  'tasks.view.projects.detail': 'Les tâches regroupées par thème',
+  'tasks.view.lists.detail': 'Toutes les listes, projets et tags',
+  'tasks.priority.hint': 'Les importantes remontent et portent un signe avant le titre.',
+  'tasks.tags.none': 'Aucun',
+  'tasks.tags.hint': 'Un mot pour la retrouver, comme « courses ». Entrée pour ajouter.',
+  'tasks.reminder.needsTime.hint': 'Mets d’abord une heure, puis tu pourras être rappelé.',
+  'tasks.reminder.webOnly': 'Le rappel arrive en notification dans l’app sur le téléphone.',
+  'tasks.repeat.fromCompletion.hint': 'La prochaine échéance part du jour où tu coches — pas de l’ancienne échéance.',
+  'tasks.repeat.lessOften': 'Moins souvent',
+  'tasks.repeat.moreOften': 'Plus souvent',
+  'tasks.quick.hint': 'Écris simplement — l’app comprend « demain 14 h », « chaque lundi » ou « #courses ».',
 } as const satisfies Partial<Record<TranslationKey, string>>;
