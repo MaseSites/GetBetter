@@ -366,7 +366,12 @@ export function FitSetup({
             ) : null}
             {goals.safety.mode === 'maintain_only' ? (
               <Text variant="body" tone="danger">
-                {t('fit.setup.safetyResult')}
+                {/* Bei einem gemessenen Grund steht der Grund dabei: wer eine
+                    Angabe selbst angekreuzt hat, weiss warum — wer sehr tief
+                    wiegt, merkt es sonst nicht. */}
+                {goals.safety.reasons.includes('very_low_weight')
+                  ? t('fit8.safety.lowWeight')
+                  : t('fit.setup.safetyResult')}
               </Text>
             ) : null}
             <Text variant="caption" tone="muted">

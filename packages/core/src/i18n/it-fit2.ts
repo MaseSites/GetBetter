@@ -105,7 +105,7 @@ export const itFit2: Readonly<Record<keyof typeof deFit2, string>> = {
   'fit.pantry.heard': 'da «{said}»',
   'fit.pantry.unsure': 'incerto da «{said}» — controlla',
   'fit.pantry.unknown': 'Non riconosciuto: {words}',
-  'fit.pantry.propose': 'Usa come proposta',
+  'fit.pantry.propose': 'Aggiungi alla scorta',
   'fit.pantry.emptyTitle': 'La dispensa è vuota',
   'fit.pantry.emptyBody': 'Di’ o scrivi cosa hai in casa — Better Fit ti propone delle ricette.',
   'fit.pantry.amountOpen': 'Quantità aperta',

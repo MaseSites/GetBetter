@@ -9,6 +9,7 @@
 const path = require('node:path');
 
 const { createCatalog } = require('./catalog/index.js');
+const { createReference } = require('./reference/index.js');
 const { fitConfig } = require('./config.js');
 const { createFitStore } = require('./store.js');
 const { analysisRoutes } = require('./routes/analysis.js');
@@ -120,9 +121,12 @@ function createFitService({ dataDir, env = process.env, now = () => new Date(), 
   }
 
   const images = createTempImages({ dataDir, keptDays: config.keptImageDays });
+  // Das Referenzwissen (menuCH, FNDDS, Nutrition5k) laedt erst beim ersten Zugriff
+  // und ist ohne die gebaute Datei schlicht leer.
+  const reference = createReference({ dataDir });
   // `ai`: der KI-Dienst des Projekts fuer freie Fragen an den Coach (mit Abo-Kontingent).
   // `calendar(accountId, day)`: Titel der eigenen Termine an einem Tag, fuer das Verschieben.
-  const context = { config, store, catalog, images, ok, now, todayIn, isDay, shiftDay, once, dataDir, ai, calendar };
+  const context = { config, store, catalog, reference, images, ok, now, todayIn, isDay, shiftDay, once, dataDir, ai, calendar };
   const engine = createTools(context);
   const routes = [
     ...packagedRoutes(context),
@@ -144,7 +148,7 @@ function createFitService({ dataDir, env = process.env, now = () => new Date(), 
   const usage = createUsage({ store, config, now });
   const stats = (month) => fitStats({ store, usage, now }, month);
 
-  return { routes, config, store, catalog, context, engine, removeAccount, stats };
+  return { routes, config, store, catalog, reference, context, engine, removeAccount, stats };
 }
 
 module.exports = { createFitService, todayIn, isDay, shiftDay, IDEMPOTENCY_TTL_MS };

@@ -44,4 +44,12 @@ export const frFit8: Readonly<Record<keyof typeof deFit8, string>> = {
   'fit.quote.38': 'Tu es plus loin qu’il y a un mois.',
   'fit.quote.39': 'Chaque répétition compte, même la plus lente.',
   'fit.quote.40': 'Bien joué, c’est aussi : aujourd’hui, ne rien faire, exprès.',
+  'fit8.why.progress': 'La dernière fois, toutes les séries en haut de la plage — donc plus lourd aujourd’hui.',
+  'fit8.why.repeat': 'Le même poids encore : la plage n’était pas encore complète.',
+  'fit8.why.reduce': 'Deux fois sous la plage — 10 % plus léger aujourd’hui, pour que ça reparte.',
+  'fit8.why.reps': 'Une répétition de plus que ta meilleure série.',
+  'fit8.why.time': 'Cinq secondes de plus que ton meilleur temps.',
+  'fit8.why.deload': 'Semaine légère : moins de poids, une série de moins.',
+  'fit8.trend.soon': 'À partir de quatre pesées sur une semaine, la courbe apparaît ici.',
+  'fit8.safety.lowWeight': 'Ton poids est très bas pour ta taille. Better Fit ne calcule donc que des valeurs de maintien — discute de tes objectifs avec un médecin ou une diététicienne.',
 };

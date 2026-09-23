@@ -170,7 +170,7 @@ function Marker({ block, number, lineHeight, textStyle, onToggle }: MarkerProps)
           <Icon
             name={block.checked ? 'checkCircle' : 'circle'}
             size={CHECK_SIZE}
-            color={block.checked ? theme.colors.accentStrong : theme.colors.borderStrong}
+            color={block.checked ? theme.colors.accentStrong : theme.colors.textFaint}
           />
         </Pressable>
       );

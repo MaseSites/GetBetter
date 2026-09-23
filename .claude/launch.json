@@ -21,6 +21,15 @@
       "port": 8082
     },
     {
+      "name": "gym",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "gym"
+      ],
+      "port": 8083
+    },
+    {
       "name": "gym-web",
       "url": "http://localhost:8083",
       "port": 8083

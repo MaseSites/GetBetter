@@ -62,6 +62,7 @@ export const frFit6: Readonly<Record<keyof typeof deFit6, string>> = {
   'fit6.plates.rest': 'Pas possible exactement : {kg} kg sur la barre',
 
   'fit6.complete.noSets': 'Note d’abord une série — ensuite tu peux terminer l’entraînement.',
+  'fit6.error.workout_future': 'Cet entraînement est prévu plus tard. Avance-le avec « Rattraper aujourd’hui » pour saisir des séries.',
   'fit6.error.workout_closed': 'L’entraînement est terminé. Rouvre-le pour modifier quelque chose.',
   'fit6.error.too_many_sets': 'Plus de 60 séries par exercice, ce n’est pas possible.',
   'fit6.error.workout_started': 'L’entraînement a déjà des séries — il reste à son jour.',

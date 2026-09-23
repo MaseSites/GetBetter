@@ -39,6 +39,25 @@ describe('Vorrat aus Text', () => {
     assert.deepEqual(lines.map((line) => [line.amount, line.unit]), [[6, 'piece'], [500, 'g'], [1000, 'ml'], [200, 'ml']]);
     assert.deepEqual(unknown, ['xylophon']);
   });
+
+  // Gefunden beim Durchspielen: „3 Scheiben Brot“ wurde zu **3 g** Brot
+  // (8 kcal statt 250), „1 Packung Backpulver“ zu 1 g. Ein Stueck, dessen
+  // Gewicht niemand kennt, ist keine Grammzahl — dann bleibt die Menge offen.
+  test('ein Stueck ohne bekanntes Gewicht laesst die Menge offen', () => {
+    const parse = (text) => parsePantryText(text, (term) => catalog.match(term)).lines[0];
+    // „Scheibe“ ist keine bekannte Einheit, also zaehlt es als Stueck — und
+    // Mehl hat kein Stueckgewicht.
+    const slices = parse('3 Scheiben Mehl');
+    assert.equal(slices.amount, null);
+    assert.equal(slices.unit, null);
+    const pack = parse('1 Packung Backpulver');
+    assert.equal(pack.amount, null);
+    assert.equal(pack.unit, null);
+    // Was ein Stueckgewicht hat, zaehlt weiter als Stueck.
+    assert.deepEqual([parse('6 Eier').amount, parse('6 Eier').unit], [6, 'piece']);
+    // Und eine bekannte Packungsgroesse bleibt eine Menge.
+    assert.deepEqual([parse('1 Dose Mais').amount, parse('1 Dose Mais').unit], [400, 'g']);
+  });
 });
 
 describe('Rezeptvorschlaege', () => {

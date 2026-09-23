@@ -103,7 +103,7 @@ export const enFit2: Readonly<Record<keyof typeof deFit2, string>> = {
   'fit.pantry.heard': 'from “{said}”',
   'fit.pantry.unsure': 'unsure from “{said}” — please check',
   'fit.pantry.unknown': 'Not recognised: {words}',
-  'fit.pantry.propose': 'Use as proposal',
+  'fit.pantry.propose': 'Add to pantry',
   'fit.pantry.emptyTitle': 'The pantry is empty',
   'fit.pantry.emptyBody':
     'Say or type what you have at home — Better Fit suggests recipes from it.',

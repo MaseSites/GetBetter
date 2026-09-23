@@ -116,4 +116,23 @@ const MOCK_FOODS = ROWS.map(
   }),
 );
 
-module.exports = { MOCK_FOODS };
+/**
+ * Lebensmittel, die der Schweizer Datenbank fehlen, ohne die aber Rezepte und
+ * ein normaler Vorrat nicht funktionieren. Die 1200 importierten Eintraege des
+ * BLV kennen weder Backpulver noch Eiweisspulver noch Sojadrink — gesucht
+ * wurde danach trotzdem, und die Suche antwortete mit Unsinn:
+ *
+ * - „Backpulver“  -> „Kakaogetraenk, gezuckert, Pulver“
+ * - „Molkenprotein“ -> gar nichts
+ * - „Sojadrink“   -> „Energy Drink mit Koffein, Taurin …“
+ *
+ * Darum sind genau diese drei auch im Live-Betrieb auffindbar. Sie behalten
+ * `source: 'mock'` und damit die ehrliche Herkunft („Beispielwerte, keine
+ * offiziellen Daten“) — fallen sie eines Tages im Import an, verschwinden sie
+ * hier. Nie die ganze Beispielliste dazunehmen: sie wuerde echte Werte
+ * ueberdecken.
+ */
+const GAP_KEYS = ['baking_powder', 'whey', 'soy_drink'];
+const GAP_FOODS = MOCK_FOODS.filter((food) => GAP_KEYS.includes(food.id.replace(/^mock:/, '')));
+
+module.exports = { GAP_FOODS, GAP_KEYS, MOCK_FOODS };

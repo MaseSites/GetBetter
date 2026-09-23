@@ -29,6 +29,11 @@ type Point = { weightKg: number; trendKg: number };
  * MacroFactor, von Rand zu Rand. Ohne Grafikbibliothek: die Linie sind gedrehte Striche
  * zwischen zwei Punkten, die Punkte kleine runde Flaechen. Beim ersten
  * Zeichnen blendet die Linie ein.
+ *
+ * Die Punkte tragen `textFaint`, nicht `borderStrong`: ein Datenpunkt ist
+ * Information und braucht darum 3:1 zur Flaeche. `borderStrong` liegt bei 1.57
+ * und ist fuer Trennlinien gedacht, nicht fuer Marken — gemessen ueber alle
+ * Modi, Akzente und Voreinstellungen.
  */
 export function WeightChart({ points, label }: { points: readonly Point[]; label: string }) {
   const { t } = useI18n();
@@ -69,7 +74,7 @@ export function WeightChart({ points, label }: { points: readonly Point[]; label
                     width: DOT,
                     height: DOT,
                     borderRadius: DOT / 2,
-                    backgroundColor: theme.colors.borderStrong,
+                    backgroundColor: theme.colors.textFaint,
                   },
                 ]}
               />
@@ -111,7 +116,7 @@ export function WeightChart({ points, label }: { points: readonly Point[]; label
               width: LEGEND_DOT,
               height: LEGEND_DOT,
               borderRadius: theme.radii.pill,
-              backgroundColor: theme.colors.borderStrong,
+              backgroundColor: theme.colors.textFaint,
             }}
           />
           <Text variant="label" tone="muted" style={legendText}>

@@ -13,7 +13,7 @@ import { AreaFigure, AreaPanel } from './AreaBlocks';
 import { FitState } from './FitGate';
 import { AreaHeader, Block, Pill } from './KitchenKit';
 import { OtherRecords, Records, WeekVolume, weekSummaryOf } from './ProgressTraining';
-import { paceOf, plannedKgPerWeek } from './progressText';
+import { paceOf, plannedKgPerWeek, trendViewOf } from './progressText';
 import { parseDecimal } from './setupForm';
 import { formatsOf } from './trainingText';
 import { useFit } from './useFit';
@@ -84,7 +84,10 @@ export function ProgressView({ module }: { module: ModuleDefinition }) {
   const perWeek = Math.round((change / spanDays) * 7 * 10) / 10;
   const suggestion = weights.data?.suggestion ?? null;
   const pace = paceOf((change / spanDays) * 7, plannedKgPerWeek(profile.data?.profile ?? null));
-  const hasTrend = Boolean(latest && first && trend.length > 1);
+  // Eine Linie erst, wenn sie etwas zeigt: vier Waegungen ueber mindestens eine
+  // Woche. Sonst waere die Wochenrate ein Tag mal sieben (`trendViewOf`).
+  const view = latest && first ? trendViewOf(trend.length, spanDays) : 'none';
+  const hasTrend = view === 'chart';
   const summary = progress.data ? weekSummaryOf(t, language, progress.data.week) : null;
   const weighted = (progress.data?.records ?? []).some(
     (entry) => entry.kind === 'weight' && entry.e1rm !== null,
@@ -120,10 +123,16 @@ export function ProgressView({ module }: { module: ModuleDefinition }) {
               unit={t('fit6.v.weight.perWeek', { delta: formats.signed.format(perWeek) })}
             />
           ) : latest ? (
-            <AreaFigure
-              value={oneDecimal.format(latest.trendKg)}
-              unit={t('fit.progress.trendUnit')}
-            />
+            <>
+              <AreaFigure
+                value={oneDecimal.format(latest.trendKg)}
+                unit={t('fit.progress.trendUnit')}
+              />
+              {/* Kein Diagramm heisst nicht „nichts“: hier steht, was noch fehlt. */}
+              <Text variant="caption" tone="faint" style={{ marginTop: theme.spacing.sm }}>
+                {t('fit8.trend.soon')}
+              </Text>
+            </>
           ) : (
             <Text variant="body" tone="muted" style={{ marginTop: theme.spacing.sm }}>
               {t('fit.progress.noWeight')}

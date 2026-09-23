@@ -66,8 +66,11 @@ async function geminiAnalyze({
   images,
   context = '',
   language = 'de',
+  // Was die App ohnehin weiss: welche Mahlzeit, welcher Tag. Geht als Anlass
+  // in die Anweisung — ein Zvieri wird sonst wie ein Mittagessen geschaetzt.
+  meal = null,
   schema = RESPONSE_SCHEMA,
-  instruction = systemInstruction(language),
+  instruction = systemInstruction(language, meal),
   baseUrl = API_BASE,
   env = process.env,
   fetchImpl = fetch,

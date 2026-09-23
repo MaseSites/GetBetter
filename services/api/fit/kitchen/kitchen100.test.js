@@ -13,7 +13,7 @@ const { localizePlan } = require('./localize.js');
 const { candidatesFor, changeEntry, generatePlan, optionsFor } = require('./mealplan.js');
 const { parsePantryText } = require('./pantryText.js');
 const { buildShoppingList, diffLists } = require('./shopping.js');
-const { pantryAmount, resolveRecipe, suggestRecipes, yieldFactor } = require('./suggest.js');
+const { covers, pantryAmount, resolveRecipe, suggestRecipes, yieldFactor } = require('./suggest.js');
 
 const catalog = createCatalog({ dataDir: 'kein-ordner', mode: 'mock' });
 const find = (id) => catalog.find(id);
@@ -141,6 +141,29 @@ describe('roh und gekocht', () => {
     assert.ok(factor > 2 && factor < 3.5, String(factor));
     const have = pantryAmount([{ foodId: 'mock:rice', grams: 100 }], 'mock:rice_cooked', find);
     assert.equal(Math.round(have), Math.round(100 * factor));
+  });
+});
+
+// Gefunden beim Durchspielen: „Porridge · Fehlt: Milch“, obwohl ein Liter
+// Vollmilch im Vorrat lag. Die Bibliothek nennt „Milch (Durchschnitt)“, der
+// Vorrat fuehrt „Vollmilch, pasteurisiert“ — per Kennung treffen die sich nie.
+describe('Durchschnitt und konkretes Produkt', () => {
+  const average = { id: 'x:avg', names: { de: 'Milch (Durchschnitt)' }, category: 'Milch und Milchprodukte/Milch' };
+  const whole = { id: 'x:whole', names: { de: 'Vollmilch, pasteurisiert' }, category: 'Milch und Milchprodukte/Milch' };
+  const cheese = { id: 'x:cheese', names: { de: 'Emmentaler' }, category: 'Milch und Milchprodukte/Hartkaese' };
+  const lookup = (id) => [average, whole, cheese].find((food) => food.id === id) ?? null;
+
+  test('der konkrete Vorrat deckt die allgemeine Zutat', () => {
+    assert.equal(covers('x:whole', 'x:avg', lookup), true);
+    assert.equal(pantryAmount([{ foodId: 'x:whole', grams: 1000 }], 'x:avg', lookup), 1000);
+  });
+
+  test('aber nur in derselben Kategorie', () => {
+    assert.equal(covers('x:cheese', 'x:avg', lookup), false);
+  });
+
+  test('und nie umgekehrt: allgemeine Milch ist keine Vollmilch', () => {
+    assert.equal(covers('x:avg', 'x:whole', lookup), false);
   });
 });
 

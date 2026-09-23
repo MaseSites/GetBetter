@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { fit } from '@/db/fit';
-import type { SetInput, TrainingExercise, TrainingSet } from '@/db/fitTraining';
+import type { SetInput, TrainingExercise, TrainingSet, TrainingTarget } from '@/db/fitTraining';
 import { useI18n, type Translate, type TranslationKey } from '@/i18n';
 import { numeric, useTheme } from '@/theme';
 import { Chip, Text, useUndo } from '@/ui';
@@ -15,7 +15,20 @@ import { TrainingBlock } from './TrainingParts';
 import { dashRange, describeSets, type TrainingFormats } from './trainingText';
 import { TRAINING } from './trainingType';
 
-const KNOWN_ERRORS = ['workout_closed', 'too_many_sets', 'workout_started', 'no_sets'];
+const KNOWN_ERRORS = ['workout_closed', 'workout_future', 'too_many_sets', 'workout_started', 'no_sets'];
+
+/**
+ * Warum heute dieses Ziel steht. `nextTarget` im Dienst nennt den Grund, hier
+ * steht der Satz dazu — je Grund genau einer, in allen vier Sprachen.
+ */
+const WHY_KEYS: Record<TrainingTarget['reason'], TranslationKey> = {
+  progress: 'fit8.why.progress',
+  repeat: 'fit8.why.repeat',
+  reduce: 'fit8.why.reduce',
+  reps: 'fit8.why.reps',
+  time: 'fit8.why.time',
+  deload: 'fit8.why.deload',
+};
 
 /** Ein Fehler des Dienstes als Satz — bekannte mit eigenem Text, sonst allgemein. */
 export function trainingError(t: Translate, error: string): string {
@@ -204,6 +217,9 @@ export function ExerciseBlock({
     : todayText
       ? t('fit6.v.todayOnly', { target: todayText })
       : null;
+  // Der Grund fuer das heutige Ziel, solange noch kein Satz steht.
+  const whyLine =
+    target && work.length === 0 ? t(WHY_KEYS[target.reason]) : null;
   const plateKg = exercise.barbell ? (parseDecimal(weight) ?? todayKg) : null;
   const scheme = exercise.timed
     ? t('fit6.v.schemeTimed', { sets: exercise.sets, seconds: secondsOf(exercise.reps) })
@@ -247,6 +263,20 @@ export function ExerciseBlock({
           ]}
         >
           {lastLine}
+        </Text>
+      ) : null}
+
+      {/* Warum heute diese Zahl steht. Der Dienst rechnet es (`nextTarget`),
+          gesagt wird es hier — eine Zahl ohne Grund ist eine Blackbox, und
+          genau das werfen Nutzer den anderen Apps vor. Nur vor dem ersten
+          Satz: wer schon trainiert, braucht die Begruendung nicht mehr. */}
+      {whyLine ? (
+        <Text
+          variant="caption"
+          tone="faint"
+          style={{ marginTop: TRAINING.lastLineGap, lineHeight: TRAINING.line13 }}
+        >
+          {whyLine}
         </Text>
       ) : null}
 

@@ -14,7 +14,12 @@ const BAR_HEIGHT = 6;
  * Der Tag als Naehrwerttabelle, wie sie auf jeder Verpackung steht: Energie,
  * Eiweiss, Kohlenhydrate, Fett — mit gegessen, Ziel und was uebrig ist. Kein
  * Ring, kein Donut: Zahlen in fester Breite, Haarlinien dazwischen.
- * Drueber steht als „drueber“ in Rot, nie als negative Zahl.
+ *
+ * **Ueber dem Ziel wird nichts rot** — dasselbe wie in `TodayHead`. Rot
+ * gehoert der Gesundheit (Ablauf, vergessene Einnahme, Allergie); eine
+ * ueberschrittene Tagesmenge ist keine Gefahr, sondern eine Zahl. Der Balken
+ * wird dann Tinte statt Akzent, und das Wort „drueber“ sagt es. Scham-Rot
+ * bringt Leute zum Aufhoeren, nicht zum Weitermachen.
  */
 export function MacroTable({ rows, caption }: { rows: readonly Row[]; caption?: string }) {
   const { t, language } = useI18n();
@@ -88,7 +93,7 @@ export function MacroTable({ rows, caption }: { rows: readonly Row[]; caption?: 
               {withEaten ? (
                 <Text
                   variant="body"
-                  tone={over ? 'danger' : 'default'}
+                  tone="default"
                   style={[cell, { fontWeight: theme.fontWeight.semibold }]}
                 >
                   {left === null
@@ -116,7 +121,7 @@ export function MacroTable({ rows, caption }: { rows: readonly Row[]; caption?: 
                     width: `${Math.min(1, share) * 100}%`,
                     height: '100%',
                     borderRadius: theme.radii.pill,
-                    backgroundColor: share > 1 ? theme.colors.danger : theme.colors.accentMark,
+                    backgroundColor: share > 1 ? theme.colors.text : theme.colors.accentMark,
                   }}
                 />
               </View>

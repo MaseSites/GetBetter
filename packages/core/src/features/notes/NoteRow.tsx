@@ -118,7 +118,7 @@ function SelectCircle({ selected }: { selected: boolean }) {
     <Icon
       name={selected ? 'checkCircle' : 'circle'}
       size={CIRCLE_SIZE}
-      color={selected ? theme.colors.accentStrong : theme.colors.borderStrong}
+      color={selected ? theme.colors.accentStrong : theme.colors.textFaint}
     />
   );
 }

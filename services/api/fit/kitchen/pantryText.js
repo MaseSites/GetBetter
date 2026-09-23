@@ -105,7 +105,11 @@ function parsePantryText(text, match, language = 'de') {
     if (unit === 'cl') [amount, unit] = [amount * 10, 'ml'];
     if (unit === 'l') [amount, unit] = [amount * 1000, 'ml'];
     if (unit === 'dl') [amount, unit] = [amount * 100, 'ml'];
-    if (unit === 'piece' && !found.food.gramsPerPiece) unit = 'g';
+    // Ein Stueck, dessen Gewicht niemand kennt, ist **nicht** ein Gramm.
+    // „3 Scheiben Brot“ wurden so zu 3 g — 8 kcal statt 250; „1 Packung
+    // Backpulver“ zu 1 g. Dann bleibt die Menge offen: der Vorrat kennt diesen
+    // Zustand, und die Zeile laesst sich mit − und + nachtragen.
+    if (unit === 'piece' && !found.food.gramsPerPiece) [amount, unit] = [null, null];
     lines.push({
       said: part.name,
       foodId: found.food.id,

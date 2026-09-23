@@ -23,6 +23,29 @@ const BUDGET_RANK = { low: 0, medium: 1, high: 2 };
 /** Dieselbe Sache in einem anderen Zustand zaehlt im Vorrat mit (Reis roh / gekocht). */
 const BASE_OF = (id) => String(id).replace(/^mock:/, '').replace(/_cooked$/, '');
 
+/**
+ * Die Bibliothek nennt Zutaten als **Durchschnitt** („Milch (Durchschnitt)“,
+ * „Mehl (Durchschnitt)“), weil ein Rezept nicht auf eine Marke festgelegt sein
+ * soll. Ein echter Vorrat enthaelt dagegen konkrete Produkte („Vollmilch,
+ * pasteurisiert“). Per Kennung treffen die sich nie — die App sagte „Fehlt:
+ * Milch“, obwohl ein Liter im Kuehlschrank stand.
+ *
+ * Darum: ist die Zutat ein Durchschnittswert, zaehlt jedes Lebensmittel
+ * derselben **Kategorie der amtlichen Datenbank** dafuer. Das ist die Angabe
+ * des BLV, nicht geraten, und es gilt nur in dieser Richtung: der konkrete
+ * Vorrat deckt die allgemeine Zutat, nie umgekehrt.
+ */
+const isAverage = (food) => /\(Durchschnitt\)/.test(String(food?.names?.de ?? ''));
+
+/** Deckt ein Vorratsposten diese Zutat? */
+function covers(rowId, foodId, find) {
+  if (rowId === foodId || BASE_OF(rowId) === BASE_OF(foodId)) return true;
+  if (!find) return false;
+  const wanted = find(foodId);
+  if (!isAverage(wanted) || !wanted.category) return false;
+  return find(rowId)?.category === wanted.category;
+}
+
 /** Warum ein Lebensmittel fuer dieses Profil nicht geht — oder null. */
 function conflictOf(food, profile) {
   const allergens = food.allergens ?? [];
@@ -138,7 +161,7 @@ function yieldFactor(from, to) {
  * gekocht im Rezept).
  */
 function pantryAmount(pantry, foodId, find = null) {
-  const matching = pantry.filter((row) => row.confirmed !== false && (row.foodId === foodId || BASE_OF(row.foodId) === BASE_OF(foodId)));
+  const matching = pantry.filter((row) => row.confirmed !== false && covers(row.foodId, foodId, find));
   if (matching.length === 0) return 0;
   if (matching.some((row) => row.grams === null || row.grams === undefined)) return null;
   const wanted = find ? find(foodId) : null;
@@ -169,7 +192,6 @@ function suggestRecipes({ catalog, profile, pantry = [], remaining = null, userR
   // Wer ein Bibliotheksrezept gespeichert hat, sieht es einmal — als eigenes.
   const saved = new Set(userRecipes.map((recipe) => recipe.basedOn).filter(Boolean));
   const templates = [...userRecipes.map((recipe) => ({ ...recipe, items: recipe.items.map((entry) => ({ ...entry })) })), ...LIBRARY.filter((template) => !saved.has(template.id))];
-  const pantryIds = new Set(pantry.map((row) => BASE_OF(row.foodId)));
   const expiring = new Set(pantry.filter((row) => (daysLeft(row.bestBefore, today) ?? 99) <= 3).map((row) => BASE_OF(row.foodId)));
   const results = [];
   const rejected = [];
@@ -224,7 +246,7 @@ function suggestRecipes({ catalog, profile, pantry = [], remaining = null, userR
       missing: coverage.filter((entry) => entry.status === 'missing'),
       usesExpiring,
       expiring: recipe.items.filter((item) => expiring.has(BASE_OF(item.foodId))).map((item) => item.name),
-      usesPantry: [...pantryIds].some((id) => recipe.items.some((item) => BASE_OF(item.foodId) === id)),
+      usesPantry: pantry.some((row) => recipe.items.some((item) => covers(row.foodId, item.foodId, find))),
       score: Math.round(score * 1000) / 1000,
     });
   }
@@ -232,4 +254,4 @@ function suggestRecipes({ catalog, profile, pantry = [], remaining = null, userR
   return { suggestions: results.slice(0, limit), rejected };
 }
 
-module.exports = { BASE_OF, conflictOf, coverageOf, daysLeft, pantryAmount, resolveRecipe, suggestRecipes, yieldFactor };
+module.exports = { BASE_OF, conflictOf, covers, coverageOf, daysLeft, pantryAmount, resolveRecipe, suggestRecipes, yieldFactor };

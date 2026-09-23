@@ -42,4 +42,12 @@ export const deFit8 = {
   'fit.quote.38': 'Du bist weiter als vor einem Monat.',
   'fit.quote.39': 'Jede Wiederholung zählt, auch die langsame.',
   'fit.quote.40': 'Gut gemacht heisst auch: heute bewusst nichts gemacht.',
+  'fit8.why.progress': 'Letztes Mal alle Sätze am oberen Ende — darum heute mehr.',
+  'fit8.why.repeat': 'Nochmal dasselbe Gewicht: der Bereich war noch nicht voll.',
+  'fit8.why.reduce': 'Zweimal unter dem Bereich — heute 10 % leichter, damit es wieder läuft.',
+  'fit8.why.reps': 'Eine Wiederholung mehr als dein bester Satz.',
+  'fit8.why.time': 'Fünf Sekunden länger als deine beste Zeit.',
+  'fit8.why.deload': 'Leichte Woche: weniger Gewicht, ein Satz weniger.',
+  'fit8.trend.soon': 'Ab vier Wägungen über eine Woche zeigt sich hier der Verlauf.',
+  'fit8.safety.lowWeight': 'Dein Gewicht liegt für deine Grösse sehr tief. Better Fit rechnet darum nur Werte zum Halten — besprich Ziele bitte mit einer Ärztin oder einer Ernährungsberatung.',
 } as const;

@@ -68,6 +68,26 @@ describe('Better Fit: Training', () => {
     assert.equal((await call('POST', `/v1/fit/workouts/${summary.id}/complete`)).status, 200);
   });
 
+  // Gefunden beim Durchspielen des Testkontos: der Dienst nahm einen Satz fuer
+  // ein Training in einer Woche an (HTTP 201) und setzte `startedAt` auf heute.
+  // Danach stand es als „erledigt“ mit Zukunftsdatum im Verlauf.
+  test('kein Satz auf einem Training, das erst spaeter ansteht', async () => {
+    const list = (await call('GET', '/v1/fit/workouts')).body.workouts;
+    const later = list.find((row) => row.day > today && row.status === 'planned');
+    assert.ok(later, 'der Plan reicht in die Zukunft');
+    const full = (await call('GET', `/v1/fit/workouts/${later.id}`)).body.workout;
+    const attempt = await call('POST', `/v1/fit/workouts/${later.id}/sets`, {
+      exerciseId: full.exercises[0].exerciseId,
+      reps: 8,
+    });
+    assert.equal(attempt.status, 409);
+    assert.equal(attempt.body.error, 'workout_future');
+    // Und es bleibt dabei: nichts gezaehlt, nichts gestartet.
+    const after = (await call('GET', `/v1/fit/workouts/${later.id}`)).body.workout;
+    assert.equal(after.status, 'planned');
+    assert.equal(after.sets.length, 0);
+  });
+
   test('am naechsten Tag: letztes Mal, +1 Wiederholung, neuer Rekord nach Wiederholungen', async () => {
     const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
     const list = (await call('GET', '/v1/fit/workouts')).body.workouts;
@@ -89,6 +109,14 @@ describe('Better Fit: Training', () => {
     assert.deepEqual(exercise.last.sets, [{ weightKg: null, reps: 12, seconds: null }]);
     assert.equal(exercise.target.reps, 13);
     assert.equal(exercise.record.kind, 'reps');
+    // Auf einem Training in der Zukunft laesst sich nichts eintragen (siehe
+    // `workout_future`). Wer heute trainiert, holt die Einheit vor — genau das
+    // tut die App mit „Heute nachholen“.
+    const pull = await call('POST', '/v1/fit/actions', {
+      tool: 'reschedule_workout',
+      args: { workoutId: target.id, toDay: today },
+    });
+    await confirm(pull.body.action);
     const logged = await call('POST', `/v1/fit/workouts/${target.id}/sets`, { exerciseId, reps: 13 });
     assert.equal(logged.body.set.isRecord, true);
     assert.ok(tomorrow);

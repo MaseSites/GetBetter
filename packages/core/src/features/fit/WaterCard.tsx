@@ -85,7 +85,7 @@ export function WaterCard({
             style={[
               styles.glass,
               {
-                borderColor: index < filled ? theme.colors.accentStrong : theme.colors.borderStrong,
+                borderColor: index < filled ? theme.colors.accentStrong : theme.colors.textFaint,
                 backgroundColor: index < filled ? theme.colors.accent : theme.colors.surface,
               },
             ]}

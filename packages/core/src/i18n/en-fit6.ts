@@ -62,6 +62,7 @@ export const enFit6: Readonly<Record<keyof typeof deFit6, string>> = {
   'fit6.plates.rest': 'Can’t load it exactly: {kg} kg on the bar',
 
   'fit6.complete.noSets': 'Log a set first — then you can finish the workout.',
+  'fit6.error.workout_future': 'This workout is scheduled for later. Move it with “Do it today” to log sets.',
   'fit6.error.workout_closed': 'This workout is finished. Reopen it to change something.',
   'fit6.error.too_many_sets': 'More than 60 sets per exercise isn’t possible.',
   'fit6.error.workout_started': 'This workout already has sets — it stays on its day.',

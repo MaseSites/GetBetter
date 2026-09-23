@@ -259,7 +259,7 @@ function SleepAdd({
             ))}
           </View>
         </View>
-        <DayPicker value={day} onChange={setDay} allowNone={false} />
+        <DayPicker value={day} onChange={setDay} allowNone={false} direction="past" />
         <Button label={t('common.done')} icon="check" onPress={save} />
       </View>
     </Sheet>

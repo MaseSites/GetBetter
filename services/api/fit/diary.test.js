@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { describe, test } = require('node:test');
 
-const { isAutoName, searchHistory, streakOf } = require('./diary.js');
+const { isAutoName, searchHistory, streakOf, trainingDaysOf } = require('./diary.js');
 const { currentWeightKg } = require('./goals.js');
 const { sumOptional } = require('./nutrition.js');
 
@@ -44,5 +44,35 @@ describe('Tagebuch: reine Rechnung', () => {
       fiberG: 3.3,
       saltG: 0.3,
     });
+  });
+});
+
+// Gefunden beim Durchspielen: Das Profil sagte „4 Trainingstage“, der Plan
+// hatte drei (Mo/Mi/Sa). Die Woche wurde auf vier verteilt, bekommen hat sie
+// drei — 620 kcal je Woche zu wenig.
+describe('Trainingstage der Woche', () => {
+  const withPlan = (weekdays) => ({ list: (name) => (name === 'workoutPlans' ? [{ weekdays }] : []) });
+
+  test('steht ein Plan, zaehlt er — nicht die Zahl im Profil', () => {
+    assert.equal(trainingDaysOf(withPlan([1, 3, 6]), 4), 3);
+    assert.equal(trainingDaysOf(withPlan([1, 2, 4, 5]), 2), 4);
+  });
+
+  test('ohne Plan bleibt die Zahl aus dem Profil', () => {
+    assert.equal(trainingDaysOf({ list: () => [] }, 4), 4);
+    assert.equal(trainingDaysOf(null, 3), 3);
+  });
+
+  test('ein Plan ohne brauchbare Tage aendert nichts', () => {
+    assert.equal(trainingDaysOf(withPlan([]), 4), 4);
+    assert.equal(trainingDaysOf(withPlan(null), 4), 4);
+    assert.equal(trainingDaysOf({ list: (n) => (n === 'workoutPlans' ? [{}] : []) }, 4), 4);
+  });
+
+  test('der neueste Plan gilt', () => {
+    const own = {
+      list: (name) => (name === 'workoutPlans' ? [{ weekdays: [1, 3, 5] }, { weekdays: [2, 4] }] : []),
+    };
+    assert.equal(trainingDaysOf(own, 6), 2);
   });
 });

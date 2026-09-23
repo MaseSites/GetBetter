@@ -62,6 +62,7 @@ export const itFit6: Readonly<Record<keyof typeof deFit6, string>> = {
   'fit6.plates.rest': 'Non si può caricare esatto: {kg} kg sul bilanciere',
 
   'fit6.complete.noSets': 'Registra prima una serie — poi puoi concludere l’allenamento.',
+  'fit6.error.workout_future': 'Questo allenamento è previsto più tardi. Anticipalo con «Recupera oggi» per registrare le serie.',
   'fit6.error.workout_closed': 'L’allenamento è concluso. Riaprilo per cambiare qualcosa.',
   'fit6.error.too_many_sets': 'Più di 60 serie per esercizio non si può.',
   'fit6.error.workout_started': 'L’allenamento ha già delle serie — resta nel suo giorno.',

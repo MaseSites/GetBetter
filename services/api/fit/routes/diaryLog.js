@@ -2,8 +2,9 @@
  * Gewicht, Anpassung der Ziele, Aenderungsprotokoll mit Rueckgaengig und das
  * Loeschen aller Daten — die Routen neben dem Tagebuch (`diary.js`).
  */
+const { adaptiveTarget, estimateExpenditure } = require('../energy.js');
 const { suggestAdjustment, weightTrend } = require('../goals.js');
-const { goalsOf } = require('../diary.js');
+const { goalsOf, intakeByDay } = require('../diary.js');
 
 function logRoutes(ctx) {
   const { ok, store } = ctx;
@@ -14,6 +15,24 @@ function logRoutes(ctx) {
     const profile = own?.list('profiles')[0]?.profile;
     return ctx.todayIn(profile?.timezone, ctx.now());
   };
+
+  /**
+   * Der gemessene Verbrauch und das Ziel daraus. Beides nur zum Anschauen: das
+   * Ziel wird erst gesetzt, wenn jemand es bestaetigt (wie alles in Better Fit).
+   */
+  function expenditureOf(own, profileRow, entries, today) {
+    if (!profileRow) return null;
+    const estimate = estimateExpenditure(entries, intakeByDay(own), today);
+    if (!estimate) return null;
+    const goals = goalsOf(ctx, profileRow, today, own);
+    const current = goals?.kcal ?? null;
+    return {
+      ...estimate,
+      target: Number.isFinite(current)
+        ? adaptiveTarget(estimate, profileRow.profile, current, today)
+        : null,
+    };
+  }
 
   return [
     {
@@ -29,6 +48,9 @@ function logRoutes(ctx) {
             trend: weightTrend(entries),
             suggestion: profileRow ? suggestAdjustment(profileRow.profile, entries, today) : null,
             kcalAdjustment: profileRow?.kcalAdjustment ?? 0,
+            // Was das Tagebuch ueber den echten Verbrauch sagt (`energy.js`) —
+            // und welches Ziel daraus folgt. Vorgeschlagen, nie gesetzt.
+            expenditure: expenditureOf(own, profileRow, entries, today),
           });
         }),
     },

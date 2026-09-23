@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { paceOf, plannedKgPerWeek, shortExerciseName, shortExerciseNames } from './progressText';
+import {
+  paceOf,
+  plannedKgPerWeek,
+  shortExerciseName,
+  shortExerciseNames,
+  trendViewOf,
+} from './progressText';
 
 describe('paceOf', () => {
   test('ohne Profil kein Plan', () => {
@@ -39,5 +45,25 @@ describe('shortExerciseName', () => {
       'Rudern am Kabel',
       'Dips',
     ]);
+  });
+});
+
+describe('trendViewOf', () => {
+  test('eine Linie erst mit vier Waegungen ueber eine Woche', () => {
+    assert.equal(trendViewOf(4, 7), 'chart');
+    assert.equal(trendViewOf(9, 28), 'chart');
+  });
+
+  test('zwei Waegungen an zwei Tagen sind keine Wochenrate', () => {
+    // Vorher zeichnete das eine Linie und rechnete „−5.6 kg/Woche“ aus einem Tag.
+    assert.equal(trendViewOf(2, 1), 'figure');
+    assert.equal(trendViewOf(3, 6), 'figure');
+    // Viele Waegungen an einem Tag sind auch kein Verlauf.
+    assert.equal(trendViewOf(8, 2), 'figure');
+  });
+
+  test('ohne Waegung gibt es nichts zu zeigen', () => {
+    assert.equal(trendViewOf(0, 0), 'none');
+    assert.equal(trendViewOf(0, 30), 'none');
   });
 });

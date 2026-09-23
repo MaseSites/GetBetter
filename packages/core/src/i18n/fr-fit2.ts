@@ -106,7 +106,7 @@ export const frFit2: Readonly<Record<keyof typeof deFit2, string>> = {
   'fit.pantry.heard': 'de « {said} »',
   'fit.pantry.unsure': 'incertain, de « {said} » — vérifie',
   'fit.pantry.unknown': 'Non reconnu : {words}',
-  'fit.pantry.propose': 'Reprendre comme proposition',
+  'fit.pantry.propose': 'Ajouter au stock',
   'fit.pantry.emptyTitle': 'Les provisions sont vides',
   'fit.pantry.emptyBody':
     'Dis ou tape ce que tu as à la maison — Better Fit t’en propose des recettes.',

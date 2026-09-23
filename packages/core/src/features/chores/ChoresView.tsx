@@ -126,7 +126,7 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
                 onPress={() => choreRepo.complete(chore.id, account.id)}
                 hitSlop={8}
               >
-                <Icon name="checkCircle" size={26} color={theme.colors.borderStrong} />
+                <Icon name="checkCircle" size={26} color={theme.colors.textFaint} />
               </Pressable>
 
               <View style={{ flex: 1, gap: theme.spacing.xs }}>

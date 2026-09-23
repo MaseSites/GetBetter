@@ -26,6 +26,7 @@ const {
   scaledRanges,
 } = require('../analysis.js');
 const { publicFood, tokens } = require('../catalog/index.js');
+const { applyReference } = require('../reference/guard.js');
 const { cleanImage } = require('../images.js');
 const { LANGUAGES } = require('../lang.js');
 const { createUsda } = require('../sources/usda.js');
@@ -40,7 +41,7 @@ const languageFor = (wanted, fallback) =>
   LANGUAGES.includes(wanted) ? wanted : LANGUAGES.includes(fallback) ? fallback : 'de';
 
 function analysisRoutes(ctx) {
-  const { ok, store, catalog, config } = ctx;
+  const { ok, store, catalog, config, reference } = ctx;
   const usage = createUsage({ store, config, now: ctx.now });
   const { images } = ctx;
   const usda = createUsda({
@@ -50,7 +51,7 @@ function analysisRoutes(ctx) {
   });
 
   /** Das Bild analysieren lassen: Mock oder Gemini, dann streng pruefen. Wirft nie. */
-  async function observe(provider, { imageList, fixture, context, language }) {
+  async function observe(provider, { imageList, fixture, context, language, meal = null }) {
     let response;
     try {
       response =
@@ -63,6 +64,7 @@ function analysisRoutes(ctx) {
               images: imageList,
               context,
               language,
+              meal,
               ...(config.geminiTestUrl ? { baseUrl: config.geminiTestUrl } : {}),
             });
     } catch {
@@ -79,7 +81,7 @@ function analysisRoutes(ctx) {
    * neue USDA-Zeilen landen im gemeinsamen Zwischenspeicher. Danach kommt dazu,
    * was die Kamera nicht sieht (Standardrezept), und zuletzt zaehlt die eigene Portion.
    */
-  async function match(auth, vision, language = 'de') {
+  async function match(auth, vision, language = 'de', slot = 'lunch') {
     // `forOwner` kennt keine fremde Zeile: die eigene Portion bleibt die eigene.
     const { customFoods, cacheRows, confirmed } = await store.read((tx) => ({
       customFoods: tx.forOwner(auth.accountId).list('customFoods'),
@@ -132,7 +134,10 @@ function analysisRoutes(ctx) {
     };
     const plain = (term) => catalog.match(term, { customFoods });
     const withDish = applyDish(vision, matchFoods(vision, matcher), { match: plain, language });
-    return applyPersonal(withDish, personalFactors(confirmed));
+    // Erst das Unmoegliche kappen (menuCH), dann die eigene Portion: wer seine
+    // Teller kennt, hat das letzte Wort ueber dem Durchschnitt des Landes.
+    const guarded = applyReference(withDish, { reference, slot });
+    return applyPersonal(guarded, personalFactors(confirmed));
   }
 
   const view = (row, language = row.language ?? 'de') => ({
@@ -160,6 +165,8 @@ function analysisRoutes(ctx) {
       cooked: item.cooked ?? null,
       personal: item.personal === true,
       personalFactor: item.personalFactor ?? null,
+      // Was der Portionspruefer zu diesem Posten wusste — und ob er die Menge anfasste.
+      reference: item.reference ?? null,
       alternatives: item.alternatives ?? [],
       food: item.food ? publicFood(item.food, language) : null,
       nutrients: item.nutrients,
@@ -212,7 +219,12 @@ function analysisRoutes(ctx) {
 
     const fixture =
       admission.provider === 'mock' ? pickFixture(body.mockFixture, image.bytes) : null;
-    const observed = await observe(admission.provider, { imageList: [image], fixture, language });
+    const observed = await observe(admission.provider, {
+      imageList: [image],
+      fixture,
+      language,
+      meal: { slot, day },
+    });
 
     // Was hinausging, wird gezaehlt — auch wenn die Antwort nichts taugte.
     const recordFailure = (error) =>
@@ -230,7 +242,7 @@ function analysisRoutes(ctx) {
       return ok(422, { error: 'no_food', warnings: observed.vision.warnings });
     }
 
-    const items = await match(auth, observed.vision, language);
+    const items = await match(auth, observed.vision, language, slot);
     const result = buildResult(observed.vision, items);
     // Das Bild bleibt nur, wenn ein zweites Foto helfen koennte — sonst ist es jetzt weg.
     const temp = result.secondImageRecommended ? [await images.save(image)] : [];
@@ -304,6 +316,7 @@ function analysisRoutes(ctx) {
       fixture,
       context,
       language: row.language,
+      meal: { slot: row.slot, day: row.day },
     });
     if (!observed.ok || observed.vision.foods.length === 0) {
       await store.transact((tx) =>
@@ -317,7 +330,7 @@ function analysisRoutes(ctx) {
         ? ok(422, { error: 'no_food', warnings: observed.vision.warnings })
         : ok(502, { error: observed.error });
     }
-    const items = await match(auth, observed.vision, row.language ?? language);
+    const items = await match(auth, observed.vision, row.language ?? language, row.slot);
     const result = buildResult(observed.vision, items);
     await images.remove(row.tempImages);
     return store.transact((tx) => {

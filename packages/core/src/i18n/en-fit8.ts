@@ -44,4 +44,12 @@ export const enFit8: Readonly<Record<keyof typeof deFit8, string>> = {
   'fit.quote.38': 'You’re further along than a month ago.',
   'fit.quote.39': 'Every rep counts, even the slow one.',
   'fit.quote.40': 'Well done can also mean: choosing to do nothing today.',
+  'fit8.why.progress': 'Last time every set hit the top of the range — so today is heavier.',
+  'fit8.why.repeat': 'Same weight again: the range was not full yet.',
+  'fit8.why.reduce': 'Twice below the range — 10 % lighter today so it flows again.',
+  'fit8.why.reps': 'One rep more than your best set.',
+  'fit8.why.time': 'Five seconds longer than your best time.',
+  'fit8.why.deload': 'Easy week: less weight, one set fewer.',
+  'fit8.trend.soon': 'From four weigh-ins across a week, the trend shows up here.',
+  'fit8.safety.lowWeight': 'Your weight is very low for your height. Better Fit therefore only calculates maintenance values — please discuss goals with a doctor or a dietitian.',
 };

@@ -229,7 +229,7 @@ function VitalAdd({
             {t('fit6.vitals.weightFit')}
           </Text>
         ) : null}
-        <DayPicker value={day} onChange={setDay} allowNone={false} />
+        <DayPicker value={day} onChange={setDay} allowNone={false} direction="past" />
         <Button label={t('common.done')} icon="check" onPress={save} />
       </View>
     </Sheet>

@@ -105,7 +105,7 @@ export const deFit2 = {
   'fit.pantry.heard': 'aus „{said}“',
   'fit.pantry.unsure': 'unsicher aus „{said}“ — bitte prüfen',
   'fit.pantry.unknown': 'Nicht erkannt: {words}',
-  'fit.pantry.propose': 'Als Vorschlag übernehmen',
+  'fit.pantry.propose': 'In den Vorrat',
   'fit.pantry.emptyTitle': 'Der Vorrat ist leer',
   'fit.pantry.emptyBody':
     'Sag oder tipp, was du zu Hause hast — Better Fit schlägt daraus Rezepte vor.',

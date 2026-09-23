@@ -16,14 +16,32 @@ export type DayPickerProps = {
   /** Ob "Keins" zur Wahl steht. */
   allowNone?: boolean;
   label?: string;
+  /**
+   * Wohin die Vorschlaege zeigen.
+   *
+   * `future` (Vorgabe) ist eine **Frist**: Aufgabe, Ablaufdatum, Reise, Service
+   * — heute, morgen, in einer Woche, in einem Monat.
+   *
+   * `past` ist ein **Messwert**: Gewicht, Blutdruck, Puls, eine Nacht Schlaf.
+   * Den von morgen kann niemand kennen, also gibt es ihn auch nicht zur Wahl —
+   * heute, gestern, vorgestern, und ein Datum in der Zukunft wird abgelehnt.
+   */
+  direction?: 'future' | 'past';
 };
 
-/** Die Vorschlaege: heute, morgen, in einer Woche, in einem Monat. */
-const PRESETS = [
+/** Eine Frist: heute, morgen, in einer Woche, in einem Monat. */
+const FUTURE = [
   { id: 'today', days: 0 },
   { id: 'tomorrow', days: 1 },
   { id: 'week', days: 7 },
   { id: 'month', days: 30 },
+] as const;
+
+/** Ein Messwert: heute, gestern, vorgestern. Weiter zurueck ueber das Feld. */
+const PAST = [
+  { id: 'today', days: 0 },
+  { id: 'yesterday', days: -1 },
+  { id: 'before', days: -2 },
 ] as const;
 
 /**
@@ -31,27 +49,42 @@ const PRESETS = [
  * fuer jedes andere Datum. Kein Kalenderrad — das braucht auf dem Handy mehr
  * Tipps als eine kurze Zahl.
  */
-export function DayPicker({ value, onChange, allowNone = true, label }: DayPickerProps) {
+export function DayPicker({
+  value,
+  onChange,
+  allowNone = true,
+  label,
+  direction = 'future',
+}: DayPickerProps) {
   const { t, language } = useI18n();
   const theme = useTheme();
 
   const [custom, setCustom] = useState(false);
   const [text, setText] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'format' | 'future' | null>(null);
 
-  const presets = PRESETS.map((preset) => ({ ...preset, key: shiftDay(preset.days) }));
+  const presets = (direction === 'past' ? PAST : FUTURE).map((preset) => ({
+    ...preset,
+    key: shiftDay(preset.days),
+  }));
   const isPreset = presets.some((preset) => preset.key === value);
   const customActive = custom || (value !== null && !isPreset);
 
   function pickText(input: string) {
     setText(input);
     const parsed = parseDateValue(input);
-    if (parsed) {
-      setError(false);
-      onChange(dayKey(parsed));
+    if (!parsed) {
+      setError(input.trim().length > 0 ? 'format' : null);
       return;
     }
-    setError(input.trim().length > 0);
+    // Ein Messwert von morgen gibt es nicht — das Feld sagt es, statt still
+    // einen Tag zu speichern, an dem noch nichts passiert ist.
+    if (direction === 'past' && dayKey(parsed) > shiftDay(0)) {
+      setError('future');
+      return;
+    }
+    setError(null);
+    onChange(dayKey(parsed));
   }
 
   return (
@@ -103,7 +136,7 @@ export function DayPicker({ value, onChange, allowNone = true, label }: DayPicke
           onChangeText={pickText}
           keyboardType="numbers-and-punctuation"
           accessibilityLabel={t('day.pick')}
-          {...(error ? { error: t('day.error') } : {})}
+          {...(error ? { error: t(error === 'future' ? 'day.errorFuture' : 'day.error') } : {})}
         />
       ) : null}
     </View>

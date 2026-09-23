@@ -73,10 +73,30 @@ function bmrOf({ weightKg, heightCm, age, sex }) {
 
 const round10 = (value) => Math.round(value / 10) * 10;
 
+/**
+ * Unter diesem BMI rechnet die App kein Ziel mehr, sondern nur den Erhalt.
+ * 17.5 ist die Grenze, ab der die WHO von massiger bis starker Untergewichtigkeit
+ * spricht. Wer dort steht, braucht keine Zielvorgabe aus einer App, sondern eine
+ * Fachperson — und erst recht kein Defizit.
+ */
+const MIN_SAFE_BMI = 17.5;
+
+/** Der BMI, wenn Gewicht und Groesse plausibel sind — sonst null. */
+function bmiOf(weightKg, heightCm) {
+  if (!(weightKg > 0) || !(heightCm > 0)) return null;
+  const metres = heightCm / 100;
+  return weightKg / (metres * metres);
+}
+
 /** Warum nur Erhalt gerechnet wird — oder eine leere Liste. */
 function safetyReasons(profile, age) {
   const reasons = [];
   if (age !== null && age < 18) reasons.push('minor');
+  // Gerechnet wird mit dem Gewicht, das wirklich gilt (das neueste aus dem
+  // Tagebuch, siehe `currentWeightKg`) — nicht mit dem, was einmal im Profil
+  // stand. Sonst haette ein alter Profilwert die Pruefung ausgehebelt.
+  const bmi = bmiOf(profile.weightKg, profile.heightCm);
+  if (bmi !== null && bmi < MIN_SAFE_BMI) reasons.push('very_low_weight');
   if (profile.pregnant === true) reasons.push('pregnancy');
   if (profile.breastfeeding === true) reasons.push('breastfeeding');
   if (profile.eatingDisorder === true) reasons.push('eating_disorder');
@@ -281,11 +301,16 @@ module.exports = {
   ALLERGENS,
   DIETS,
   GOALS,
+  KCAL_PER_KG,
   MIN_KCAL,
+  MIN_SAFE_BMI,
+  PACE_KG_PER_WEEK,
   ageOn,
+  bmiOf,
   bmrOf,
   computeGoals,
   currentWeightKg,
+  safetyReasons,
   suggestAdjustment,
   validateProfile,
   weightTrend,

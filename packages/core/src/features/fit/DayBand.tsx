@@ -125,7 +125,7 @@ export function DayBand({ meals, targetKcal }: { meals: FitMeal[]; targetKcal: n
             <View
               style={[
                 styles.swatch,
-                { backgroundColor: item.ink ? theme.colors.text : theme.colors.borderStrong },
+                { backgroundColor: item.ink ? theme.colors.text : theme.colors.textFaint },
               ]}
             />
             <Quiet size="sm" tone="muted">

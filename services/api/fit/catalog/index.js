@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { checkPer100 } = require('../nutrition.js');
-const { MOCK_FOODS } = require('./mockFoods.js');
+const { GAP_FOODS, MOCK_FOODS } = require('./mockFoods.js');
 
 const MOCK_BY_ID = new Map(MOCK_FOODS.map((food) => [food.id, food]));
 
@@ -224,7 +224,52 @@ const RAW = ['roh', 'raw', 'cru', 'crue', 'crues', 'crus', 'crudo', 'cruda', 'tr
 /** Getrocknet heisst fuer den Zustand roh (vor dem Kochen), macht einen Namen aber spezieller. */
 const DRY = ['getrocknet', 'gedorrt', 'dried'];
 
-/** Woerter, die einen amtlichen Namen nicht spezieller machen („Durchschnitt“, „ohne Zugabe“). */
+/**
+ * Wie gut ein Wort des Katalogs (`own`) zu einem gesuchten Wort passt:
+ *
+ * - gleich 1
+ * - Mehrzahl („Bananen“ -> Banane, hoechstens zwei Buchstaben mehr) 0.9
+ * - das Gesuchte ist zusammengesetzt und der Katalog fuehrt den Grundstoff
+ *   („Weissmehl“ -> Mehl; im Deutschen steht das Hauptwort hinten) 0.7
+ * - umgekehrt: der Katalog ist genauer als die Frage („Speck“ -> Kochspeck,
+ *   „Wurst“ -> Bratwurst, „Melone“ -> Zuckermelone) 0.65
+ * - nur derselbe Anfang („lait“ -> laitue, „Reis“ -> Reisgetraenk) 0.6 — das
+ *   ist der schwaechste Fall, denn ein Reisgetraenk ist kein Reis.
+ */
+function pairWeight(own, word) {
+  if (own === word) return 1;
+  if (word.startsWith(own) && own.length >= 4 && word.length - own.length <= 2) return 0.9;
+  if (word.endsWith(own) && own.length >= 4) return 0.7;
+  if (own.endsWith(word) && word.length >= 4 && own.length - word.length >= 2) return 0.65;
+  if (own.startsWith(word) && word.length >= 3) return 0.6;
+  return 0;
+}
+
+/**
+ * Die Kategorien der amtlichen Datenbank, die ein fertiges Gericht ausweisen
+ * („Gerichte/Salate“, „Gerichte/Sandwiches“ …) — 149 Datensaetze.
+ */
+const DISH_CATEGORY = /^Gerichte\//;
+/** So viel bleibt einem Gericht, wenn jemand nur eine Zutat genannt hat. */
+const DISH_PENALTY = 0.6;
+
+/**
+ * Woerter, die ein Ersatzprodukt ausweisen. Sie stehen in der Schweizer
+ * Datenbank gleich neben dem Original („Wurst, vegan, aus Seitan“), treffen
+ * darum jede Suche nach dem Original — und haben ganz andere Naehrwerte.
+ */
+const SUBSTITUTE = new Set([
+  'vegan',
+  'vegane',
+  'veganer',
+  'veganes',
+  'vegetarisch',
+  'vegetarische',
+  'alternative',
+  'ersatz',
+  'fleischersatz',
+]);
+
 const NEUTRAL = new Set([
   'durchschnitt',
   'ohne',
@@ -312,6 +357,10 @@ function createCatalog({ dataDir, mode }) {
     const swiss = readSwiss(dataDir);
     const foods = [...(swiss?.foods ?? [])];
     if (mode === 'mock' || !swiss) foods.push(...MOCK_FOODS);
+    // Im Live-Betrieb nur die drei, die der Schweizer Datenbank fehlen
+    // (`GAP_FOODS`) — sonst faende „Backpulver“ weiter gezuckertes Kakaopulver
+    // und „Sojadrink“ einen Energy Drink.
+    else foods.push(...GAP_FOODS);
     cached = {
       foods: foods.filter((food) => checkPer100(food.per100).ok),
       swissVersion: swiss?.version ?? null,
@@ -375,36 +424,38 @@ function createCatalog({ dataDir, mode }) {
           else {
             // Ganzes Wort 1, Mehrzahl („Bananen“ -> Banane, hoechstens zwei Buchstaben mehr) 0.9,
             // Wortende eines zusammengesetzten Worts („Weissmehl“ -> Mehl, im Deutschen steht das
-            // Hauptwort hinten) 0.7, nur Anfang („lait“ -> laitue) 0.6.
-            const weights = query.map((word) =>
-              Math.max(
-                0,
-                ...words.map((own) =>
-                  own === word
-                    ? 1
-                    : word.startsWith(own) && own.length >= 4 && word.length - own.length <= 2
-                      ? 0.9
-                      : word.endsWith(own) && own.length >= 4
-                        ? 0.7
-                        : own.startsWith(word) && word.length >= 3
-                          ? 0.6
-                          : 0,
-                ),
-              ),
-            );
+            // Hauptwort hinten) 0.7, dasselbe andersherum („Speck“ -> Kochspeck, „Wurst“ ->
+            // Bratwurst, „Melone“ -> Zuckermelone) 0.65 — eine Spur tiefer, weil der Katalog
+            // dann genauer ist als die Frage, nur Anfang („lait“ -> laitue) 0.6.
+            const weights = query.map((word) => Math.max(0, ...words.map((own) => pairWeight(own, word))));
             const hits = weights.filter((value) => value > 0).length;
             const sum = weights.reduce((total, value) => total + value, 0);
             score = (sum / query.length) * 0.85 * Math.min(1, (hits + 1) / (head + 1) + 0.3);
             // Jedes Wort, das weder gesucht noch Zustand noch neutral ist, macht den Datensatz spezieller:
             // „Banane, roh“ schlaegt „Banane, gedoerrt“, „Teigwaren ohne Ei“ die gefuellten.
-            const extras = words.filter(
-              (own) =>
-                !NEUTRAL.has(own) &&
-                !RAW.includes(own) &&
-                !COOKED.some((stem) => own.startsWith(stem)) &&
-                !query.some((word) => own === word || word.startsWith(own) || own.startsWith(word)),
-            ).length;
+            const isExtra = (own) =>
+              !NEUTRAL.has(own) &&
+              !RAW.includes(own) &&
+              !COOKED.some((stem) => own.startsWith(stem)) &&
+              !query.some((word) => pairWeight(own, word) > 0);
+            const extras = words.filter(isExtra).length;
             score -= Math.min(0.1, extras * 0.02);
+            // Wer eine Zutat nennt, meint die Zutat — nicht ein Gericht, in dem
+            // sie vorkommt: „Speck“ ist Kochspeck, nicht „Crêpes mit Speck“.
+            // Entschieden wird das an der Kategorie der amtlichen Datenbank
+            // („Gerichte/…“), nicht an der Wortstellung — und nur, wenn das
+            // Gericht ausser der Zutat noch etwas anderes nennt. „Lasagne“
+            // bleibt darum Lasagne, auch wenn sie ein Gericht ist.
+            if (DISH_CATEGORY.test(food.category ?? '') && query.length === 1 && extras > 0)
+              score *= DISH_PENALTY;
+            // Ein Ersatzprodukt ist nicht das Original: „Wurst, vegan, aus Seitan“
+            // hat mit Bratwurst nur den Namen gemein. Wer danach fragt, bekommt
+            // es weiterhin — wer nur „Wurst“ sagt, meint Fleisch.
+            if (
+              words.some((own) => SUBSTITUTE.has(own)) &&
+              !query.some((word) => SUBSTITUTE.has(word))
+            )
+              score *= 0.5;
           }
           if (score * weight > best) best = score * weight;
         }

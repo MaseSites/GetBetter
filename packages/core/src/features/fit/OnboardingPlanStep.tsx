@@ -88,7 +88,9 @@ export function OnboardingPlanStep({
         ) : null}
         {goals.safety.mode === 'maintain_only' ? (
           <Text variant="body" tone="danger">
-            {t('fit.setup.safetyResult')}
+            {goals.safety.reasons.includes('very_low_weight')
+              ? t('fit8.safety.lowWeight')
+              : t('fit.setup.safetyResult')}
           </Text>
         ) : null}
       </View>

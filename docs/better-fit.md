@@ -399,3 +399,414 @@ Was durchgehend auffällt und die Priors angehen sollen:
   (67 g Oliven übersehen) — der Recall hängt an der Sicht von oben.
 - **Runde Zahlen.** Geschätzt wird in 10-g-Schritten; bei kleinen Gerichten ist
   das allein schon zweistellig Prozent.
+
+
+## Datenbank-Benchmark: was unser Code allein falsch macht (22.09.2026)
+
+Der Foto-Benchmark misst die ganze Kette und kostet Geld. Die **zweite Hälfte**
+derselben Kette lässt sich ohne einen einzigen KI-Aufruf messen — und dann über
+alle 4728 brauchbaren Gerichte statt über zwölf:
+
+```bash
+npx -y node@24 scripts/fit-db-benchmark.js --n 5000 --label db-baseline
+npx -y node@24 scripts/fit-db-benchmark.js --n 5000 --label db-nocooking --no-cooking
+npx -y node@24 scripts/fit-db-benchmark.js --compare <a>.json <b>.json
+```
+
+Nutrition5k kennt je Gericht die Wahrheit: Zutat (englisch), Gramm und
+kcal/Makros. Der Benchmark nimmt **Zutat und Gramm als gegeben** und schickt sie
+durch genau den Weg, den eine Antwort der KI nimmt — `matchFoods`
+(`fit/analysis.js`) → `catalog.match` → `cooking.js` → `totalsOf` →
+`computeMeal`. Was dann noch danebenliegt, ist der Fehler **unseres** Codes:
+Datenbankzuordnung, roh/gekocht, Werte je 100 g. Wie gut das Bildmodell sieht
+und schätzt, spielt keine Rolle mehr.
+
+`benchmark/terms.js` übersetzt die englischen Namen ins Deutsche und spielt
+damit einen perfekten `swissSearchTerm` — die Schweizer Datenbank führt nur
+deutsche Namen. `--no-cooking` legt allein `cookedVariant` stumm (die Ableitung
+„das lag gekocht auf dem Teller“ bleibt an), damit sich die Umrechnung beziffern
+lässt. Geschrieben wird nach `data/fit-reference/benchmarks/`, JSON und
+Markdown; `services/api/**` wird nur gelesen. Deterministisch, dependency-frei,
+rund 20 Sekunden für alles.
+
+### Stand (22.09.2026, n=4728, Katalog BLV 7.1, 1200 Datensätze, `32b981fece85`)
+
+Beide Läufe auf **demselben Katalogstand** (der Fingerabdruck steht im Bericht;
+am Katalog wird gerade gearbeitet, und `--compare` warnt, wenn zwei Läufe ihn
+nicht teilen).
+
+| Kennzahl | Umrechnung an | Umrechnung aus |
+| --- | ---: | ---: |
+| kcal-Fehler Median / Mittel / p90 | 13.5 % / 26.1 % / 53.4 % | 14.9 % / 27.0 % / 53.5 % |
+| kcal-Verzerrung (Mittel) | +1.1 % | +0.3 % |
+| innerhalb ±10 % / ±15 % / ±25 % | 41 % / 54 % / 70 % | 39 % / 50 % / 68 % |
+| MAE Protein / KH / Fett | 3.5 / 6.4 / 3.7 g | 3.6 / 6.4 / 3.9 g |
+| Ohne Treffer im Katalog | 5 % (35 791 von 1 019 842 kcal) | gleich |
+| Auf roh/trocken gelandet | 54 % | 56 % |
+| Von `cooking.js` umgerechnet | 2 % | 0 % |
+
+**Die Umrechnung roh→gekocht hilft, aber wenig** — sie greift nur bei 2 % der
+Posten und bringt 1.4 Punkte Median und 4 Punkte auf ±15 %. Der grosse Rest
+liegt in der Zuordnung.
+
+### Woran es liegt (die Arbeitsliste)
+
+Die 30 teuersten Zutaten stehen in `2026-09-22-db-baseline.md`, sortiert nach
+dem Betrag, den sie über alle Gerichte an kcal danebenlagen. Vier Muster:
+
+- **Ein fertiges Gericht schlägt die Zutat.** `bacon` → „Speck“ landet auf
+  **„Crêpes mit Speck, zubereitet“** (−69 kcal × 263), weil das Wort dort ganz
+  vorkommt, während „Kochspeck“ es nur am Ende trägt. Ebenso
+  `chicken apple sausage` → „Wurst-Käse-Salat, zubereitet“.
+- **Teilwörter erfinden Treffer.** Die Regel `word.endsWith(own)` („Weissmehl“
+  → „Mehl“) greift zu weit: `egg whites` → „Eiklar“ → **„Bratensauce, klar“**
+  (187×), `lemon` → **„Lemon Curd“** (+171 kcal × 55).
+- **Ein Beiwort halbiert die Güte.** `(Summe/Wortzahl)` bestraft ein Wort ohne
+  Treffer so hart wie eine falsche Anfrage: „Reis“ trifft mit 0.78,
+  „weisser Reis“ mit 0.37 — richtig, aber unsicher. 14 % aller Treffer sind
+  als unsicher markiert.
+- **Fehlende Lebensmittel.** 1200 Datensätze decken den Schweizer Alltag, nicht
+  die Welt. Ohne Treffer bleiben 5 % der Posten (35 791 kcal Wahrheit), fast
+  alles davon `corn on the cob` (11 075), `tortilla` (7 606), `bagels` (4 765),
+  `brownies` (3 771), `bulgur`, `chilaquiles`.
+
+Dazu der falsche Vorgabezustand: **Fisch gilt als roh** (`infer: false` in
+`cooking.js`, wegen Sushi) — auf 241 Fotos lag er gebraten da (+30 kcal je
+Vorkommen); `hash browns` trifft „Rösti (Fertig-Rösti), **ungebraten**“
+(−168 kcal × 29), und `caesar salad` wird zum blossen „Kopfsalat, roh“.
+
+**Was als Nächstes ansteht**, in dieser Reihenfolge:
+
+1. Ein **fertiges Gericht darf eine Zutat nicht schlagen**: Kategorie
+   `Gerichte/…` abwerten, solange die Anfrage nur ein Lebensmittel nennt.
+2. Die Teilwort-Regel `word.endsWith(own)` auf ein Mindestverhältnis der
+   Wortlängen einschränken — „Eiklar“ ist keine „Bratensauce, klar“.
+3. Wörter ohne jeden Treffer aus dem Nenner nehmen, damit ein Beiwort die Güte
+   nicht halbiert.
+4. Für die fehlenden Lebensmittel einen FNDDS/USDA-Rückfall (`reference.json`
+   führt FNDDS schon) — sechs Einträge holen den grössten Teil der 5 %.
+5. Fisch auf gekocht stellen und die „ungebraten“-Datensätze (Rösti,
+   Fertigprodukte) hinter die zubereiteten stellen.
+
+### Drei weitere Ideen, gemessen und verworfen (22.09.2026)
+
+Die Arbeitsliste des Prüfstands schlug fünf Punkte vor. Punkt 1 (Wortende) ist
+drin und bringt die 0.8 Punkte oben. Drei weitere wurden gebaut, an denselben
+4728 Tellern gemessen und **wieder entfernt** — sie stehen hier, damit sie
+niemand ein zweites Mal baut:
+
+| Idee | Erwartung | Gemessen |
+| --- | --- | --- |
+| Ein fertiges Gericht darf eine Zutat nicht schlagen (über das erste Wort des Namens) | „Crêpes mit Speck“ verliert gegen „Kochspeck“ | **14.7 % → 22.0 %** (n=400). Der Abzug trifft zu viele richtige Datensätze mit |
+| `word.endsWith(own)` an ein Längenverhältnis binden | „Eiklar“ ist keine „Bratensauce, klar“ | **keine Wirkung** — und der eigene Anlass blieb ungelöst, weil „klar“ gerade noch durchkommt |
+| Wörter ohne Treffer aus dem Nenner nehmen | „weisser Reis“ nicht mehr als unsicher | **13.5 % → 17.4 %**. Im Kleinen richtig (0.376 → 0.602), im Ganzen schädlich: zu viele knappe Treffer steigen mit |
+| Fisch gilt als gekocht (`infer: true`) | 241 Fotos zeigen gebratenen Fisch | **keine Wirkung** — der Suchbegriff nennt „roh“ ausdrücklich, und Gesagtes schlägt Geraten |
+
+Zwei davon klingen beim Lesen zwingend und sind trotzdem falsch. Genau dafür
+gibt es den Prüfstand: **eine Idee zur Zuordnung gilt erst, wenn sie an den
+4728 Tellern gewonnen hat** — nicht, wenn sie ein Beispiel repariert.
+
+Offen bleiben damit die zwei Punkte, die keine Heuristik sind, sondern Daten:
+fehlende Lebensmittel (5 % der Posten, u. a. `corn on the cob`, `tortilla`,
+`bagels`) über einen FNDDS/USDA-Rückfall, und die falsch zugeordneten
+Grundnahrungsmittel (`bacon`, `wheat berry`, `lemon` → Lemon Curd), die eher in
+die Begriffstabelle gehören als in die Bewertung.
+
+## Gegen den Rest: Konkurrenz und was daraus folgt (23.09.2026)
+
+Die volle Analyse steht in [better-fit-konkurrenz.md](better-fit-konkurrenz.md)
+— Foto-Kalorienzähler, Ernährungs-Apps, Trainings-Apps und der Schweizer Markt,
+mit Quellen. Das Wichtigste in vier Sätzen:
+
+- **Unsere Architektur ist gemessen die beste.** Nutrition5k vergleicht drei
+  Ansätze: Kalorien direkt vorhersagen 26.1 %, RGB-D 18.8 %, **Masse schätzen
+  und dann je Gramm rechnen 16.5 %**. Das Letzte ist genau unser Weg. Und es
+  erklärt, warum bei uns dasselbe Foto dieselbe Zahl gibt und bei Cal AI bis zu
+  400 kcal Unterschied.
+- **Hinten liegen wir bei der Portionsschätzung** (SnapCalorie hat LiDAR und
+  gewogene Trainingsdaten) und beim **Barcode auf Schweizer Marken** (1200
+  generische BLV-Einträge scannen keinen Migros-Salat). Das zweite ist der
+  dringendste Punkt überhaupt.
+- **Vorne liegen wir** bei Schweizer Lebensmitteln, bei der Reproduzierbarkeit,
+  beim geschlossenen Kreis (Vorrat → Plan → Liste → Tagebuch → Training) und
+  beim Anstand: Apple hat Cal AI wegen täuschender Abrechnung entfernt, Noom
+  118 Mio. USD an Vergleichen gezahlt, MyFitnessPal seit 2022 viermal Gratis
+  weggenommen.
+- **Zahlen immer doppelt nennen:** 13.3 % Median *und* 25.9 % Mittel, und dazu,
+  dass das die Rechen-Hälfte bei gegebenen Gramm ist. Sonst tun wir genau das,
+  was wir dem Feld vorwerfen.
+
+Gebaut wurde daraus am selben Tag das **adaptive Ziel** (`fit/energy.js`, siehe
+unten) und der **Grund für das Trainingsziel** (`fit8.why.*`).
+
+## Das adaptive Ziel: Verbrauch aus den eigenen Zahlen (23.09.2026)
+
+`goals.js` schätzt den Verbrauch mit Mifflin-St Jeor mal einem
+**geratenen** Aktivitätsfaktor. Wer sich dabei verschätzt, rechnet Monate mit
+einem Ziel, das um mehrere hundert Kalorien danebenliegt. `fit/energy.js`
+braucht keine Schätzung, sondern den Energieerhaltungssatz:
+
+```
+Verbrauch = durchschnittliche Zufuhr − Gewichtsänderung × 7700 kcal/kg
+```
+
+Wer 2100 kcal isst und 0.4 kg je Woche verliert, verbraucht rund 2540 — egal
+was die Formel sagt. Das ist MacroFactors Kernfunktion (71.99 USD/Jahr, kein
+Gratis-Tier) und die einzige Stelle, an der wir einer fachlich ernsthaft
+besseren App ebenbürtig werden.
+
+**Was das Modul von sich aus nicht sagt** — jede Grenze ist ein Test:
+
+| Lage | Antwort |
+| --- | --- |
+| unter 14 Tagen Verlauf | nichts (Trend ist noch Rauschen) |
+| unter 60 % der Tage im Tagebuch | nichts (sonst zählt man nur die braven Tage) |
+| ein Tag unter 800 kcal | zählt nicht mit (war ein vergessener Tag, nicht eine Fastenkur) |
+| über 1.5 kg/Woche Änderung | nichts (Wasser oder Tippfehler auf der Waage) |
+| Verbrauch unter 1000 oder über 6000 | nichts |
+| minderjährig, schwanger, stillend, Essstörung, Erkrankung | **kein Ziel** (wie `goals.js`); die Beobachtung selbst darf es geben |
+
+Das Ziel bewegt sich höchstens **300 kcal je Schritt**, sagt aber ehrlich, wo es
+landet (`settlesAtKcal`) — eine Schätzung, die um 600 danebenlag, wird in zwei
+Schritten gerade gezogen, nicht in einem. Und es bleibt ein **Vorschlag**:
+`GET /v1/fit/weights` liefert `expenditure` samt `target`, gesetzt wird nichts.
+`test/fit-energy.test.js` prüft von aussen, dass zweimal Lesen dasselbe gibt und
+das Profil unberührt bleibt.
+
+## Warum heute dieses Gewicht steht (23.09.2026)
+
+`nextTarget` (`training/training.js`) rechnet die Progression längst: alle
+Arbeitssätze am oberen Ende mit Reserve → +2.5 kg, bei Kniebeuge und Kreuzheben
++5 kg; zweimal unter dem Bereich → 10 % leichter; ohne Gewicht eine
+Wiederholung mehr; bei Zeitübungen 5 Sekunden. Der **Grund** stand im Feld
+`reason` und kam nie beim Nutzer an.
+
+Jetzt steht er unter dem Ziel, in vier Sprachen (`fit8.why.*`): „Letztes Mal
+alle Sätze am oberen Ende — darum heute mehr.“ Nur vor dem ersten Satz — wer
+schon trainiert, braucht die Begründung nicht mehr. Das ist die direkte Antwort
+auf den häufigsten Vorwurf gegen Fitbod: eine Zahl aus einer Blackbox, die man
+nach jeder Einheit von Hand nachbessert.
+
+## Gegen die zehn besten Health-Apps (23.09.2026)
+
+Analysiert wurden Whoop, Oura, Apple Fitness, Strava, Hevy, Gentler Streak,
+Nike Run Club, MacroFactor, Zero und Flo — nach Design-Qualität ausgewählt,
+nicht nach Umsatz. Skill-Trio vorher durchlaufen (`ui-ux-pro-max` →
+`emil-design-eng` → `anti-slop-ajonai`), Entscheidungs-Sheet vor der ersten
+Zeile Code.
+
+**Fünf Muster teilen alle zehn** — der Stand der Technik:
+
+| Muster | Bei uns |
+| --- | --- |
+| Genau eine Aktionsfarbe, und Farbe codiert oder sie ist weg | ✓ `accent` als Fläche, `accentMark` als Marke, Rot nur Gesundheit |
+| Tabellenziffern überall, wo eine Zahl steht | ✓ `numeric` — **gemessen**: ohne sie ist „111“ 46 px und „000“ 81 px breit, mit ihr beide exakt 72 |
+| Eine Heldenzahl, 2–6× Fliesstext, Einheit klein | ✓ 56/16 = **3.5×**, genau Ouras Verhältnis |
+| Tiefe aus Fläche und Haarlinie, nicht aus Schatten | ✓ eine Erhebungsstufe |
+| Bewegung nur auf Daten, 120–350 ms | ✓ `press 160`, `reveal 200`, `sheet 240`, starke `ease-out`, `ease-in` verboten |
+
+### Was gebaut wurde
+
+- **Kein Diagramm aus zwei Punkten** (`trendViewOf`, getestet). Vorher zeichnete
+  `trend.length > 1` eine Linie und rechnete aus einem Tag eine Wochenrate: wer
+  heute 80.0 und morgen 79.2 kg wog, las **„−5.6 kg/Woche“**. Jetzt braucht es
+  vier Wägungen über mindestens eine Woche; darunter steht die Zahl allein.
+- **Der Leerzustand sagt, was fehlt** (`fit8.trend.soon`, vier Sprachen): „Ab
+  vier Wägungen über eine Woche zeigt sich hier der Verlauf.“ Kein Diagramm ist
+  nicht dasselbe wie nichts.
+- **Marken tragen `textFaint`, nicht `borderStrong`.** Gemessen über alle Modi,
+  Akzente und Voreinstellungen: `borderStrong` liegt bei **1.57:1** — **96
+  Verstösse** gegen unsere eigene 3:1-Regel für Punkte, Ringe und Balken. Es ist
+  für Trennlinien gedacht. Korrigiert an sieben Stellen, wo es Information trug:
+  Diagrammpunkte und Legende (`WeightChart`), Legende des Tagesbands, Trinkgläser,
+  Wochenpunkte (`TrainingWeek`), Ämtli-Haken, Notiz-Kästchen, Notiz-Auswahl.
+  Nachgemessen im laufenden Browser: die Trinkgläser stehen jetzt bei **5.59:1**.
+  `textFaint` ist bereits auf 4.5:1 in jeder Kombination geprüft.
+- **Kein Scham-Rot mehr.** `MacroTable` färbte Balken und Text rot, sobald man
+  über dem Tagesziel war — und widersprach damit `TodayHead` („Über dem Ziel wird
+  nichts rot“) und der Projektregel. Jetzt wird der Balken Tinte, das Wort
+  „drüber“ sagt es. Belegter Grund: MacroFactor ist ausdrücklich
+  „adherence-neutral“ und vermeidet „red numbers, streak-shaming and ‚you
+  exceeded your budget‘ scolding“, weil Scham zum Abbruch führt, nicht zum
+  Weitermachen. Rot bleibt bei Ablauf, vergessener Einnahme und Allergie.
+
+### Was bewusst nicht gebaut wurde
+
+- **Kein Ring.** Alle Vorbilder haben einen (Apple, Oura, Whoop) — und genau
+  darum wäre er geerbt, nicht abgeleitet. Unsere Signatur ist das **Tagesband**
+  aus dem Heft. Technisch käme dazu: ein Verlauf *entlang* eines Bogens braucht
+  `conic-gradient`, das es in React Native nicht gibt.
+- **Keine mitzählende Heldenzahl.** Oura lässt Zahl und Bogen 900 ms synchron
+  hochlaufen. Ouras Score ist ein Ritual einmal am Tag; unser „Heute noch“ wird
+  bei jeder Mahlzeit gelesen. Bei mehrfach täglicher Nutzung sagt die Regel:
+  Animation **reduzieren**, nicht hinzufügen. Eine Wartezeit von 900 ms genau
+  dann, wenn jemand schnell etwas wissen will, wäre eine Bremse.
+- **Kein Zielband im Diagramm.** Ouras „optimal band“ beantwortet „ist das gut?“
+  ohne Achse. Wir beantworten es schon in Worten („langsamer als geplant“) — ein
+  zweites Mal als Fläche wäre Dekoration, und dekorative Diagramme sind selbst
+  ein Slop-Marker.
+- **Der Akzent in der Tab-Leiste bleibt.** Oura verbietet Domänenfarbe im
+  Chrome. Unsere Akzent-Pille am aktiven Tab ist aber eine Entscheidung für alle
+  fünf Apps, nicht für Better Fit allein — die gehört Severin, nicht dieser
+  Sitzung. Notiert, nicht geändert.
+
+### Was der Prüfer sagt
+
+`anti-slop-ajonai/scripts/check.mjs` über 699 Dateien: **0 Fehler, 7 Warnungen,
+42 Hinweise** — und alle 49 sind Fehlalarme. Fünf Warnungen entstehen, weil der
+Prüfer unser Motion-Token `duration.hover` für CSS `:hover` hält und das Wort
+`ease-in` in unserem eigenen **Verbot** dieser Kurve findet. Zwei betreffen
+`you@example.com` — Feld-Platzhalter in der von der IANA dafür reservierten
+Domain. Die 42 Hinweise sind `height: '100%'`, ein Layoutwert, den die Regel für
+eine erfundene Statistik hält.
+
+Die Schicht, die bei generiertem Design fehlt, war schon da: `Skeleton` in der
+Höhe des Kommenden, `EmptyState`, Fehler mit „Nochmal versuchen“,
+Druck-Skalierung, `useReducedMotion` in jeder Animation.
+
+## Durchgespielt auf einem echten Konto (23.09.2026)
+
+Better Fit von A bis Z auf `test@gmail.com` eingerichtet und durchgeklickt.
+Gefunden wurden fünf Fehler — vier davon von derselben Sorte, die Severin im
+Gewichts-Blatt bemerkt hat: **die App fragte nach Zukunft, wo nur Vergangenheit
+möglich ist.**
+
+### 1. Messwerte für morgen (der ursprüngliche Fund)
+
+Das Gewichts-Blatt bot „Morgen“, „In einer Woche“, „In einem Monat“. Sein
+Gewicht von morgen kann niemand kennen. Der `DayPicker` war nur für **Fristen**
+gebaut (Aufgabe, Ablaufdatum, Reise) und wurde für **Messwerte**
+wiederverwendet.
+
+Jetzt hat er eine Richtung: `direction="past"` zeigt Heute · Gestern ·
+Vorgestern und lehnt ein Datum in der Zukunft mit einem eigenen Satz ab
+(`day.errorFuture`). Gesetzt bei Gewicht, Blutdruck, Puls und Schlaf. Fristen
+bleiben, wie sie waren.
+
+**In den Daten stand die Folge:** ein Gewichtseintrag auf den **28.09.**, fünf
+Tage in der Zukunft, ganz oben im Verlauf — und die App rechnete damit den
+aktuellen Wert („+22 seit letztem Mal“). Entfernt.
+
+### 2. Ein Training in der Zukunft liess sich abschliessen
+
+`POST /v1/fit/workouts/<id>/sets` nahm einen Satz für ein Training am **30.09.**
+an (HTTP 201) und setzte `startedAt` auf heute. Danach war es „erledigt“ und
+stand mit Zukunftsdatum im **Verlauf** — neben einer Einheit mit 3 echten
+Sätzen, die noch auf „geplant“ stand. Der Verlauf war verdreht.
+
+Jetzt: `409 workout_future`, mit einem Satz, der den Ausweg nennt („Hol es mit
+‚Heute nachholen‘ vor“). Vergangenheit und heute gehen weiter. Zwei bestehende
+Tests nahmen dieselbe Abkürzung (sie buchten auf einer Zukunfts-Einheit, um „das
+nächste Mal“ zu simulieren) — sie holen die Einheit jetzt erst vor, wie ein
+Mensch es täte.
+
+### 3. Dreimal dasselbe bestätigen
+
+Vorrat per Text: Text tippen → Liste abhaken (schon vorgehakt) → **„Als
+Vorschlag übernehmen“** → **„Bestätigen“**. Drei Bestätigungen für eine Handlung
+— und wer den letzten Knopf nicht fand, verlor seine Eingabe still.
+
+Der Vorschlag→Bestätigen-Mechanismus gehört dem **Coach**, wo die KI
+unaufgefordert etwas vorschlägt. Hier hat der Mensch den Text selbst getippt und
+die Liste abgehakt: **das ist die Bestätigung.** Der Vorschlag entsteht weiter im
+Dienst (dort liegt die atomare Speicherung), er wird nur gleich eingelöst;
+scheitert das, fragt die Karte wie bisher. Der Knopf heisst jetzt **„In den
+Vorrat“** statt nach unserer Mechanik.
+
+**Was dabei herauskam:** „Daraus kannst du kochen“ sagte vorher immer „passt
+gerade kein Rezept“. Der Abgleich war nie kaputt — ihm fehlten die Daten, weil
+der zweite Schritt jede Eingabe verschluckte. Nach dem ersten Klick standen
+sofort Bananen-Pancakes („Alles da“), Porridge und Bananenkuchen da.
+
+### 4. Der Vorrat deckte das Rezept nicht
+
+„Porridge · **Fehlt: Milch**“, obwohl ein Liter Vollmilch im Vorrat lag. Die
+Bibliothek nennt Zutaten als Durchschnitt (`swiss:1194` „Milch
+(Durchschnitt)“), damit ein Rezept nicht auf eine Marke festgelegt ist; ein
+echter Vorrat enthält konkrete Produkte (`swiss:62` „Vollmilch,
+pasteurisiert“). Per Kennung treffen die sich nie.
+
+Jetzt deckt ein konkretes Produkt die allgemeine Zutat, wenn beide **dieselbe
+Kategorie der amtlichen Datenbank** haben (`covers` in `kitchen/suggest.js`).
+Das ist die Angabe des BLV, nicht geraten, und gilt nur in dieser Richtung —
+allgemeine Milch ist keine Vollmilch, und Emmentaler ist keine Milch.
+
+### 5. Ein Plan für BMI 13.1
+
+Das Konto rechnete mit 45 kg auf 185 cm — **BMI 13.1** — und bekam einen
+Ernährungsplan wie jeder andere. `safetyReasons` kannte Minderjährigkeit,
+Schwangerschaft, Stillzeit, Essstörung und Erkrankung, aber nicht das Gewicht
+selbst.
+
+Jetzt gibt es `very_low_weight` unter **BMI 17.5** (ab dort spricht die WHO von
+mässiger bis starker Untergewichtigkeit): nur noch Erhalt, kein Defizit und kein
+Überschuss, auch wenn jemand „zunehmen“ gewählt hat. Gerechnet wird mit dem
+Gewicht, das wirklich gilt (dem neuesten aus dem Tagebuch), sonst hebelte ein
+alter Profilwert die Prüfung aus. Und weil dieser Grund **gemessen** ist und
+nicht angekreuzt, sagt die App ihn ausdrücklich: „Dein Gewicht liegt für deine
+Grösse sehr tief … besprich Ziele bitte mit einer Ärztin oder einer
+Ernährungsberatung.“ Nur dort, wo der Plan erklärt wird — nicht als täglicher
+roter Balken auf der Startseite.
+
+### Kein Fehler, obwohl es so aussah
+
+- **Trinken zählte nicht.** Die Knöpfe sind in Ordnung; im Browser-Pane trafen
+  meine Koordinaten-Klicks daneben. Über `element.click()` ging es sofort.
+- **Backpulver und Molkenprotein fehlen** der Schweizer Datenbank wirklich
+  (0 Treffer in 1200 Einträgen). Die App fällt dann auf Beispielwerte zurück und
+  **kennzeichnet das** („Beispielwerte, keine offiziellen Daten“). Datenlücke
+  für den Import, kein Fehler im Code.
+- **`mock:`-Vorratsposten** eines im Beispielmodus angelegten Kontos treffen
+  keine Schweizer Rezeptzutat. Eine Übersetzungstabelle dafür wäre Pflege für
+  Testdaten; die drei Posten sind stattdessen entfernt.
+
+### Nachgezogen: die restlichen Funde (23.09.2026)
+
+**Die Woche ging nicht auf.** Das Profil sagte „4 Trainingstage“, der Plan hatte
+drei (Mo/Mi/Sa). `dayKindOf` entscheidet richtig nach dem Plan, **welcher** Tag
+Training ist — aber `computeGoals` verteilte die Woche nach der Profilzahl. Drei
+Trainingstage à 2890 kcal und vier Ruhetage à 2280 ergaben 17'790 statt 18'410:
+**620 kcal zu wenig je Woche**, bei einem Konto, das gar kein Defizit haben darf.
+
+`trainingDaysOf` (`fit/diary.js`, getestet) nimmt jetzt die Tage des Plans, wenn
+einer steht, sonst die Zahl aus dem Profil. Nachgemessen am echten Konto: Ruhetag
+2440 statt 2280, Woche 18'430 gegen gewollte 18'410 — die 20 kcal sind die
+Rundung auf Zehnerschritte.
+
+**Drei Zutaten waren unerreichbar.** In der Live-Datenbank standen nur die 1200
+Schweizer Einträge; die Beispielwerte waren per Id auffindbar (Rezepte lösten
+also auf), per **Suche** aber nicht. Wer sie in den Vorrat legen wollte, bekam
+Unsinn:
+
+| gesucht | gefunden (vorher) |
+| --- | --- |
+| Backpulver | Kakaogetränk, gezuckert, Pulver |
+| Molkenprotein / Proteinpulver | nichts |
+| Sojadrink | Energy Drink mit Koffein, Taurin und Vitaminen |
+
+Alle drei fehlen der Schweizer Datenbank wirklich, und alle drei brauchen die
+Rezepte der Bibliothek. Darum sind genau sie jetzt auch live auffindbar
+(`GAP_FOODS` in `catalog/mockFoods.js`) — mit `source: 'mock'` und damit der
+ehrlichen Herkunft „Beispielwerte, keine offiziellen Daten“. **Nur diese drei**,
+nie die ganze Beispielliste: sie würde echte Werte überdecken. Der Test prüft
+beides — sie sind da, und „Milch“ kommt weiter vom BLV.
+
+**Ein Stück wurde zu einem Gramm.** `if (unit === 'piece' && !gramsPerPiece)
+unit = 'g'` machte aus „3 Scheiben Brot“ **3 g** (8 kcal statt 250) und aus
+„1 Packung Backpulver“ 1 g. Ein Stück, dessen Gewicht niemand kennt, ist keine
+Grammzahl: jetzt bleibt die **Menge offen** — den Zustand kennt der Vorrat
+längst, und die Zeile lässt sich mit − und + nachtragen. Was ein Stückgewicht
+hat („6 Eier“) oder eine bekannte Packung ist („1 Dose Mais“ = 400 g), zählt
+unverändert weiter.
+
+### Geprüft und **kein** Fehler
+
+- **2630 gegen 2890 kcal** auf zwei Bildschirmen: 2630 ist das Basisziel, 2890
+  der Trainingstag, und „+610 durchs Training“ ist korrekt die Differenz zum
+  Ruhetag (2280 damals). Nachgerechnet, alles richtig benannt.
+- **`pickTemplate` gibt nie `null`**: alle 225 Kombinationen aus Ziel,
+  Erfahrung, 2–6 Tagen und Ausstattung finden eine Vorlage — die Rückfallkette
+  greift.
+- **Der Proteinshake bleibt „fehlt: Molkenprotein“**, solange keines im Vorrat
+  liegt. Das ist richtig: ohne Eiweisspulver kein Eiweissshake. Neu ist nur, dass
+  man es überhaupt eintragen kann.

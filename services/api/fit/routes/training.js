@@ -301,6 +301,11 @@ function trainingRoutes(ctx, engine) {
           const workout = own.get('scheduledWorkouts', id);
           if (!workout) return ok(404, { error: 'not_found' });
           if (workout.status !== 'planned') return ok(409, { error: 'workout_closed' });
+          // Ein Satz an einem Training, das erst naechste Woche ansteht, gibt es
+          // nicht — sonst steht es danach als „erledigt“ mit Zukunftsdatum im
+          // Verlauf. Wer heute trainiert, holt die Einheit auf heute vor
+          // („Heute nachholen“), statt in der Zukunft zu buchen.
+          if (workout.day > todayOf(own)) return ok(409, { error: 'workout_future' });
           if (!workout.exercises.some((exercise) => exercise.exerciseId === body.exerciseId))
             return ok(400, { error: 'exercise_invalid' });
           const count = own.list(

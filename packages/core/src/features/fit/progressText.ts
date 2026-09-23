@@ -52,3 +52,32 @@ export function shortExerciseNames(names: readonly string[]): string[] {
       : short,
   );
 }
+
+/**
+ * Wie viele Waegungen es braucht, bevor eine Linie gezeichnet wird. Unter vier
+ * Punkten zeigt ein Diagramm keinen Verlauf, sondern eine Behauptung — dann ist
+ * die Zahl allein ehrlicher (Regel aus der Diagramm-Lehre: unter vier Punkten
+ * eine Kennzahl statt einer Kurve).
+ */
+export const TREND_MIN_POINTS = 4;
+/**
+ * Und wie lange der Zeitraum mindestens sein muss. Ohne das rechnet ein Tag
+ * Abstand mal sieben: 80.0 kg heute und 79.2 kg morgen waeren „−5.6 kg/Woche“.
+ * Eine Woche ist die kuerzeste Strecke, auf der Wasser und Verdauung sich
+ * halbwegs herausmitteln.
+ */
+export const TREND_MIN_DAYS = 7;
+
+/**
+ * Was der Fortschritt zeigen darf:
+ *
+ * - `chart` — genug Punkte ueber genug Zeit: Linie und Wochenrate
+ * - `figure` — es gibt ein Gewicht, aber noch keinen Verlauf: nur der Trendwert
+ * - `none` — noch nichts gewogen
+ */
+export type TrendView = 'chart' | 'figure' | 'none';
+
+export function trendViewOf(points: number, spanDays: number): TrendView {
+  if (points <= 0) return 'none';
+  return points >= TREND_MIN_POINTS && spanDays >= TREND_MIN_DAYS ? 'chart' : 'figure';
+}

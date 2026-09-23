@@ -83,7 +83,7 @@ export function WeekStrip({
                       width: REST_DOT,
                       height: REST_DOT,
                       borderRadius: theme.radii.pill,
-                      backgroundColor: theme.colors.borderStrong,
+                      backgroundColor: theme.colors.textFaint,
                     }}
                   />
                 ) : (
@@ -99,7 +99,7 @@ export function WeekStrip({
                           ? theme.colors.accentMark
                           : state === 'today'
                             ? theme.colors.text
-                            : theme.colors.borderStrong,
+                            : theme.colors.textFaint,
                     }}
                   />
                 )}

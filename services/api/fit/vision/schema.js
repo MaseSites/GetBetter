@@ -167,6 +167,37 @@ function validateVision(input) {
   return errors.length > 0 ? { ok: false, errors } : { ok: true, result };
 }
 
+/** Wie die Mahlzeit heisst, wenn sie dem Modell genannt wird. */
+const SLOT_NAMES = {
+  breakfast: 'das Frühstück',
+  lunch: 'das Mittagessen',
+  dinner: 'das Abendessen',
+  snack: 'ein Zwischendurch (Znüni, Zvieri)',
+};
+
+/**
+ * Der Anlass als Zeile im Prompt: welche Mahlzeit, welcher Wochentag. Beides
+ * weiss die App ohnehin, und beides verschiebt die plausible Menge — ein
+ * Zvieri ist kein Mittagessen. Fehlt die Angabe, fehlt auch die Zeile.
+ */
+function mealContextLines(meal) {
+  if (!meal || typeof meal !== 'object') return [];
+  const lines = [];
+  const name = SLOT_NAMES[meal.slot];
+  if (name) {
+    lines.push(
+      `Dieses Foto zeigt ${name}. Rechne mit den Mengen, die in der Schweiz zu dieser Mahlzeit üblich sind — ein Zwischendurch ist klein, ein Mittag- oder Abendessen ist eine volle Portion.`,
+    );
+  }
+  if (typeof meal.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(meal.day)) {
+    const weekday = new Date(`${meal.day}T12:00:00Z`).getUTCDay();
+    if (weekday === 0 || weekday === 6) {
+      lines.push('Es ist Wochenende; Mahlzeiten fallen dann eher grösser und reichhaltiger aus.');
+    }
+  }
+  return lines;
+}
+
 /**
  * Die Systemanweisung (Masterplan §8), dazu die Sprache der Namen.
  *
@@ -177,8 +208,12 @@ function validateVision(input) {
  * (Teller, Besteck), Schweizer Richtportionen und die ausdrückliche
  * Aufforderung, Fett zu nennen und nicht kleinzurechnen.
  */
-function systemInstruction(language = 'de') {
+function systemInstruction(language = 'de', meal = null) {
   return [
+    // Rolle und Anlass stehen zuoberst: beides ist in Messungen der billigste
+    // Gewinn, den es an einem Bildmodell gibt (je rund 75 kcal weniger Fehler).
+    'Du bist eine erfahrene Ernährungsberaterin in der Schweiz und schätzt Portionen seit zwanzig Jahren von Auge, bevor du sie auf die Waage legst. Du liegst selten daneben, weil du zuerst das Geschirr liest und erst dann das Essen.',
+    ...mealContextLines(meal),
     'Analysiere das Essensbild für ein Ernährungstagebuch in der Schweiz.',
     'Identifiziere jedes sichtbare Lebensmittel getrennt.',
     'Zerlege Saucen und Mischgerichte in ihre Hauptzutaten, je ein Eintrag (Bolognese -> Gehacktes vom Rind und Tomatensauce), ausser das Gericht ist als Ganzes üblich (Pizza, Lasagne, Birchermüesli).',
@@ -203,4 +238,4 @@ function systemInstruction(language = 'de') {
   ].join('\n');
 }
 
-module.exports = { MEAL_CLASSES, RESPONSE_SCHEMA, systemInstruction, validateVision };
+module.exports = { MEAL_CLASSES, RESPONSE_SCHEMA, mealContextLines, systemInstruction, validateVision };

@@ -83,12 +83,19 @@ export function PantryPanel({ mock, day }: { mock: boolean; day: string }) {
     setBusy(true);
     setProblem(null);
     const result = await fit.proposePantry(chosen, from);
-    setBusy(false);
     if (!result.ok) {
+      setBusy(false);
       setProblem(failure(result.error));
       return;
     }
-    setAction(result.data.action);
+    // Der Nutzer hat den Text selbst getippt und die Liste abgehakt — das
+    // **ist** die Bestaetigung. Ein zweites „Bestaetigen“ danach waere
+    // dieselbe Frage zum dritten Mal. Der Vorschlag entsteht weiter im Dienst
+    // (dort liegt die atomare Speicherung), er wird nur gleich eingeloest.
+    // Scheitert das Einloesen, bleibt die Karte stehen und fragt wie bisher.
+    const done = await fit.confirmAction(result.data.action.id);
+    setBusy(false);
+    setAction(done.ok ? done.data.action : result.data.action);
     setLines([]);
     setUnknown([]);
     setParsed(false);

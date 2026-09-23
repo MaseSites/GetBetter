@@ -67,6 +67,7 @@ export const deFit6 = {
 
   // Abschliessen, Fehler
   'fit6.complete.noSets': 'Trag zuerst einen Satz ein — dann lässt sich das Training abschliessen.',
+  'fit6.error.workout_future': 'Dieses Training steht erst später an. Hol es mit „Heute nachholen“ vor, dann kannst du Sätze eintragen.',
   'fit6.error.workout_closed':
     'Das Training ist abgeschlossen. Öffne es wieder, um etwas zu ändern.',
   'fit6.error.too_many_sets': 'Mehr als 60 Sätze pro Übung gehen nicht.',

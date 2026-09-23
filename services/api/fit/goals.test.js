@@ -76,6 +76,26 @@ describe('Ziele', () => {
     assert.equal(pregnant.safety.mode, 'maintain_only');
     assert.equal(pregnant.adjustment, 0);
   });
+
+  // Gefunden beim Durchspielen des Testkontos: 45 kg auf 185 cm ist BMI 13.1,
+  // und die App rechnete dafuer einen Plan mit Ueberschuss, als waere nichts.
+  test('sehr tiefes Gewicht: nur Erhalt, auch wenn jemand zunehmen will', () => {
+    const thin = computeGoals(profileOf({ heightCm: 185, weightKg: 45, goal: 'gain' }), TODAY);
+    assert.equal(thin.goal, 'maintain');
+    assert.ok(thin.safety.reasons.includes('very_low_weight'));
+    // Und schon gar kein Defizit.
+    const losing = computeGoals(profileOf({ heightCm: 185, weightKg: 45, goal: 'lose' }), TODAY);
+    assert.equal(losing.goal, 'maintain');
+  });
+
+  test('genau an der Grenze und darueber bleibt alles normal', () => {
+    // 60 kg auf 185 cm ist BMI 17.53 — knapp darueber, also unauffaellig.
+    const edge = computeGoals(profileOf({ heightCm: 185, weightKg: 60, goal: 'gain' }), TODAY);
+    assert.deepEqual(edge.safety.reasons, []);
+    assert.equal(edge.goal, 'gain');
+    const normal = computeGoals(profileOf({ heightCm: 185, weightKg: 75, goal: 'lose' }), TODAY);
+    assert.equal(normal.goal, 'lose');
+  });
 });
 
 describe('Gewichtstrend', () => {

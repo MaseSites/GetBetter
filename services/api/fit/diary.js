@@ -110,12 +110,29 @@ function mealName(body, lines) {
 const isAutoName = (meal) =>
   meal.nameAuto === true || (meal.nameAuto === undefined && meal.name === joinedName(meal.items));
 
+/**
+ * Wie viele Tage die Woche wirklich Training hat. Steht ein Plan, zaehlt er —
+ * `dayKindOf` entscheidet ja auch nach dem Plan, **welcher** Tag Training ist.
+ *
+ * Sonst laufen zwei Zahlen auseinander: Das Profil sagte „4 Tage“, der Plan
+ * hatte drei (Mo/Mi/Sa). `computeGoals` verteilte die Woche auf vier
+ * Trainingstage, bekommen hat sie drei — und damit fehlten **620 kcal je
+ * Woche**. Bei jemandem, der gar kein Defizit haben darf, ist das keine
+ * Kleinigkeit.
+ */
+function trainingDaysOf(own, fallback) {
+  const plan = own ? (own.list('workoutPlans').at(-1) ?? null) : null;
+  const days = Array.isArray(plan?.weekdays) ? plan.weekdays.length : null;
+  return days !== null && days > 0 && days <= 7 ? days : fallback;
+}
+
 function goalsOf(ctx, profileRow, _day, own = null) {
   if (!profileRow) return null;
   // Ein neueres Gewicht passt Grundumsatz und Eiweiss an.
   const weightKg = currentWeightKg(profileRow, own ? own.list('weightEntries') : []);
+  const trainingDaysPerWeek = trainingDaysOf(own, profileRow.profile.trainingDaysPerWeek);
   return computeGoals(
-    { ...profileRow.profile, weightKg },
+    { ...profileRow.profile, weightKg, trainingDaysPerWeek },
     ctx.todayIn(profileRow.profile.timezone, ctx.now()),
     profileRow.kcalAdjustment ?? 0,
   );
@@ -261,6 +278,21 @@ function extrasOf(meals) {
   return { fiberG: total.fiberG ?? 0, sugarG: total.sugarG ?? 0, saltG: total.saltG ?? 0 };
 }
 
+/**
+ * Die Kalorien je Tag, wie sie im Tagebuch stehen — die Grundlage fuer die
+ * Verbrauchsschaetzung (`energy.js`). Tage ohne Mahlzeit fehlen; sie duerfen
+ * nicht als 0 kcal gelten.
+ */
+function intakeByDay(own) {
+  const byDay = {};
+  for (const meal of own.list('meals')) {
+    const kcal = Number(meal?.total?.kcal);
+    if (!Number.isFinite(kcal) || typeof meal.day !== 'string') continue;
+    byDay[meal.day] = (byDay[meal.day] ?? 0) + kcal;
+  }
+  return byDay;
+}
+
 function daySummary(ctx, own, day, language = 'de') {
   const profileRow = own.list('profiles')[0] ?? null;
   const goals = goalsOf(ctx, profileRow, day, own);
@@ -315,6 +347,7 @@ module.exports = {
   SLOTS,
   daySummary,
   goalsOf,
+  intakeByDay,
   isAutoName,
   joinedName,
   lineInput,
@@ -324,6 +357,7 @@ module.exports = {
   searchHistory,
   shift,
   streakOf,
+  trainingDaysOf,
   usualMeals,
   waterTargetMl,
 };
