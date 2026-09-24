@@ -2,7 +2,8 @@ import { findByUsername } from '@/auth/accounts';
 
 import { notifyDataChanged } from './live';
 import { notifications } from './notifications';
-import { db, newId } from './store';
+import { callService } from './service';
+import { db, newId, refresh } from './store';
 import type {
   Account,
   HouseholdMemberRow,
@@ -167,25 +168,27 @@ export const households = {
     return household;
   },
 
+  /**
+   * Per Code beitreten. Den Code prueft der Dienst (`POST /v1/households/join`):
+   * mit Sitzung sieht die App fremde Haushalte nicht — auch nicht den, dem
+   * sie beitreten will. Danach holt sie den Stand neu und uebernimmt ihre Liste.
+   */
   async join(accountId: string, code: string): Promise<JoinResult> {
     const normalised = normaliseInviteCode(code);
-    const household = await db.households.findBy((row) => row.inviteCode === normalised);
-    if (!household) return { ok: false, error: 'code_unknown' };
-
-    const existing = await households.membership(household.id, accountId);
-    if (existing) return { ok: false, error: 'already_member' };
-    if (!(await households.canJoinMore(accountId))) return { ok: false, error: 'limit' };
-
-    await db.householdMembers.insert({
-      id: newId('hm'),
-      householdId: household.id,
-      accountId,
-      role: 'member',
-      status: 'accepted',
-      invitedBy: accountId,
-      joinedAt: now(),
+    if (normalised.length === 0) return { ok: false, error: 'code_unknown' };
+    const result = await callService<{ household: HouseholdRow }>('/v1/households/join', {
+      method: 'POST',
+      body: { accountId, code: normalised },
     });
-    await db.accounts.update(accountId, { householdId: household.id });
+    if (!result.ok) {
+      const error: JoinError =
+        result.error === 'already_member' || result.error === 'limit'
+          ? result.error
+          : 'code_unknown';
+      return { ok: false, error };
+    }
+    await refresh();
+    const household = result.data.household;
     await adoptExistingData(accountId, household.id);
     notifyDataChanged();
     return { ok: true, household };

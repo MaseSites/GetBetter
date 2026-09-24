@@ -1,0 +1,6 @@
+# Nie ins Bild: die lokalen Daten (Konten, Schluessel, Mail-Tresor) und die Tests.
+data/
+test/
+**/*.test.js
+node_modules/
+.DS_Store

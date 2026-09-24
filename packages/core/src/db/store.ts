@@ -1,8 +1,8 @@
 import { AppState } from 'react-native';
 
-import { reportReadOnly, viewHeaders, writesAllowed } from '../app/viewMode';
+import { reportReadOnly, writesAllowed } from '../app/viewMode';
 import { notifyDataChanged } from './events';
-import { serviceUrl } from './service';
+import { noteSessionResponse, serviceHeaders, serviceUrl } from './service';
 import { COLLECTION_NAMES, type CollectionName, type Row, type Schema } from './types';
 
 /**
@@ -92,8 +92,13 @@ function emptyTables(): Tables {
 type Snapshot = { revision: number; tables: Partial<Tables> };
 
 async function fetchSnapshot(): Promise<Snapshot> {
-  const response = await fetch(`${serviceUrl()}/v1/db`, { headers: viewHeaders() });
-  if (!response.ok) throw new DatabaseUnreachable();
+  const response = await fetch(`${serviceUrl()}/v1/db`, { headers: serviceHeaders() });
+  if (!response.ok) {
+    // Eine abgelaufene Sitzung ist kein Netzfehler: die App meldet sich ab.
+    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+    noteSessionResponse(response.status, body.error);
+    throw new DatabaseUnreachable();
+  }
   return (await response.json()) as Snapshot;
 }
 
@@ -131,7 +136,7 @@ async function load(): Promise<Tables> {
 async function poll(): Promise<void> {
   if (!loaded || dirty.size > 0) return;
   try {
-    const response = await fetch(`${serviceUrl()}/v1/revision`, { headers: viewHeaders() });
+    const response = await fetch(`${serviceUrl()}/v1/revision`, { headers: serviceHeaders() });
     if (!response.ok) return;
     const { revision: latest } = (await response.json()) as { revision: number };
     if (latest === revision) return;
@@ -173,7 +178,7 @@ export async function flush(): Promise<void> {
     try {
       const response = await fetch(`${serviceUrl()}/v1/db/${name}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...serviceHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: tables[name] }),
       });
       if (!response.ok) throw new DatabaseUnreachable();

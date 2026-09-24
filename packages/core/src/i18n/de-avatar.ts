@@ -40,8 +40,4 @@ export const deAvatar = {
   'avatar.selected': '{label}, gewählt',
 
   // Einrichten: er stellt sich vor und verwandelt sich
-  'intro.setup.avatar.bubble':
-    'Freut mich! So sehe ich als {assistant} aus. Such dir eine Figur und eine Farbe aus — ich verwandle mich sofort.',
-  'intro.setup.style.bubbleAfterAvatar':
-    'So gefalle ich mir. Jetzt noch zur App — jede Änderung wirkt sofort.',
 } as const;

@@ -11,17 +11,17 @@ import { NewsSection } from '@/features/notifications/NewsSection';
 import { QuickAccess } from '@/features/quick/QuickAccess';
 import { useQuickAccess } from '@/features/quick/useFavorites';
 import { useNow } from '@/features/weather/time';
-import { formatNumber, formatTime, useI18n, type TranslationKey } from '@/i18n';
+import { formatNumber, formatTime, useI18n } from '@/i18n';
 import { MODULES } from '@/mocks/modules';
 import { moduleName } from '@/mocks/moduleText';
 import { useAccount, useApp } from '@/state/AppContext';
-import { moduleBase, useTheme } from '@/theme';
+import { moduleBase, useTheme, type Theme } from '@/theme';
 import { Icon, ModuleIcon, Text, type IconName } from '@/ui';
 
 import { DayTasks } from './DayTasks';
 import { DayThread, type DayEntry } from './DayThread';
 import { FocusNow } from './FocusNow';
-import type { BlockKind, HomeBlock } from './homeLayout';
+import { variantsOf, type BlockKind, type HomeBlock } from './homeLayout';
 import { upcomingOf } from './homeView';
 import { dayTaskGroups } from './taskGroups';
 import { useDayThread } from './useDayThread';
@@ -57,29 +57,24 @@ export function blockIcon(kind: BlockKind): IconName {
   return iconOf(kind, 'circle');
 }
 
-/** Die Stile heissen in jeder Sprache anders — hier steht, wie. */
-const VARIANT_LABELS = {
-  band: {
-    thread: 'home.style.band.thread',
-    now: 'home.style.band.now',
-    compact: 'home.style.band.compact',
-  },
-  tasks: { page: 'home.style.tasks.page', list: 'home.style.tasks.list' },
-  notes: { cards: 'home.style.notes.cards', list: 'home.style.notes.list' },
-  news: { stack: 'home.style.news.stack', count: 'home.style.news.count' },
-  quick: { carousel: 'home.style.quick.carousel', icons: 'home.style.quick.icons' },
-  apps: { cards: 'home.style.apps.cards' },
-} as const satisfies Record<BlockKind, Readonly<Record<string, TranslationKey>>>;
+/** Die Farbe eines Elements — die seiner Funktion, Neuigkeiten in Rot. */
+export function blockColor(theme: Theme, kind: BlockKind): string {
+  if (kind === 'news') return theme.colors.danger;
+  return moduleBase(theme, kind === 'band' ? 'calendar' : kind);
+}
 
-/** Der Name eines Stils. */
+/**
+ * Der Name eines Stils: **„Variante 1“, „Variante 2“ …** — kurz und in jeder
+ * Sprache gleich. Wie die Variante aussieht, sieht man am Element selbst;
+ * eigene Namen („Band“, „Heft“, „Stapel“) sagten weniger, als sie versprachen.
+ */
 export function variantLabel(
   t: ReturnType<typeof useI18n>['t'],
   kind: BlockKind,
   variant: string,
 ): string {
-  const labels: Readonly<Record<string, TranslationKey>> = VARIANT_LABELS[kind];
-  const key = labels[variant];
-  return key ? t(key) : variant;
+  const index = variantsOf(kind).indexOf(variant);
+  return t('home.style.variant', { n: index < 0 ? 1 : index + 1 });
 }
 
 /**
@@ -130,8 +125,7 @@ function Panel({
   const { t } = useI18n();
   const theme = useTheme();
   const title = blockName(t, kind);
-  const color =
-    kind === 'news' ? theme.colors.danger : moduleBase(theme, kind === 'band' ? 'calendar' : kind);
+  const color = blockColor(theme, kind);
 
   return (
     <Pressable

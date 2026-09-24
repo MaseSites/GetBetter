@@ -6,19 +6,19 @@ export const deIntro = {
   'intro.start.signUp': 'Konto erstellen',
   'intro.start.apple': 'Mit Apple anmelden',
   'intro.start.google': 'Mit Google anmelden',
+  'intro.start.or': 'oder weiter mit',
+  'auth.provider.apple': 'Apple',
+  'auth.provider.google': 'Google',
   'intro.start.soon.apple':
     'Die Anmeldung mit Apple kommt, sobald die Apps im Store sind. Bis dahin genügt deine E-Mail-Adresse.',
   'intro.start.soon.google':
     'Die Anmeldung mit Google kommt, sobald die Apps im Store sind. Bis dahin genügt deine E-Mail-Adresse.',
 
   // Er redet laut mit — ausser man schaltet ihn stumm
-  'intro.voice.mute': 'Stumm schalten',
-  'intro.voice.unmute': 'Ton einschalten',
-  'intro.voice.tapToHear': 'Antippen, dann rede ich mit dir',
 
   // Anmelden und Registrieren
-  'intro.signIn.bubble': 'Willkommen zurück. Melde dich mit deiner E-Mail-Adresse an.',
-  'intro.signUp.bubble': 'Wir legen dein Konto an. Das dauert einen Moment.',
+  'intro.signIn.bubble': 'Schön, dich wiederzusehen.',
+  'intro.signUp.bubble': 'Schön, dass du dabei bist!',
 
   // Nach dem Einloggen
   'intro.arrive.question': 'Kennst du dich mit {app} schon aus?',
@@ -27,18 +27,23 @@ export const deIntro = {
   'intro.arrive.no': 'Nein, kurze Einführung',
 
   // Einrichten nach dem Registrieren
-  'intro.setup.name.bubble': 'Dein Konto steht. Wie darf ich dich ansprechen?',
-  'intro.setup.name.bubbleAfterVoice': 'Gut, so klinge ich. Und wie darf ich dich ansprechen?',
-  'intro.setup.name.label': 'Spitzname',
-  'intro.setup.name.hint':
-    'So spricht dich die App an — unabhängig von deinem Benutzernamen. Du änderst ihn jederzeit in den Einstellungen.',
-  'intro.setup.assistant.bubble': 'Ich begleite dich durch die App, {name}. Mein Name ist …',
-  'intro.setup.assistant.bubbleNamed':
-    'Ich begleite dich durch die App, {name}. Mein Name ist {assistant}.',
-  'intro.setup.assistant.label': 'Name des Assistenten',
-  'intro.setup.assistant.hint': 'Unter diesem Namen findest du mich in allen Better-Apps.',
-  'intro.setup.voice.bubble':
-    'Dein Konto steht. Ab jetzt rede ich mit dir — such dir aus, wie ich klingen soll. Tipp eine Stimme an, dann hörst du mich.',
+  'intro.setup.title.personalize': 'Personalisieren',
+  'intro.setup.group.app': 'App',
+  'intro.setup.group.assistant': 'Assistent',
+  'intro.setup.offer.title': 'Alles freischalten',
+  'intro.setup.offer.price': '{price} im Monat',
+  'intro.setup.personalize.bubble': 'Mach die App und mich zu deinen.',
+  'intro.setup.personalize.bubbleTrial': 'Probier alles aus — du siehst es sofort.',
+  'intro.setup.withoutPlan': 'Ohne Abo weiter',
+  'intro.setup.title.voice': 'Stimme',
+  'intro.setup.title.name': 'Spitzname',
+  'intro.setup.title.ready': 'Los geht’s',
+  'intro.setup.name.placeholder': 'Dein Spitzname',
+  'intro.setup.assistant.placeholder': 'Name',
+  'intro.setup.assistant.ideas': 'Nova, Kai, Luna',
+  'intro.setup.name.bubble': 'Dein Konto steht. Wie darf ich dich nennen?',
+  'intro.setup.name.bubbleAfterVoice': 'Gut. Und wie darf ich dich nennen?',
+  'intro.setup.voice.bubble': 'Wie soll ich klingen? Tipp eine Stimme an.',
   'intro.setup.style.mode': 'Hell oder dunkel',
   'intro.setup.style.mode.light': 'Hell',
   'intro.setup.style.mode.dark': 'Dunkel',
@@ -47,8 +52,7 @@ export const deIntro = {
   'intro.setup.style.accentMono': 'In Schwarzweiss bleibt alles ohne Farbe.',
   'intro.setup.style.preset': 'Wie viel Farbe',
   'intro.setup.style.backdrop': 'Hintergrund',
-  'intro.setup.ready.bubble':
-    'Alles eingerichtet, {name}. Soll ich dir die App kurz zeigen, oder findest du dich selbst zurecht?',
+  'intro.setup.ready.bubble': 'Alles bereit, {name}. Soll ich dir die App kurz zeigen?',
   'intro.setup.ready.tour': 'Kurze Einführung',
   'intro.setup.ready.explore': 'Ich finde mich zurecht',
 

@@ -83,6 +83,15 @@ const VIEW_LABELS: Record<MenuView, TranslationKey> = {
   lists: 'tasks.view.lists',
 };
 
+/** Ein Satz je Ansicht — der Name allein sagt nicht, was drin ist. */
+const VIEW_DETAILS: Record<MenuView, TranslationKey> = {
+  inbox: 'tasks.view.inbox.detail',
+  today: 'tasks.view.today.detail',
+  planned: 'tasks.view.planned.detail',
+  projects: 'tasks.view.projects.detail',
+  lists: 'tasks.view.lists.detail',
+};
+
 const VIEW_ICONS: Record<MenuView, IconName> = {
   inbox: 'inbox',
   today: 'sun',
@@ -516,6 +525,7 @@ export function TasksView(_props: { module: ModuleDefinition }) {
     ...MENU_VIEWS.map((kind) => ({
       key: kind,
       label: t(VIEW_LABELS[kind]),
+      detail: t(VIEW_DETAILS[kind]),
       icon: VIEW_ICONS[kind],
       selected: currentView === kind,
       onPress: () => switchView({ kind }),
@@ -524,6 +534,7 @@ export function TasksView(_props: { module: ModuleDefinition }) {
     {
       key: 'lists',
       label: t(VIEW_LABELS.lists),
+      detail: t(VIEW_DETAILS.lists),
       icon: VIEW_ICONS.lists,
       selected: currentView === 'lists',
       onPress: () => switchView({ kind: 'lists' }),

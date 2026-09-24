@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { DEFAULT_AVATAR } from '../avatar/style';
-import { canPersonalize, effectivePersonalization } from './entitlement';
+import { canPersonalize, effectivePersonalization, trialNeedsPlan, withTrial } from './entitlement';
 import { onPricedAppsChange, pricedApps, rememberPricedApps } from './pricedApps';
 import { DEFAULT_PRICED_APPS, PLAN_PRICES_CHF } from './prices';
 
@@ -96,4 +96,31 @@ test('rememberPricedApps: nur neue, gueltige Listen wecken', () => {
     stop();
   }
   assert.deepEqual(pricedApps(), DEFAULT_PRICED_APPS);
+});
+
+test('die Anprobe liegt ueber dem Standard und oeffnet alle Auswahlen', () => {
+  const free = effectivePersonalization({ themeMode: 'dark' });
+  assert.equal(withTrial(free, null), free);
+  const tried = withTrial(free, { accent: 'blue', backdrop: 'forest', avatar: owl, assistantName: ' Luma ' });
+  assert.equal(tried.canPersonalize, true);
+  assert.equal(tried.mode, 'dark');
+  assert.equal(tried.accent, 'blue');
+  assert.equal(tried.preset, free.preset);
+  assert.equal(tried.backdrop, 'forest');
+  assert.deepEqual(tried.avatar, owl);
+  assert.equal(tried.assistantName, 'Luma');
+  // `null` ist das Bild der App.
+  assert.equal(withTrial(effectivePersonalization({ ...styled, paidApps: ['getbetter'] }), { backdrop: null }).backdrop, undefined);
+});
+
+test('trialNeedsPlan: nur, was vom Standard abweicht, braucht das Abo', () => {
+  assert.equal(trialNeedsPlan(null), false);
+  assert.equal(trialNeedsPlan({}), false);
+  // Zurueck auf den Standard gestellt: geht ohne Abo weiter.
+  assert.equal(trialNeedsPlan({ accent: 'signal', backdrop: null, avatar: DEFAULT_AVATAR, assistantName: '  ' }), false);
+  assert.equal(trialNeedsPlan({ accent: 'blue' }), true);
+  assert.equal(trialNeedsPlan({ preset: 'mono' }), true);
+  assert.equal(trialNeedsPlan({ backdrop: 'forest' }), true);
+  assert.equal(trialNeedsPlan({ avatar: owl }), true);
+  assert.equal(trialNeedsPlan({ assistantName: 'Luma' }), true);
 });

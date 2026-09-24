@@ -360,8 +360,10 @@ describe('admin server', () => {
       aiStatus: async () => ({ status: 200, body: { configured } }),
       speechStatus: async () => ({ status: 200, body: { configured: true } }),
       mail: fakeMail,
-      revokeSessions: async (id) => {
-        revokedSessions.push(id);
+      sessions: {
+        revokeAccount: async (id) => {
+          revokedSessions.push(id);
+        },
       },
       publicDir,
       log: () => {},

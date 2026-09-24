@@ -61,7 +61,7 @@ async function startFitServer(extraEnv = {}) {
       method,
       headers: {
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? { 'X-Better-Session': token } : {}),
         ...headers,
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -76,7 +76,7 @@ async function startFitServer(extraEnv = {}) {
     const email = `${name}${counter}@fit.test`;
     const result = await call('POST', '/v1/accounts', { body: { email, password: 'passwort-123' } });
     if (result.status !== 201) throw new Error(`Registrieren: ${JSON.stringify(result.body)}`);
-    return { token: result.body.token, account: result.body.account, email };
+    return { token: result.body.session, account: result.body.account, email };
   }
 
   async function stop() {

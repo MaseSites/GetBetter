@@ -5,6 +5,7 @@ import {
   blockScale,
   canvasRows,
   clampBlock,
+  duplicateBlock,
   GRID_COLUMNS,
   moveTo,
   newBlock,
@@ -90,6 +91,21 @@ test('patchBlock und removeBlock: nur dieser Block, nur bekannte Stile', () => {
   assert.equal(patched[0]?.variant, 'thread');
   assert.equal(patched[1]?.w, layout[1]?.w);
   assert.equal(removeBlock(layout, first.id).length, layout.length - 1);
+});
+
+test('duplicateBlock: die Kopie liegt gleich darunter und hat eine eigene Id', () => {
+  const band = { ...newBlock('band'), y: 1, h: 4 };
+  const tasks = { ...newBlock('tasks'), y: 5, h: 3 };
+  const next = duplicateBlock([band, tasks], band.id);
+  assert.equal(next.length, 3);
+  const copy = next[1];
+  assert.ok(copy);
+  assert.equal(copy.kind, 'band');
+  assert.equal(copy.variant, band.variant);
+  assert.equal(copy.y, 5);
+  assert.notEqual(copy.id, band.id);
+  // Was es nicht gibt, aendert nichts.
+  assert.deepEqual(duplicateBlock([band], 'weg'), [band]);
 });
 
 test('parseLayout: liest das Raster, rechnet alte Stände um, wirft Krummes weg', () => {

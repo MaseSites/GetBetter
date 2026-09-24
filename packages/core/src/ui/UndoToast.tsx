@@ -15,7 +15,7 @@ import { onReadOnlyAttempt } from '@/app/viewMode';
 import { useTranslate } from '@/i18n';
 import { useTheme, type Theme } from '@/theme';
 
-import { FLOATING_BUTTON_SIZE, HIT_TARGET, TAB_BAR_HEIGHT } from './layout';
+import { HIT_TARGET, TAB_BAR_HEIGHT } from './layout';
 import { Text } from './Text';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -46,8 +46,8 @@ const useNativeDriver = Platform.OS !== 'web';
 
 const UndoContext = createContext<UndoApi>({ show: () => undefined, hide: () => undefined });
 
-/** Meldet einen Knopf unten rechts an; die Rueckgabe meldet ihn wieder ab. */
-const FloatingButtonSpace = createContext<() => () => void>(() => () => undefined);
+/** Steht gerade eine Meldung unten? Dann tritt der Knopf unten rechts zurueck. */
+const ToastVisible = createContext(false);
 
 /**
  * „Gelöscht · Rückgängig“: die Rueckmeldung nach allem, was sich zuruecknehmen
@@ -57,9 +57,9 @@ export function useUndo(): UndoApi {
   return useContext(UndoContext);
 }
 
-/** Fuer `FloatingButton`: solange er zu sehen ist, steht die Meldung darueber statt darauf. */
-export function useReserveFloatingButtonSpace(): () => () => void {
-  return useContext(FloatingButtonSpace);
+/** Fuer `FloatingButton`: solange die Meldung unten steht, tritt er zurueck. */
+export function useToastVisible(): boolean {
+  return useContext(ToastVisible);
 }
 
 type Toast = UndoOptions & { id: number };
@@ -75,8 +75,9 @@ class ToastIds {
 
 /**
  * Einmal in der Huelle (`RootShell`), um alle Bildschirme herum. Die Meldung
- * steht unten mittig — ueber der Tab-Leiste und ueber dem Knopf unten rechts,
- * nie darauf.
+ * steht **ganz unten**, direkt ueber der Tab-Leiste — im Vollbild am unteren
+ * Rand. Der Knopf unten rechts tritt solange zurueck, damit sich nichts
+ * ueberdeckt.
  *
  * `readOnlyMessage` (nur beim Ansehen aus dem Admin): jede Meldung wird zu
  * diesem Satz, ohne Rückgängig — „Gelöscht“ stimmte ja nicht. Und jeder
@@ -90,14 +91,15 @@ export function UndoProvider({
   readOnlyMessage?: string | undefined;
 }) {
   const [toast, setToast] = useState<Toast | null>(null);
-  const [floatingButtons, setFloatingButtons] = useState(0);
   const [ids] = useState(() => new ToastIds());
 
   const api = useMemo<UndoApi>(
     () => ({
       show: (options) =>
         setToast(
-          readOnlyMessage ? { message: readOnlyMessage, id: ids.next() } : { ...options, id: ids.next() },
+          readOnlyMessage
+            ? { message: readOnlyMessage, id: ids.next() }
+            : { ...options, id: ids.next() },
         ),
       hide: () => setToast(null),
     }),
@@ -109,11 +111,6 @@ export function UndoProvider({
     return onReadOnlyAttempt(() => setToast({ message: readOnlyMessage, id: ids.next() }));
   }, [ids, readOnlyMessage]);
 
-  const reserve = useCallback(() => {
-    setFloatingButtons((count) => count + 1);
-    return () => setFloatingButtons((count) => Math.max(0, count - 1));
-  }, []);
-
   const finish = useCallback(
     (id: number) => setToast((current) => (current?.id === id ? null : current)),
     [],
@@ -121,19 +118,12 @@ export function UndoProvider({
 
   return (
     <UndoContext.Provider value={api}>
-      <FloatingButtonSpace.Provider value={reserve}>
+      <ToastVisible.Provider value={toast !== null}>
         <View style={styles.fill}>
           {children}
-          {toast ? (
-            <ToastView
-              key={toast.id}
-              toast={toast}
-              raised={floatingButtons > 0}
-              onFinish={finish}
-            />
-          ) : null}
+          {toast ? <ToastView key={toast.id} toast={toast} onFinish={finish} /> : null}
         </View>
-      </FloatingButtonSpace.Provider>
+      </ToastVisible.Provider>
     </UndoContext.Provider>
   );
 }
@@ -174,15 +164,7 @@ class ToastMotion {
   }
 }
 
-function ToastView({
-  toast,
-  raised,
-  onFinish,
-}: {
-  toast: Toast;
-  raised: boolean;
-  onFinish: (id: number) => void;
-}) {
+function ToastView({ toast, onFinish }: { toast: Toast; onFinish: (id: number) => void }) {
   const theme = useTheme();
   const t = useTranslate();
   const insets = useSafeAreaInsets();
@@ -193,12 +175,9 @@ function ToastView({
   const duration = toast.durationMs ?? UNDO_DURATION_MS;
   const undoLabel = toast.undoLabel ?? t('ui.undo');
   // In den Tabs liegt die Leiste unten; die Module stehen im Vollbild darueber.
+  // Ganz unten heisst: gleich darueber, mit einem Finger Luft.
   const inTabs = segments[0] === '(tabs)';
-  const bottom =
-    (inTabs ? TAB_BAR_HEIGHT : 0) +
-    insets.bottom +
-    theme.spacing.lg +
-    (raised ? FLOATING_BUTTON_SIZE + theme.spacing.md : 0);
+  const bottom = (inTabs ? TAB_BAR_HEIGHT : 0) + insets.bottom + theme.spacing.sm;
 
   useEffect(() => {
     motion.setOnFinish(() => onFinish(toast.id));

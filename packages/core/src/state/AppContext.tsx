@@ -1,10 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -49,12 +47,24 @@ import {
 } from '@/app/viewMode';
 import { appAccess } from '@/db/appAccess';
 import { subscribeDataChanged } from '@/db/events';
-import { setFitLanguage } from '@/db/fitEvents';
-import { callService, fetchAccount, type RemoteAccount } from '@/db/service';
-import { clearSessionToken, restoreSessionToken, setSessionToken } from '@/db/sessionToken';
+import { clearSession, loadSession, saveSession } from '@/auth/sessionStore';
+import {
+  callService,
+  currentSession,
+  endSession,
+  fetchAccount,
+  onSessionLost,
+  setSession,
+  type RemoteAccount,
+} from '@/db/service';
 import { setSpeaker } from '@/features/assistant/cloudVoice';
 import { normalizeAvatar, type AvatarStyle } from '@/features/avatar/style';
-import { effectivePersonalization, type Personalization } from '@/features/plan/entitlement';
+import {
+  effectivePersonalization,
+  withTrial,
+  type Personalization,
+  type Trial,
+} from '@/features/plan/entitlement';
 import { onPricedAppsChange, pricedApps } from '@/features/plan/pricedApps';
 import { placesOf, withPlaceFirst } from '@/features/weather/places';
 import { I18nProvider, translate, type Language, type Translate } from '@/i18n';
@@ -67,7 +77,7 @@ import {
   type ThemePreset,
 } from '@/theme';
 
-const SESSION_KEY = 'better-life/session/v1';
+import { onTrialGateChange, trialGateOpen } from './trialGate';
 
 /** Das Ticket aus `?view=…` — nur im Browser, wo der Admin die App einbettet. */
 function viewTicketFromLocation(): string | null {
@@ -94,16 +104,12 @@ function forgetViewTicket(): void {
  */
 async function redeemView(ticket: string | null): Promise<Account | null> {
   if (!ticket) return null;
-  const result = await callService<{ account: RemoteAccount; token?: string }>(REDEEM_PATH, {
+  const result = await callService<{ account: RemoteAccount }>(REDEEM_PATH, {
     method: 'POST',
     body: { ticket },
   });
   forgetViewTicket();
   if (!result.ok) return null;
-  // Nur lesen und nur im Arbeitsspeicher — die eigene Sitzung auf dem Geraet bleibt.
-  if (typeof result.data.token === 'string') {
-    await setSessionToken(result.data.token, { persist: false });
-  }
   return (await findAccount(result.data.account.id)) ?? null;
 }
 
@@ -140,6 +146,17 @@ export type AppContextValue = {
    * oder dunkel bleibt frei. Gelesen wird hier, nie direkt am Konto.
    */
   personal: Personalization;
+  /** Ob das Konto wirklich personalisieren darf — ohne die Anprobe. */
+  entitled: boolean;
+  /**
+   * Die Anprobe beim Einrichten: ohne Abo alles ausprobieren, sichtbar in der
+   * ganzen App, gespeichert wird nichts. Sie laeuft, solange das Einrichten
+   * offen ist (`openTrialGate`) und das Konto kein Abo hat; dann schreiben die
+   * gesperrten Setter in sie statt nichts zu tun. Danach gilt sie nicht mehr.
+   */
+  trial: Trial | null;
+  /** Die Anprobe leeren: alles zurueck auf den Standard. */
+  endTrial: () => void;
   setAppearance: (patch: Partial<Appearance>) => Promise<void>;
   /** Der Ort fuers Wetter, am Konto gespeichert: holt ihn in der Liste nach vorne. */
   setWeatherPlace: (place: WeatherPlace) => Promise<void>;
@@ -195,6 +212,9 @@ function appearanceOf(personal: Personalization): Appearance {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+/** Die leere Anprobe — eine feste, damit sich `personal` nicht bei jedem Rendern aendert. */
+const NO_TRIAL: Trial = {};
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [household, setHousehold] = useState<HouseholdRow | null>(null);
@@ -204,9 +224,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const view = useSyncExternalStore(onViewChange, viewState, viewState);
   const systemScheme = useColorScheme();
   const priced = useSyncExternalStore(onPricedAppsChange, pricedApps, pricedApps);
+  const [trial, setTrial] = useState<Trial | null>(null);
   // Ohne Abo gilt der Standard — gespeichert bleibt, was einmal gewaehlt war.
-  const personal = useMemo(() => effectivePersonalization(account, priced), [account, priced]);
-  const canPersonalize = personal.canPersonalize;
+  const entitledPersonal = useMemo(
+    () => effectivePersonalization(account, priced),
+    [account, priced],
+  );
+  const canPersonalize = entitledPersonal.canPersonalize;
+  // Nur, solange das Einrichten offen ist, und nur ohne Abo — mit Abo wird gleich gespeichert.
+  const gateOpen = useSyncExternalStore(onTrialGateChange, trialGateOpen, trialGateOpen);
+  const trying = Boolean(account && gateOpen && !canPersonalize);
+  const activeTrial = trying ? (trial ?? NO_TRIAL) : null;
+  const personal = useMemo(
+    () => withTrial(entitledPersonal, activeTrial),
+    [entitledPersonal, activeTrial],
+  );
+  const endTrial = useCallback(() => setTrial(null), []);
+  /** Ohne Abo, waehrend der Anprobe: die Wahl nur merken, nie speichern. */
+  const tryOn = useCallback(
+    (patch: Trial) => {
+      if (!activeTrial) return false;
+      setTrial((current) => ({ ...(current ?? {}), ...patch }));
+      return true;
+    },
+    [activeTrial],
+  );
   // Eigene Konstante, sonst haengt der ganze Kontext an jedem Rendern.
   const appearance = useMemo(() => appearanceOf(personal), [personal]);
   const colorScheme: ColorScheme =
@@ -248,11 +290,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRole(memberRole);
         return;
       }
-      const id = await AsyncStorage.getItem(SESSION_KEY);
-      await restoreSessionToken();
-      if (id) {
-        const found = await findAccount(id);
-        if (!found) await AsyncStorage.removeItem(SESSION_KEY);
+      const stored = await loadSession();
+      if (stored) {
+        // Erst die Sitzung, dann das Konto: ohne sie gibt der Dienst nichts heraus.
+        setSession(stored.token);
+        const found = await findAccount(stored.accountId);
+        if (!found) {
+          setSession(null);
+          await clearSession();
+        }
         if (found) {
           setAccount(found);
           // Auch beim Wiederherstellen: die App gilt als freigeschaltet.
@@ -284,7 +330,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [hh, memberRole] = await loadHousehold(next);
     setHousehold(hh);
     setRole(memberRole);
-    await AsyncStorage.setItem(SESSION_KEY, next.id);
+    // Die Sitzung kam mit dem Anmelden oder Registrieren (`db/service.ts`).
+    const token = currentSession();
+    if (token) await saveSession({ accountId: next.id, token });
+    else await clearSession();
   }, []);
 
   const refreshHousehold = useCallback(async () => {
@@ -325,15 +374,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Beim Ansehen gehoert die Sitzung auf dem Geraet jemand anderem — sie bleibt, wie sie ist.
     if (!isViewing()) {
       await flush();
-      await AsyncStorage.removeItem(SESSION_KEY);
-      // Das Token gilt danach auch beim Dienst nicht mehr.
-      await callService('/v1/sessions/current', { method: 'DELETE' });
-      await clearSessionToken();
+      await endSession();
+      await clearSession();
     }
     setAccount(null);
     setHousehold(null);
     setRole(null);
+    setTrial(null);
   }, []);
+
+  // Der Dienst kennt die Sitzung nicht mehr (neues Passwort, Konto geloescht): abmelden.
+  useEffect(() => onSessionLost(() => void signOut()), [signOut]);
 
   // Im Admin geloescht: nach dem naechsten Abgleich fehlt die eigene Zeile.
   // Abgemeldet wird erst, wenn der Dienst selbst „gibt es nicht“ sagt — ein
@@ -361,8 +412,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         const remote = await fetchAccount(accountId);
         if (!active || remote.ok || remote.error !== 'not_found') return;
-        await AsyncStorage.removeItem(SESSION_KEY);
-        await clearSessionToken();
+        setSession(null);
+        await clearSession();
         setAccount(null);
         setHousehold(null);
         setRole(null);
@@ -387,6 +438,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         selectedAreas: areas,
         onboarded: true,
       });
+      // Die Anprobe gilt nur beim Einrichten.
+      setTrial(null);
       // Ein neues Konto startet bewusst leer.
       if (updated) setAccount(updated);
       const fresh = (await findAccount(account.id)) ?? updated ?? account;
@@ -411,6 +464,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setAppearance = useCallback<AppContextValue['setAppearance']>(
     async (patch) => {
       if (!account) return;
+      if (!canPersonalize) {
+        tryOn({
+          ...(patch.accent ? { accent: patch.accent } : {}),
+          ...(patch.preset ? { preset: patch.preset } : {}),
+        });
+      }
       // Hell oder dunkel geht immer; Farben nur mit Abo — der Dienst wiese sie sonst ab.
       const changes = {
         ...(patch.mode ? { themeMode: patch.mode } : {}),
@@ -421,7 +480,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const updated = await updateAccount(account.id, changes);
       if (updated) setAccount(updated);
     },
-    [account, canPersonalize],
+    [account, canPersonalize, tryOn],
   );
 
   // Aeltere Konten kennen nur `weatherPlace` — `placesOf` zieht ihn beim Lesen in die Liste.
@@ -471,12 +530,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setAssistantAvatar = useCallback<AppContextValue['setAssistantAvatar']>(
     async (style) => {
-      if (!account || !canPersonalize) return;
+      if (!account) return;
+      if (!canPersonalize) {
+        tryOn({ avatar: normalizeAvatar(style) });
+        return;
+      }
       // Nur, was gueltig ist — der Dienst wiese alles andere ohnehin ab.
       const updated = await updateAccount(account.id, { assistantAvatar: normalizeAvatar(style) });
       if (updated) setAccount(updated);
     },
-    [account, canPersonalize],
+    [account, canPersonalize, tryOn],
   );
 
   const setQuickAccess = useCallback<AppContextValue['setQuickAccess']>(
@@ -490,20 +553,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setAssistantName = useCallback<AppContextValue['setAssistantName']>(
     async (name) => {
-      if (!account || !canPersonalize) return;
+      if (!account) return;
+      if (!canPersonalize) {
+        tryOn({ assistantName: name });
+        return;
+      }
       const updated = await updateAccount(account.id, { assistantName: name.trim() });
       if (updated) setAccount(updated);
     },
-    [account, canPersonalize],
+    [account, canPersonalize, tryOn],
   );
 
   const setBackdrop = useCallback<AppContextValue['setBackdrop']>(
     async (key) => {
-      if (!account || !canPersonalize) return;
+      if (!account) return;
+      if (!canPersonalize) {
+        // `app` ist das Bild der App — in der Anprobe `null`.
+        tryOn({ backdrop: key === 'app' ? null : key });
+        return;
+      }
       const updated = await updateAccount(account.id, { backdrop: key });
       if (updated) setAccount(updated);
     },
-    [account, canPersonalize],
+    [account, canPersonalize, tryOn],
   );
 
   const setFirstName = useCallback<AppContextValue['setFirstName']>(
@@ -572,12 +644,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [account, household, refreshHousehold]);
 
   const language = (account?.language ?? 'de') as Language;
-  // Better Fit nennt Lebensmittel, Rezepte und Uebungen in dieser Sprache — als
-  // Layout-Effekt, der vor den Effekten der Kinder laeuft; sonst ginge die erste
-  // Abfrage noch in der alten Sprache hinaus.
-  useLayoutEffect(() => {
-    setFitLanguage(language);
-  }, [language]);
 
   const t = useMemo<Translate>(() => (key, values) => translate(language, key, values), [language]);
 
@@ -604,6 +670,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLanguage,
       appearance,
       personal,
+      entitled: canPersonalize,
+      trial: activeTrial,
+      endTrial,
       setAppearance,
       setWeatherPlace,
       weatherPlaces,
@@ -638,6 +707,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       colorScheme,
       appearance,
       personal,
+      canPersonalize,
+      activeTrial,
+      endTrial,
       setAppearance,
       setWeatherPlace,
       weatherPlaces,

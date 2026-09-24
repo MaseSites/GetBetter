@@ -51,6 +51,17 @@ const TURN_SCALE = 0.86;
 
 const useNativeDriver = Platform.OS !== 'web';
 
+/**
+ * Eine Schleife ohne Sprung. `Animated.loop` setzt vor jeder Runde jeden Wert
+ * auf den zurueck, mit dem er *gebaut* wurde — nicht auf den, bei dem die Runde
+ * endete. Das Schweben endet unten und begann in der Mitte: am Ende jeder
+ * Runde sprang der Avatar. Ohne das Zuruecksetzen faengt jede Runde genau dort
+ * an, wo die vorige aufgehoert hat.
+ */
+function seamless(animation: Animated.CompositeAnimation): Animated.CompositeAnimation {
+  return Animated.loop(animation, { resetBeforeIteration: false });
+}
+
 type Handlers = {
   onAssembled?: () => void;
   onTurnedAway?: () => void;
@@ -288,7 +299,7 @@ export class AvatarMotion {
 
     // Der Blick wandert immer, mit Pausen dazwischen — so wirkt es wie
     // Umschauen und nicht wie ein Pendel.
-    const looking = Animated.loop(
+    const looking = seamless(
       Animated.sequence([
         Animated.delay(GAZE_HOLD_MS),
         this.timing(this.gaze, 1, GAZE_MS / 4, ease),
@@ -298,20 +309,21 @@ export class AvatarMotion {
         this.timing(this.gaze, 0, GAZE_MS / 4, ease),
       ]),
     );
-    const swaying = Animated.loop(
+    const swaying = seamless(
       Animated.sequence([
         this.timing(this.sway, 1, SWAY_MS / 4, ease),
         this.timing(this.sway, -1, SWAY_MS / 2, ease),
         this.timing(this.sway, 0, SWAY_MS / 4, ease),
       ]),
     );
-    const hovering = Animated.loop(
+    // Hoch, runter, hoch … — ab der zweiten Runde von ganz unten nach ganz oben.
+    const hovering = seamless(
       Animated.sequence([
         this.timing(this.hover, 1, HOVER_MS, ease),
         this.timing(this.hover, -1, HOVER_MS, ease),
       ]),
     );
-    const blinking = Animated.loop(
+    const blinking = seamless(
       Animated.sequence([
         Animated.delay(first),
         ...blink(),

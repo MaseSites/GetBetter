@@ -1,232 +1,259 @@
 import { useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { dayKey, notifications as notificationRepo, useLiveQuery } from '@/db';
-import { notes as noteRepo } from '@/db/repositories';
-import { homePreviewOf } from '@/features/notes/home';
-import { QuickAccess } from '@/features/quick/QuickAccess';
-import { useNow } from '@/features/weather/time';
-import { formatNumber, useI18n } from '@/i18n';
-import { MODULES } from '@/mocks/modules';
-import { moduleName } from '@/mocks/moduleText';
-import { useAccount } from '@/state/AppContext';
+import { contacts as contactRepo, dayKey, useLiveQuery } from '@/db';
+import { events as eventRepo, tasks as taskRepo } from '@/db/repositories';
+import { dueDayOf } from '@/db/taskFields';
+import { birthdaysBetween } from '@/features/birthdays/birthdays';
+import { eventColor } from '@/features/calendar/colors';
+import { calendarLinkOf } from '@/features/calendar/links';
+import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { parseDay, relativeDay, shiftDay } from '@/features/shared/days';
+import { formatDayMonth, formatTime, formatWeekday, useI18n } from '@/i18n';
+import { useAccount, useApp } from '@/state/AppContext';
 import { moduleBase, useTheme } from '@/theme';
-import { Icon, Text, type IconName } from '@/ui';
+import { Icon, Text } from '@/ui';
 
-import { DayTasks } from './DayTasks';
-import { DayThread, type DayEntry } from './DayThread';
-import { upcomingOf } from './homeView';
-import { useDayThread } from './useDayThread';
+import { dayDots, weekAgenda, weekDays, WEEK_DAYS, type AgendaItem } from './weekAgenda';
 
-/** So hoch ist eine halbe Kachel mindestens — sonst richtet sie sich nach dem Inhalt. */
-const TILE_HEIGHT = 120;
-/** So viele Eintraege stehen im Band der Uebersicht — alles andere im grossen Zeitstrahl. */
-const BAND_LINES = 2;
-const NOW_TICK_MS = 10_000;
-
-type Timed = DayEntry & { at: string };
-
-const iconOf = (moduleId: string, fallback: IconName): IconName =>
-  MODULES.find((module) => module.id === moduleId)?.icon ?? fallback;
+/** Die Punkte unter einem Tag im Streifen. */
+const DOT = 6;
+const DOTS_SHOWN = 3;
+/** Der Kreis um den heutigen Tag. */
+const TODAY_RING = 36;
+/** Die Zeitspalte links in der Liste. */
+const TIME_COLUMN = 48;
+/** Der Farbbalken eines Eintrags. */
+const BAR = 3;
+const BAR_HEIGHT = 20;
 
 /**
- * Die Startseite als Uebersicht: dieselben Bausteine wie in der ersten
- * Ansicht, nur kuerzer und an einem Ort. Zuoberst **Heute** mit dem echten
- * Tagesstrahl — der braucht die ganze Breite, sonst bleibt von den Titeln
- * nichts uebrig —, darunter die **Aufgaben** als dasselbe Heft wie ueberall,
- * dann **Notizen** und **Neuigkeiten** nebeneinander, zuunterst der
- * Schnellzugriff.
- *
- * Anders als in der ersten Ansicht bleiben die Bereiche **immer** stehen, auch
- * leer: die Uebersicht soll ruhig sein und nicht bei jeder erledigten Aufgabe
- * anders aussehen.
+ * Die Startseite als **Übersicht**: die naechsten sieben Tage auf einen Blick.
+ * Oben der **Wochenstreifen** — je Tag der Wochentag und die Zahl, heute im
+ * Kreis, darunter Farbpunkte fuer das, was ansteht —, darunter die **Liste**
+ * dieser Tage: Termine mit ihrer Farbe, Geburtstage, Aufgaben mit Frist, nach
+ * Tag und Uhrzeit. Tage ohne etwas fehlen. Ein Tipp auf einen Tag im Streifen
+ * oeffnet ihn im grossen Zeitstrahl, ein Tipp auf eine Zeile den Eintrag.
  */
-export function HomeGrid({ onAddTask }: { onAddTask: () => void }) {
+export function HomeGrid() {
   const { t, language } = useI18n();
   const theme = useTheme();
   const router = useRouter();
   const account = useAccount();
+  const { household } = useApp();
+  const { access } = useCalendarAccess();
+  const householdId = household?.id ?? null;
   const today = dayKey();
-  const band = useDayThread(today);
-  const now = new Date(useNow(NOW_TICK_MS));
+  const days = weekDays(today);
+  const fromIso = parseDay(today).toISOString();
+  const toIso = parseDay(shiftDay(WEEK_DAYS, parseDay(today))).toISOString();
 
-  const pinnedNotes = useLiveQuery(() => noteRepo.listOnHome(account.id), [account.id]);
-  const allNotes = useLiveQuery(() => noteRepo.list(account.id), [account.id]);
-  const unread = useLiveQuery(() => notificationRepo.unread(account.id), [account.id]);
+  const events = useLiveQuery(
+    () => eventRepo.listDay(access, fromIso, toIso),
+    [access.accountId, access.householdIds, access.calendarIds, fromIso, toIso],
+  );
+  const openTasks = useLiveQuery(
+    () => taskRepo.listOpen(account.id, householdId),
+    [account.id, householdId],
+  );
+  const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
 
-  // Im Band steht, was noch kommt oder gerade laeuft — nicht der ganze Tag.
-  const timed = band.entries.filter((entry): entry is Timed => Boolean(entry.at));
-  const upcoming = upcomingOf(timed, now, BAND_LINES);
+  const people = (contactList.data ?? []).flatMap((row) =>
+    row.birthday
+      ? [{ id: row.id, name: row.name, birthday: row.birthday, yearKnown: row.birthYearKnown !== false }]
+      : [],
+  );
+  const birthdays = birthdaysBetween(people, parseDay(today), parseDay(shiftDay(WEEK_DAYS - 1, parseDay(today))));
 
-  // Angeheftete Notizen zuerst — sonst die zuletzt bearbeiteten.
-  const pinned = pinnedNotes.data ?? [];
-  const noteRows = (pinned.length > 0 ? pinned : (allNotes.data ?? [])).slice(0, 2);
-  const newsCount = unread.data?.length ?? 0;
-  const openTimeline = (key?: string) =>
-    router.push(`/timeline?day=${today}${key ? `&focus=${encodeURIComponent(key)}` : ''}`);
+  const items: (AgendaItem & { day: string })[] = [
+    ...(events.data ?? []).map((event) => ({
+      key: `event-${event.id}`,
+      kind: 'event' as const,
+      day: dayKey(new Date(event.startsAt)),
+      title: event.title,
+      color: eventColor(event.color),
+      at: event.allDay ? null : event.startsAt,
+      time: null,
+      onPress: () => router.push(calendarLinkOf(event)),
+    })),
+    ...birthdays.map((entry) => ({
+      key: `birthday-${entry.person.id}-${entry.day}`,
+      kind: 'birthday' as const,
+      day: entry.day,
+      title: entry.person.yearKnown
+        ? t('birthdays.event', { name: entry.person.name, age: entry.age })
+        : t('birthdays.eventNoAge', { name: entry.person.name }),
+      color: moduleBase(theme, 'birthdays'),
+      at: null,
+      time: null,
+      onPress: () => router.push(`/run/birthdays?person=${encodeURIComponent(entry.person.id)}`),
+    })),
+    ...(openTasks.data ?? []).flatMap((task) => {
+      const day = dueDayOf(task);
+      if (!day) return [];
+      return [
+        {
+          key: `task-${task.id}`,
+          kind: 'task' as const,
+          day,
+          title: task.title,
+          color: moduleBase(theme, 'tasks'),
+          at: null,
+          time: task.dueTime ?? null,
+          onPress: () => router.push(`/run/tasks?task=${task.id}`),
+        },
+      ];
+    }),
+  ];
+  const agenda = weekAgenda(today, items);
+  const openDay = (day: string) => router.push(`/timeline?day=${day}`);
 
   return (
-    <View style={{ gap: theme.spacing.md }}>
-      {/* Der Tagesstrahl selbst: seine Karten sind eigene Knoepfe, darum ist die
-          Kachel keiner — nur ihre Kopfzeile fuehrt in den grossen Zeitstrahl. */}
-      <Tile
-        headerOnly
-        tone="muted"
-        icon={iconOf('calendar', 'calendar')}
-        color={moduleBase(theme, 'calendar')}
-        title={t('day.today')}
-        onPress={() => openTimeline()}
+    <View style={{ gap: theme.spacing.lg }}>
+      {/* Der Wochenstreifen: sieben Tage, heute im Kreis, darunter die Farbpunkte. */}
+      <View
+        style={[
+          styles.strip,
+          theme.elevation.card,
+          {
+            paddingVertical: theme.spacing.md,
+            paddingHorizontal: theme.spacing.xs,
+            borderRadius: theme.radii.lg,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
       >
-        <DayThread entries={upcoming} allDay={band.allDay} now={now} onOpen={openTimeline} />
-      </Tile>
-
-      {/* Die Aufgaben sehen aus wie ueberall sonst — das Heft, nur immer da. */}
-      <DayTasks day={today} onAdd={onAddTask} keepEmpty />
-
-      <View style={[styles.tiles, { gap: theme.spacing.md }]}>
-        <Tile
-          half
-          icon={iconOf('notes', 'note')}
-          color={moduleBase(theme, 'notes')}
-          title={moduleName(t, 'notes')}
-          onPress={() => router.push('/run/notes')}
-        >
-          {noteRows.map((note) => (
-            <View key={note.id}>
-              <Text
-                variant="label"
-                numberOfLines={1}
-                style={{ fontWeight: theme.fontWeight.semibold }}
+        {days.map((day) => {
+          const isToday = day === today;
+          const date = parseDay(day);
+          const dots = dayDots(agenda, day, DOTS_SHOWN);
+          return (
+            <Pressable
+              key={day}
+              accessibilityRole="button"
+              accessibilityLabel={relativeDay(t, language, day)}
+              onPress={() => openDay(day)}
+              style={({ pressed }) => [styles.day, { gap: theme.spacing.xs, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text variant="caption" tone={isToday ? 'default' : 'faint'}>
+                {formatWeekday(language, date.toISOString()).replace('.', '')}
+              </Text>
+              <View
+                style={[
+                  styles.ring,
+                  {
+                    borderRadius: theme.radii.pill,
+                    backgroundColor: isToday ? theme.colors.inverse : 'transparent',
+                  },
+                ]}
               >
-                {note.title.trim() || t('notes.untitled')}
-              </Text>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                {homePreviewOf(note.body) || t('notes.row.noText')}
-              </Text>
-            </View>
-          ))}
-          {noteRows.length === 0 ? (
-            <Text variant="label" tone="faint">
-              {t('notes.list.empty')}
-            </Text>
-          ) : null}
-        </Tile>
-
-        <Tile
-          half
-          icon="bell"
-          color={theme.colors.danger}
-          title={t('news.title')}
-          count={newsCount > 0 ? formatNumber(language, newsCount) : undefined}
-          onPress={() => router.push('/notifications')}
-        >
-          <Text variant="label" tone={newsCount > 0 ? 'muted' : 'faint'} numberOfLines={2}>
-            {newsCount > 0 ? t('today.grid.unread') : t('news.empty')}
-          </Text>
-        </Tile>
+                <Text
+                  variant="title"
+                  style={{
+                    fontSize: theme.fontSize.lg,
+                    lineHeight: theme.lineHeight.lg,
+                    color: isToday ? theme.colors.onInverse : theme.colors.text,
+                  }}
+                >
+                  {date.getDate()}
+                </Text>
+              </View>
+              <View style={[styles.dots, { gap: 3, height: DOT }]}>
+                {dots.map((color, index) => (
+                  <View key={index} style={[styles.dot, { backgroundColor: color }]} />
+                ))}
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {/* Der Schnellzugriff bleibt das Karussell der ersten Ansicht. */}
-      <QuickAccess />
+      {/* Die Liste: je Tag eine Ueberschrift, darunter die Eintraege nach Uhrzeit. */}
+      {agenda.length === 0 ? (
+        <Text variant="body" tone="muted" align="center" style={{ paddingVertical: theme.spacing.xl }}>
+          {t('today.week.empty')}
+        </Text>
+      ) : (
+        agenda.map((entry) => (
+          <View key={entry.day} style={{ gap: theme.spacing.xs }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={relativeDay(t, language, entry.day)}
+              onPress={() => openDay(entry.day)}
+              style={({ pressed }) => [
+                styles.row,
+                {
+                  gap: theme.spacing.sm,
+                  paddingBottom: theme.spacing.xs,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: theme.colors.borderStrong,
+                  opacity: pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text
+                variant="label"
+                tone={entry.day === today ? 'accent' : 'default'}
+                style={{ fontWeight: theme.fontWeight.semibold }}
+              >
+                {relativeDay(t, language, entry.day)}
+              </Text>
+              <Text variant="label" tone="faint">
+                {formatDayMonth(language, parseDay(entry.day))}
+              </Text>
+              <View style={styles.grow} />
+              <Icon name="forward" size={14} color={theme.colors.textFaint} />
+            </Pressable>
+            {entry.items.map((item) => (
+              <AgendaRow key={item.key} item={item} />
+            ))}
+          </View>
+        ))
+      )}
     </View>
   );
 }
 
-/**
- * Eine Kachel: oben Zeichen, Name und allenfalls die Zahl, darunter der Inhalt.
- * Meist ist die ganze Kachel der Knopf; traegt ihr Inhalt selbst Knoepfe
- * (`headerOnly`), fuehrt nur die Kopfzeile weiter — kein Knopf im Knopf.
- */
-function Tile({
-  icon,
-  color,
-  title,
-  count,
-  onPress,
-  headerOnly = false,
-  half = false,
-  tone = 'surface',
-  children,
-}: {
-  icon: IconName;
-  color: string;
-  title: string;
-  count?: string | undefined;
-  onPress: () => void;
-  headerOnly?: boolean;
-  /** In einer Reihe neben einer anderen Kachel — dann teilen sie sich die Breite. */
-  half?: boolean;
-  tone?: 'surface' | 'muted';
-  children: ReactNode;
-}) {
+/** Eine Zeile: links die Uhrzeit (oder nichts), ein Farbbalken, der Titel. */
+function AgendaRow({ item }: { item: AgendaItem }) {
+  const { t, language } = useI18n();
   const theme = useTheme();
-
-  const face = [
-    theme.elevation.card,
-    {
-      // `flex` nur in einer Reihe: allein fiele die Kachel sonst zusammen, und
-      // ihr Inhalt stuende unten heraus.
-      ...(half ? { flex: 1, minWidth: 0, minHeight: TILE_HEIGHT } : {}),
-      gap: theme.spacing.sm,
-      padding: theme.spacing.md,
-      borderRadius: theme.radii.md,
-      backgroundColor: tone === 'muted' ? theme.colors.surfaceMuted : theme.colors.surface,
-    },
-  ];
-
-  const head = (
-    <View style={[styles.row, { gap: theme.spacing.xs }]}>
-      <Icon name={icon} size={15} color={color} />
-      <Text
-        variant="label"
-        numberOfLines={1}
-        style={[styles.grow, { fontWeight: theme.fontWeight.semibold }]}
-      >
-        {title}
-      </Text>
-      {count ? (
-        <Text variant="label" tone="muted" style={{ fontWeight: theme.fontWeight.semibold }}>
-          {count}
-        </Text>
-      ) : null}
-      {headerOnly ? <Icon name="forward" size={15} color={theme.colors.textFaint} /> : null}
-    </View>
-  );
-
-  if (headerOnly) {
-    return (
-      <View style={face}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={title}
-          onPress={onPress}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-        >
-          {head}
-        </Pressable>
-        {children}
-      </View>
-    );
-  }
+  const time = item.at ? formatTime(language, item.at) : item.time;
+  const spoken = [time ?? t('today.week.allDay'), item.title].join(', ');
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={count ? `${title}, ${count}` : title}
-      onPress={onPress}
-      style={({ pressed }) => [...face, { opacity: pressed ? 0.7 : 1 }]}
+      accessibilityLabel={spoken}
+      onPress={item.onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { gap: theme.spacing.md, paddingVertical: theme.spacing.sm, opacity: pressed ? 0.6 : 1 },
+      ]}
     >
-      {head}
-      <View style={[styles.grow, styles.clip, { gap: theme.spacing.xs }]}>{children}</View>
+      <Text variant="label" tone={time ? 'muted' : 'faint'} style={{ width: TIME_COLUMN }}>
+        {time ?? (item.kind === 'task' ? '' : t('today.week.allDay'))}
+      </Text>
+      <View style={[styles.bar, { borderRadius: theme.radii.pill, backgroundColor: item.color }]} />
+      {item.kind === 'task' ? (
+        <Icon name="circle" size={16} color={theme.colors.textFaint} />
+      ) : item.kind === 'birthday' ? (
+        <Icon name="gift" size={16} color={item.color} />
+      ) : null}
+      <Text variant="body" numberOfLines={1} style={styles.grow}>
+        {item.title}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  strip: { flexDirection: 'row', alignItems: 'flex-start' },
+  day: { flex: 1, alignItems: 'center' },
+  ring: { width: TODAY_RING, height: TODAY_RING, alignItems: 'center', justifyContent: 'center' },
+  dots: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
   grow: { flex: 1, minWidth: 0 },
-  clip: { overflow: 'hidden' },
-  // Die Kacheln einer Reihe sind gleich hoch, auch wenn eine mehr zeigt.
-  tiles: { flexDirection: 'row', alignItems: 'stretch' },
+  bar: { width: BAR, height: BAR_HEIGHT },
 });

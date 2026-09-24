@@ -19,9 +19,11 @@ import {
   Screen,
   SectionHeader,
   Text,
+  useUndo,
 } from '@/ui';
 
 import { BirthdayEditor, type BirthdayDraft } from './BirthdayEditor';
+import { canImportContacts, importBirthdays } from './importContacts';
 import { CompactRow, WeekRow, type BirthdayRowProps } from './BirthdayRows';
 import {
   birthdaySections,
@@ -66,8 +68,29 @@ function BirthdayList({ module, startAdding }: { module: ModuleDefinition; start
   const router = useRouter();
   const account = useAccount();
   const actions = useBirthdayActions();
+  const undo = useUndo();
 
   const [query, setQuery] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  /** Geburtstage aus den Kontakten des Handys — nur dort, wo es Kontakte gibt. */
+  async function runImport() {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await importBirthdays(account.id);
+      const taken = result.ok ? result.added + result.updated : 0;
+      undo.show({
+        message: !result.ok
+          ? t(result.error === 'denied' ? 'birthdays.import.denied' : 'birthdays.import.failed')
+          : taken > 0
+            ? t('birthdays.import.done', { count: taken })
+            : t('birthdays.import.none'),
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
   const [editing, setEditing] = useState<BirthdayDraft | null>(() => (startAdding ? {} : null));
 
   const list = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
@@ -106,6 +129,11 @@ function BirthdayList({ module, startAdding }: { module: ModuleDefinition; start
           title={moduleName(t, module.id)}
           showBack
           onBack={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
+          actions={
+            canImportContacts
+              ? [{ icon: 'people', label: t('birthdays.import'), onPress: () => void runImport() }]
+              : []
+          }
         />
       }
       scroll={false}

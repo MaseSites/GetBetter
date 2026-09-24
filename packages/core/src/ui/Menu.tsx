@@ -26,6 +26,8 @@ export type MenuItem = {
   disabled?: boolean;
   /** Gesetzt heisst: Haekchen. Sobald ein Punkt es kennt, bekommen alle die Spalte dafuer. */
   selected?: boolean;
+  /** Ein kurzer Satz unter dem Namen, wo der Name allein nicht sagt, was passiert. */
+  detail?: string;
   onPress: () => void;
 };
 
@@ -186,7 +188,7 @@ function MenuRow({
   return (
     <Pressable
       accessibilityRole="menuitem"
-      accessibilityLabel={item.label}
+      accessibilityLabel={item.detail ? `${item.label}. ${item.detail}` : item.label}
       accessibilityState={{ disabled: item.disabled ?? false, selected: item.selected ?? false }}
       disabled={item.disabled}
       onPress={() => onSelect(item)}
@@ -205,9 +207,16 @@ function MenuRow({
           {item.selected ? <Icon name="check" size={16} color={color} /> : null}
         </View>
       ) : null}
-      <Text variant="body" numberOfLines={1} style={[styles.label, { color }]}>
-        {item.label}
-      </Text>
+      <View style={[styles.label, item.detail ? { paddingVertical: theme.spacing.xs } : null]}>
+        <Text variant="body" numberOfLines={1} style={{ color }}>
+          {item.label}
+        </Text>
+        {item.detail ? (
+          <Text variant="caption" tone="faint" numberOfLines={2}>
+            {item.detail}
+          </Text>
+        ) : null}
+      </View>
       {item.icon ? <Icon name={item.icon} size={18} color={color} /> : null}
     </Pressable>
   );

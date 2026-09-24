@@ -32,18 +32,18 @@ describe('Better Fit: Tagebuch und Schutz', () => {
   });
   after(() => server.stop());
 
-  test('Registrieren und Anmelden geben ein Token', async () => {
-    assert.match(anna.token, /^[A-Za-z0-9_-]{43}$/);
+  test('Registrieren und Anmelden geben eine Sitzung', async () => {
+    assert.match(anna.token, /^[0-9a-f]{48}$/);
     const login = await server.call('POST', '/v1/sessions', {
       body: { email: anna.email, password: 'passwort-123' },
     });
     assert.equal(login.status, 200);
-    assert.match(login.body.token, /^[A-Za-z0-9_-]{43}$/);
+    assert.match(login.body.session, /^[0-9a-f]{48}$/);
   });
 
   test('ohne oder mit falschem Token: 401, und /v1/db kennt keine Fit-Daten', async () => {
     assert.equal((await server.call('GET', '/v1/fit/day')).status, 401);
-    assert.equal((await server.call('GET', '/v1/fit/day', { token: 'x'.repeat(43) })).status, 401);
+    assert.equal((await server.call('GET', '/v1/fit/day', { token: 'a'.repeat(48) })).status, 401);
     const snapshot = await server.call('GET', '/v1/db');
     assert.equal(
       Object.keys(snapshot.body.tables).some(
@@ -225,9 +225,9 @@ describe('Better Fit: Tagebuch und Schutz', () => {
     const login = await server.call('POST', '/v1/sessions', {
       body: { email: ben.email, password: 'passwort-123' },
     });
-    const token = login.body.token;
+    const token = login.body.session;
     assert.equal((await server.call('GET', '/v1/fit/day', { token })).status, 200);
-    await server.call('DELETE', '/v1/sessions/current', { token });
+    await server.call('DELETE', '/v1/sessions', { token });
     assert.equal((await server.call('GET', '/v1/fit/day', { token })).status, 401);
   });
 

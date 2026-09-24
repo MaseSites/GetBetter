@@ -11,6 +11,15 @@
       "port": 8090
     },
     {
+      "name": "getbetter",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "web"
+      ],
+      "port": 8081
+    },
+    {
       "name": "getbetter-web",
       "url": "http://localhost:8081",
       "port": 8081
@@ -55,6 +64,15 @@
         "design/canvas/preview"
       ],
       "port": 8123
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "server"
+      ],
+      "port": 8090
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { createElement, useState } from 'react';
 import { Text as NativeText, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 import type { MailMessage } from '@/db/mail';
 import { useI18n } from '@/i18n';
@@ -21,10 +22,10 @@ export type MessageBodyProps = {
 };
 
 /**
- * Der Text einer Nachricht. Im Browser steht gesaeubertes HTML in einem
- * abgeschotteten Rahmen; auf dem Geraet (ohne WebView) der Text, das Zitat
- * eingeklappt. Bis der Dienst antwortet — oder wenn er es nicht kann —, steht
- * der gekuerzte Text aus dem Abgleich da.
+ * Der Text einer Nachricht: gesaeubertes HTML in einem abgeschotteten Rahmen —
+ * im Browser ein iframe mit `sandbox`, auf dem Geraet eine WebView ohne
+ * Skripte. Bis der Dienst antwortet — oder wenn er es nicht kann —, steht der
+ * gekuerzte Text aus dem Abgleich da, das Zitat eingeklappt.
  */
 export function MessageBody({ message, state, images, onLoadImages }: MessageBodyProps) {
   const { t } = useI18n();
@@ -32,7 +33,7 @@ export function MessageBody({ message, state, images, onLoadImages }: MessageBod
   const [width, setWidth] = useState(0);
 
   const { body } = state;
-  const html = Platform.OS === 'web' ? (body?.html ?? null) : null;
+  const html = body?.html ?? null;
   const text = body?.text || message.text;
   const blocked = body && !images ? body.remoteImages : 0;
 
@@ -138,13 +139,25 @@ function HtmlFrame({
         borderColor: theme.colors.border,
       }}
     >
-      {createElement('iframe', {
-        title,
-        srcDoc: page,
-        sandbox: FRAME_SANDBOX,
-        referrerPolicy: 'no-referrer',
-        style: { border: 0, width: '100%', height, display: 'block' },
-      })}
+      {Platform.OS === 'web' ? (
+        createElement('iframe', {
+          title,
+          srcDoc: page,
+          sandbox: FRAME_SANDBOX,
+          referrerPolicy: 'no-referrer',
+          style: { border: 0, width: '100%', height, display: 'block' },
+        })
+      ) : (
+        // Kein JavaScript, keine fremden Adressen: die Seite ist fertig gesaeubert.
+        <WebView
+          originWhitelist={['about:blank']}
+          source={{ html: page }}
+          javaScriptEnabled={false}
+          scrollEnabled={false}
+          accessibilityLabel={title}
+          style={{ height, backgroundColor: 'transparent' }}
+        />
+      )}
     </View>
   );
 }

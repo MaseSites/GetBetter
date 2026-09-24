@@ -36,8 +36,9 @@ test('Verschieben: Überfälliges zählt ab dem echten Heute, die Uhrzeit bleibt
   assert.deepEqual(postponeSchedule('today', today, null), { day: today, time: null });
   assert.deepEqual(postponeKindsFor('2026-09-10', today), ['today', 'tomorrow', 'nextWeek']);
   assert.deepEqual(postponeKindsFor(today, today), ['tomorrow', 'nextWeek']);
-  assert.deepEqual(postponeKindsFor('2026-09-20', today), ['tomorrow', 'nextWeek']);
-  assert.deepEqual(postponeKindsFor(null, today), ['tomorrow', 'nextWeek']);
+  // Spaeteres und Aufgaben ohne Datum lassen sich auf heute holen.
+  assert.deepEqual(postponeKindsFor('2026-09-20', today), ['today', 'tomorrow', 'nextWeek']);
+  assert.deepEqual(postponeKindsFor(null, today), ['today', 'tomorrow', 'nextWeek']);
 });
 
 test('Verschieben: nur die Frist ändert sich, die Wiederholung bleibt', () => {

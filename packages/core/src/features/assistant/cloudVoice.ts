@@ -1,6 +1,8 @@
 import { currentApp } from '@/app/identity';
-import { callService, serviceUrl, type ServiceCall } from '@/db/service';
+import { callService, serviceUrl, withToken, type ServiceCall } from '@/db/service';
 import type { Language } from '@/i18n';
+
+import { createPlayback, type Playback } from './playback';
 
 /**
  * Echt klingende Stimmen von ElevenLabs — ueber den eigenen Dienst, nie direkt:
@@ -110,7 +112,12 @@ export function loadCloudVoices(language: Language, force = false): Promise<void
     }
     // Ohne Abo (oder aufgebraucht) wie „nicht eingerichtet“ — nur mit einem Satz dazu.
     if (status.data.allowed === false) {
-      update({ configured: false, problem: null, voices: [], blocked: blockOf(status.data.reason) });
+      update({
+        configured: false,
+        problem: null,
+        voices: [],
+        blocked: blockOf(status.data.reason),
+      });
       return;
     }
     const listed = await callService<{ voices: CloudVoice[] }>(
@@ -118,7 +125,12 @@ export function loadCloudVoices(language: Language, force = false): Promise<void
     );
     update(
       listed.ok
-        ? { configured: true, problem: status.data.lastError, voices: listed.data.voices, blocked: null }
+        ? {
+            configured: true,
+            problem: status.data.lastError,
+            voices: listed.data.voices,
+            blocked: null,
+          }
         : { configured: true, problem: listed.error, voices: [], blocked: null },
     );
   })();
@@ -140,21 +152,11 @@ export function cloudVoiceFor(voiceUri: string | null): string | null {
   return first.id;
 }
 
-type AudioLike = {
-  play: () => Promise<void>;
-  pause: () => void;
-  onended: (() => void) | null;
-  onerror: (() => void) | null;
-  onplaying: (() => void) | null;
-};
-
-type AudioClass = new (src: string) => AudioLike;
-
 type Prepared = ServiceCall<{ url: string }>;
 
 /** Spielt einen Satz von ElevenLabs ab. Einer nach dem anderen. */
 export class CloudPlayer {
-  private audio: AudioLike | null = null;
+  private playback: Playback | null = null;
   private watch: ReturnType<typeof setTimeout> | null = null;
   private turn = 0;
 
@@ -191,13 +193,9 @@ export class CloudPlayer {
   stop() {
     this.turn += 1;
     this.clearWatch();
-    const audio = this.audio;
-    this.audio = null;
-    if (!audio) return;
-    audio.onended = null;
-    audio.onerror = null;
-    audio.onplaying = null;
-    audio.pause();
+    const playing = this.playback;
+    this.playback = null;
+    playing?.stop();
   }
 
   private start(
@@ -207,18 +205,13 @@ export class CloudPlayer {
   ) {
     this.stop();
     const turn = this.turn;
-    const AudioElement = (globalThis as { Audio?: AudioClass }).Audio;
-    if (!AudioElement) {
-      onDone(false);
-      return;
-    }
 
     let finished = false;
     const finish = (spoken: boolean) => {
       if (finished || turn !== this.turn) return;
       finished = true;
       this.clearWatch();
-      this.audio = null;
+      this.playback = null;
       if (!spoken) void loadCloudVoices(language, true);
       onDone(spoken);
     };
@@ -230,15 +223,21 @@ export class CloudPlayer {
         finish(false);
         return;
       }
-      const audio = new AudioElement(`${serviceUrl()}${prepared.data.url}`);
-      this.audio = audio;
-      audio.onplaying = () => {
-        this.clearWatch();
-        this.watch = setTimeout(() => finish(true), LONGEST_MS);
-      };
-      audio.onended = () => finish(true);
-      audio.onerror = () => finish(false);
-      audio.play().catch(() => finish(false));
+      // Im Browser ein Audio-Element, auf dem Geraet expo-audio (`playback.ts`).
+      const playback = createPlayback(withToken(`${serviceUrl()}${prepared.data.url}`), {
+        onPlaying: () => {
+          this.clearWatch();
+          this.watch = setTimeout(() => finish(true), LONGEST_MS);
+        },
+        onEnded: () => finish(true),
+        onError: () => finish(false),
+      });
+      if (!playback) {
+        finish(false);
+        return;
+      }
+      this.playback = playback;
+      playback.start();
     });
   }
 

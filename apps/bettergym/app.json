@@ -45,11 +45,29 @@
           }
         }
       ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Damit du ein Foto deiner Mahlzeit oder einer Nährwerttabelle auswählen kannst.",
-          "cameraPermission": "Damit du deine Mahlzeit oder eine Nährwerttabelle fotografieren kannst. Das Bild wird nur für die Analyse verwendet und danach gelöscht."
+          "photosPermission": "Damit du ein Bild auswählen kannst — deine Mahlzeit, eine Nährwerttabelle, oder ein Foto für Hintergrund und Profil.",
+          "cameraPermission": "Damit du deine Mahlzeit oder eine Nährwerttabelle fotografieren kannst. Das Bild wird nur für die Analyse verwendet und danach gelöscht.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "BetterGym braucht das Mikrofon nur, wenn du dem Assistenten etwas vorsagst.",
+          "speechRecognitionPermission": "BetterGym wandelt Gesprochenes in Text um, wenn du dem Assistenten etwas vorsagst.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       [
@@ -63,6 +81,9 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

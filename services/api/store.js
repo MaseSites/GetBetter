@@ -10,8 +10,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 
 const { dataDir } = require('./config.js');
+const { dataKey, forDisk, unseal } = require('./crypt.js');
 
 const DATA_FILE = path.join(dataDir(), 'db.json');
+/** Mit `BETTER_DATA_KEY` liegt die Datei verschluesselt (AES-256-GCM), sonst als Klartext. */
+const KEY = dataKey();
 
 /** Die Sammlungen. Dieselbe Liste wie `COLLECTION_NAMES` im Kern der Apps. */
 const COLLECTIONS = [
@@ -73,7 +76,8 @@ function emptyDatabase() {
   return { revision: 0, tables, deleted: {} };
 }
 
-const isPlainObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isPlainObject = (value) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** `{ konto: { sammlung: [id] } }` aus der Datei — was nicht passt, faellt weg. */
 function readDeleted(value) {
@@ -94,8 +98,21 @@ function readDeleted(value) {
 
 async function load() {
   if (data) return data;
+  let raw = null;
   try {
-    const parsed = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
+    raw = await fs.readFile(DATA_FILE, 'utf8');
+  } catch (error) {
+    // Keine Datei: leer anfangen. Alles andere soll man sehen, nicht ueberschreiben.
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  if (raw === null) {
+    data = emptyDatabase();
+    return data;
+  }
+  // Unlesbar (kaputt, falscher oder fehlender Schluessel) heisst: nicht starten —
+  // ein leerer Stand wuerde beim naechsten Speichern alles ueberschreiben.
+  {
+    const parsed = JSON.parse(unseal(KEY, raw));
     const next = emptyDatabase();
     next.revision = Number(parsed.revision ?? 0);
     for (const name of COLLECTIONS) {
@@ -113,8 +130,6 @@ async function load() {
     }
     next.deleted = readDeleted(parsed.deleted);
     data = next;
-  } catch {
-    data = emptyDatabase();
   }
   return data;
 }
@@ -127,7 +142,10 @@ async function save() {
     .catch(() => {})
     .then(async () => {
       await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-      await fs.writeFile(DATA_FILE, snapshot, 'utf8');
+      // Erst daneben schreiben, dann umbenennen: ein Absturz laesst nichts halb stehen.
+      const temp = `${DATA_FILE}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+      await fs.writeFile(temp, forDisk(KEY, snapshot), { encoding: 'utf8', mode: 0o600 });
+      await fs.rename(temp, DATA_FILE);
     });
   await writing;
 }
@@ -147,7 +165,9 @@ function newId(prefix) {
  * es nie; `withoutDeleted` haelt es beim PUT draussen.
  */
 function rememberDeleted(db, accountId, remove) {
-  const byCollection = Object.fromEntries(Object.entries(remove).map(([name, ids]) => [name, [...ids]]));
+  const byCollection = Object.fromEntries(
+    Object.entries(remove).map(([name, ids]) => [name, [...ids]]),
+  );
   db.deleted = { ...(db.deleted ?? {}), [accountId]: byCollection };
 }
 
@@ -162,7 +182,9 @@ function forgetDeleted(db, accountId) {
 
 /** Die Zeilen ohne jene, die mit einem geloeschten Konto weggefallen sind. */
 function withoutDeleted(db, name, rows) {
-  const gone = new Set(Object.values(db.deleted ?? {}).flatMap((byCollection) => byCollection[name] ?? []));
+  const gone = new Set(
+    Object.values(db.deleted ?? {}).flatMap((byCollection) => byCollection[name] ?? []),
+  );
   if (gone.size === 0) return rows;
   return rows.filter((row) => !(isPlainObject(row) && gone.has(row.id)));
 }

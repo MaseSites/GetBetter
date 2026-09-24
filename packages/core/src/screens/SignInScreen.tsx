@@ -12,7 +12,6 @@ export function SignInScreen() {
   return (
     <SignInForm
       title={t('auth.signIn.title')}
-      subtitle={t('auth.signIn.subtitle')}
       submitLabel={t('auth.start.signIn')}
       switchLabel={t('auth.noAccount')}
       bubble={t('intro.signIn.bubble')}

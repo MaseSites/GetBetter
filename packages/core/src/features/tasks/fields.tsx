@@ -96,12 +96,15 @@ export function QuietEmpty({
 export function ActionRow({
   icon,
   label,
+  detail,
   value,
   tone = 'default',
   onPress,
 }: {
   icon?: IconName;
   label: string;
+  /** Ein kurzer Satz darunter, was hinter der Zeile steckt. */
+  detail?: string;
   value?: string;
   tone?: TextTone;
   onPress: () => void;
@@ -110,12 +113,12 @@ export function ActionRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={value ? `${label}, ${value}` : label}
+      accessibilityLabel={[label, detail, value].filter(Boolean).join(', ')}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
         {
-          minHeight: ROW_MIN_HEIGHT.one,
+          minHeight: detail ? ROW_MIN_HEIGHT.two : ROW_MIN_HEIGHT.one,
           paddingLeft: theme.spacing.xs,
           paddingRight: theme.spacing.lg,
           gap: theme.spacing.sm,
@@ -132,9 +135,16 @@ export function ActionRow({
           />
         ) : null}
       </View>
-      <Text variant="body" tone={tone} numberOfLines={1} style={styles.grow}>
-        {label}
-      </Text>
+      <View style={styles.grow}>
+        <Text variant="body" tone={tone} numberOfLines={1}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text variant="caption" tone="faint" numberOfLines={1}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
       {value ? (
         <Text variant="body" tone="muted">
           {value}

@@ -1,7 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
 import type { AppId } from '@/app/identity';
-import { serviceUrl } from '@/db/service';
+import { serviceUrl, withToken } from '@/db/service';
 import type { TranslationKey } from '@/i18n';
 
 import type { ColorScheme } from './colors';
@@ -196,7 +196,7 @@ export function uploadIdOf(backdrop: string | null | undefined): string | null {
 
 /** Wo ein eigenes Bild beim Dienst liegt. */
 export function uploadUrl(id: string): string {
-  return `${serviceUrl()}/v1/uploads/${encodeURIComponent(id)}`;
+  return withToken(`${serviceUrl()}/v1/uploads/${encodeURIComponent(id)}`);
 }
 
 export function uploadSource(id: string): ImageSourcePropType {

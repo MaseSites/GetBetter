@@ -4,24 +4,27 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { currentApp } from '@/app/identity';
 import { useSpeechVoices } from '@/features/assistant/useSpeechVoices';
 import { VoicePicker } from '@/features/assistant/VoicePicker';
-import { AvatarPicker } from '@/features/avatar/AvatarPicker';
+import { PillButton } from '@/features/auth/PillButton';
 import type { AvatarStyle } from '@/features/avatar/style';
 import { useAvatarStyle } from '@/features/avatar/useAvatarStyle';
 import { ClubAvatar } from '@/features/intro/ClubAvatar';
 import { useNarration } from '@/features/intro/narration';
-import { NarrationButton } from '@/features/intro/NarrationButton';
 import { SpeechBubble } from '@/features/intro/SpeechBubble';
+import { StagePanel } from '@/features/intro/StagePanel';
 import { Tutorial } from '@/features/intro/Tutorial';
 import { useReducedMotion } from '@/features/intro/useReducedMotion';
-import { useTranslate, type TranslationKey } from '@/i18n';
+import { trialNeedsPlan } from '@/features/plan/entitlement';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
+import { useTranslate } from '@/i18n';
 import { useApp } from '@/state/AppContext';
+import { openTrialGate } from '@/state/trialGate';
 import { useTheme } from '@/theme';
-import { AppIcon, Button, Input, Screen, Text, useSwipeSteps } from '@/ui';
+import { AppIcon, Screen, Text, useSwipeSteps } from '@/ui';
 
 import { useOnboarding } from './OnboardingContext';
 import { StepHeader } from './StepHeader';
+import { NameStep, PersonalizeStep } from './SetupFields';
 import { canLeave, neighbourStep, setupSteps, type SetupStep } from './steps';
-import { StylePicker } from './StylePicker';
 
 const AVATAR_SIZE = 76;
 /** Ein neuer Schritt rueckt aus dieser Richtung nach. */
@@ -30,8 +33,11 @@ const SLIDE = 28;
 const useNativeDriver = Platform.OS !== 'web';
 
 /**
- * Das Einrichten nach dem Registrieren, als Gespraech mit dem Avatar: oben er
- * und seine Blase, darunter, was man dazu eingibt. Er sagt jeden Schritt auch
+ * Das Einrichten nach dem Registrieren, als Gespraech mit dem Avatar — im Stil
+ * von Anmelden und Registrieren: oben auf hellem Grund zurueck, der Fortschritt,
+ * er und seine Blase; darunter das dunkle Feld (`StagePanel`) mit dem, was man
+ * eingibt, und „Weiter“ fest unten. Keine Hinweise unter den Feldern — was zu
+ * sagen ist, sagt die Blase. Er sagt jeden Schritt auch
  * laut — darum waehlt man zuerst seine Stimme. Jeder Schritt laesst sich
  * wischen — nach links weiter, nach rechts zurueck — und oben zurueckgehen.
  * Zum Schluss geht es ins Tutorial oder direkt in die App.
@@ -42,12 +48,18 @@ export function SetupScreen() {
   const {
     account,
     personal,
+    entitled,
+    trial,
+    endTrial,
     signOut,
     completeOnboarding,
     setAssistantName,
     setAssistantVoice,
     setAssistantAvatar,
   } = useApp();
+  const plan = usePlanSheet();
+  // Solange hier eingerichtet wird, darf man ohne Abo alles anprobieren.
+  useEffect(() => openTrialGate(), []);
   const draft = useOnboarding();
   const voices = useSpeechVoices();
   const savedAvatar = useAvatarStyle();
@@ -58,11 +70,10 @@ export function SetupScreen() {
   // gibt, reicht der Browser erst nach — darum nur das Zweite von aussen.
   const [hadFirstName] = useState(() => Boolean(account?.firstName.trim()));
   const canPickVoice = voices.length > 1;
-  // Neu registriert heisst Gratis: dann kurz — Spitzname, hell oder dunkel, fertig.
-  const canPersonalize = personal.canPersonalize;
+  // Die Stimme gibt es nur mit Abo; alles andere steht allen offen (als Anprobe).
   const liveSteps = useMemo(
-    () => setupSteps(hadFirstName, canPickVoice, canPersonalize),
-    [hadFirstName, canPickVoice, canPersonalize],
+    () => setupSteps(hadFirstName, canPickVoice, entitled),
+    [hadFirstName, canPickVoice, entitled],
   );
   // Sobald man einmal weiter ist, stehen die Schritte fest: kaeme die Stimme
   // danach noch vorne dazu, rutschte der laufende Schritt um eins.
@@ -78,26 +89,22 @@ export function SetupScreen() {
   const assistant = draft.assistantName.trim();
   const canGo = canLeave(step, draft);
   const voiceUri = personal.voice;
+  // Angeprobt, was es nur mit Abo gibt: dann geht es ohne nicht weiter.
+  const needsPlan = step === 'personalize' && !entitled && trialNeedsPlan(trial);
 
   const bubble: Record<SetupStep, string> = {
     voice: t('intro.setup.voice.bubble'),
     // Kam die Stimme zuerst, ist das Konto schon begruesst.
     name:
       steps[0] === 'name' ? t('intro.setup.name.bubble') : t('intro.setup.name.bubbleAfterVoice'),
-    assistant: assistant
-      ? t('intro.setup.assistant.bubbleNamed', { name: firstName, assistant })
-      : t('intro.setup.assistant.bubble', { name: firstName }),
-    avatar: t('intro.setup.avatar.bubble', { assistant }),
-    // Ohne Abo sagt er ehrlich, was hier frei ist und was mit dem Abo geht.
-    style: canPersonalize ? t('intro.setup.style.bubbleAfterAvatar') : t('plan.setup.bubble'),
+    personalize: entitled
+      ? t('intro.setup.personalize.bubble')
+      : t('intro.setup.personalize.bubbleTrial'),
     ready: t('intro.setup.ready.bubble', { name: firstName }),
   };
-  // Laut gesagt wird der Satz beim Betreten — nicht der, der beim Tippen mitwaechst.
-  const said =
-    step === 'assistant' ? t('intro.setup.assistant.bubble', { name: firstName }) : bubble[step];
 
   // Waehrend des Tutorials redet er hier nicht dazwischen.
-  const narration = useNarration(step, touring ? '' : said);
+  useNarration(step, touring ? '' : bubble[step]);
 
   async function go(to: 1 | -1) {
     if (busy) return;
@@ -108,7 +115,17 @@ export function SetupScreen() {
       return;
     }
     if (to === 1 && !canGo) return;
-    if (to === 1 && step === 'assistant' && assistant !== (account?.assistantName ?? '')) {
+    // Ohne Abo bleibt die Anprobe hier: erst das Abo — oder „Ohne Abo weiter“.
+    if (to === 1 && needsPlan) {
+      plan.open();
+      return;
+    }
+    if (
+      to === 1 &&
+      step === 'personalize' &&
+      entitled &&
+      assistant !== (account?.assistantName ?? '')
+    ) {
       setBusy(true);
       try {
         await setAssistantName(assistant);
@@ -137,6 +154,24 @@ export function SetupScreen() {
     void setAssistantAvatar(next);
   }
 
+  function changeAssistantName(name: string) {
+    draft.setAssistantName(name);
+    // Ohne Abo gleich in die Anprobe — mit Abo wird beim Weiter gespeichert.
+    if (!entitled) void setAssistantName(name);
+  }
+
+  /** Die Anprobe verwerfen und im Standard weiter. */
+  function continueFree() {
+    endTrial();
+    draft.setAssistantName('');
+    setAvatarDraft(null);
+    if (!fixedSteps) setFixedSteps(steps);
+    const target = neighbourStep(steps, index, 1);
+    if (target === null) return;
+    setDirection(1);
+    setIndex(target);
+  }
+
   const swipe = useSwipeSteps((to) => void go(to));
 
   if (touring) return <Tutorial onDone={() => void finish()} />;
@@ -144,105 +179,104 @@ export function SetupScreen() {
   const footer =
     step === 'ready' ? (
       <View style={{ gap: theme.spacing.sm }}>
-        <Button
+        <PillButton
           label={t('intro.setup.ready.tour')}
+          variant="signal"
           onPress={() => setTouring(true)}
           disabled={busy}
         />
-        <Button
+        <PillButton
           label={t('intro.setup.ready.explore')}
-          variant="secondary"
+          variant="outline"
           onPress={() => void finish()}
           loading={busy}
         />
       </View>
     ) : (
-      <Button
-        label={t('common.continue')}
-        onPress={() => void go(1)}
-        disabled={!canGo}
-        loading={busy}
-      />
+      <>
+        <PillButton
+          label={t('common.continue')}
+          variant="signal"
+          onPress={() => void go(1)}
+          disabled={!canGo}
+          loading={busy}
+        />
+        {needsPlan ? (
+          <PillButton label={t('intro.setup.withoutPlan')} variant="outline" onPress={continueFree} />
+        ) : null}
+      </>
     );
 
   return (
     <Screen
+      scroll={false}
+      padded={false}
+      gap={0}
       header={
         <StepHeader current={index + 1} total={steps.length} onBack={() => void go(-1)}>
-          <View style={[styles.talk, { gap: theme.spacing.md, paddingTop: theme.spacing.sm }]}>
+          <View
+            style={[
+              styles.talk,
+              { gap: theme.spacing.md, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg },
+            ]}
+          >
             {/* Er kommt vom Registrieren und steht schon — bei jedem Schritt nickt er. */}
             <ClubAvatar size={AVATAR_SIZE} phase="idle" bounceKey={step} style={avatar} />
             <View style={styles.grow}>
               <SpeechBubble text={bubble[step]} tail="left" typeKey={step} />
             </View>
-            {/* Wer ihn nicht hoeren will, schaltet ihn stumm — die Blase bleibt. */}
-            <NarrationButton narration={narration} />
           </View>
         </StepHeader>
       }
-      footer={footer}
     >
-      {/* Nach links weiter, nach rechts zurueck; senkrecht rollt die Seite wie immer. */}
-      <Animated.View style={[styles.grow, swipe.style]} {...swipe.panHandlers}>
-        <StepPane key={step} direction={direction}>
-          {step === 'voice' ? (
-            <VoicePicker
-              value={voiceUri}
-              onChange={(uri) => void setAssistantVoice(uri)}
-            />
-          ) : null}
-          {step === 'name' ? (
-            <Input
-              label={t('intro.setup.name.label')}
-              hint={t('intro.setup.name.hint')}
-              value={draft.firstName}
-              onChangeText={draft.setFirstName}
-              icon="person"
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => void go(1)}
-            />
-          ) : null}
-          {step === 'assistant' ? (
-            <Input
-              label={t('intro.setup.assistant.label')}
-              hint={t('intro.setup.assistant.hint')}
-              value={draft.assistantName}
-              onChangeText={draft.setAssistantName}
-              icon="sparkles"
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => void go(1)}
-            />
-          ) : null}
-          {step === 'avatar' ? (
-            <AvatarPicker compact value={avatar} onChange={changeAvatar} />
-          ) : null}
-          {step === 'style' ? <StylePicker /> : null}
-          {step === 'ready' ? <ReadyCard /> : null}
-        </StepPane>
-      </Animated.View>
+      {/* Kurze Schritte wie beim Anmelden: Weiter gleich unter dem Feld. */}
+      <StagePanel scroll={step === 'personalize' || step === 'voice'} footer={footer}>
+        {/* Nach links weiter, nach rechts zurueck; senkrecht rollt das Feld wie immer. */}
+        <Animated.View style={swipe.style} {...swipe.panHandlers}>
+          <StepPane key={step} direction={direction}>
+            <Text variant="display">{t(`intro.setup.title.${step}`)}</Text>
+            {step === 'voice' ? (
+              <VoicePicker
+                bare
+                value={voiceUri}
+                onChange={(uri) => void setAssistantVoice(uri)}
+              />
+            ) : null}
+            {step === 'name' ? (
+              <NameStep
+                value={draft.firstName}
+                onChange={draft.setFirstName}
+                onSubmit={() => void go(1)}
+              />
+            ) : null}
+            {step === 'personalize' ? (
+              <PersonalizeStep
+                assistantName={draft.assistantName}
+                onAssistantName={changeAssistantName}
+                avatar={avatar}
+                onAvatar={changeAvatar}
+                offer={entitled ? null : plan.open}
+              />
+            ) : null}
+            {step === 'ready' ? <ReadyCard /> : null}
+          </StepPane>
+        </Animated.View>
+      </StagePanel>
     </Screen>
   );
 }
 
 /** Zum Schluss: die App, in die es gleich geht. */
 function ReadyCard() {
-  const t = useTranslate();
   const theme = useTheme();
   const app = currentApp();
 
   return (
-    <View style={[styles.ready, { gap: theme.spacing.md, paddingVertical: theme.spacing.xl }]}>
+    <View style={[styles.ready, { gap: theme.spacing.md, paddingVertical: theme.spacing.lg }]}>
       <AppIcon appId={app.id} size="xl" />
-      <View style={{ gap: theme.spacing.xs }}>
-        <Text variant="title" align="center">
-          {app.name}
-        </Text>
-        <Text variant="label" tone="muted" align="center">
-          {t(app.taglineKey as TranslationKey)}
-        </Text>
-      </View>
+      <Text variant="title" align="center">
+        {app.name}
+      </Text>
     </View>
   );
 }
@@ -268,6 +302,7 @@ function StepPane({ direction, children }: { direction: 1 | -1; children: ReactN
   return (
     <Animated.View
       style={{
+        gap: theme.spacing.lg,
         opacity: enter,
         transform: [
           { translateX: enter.interpolate({ inputRange: [0, 1], outputRange: [offset, 0] }) },

@@ -8,6 +8,7 @@ import { currentApp } from '@/app/identity';
 import { IntroLayer } from '@/features/intro/IntroLayer';
 import { CelebrationProvider } from '@/features/celebrate/CelebrationLayer';
 import { PlanSheetProvider } from '@/features/plan/PlanSheet';
+import { useTaskReminders } from '@/features/tasks/useTaskReminders';
 import { useTranslate } from '@/i18n';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -75,6 +76,8 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
   const t = useTranslate();
   const { account, hydrated, offline, retry, signOut, view } = useApp();
   const app = currentApp();
+  // Erinnerungen an Aufgaben als Mitteilung aufs Handy — nie beim Ansehen aus dem Admin.
+  useTaskReminders(view.active || !account ? null : account.id);
   // Der Admin darf auch eine gesperrte App ansehen.
   const access = account && !view.active ? accessOf(account, app.id) : 'ok';
 
@@ -138,21 +141,21 @@ function Shell({ home, hasOnboarding }: Required<RootShellProps>) {
         {/* Das Abo-Fenster: von überall zu öffnen, einmal für die ganze App. */}
         <PlanSheetProvider>
           <CelebrationProvider>
-          {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
-          <IntroLayer hasOnboarding={hasOnboarding}>
-            <EdgeSwipeBack>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: theme.colors.background },
-                  animation: 'slide_from_right',
-                  animationDuration: theme.motion.duration.sheet,
-                  // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
-                  gestureEnabled: true,
-                }}
-              />
-            </EdgeSwipeBack>
-          </IntroLayer>
+            {/* Nach dem Einloggen dreht sich der Avatar weg und die App kommt angeflogen. */}
+            <IntroLayer hasOnboarding={hasOnboarding}>
+              <EdgeSwipeBack>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: theme.colors.background },
+                    animation: 'slide_from_right',
+                    animationDuration: theme.motion.duration.sheet,
+                    // Vom Rand zurueckwischen, auf iOS vom Stapel selbst.
+                    gestureEnabled: true,
+                  }}
+                />
+              </EdgeSwipeBack>
+            </IntroLayer>
           </CelebrationProvider>
         </PlanSheetProvider>
       </UndoProvider>

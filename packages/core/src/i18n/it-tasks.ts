@@ -2,11 +2,11 @@ import type { TranslationKey } from './de';
 
 /** Italienisch: die Aufgaben (de-tasks.ts). Teil von `it`. */
 export const itTasks = {
-  'tasks.view.inbox': 'In arrivo',
+  'tasks.view.inbox': 'Senza data',
   'tasks.view.today': 'Oggi',
   'tasks.view.planned': 'Pianificate',
   'tasks.view.projects': 'Progetti',
-  'tasks.view.lists': 'Tutte le liste',
+  'tasks.view.lists': 'Panoramica',
   'tasks.new': 'Nuova attività',
   'tasks.more': 'Altre opzioni',
   'tasks.menu.showDone': 'Mostra completate',
@@ -23,7 +23,7 @@ export const itTasks = {
   'tasks.empty.today': 'Niente più per oggi.',
   'tasks.empty.tomorrow': 'Domani: {count} attività',
   'tasks.empty.tomorrowOne': 'Domani: 1 attività',
-  'tasks.empty.inbox': 'In arrivo è vuoto.',
+  'tasks.empty.inbox': 'Tutto ha una data.',
   'tasks.empty.projects': 'Ancora nessun progetto.',
 
   'tasks.search.placeholder': 'Cerca attività',
@@ -38,13 +38,13 @@ export const itTasks = {
 
   'tasks.action.done': 'Fatto',
   'tasks.action.reopen': 'Riapri',
-  'tasks.action.plan': 'Pianifica',
-  'tasks.action.planMore': 'Pianifica …',
+  'tasks.action.plan': 'Data',
+  'tasks.action.planMore': 'Imposta una data …',
   'tasks.action.priorityMore': 'Priorità …',
-  'tasks.action.moveMore': 'Sposta in …',
+  'tasks.action.moveMore': 'In un progetto …',
   'tasks.action.move': 'Sposta',
   'tasks.action.duplicate': 'Duplica',
-  'tasks.action.select': 'Seleziona',
+  'tasks.action.select': 'Seleziona più',
   'tasks.action.moveUp': 'Sposta su',
   'tasks.action.moveDown': 'Sposta giù',
 
@@ -59,6 +59,13 @@ export const itTasks = {
   'tasks.postpone.today': 'Oggi',
   'tasks.postpone.tomorrow': 'Domani',
   'tasks.postpone.nextWeek': 'Settimana prossima',
+  'tasks.reminder.push': 'La tua attività scade a breve.',
+  'birthdays.import': 'Importa dai contatti',
+  'birthdays.import.done': '{count} compleanni importati',
+  'birthdays.import.none': 'Nei tuoi contatti non c’è nessun nuovo compleanno.',
+  'birthdays.import.failed': 'Non ha funzionato. Riprova più tardi.',
+  'birthdays.import.denied':
+    'Serve l’accesso ai contatti — puoi consentirlo nelle impostazioni del telefono.',
 
   'tasks.priority.none': 'Nessuna',
   'tasks.priority.low': 'Bassa',
@@ -111,7 +118,7 @@ export const itTasks = {
   'tasks.field.attachments': 'Allegati',
 
   'tasks.detail.when': 'Quando',
-  'tasks.detail.organize': 'Organizzazione',
+  'tasks.detail.organize': 'Progetto e tag',
   'tasks.detail.titlePlaceholder': 'Titolo',
   'tasks.detail.notesPlaceholder': 'Nota',
   'tasks.detail.addSubtask': 'Aggiungi sottoattività',
@@ -128,11 +135,10 @@ export const itTasks = {
   'tasks.time.error': 'Usa il formato HH:MM.',
 
   'tasks.reminder.none': 'Nessuno',
-  'tasks.reminder.atDue': 'Alla scadenza',
+  'tasks.reminder.atDue': 'Puntuale all’ora',
   'tasks.reminder.before': '{count} min prima',
   'tasks.reminder.dayBefore': 'Il giorno prima alle 18:00',
-  'tasks.reminder.needsTime': 'Solo con un orario',
-  'tasks.reminder.pending': 'I promemoria arriveranno appena l’app potrà inviare notifiche.',
+  'tasks.reminder.needsTime': 'Prima serve un orario',
 
   'tasks.repeat.never': 'Mai',
   'tasks.repeat.daily': 'Ogni giorno',
@@ -145,9 +151,7 @@ export const itTasks = {
   'tasks.repeat.everyYears': 'Ogni {count} anni',
   'tasks.repeat.weeklyOn': 'Ogni {days}',
   'tasks.repeat.everyWeeksOn': 'Ogni {count} settimane il {days}',
-  'tasks.repeat.fromCompletion': 'Conta dal completamento',
-  'tasks.repeat.fewer': 'Meno spesso',
-  'tasks.repeat.more': 'Più spesso',
+  'tasks.repeat.fromCompletion': 'Conta da quando spunti',
 
   'tasks.selection.count': '{count} selezionate',
   'tasks.selection.close': 'Termina selezione',
@@ -161,4 +165,18 @@ export const itTasks = {
   'tasks.a11y.attachment': 'con allegato',
   'tasks.a11y.note': 'con nota',
   'tasks.a11y.subtasks': '{done} di {total} sottoattività',
+  'tasks.view.inbox.detail': 'Non ancora pianificate',
+  'tasks.view.today.detail': 'In scadenza oggi, più quelle in ritardo',
+  'tasks.view.planned.detail': 'Tutto ciò che ha una data, per giorno',
+  'tasks.view.projects.detail': 'Attività raggruppate per tema',
+  'tasks.view.lists.detail': 'Tutte le liste, i progetti e i tag',
+  'tasks.priority.hint': 'Quelle importanti salgono e hanno un segno prima del titolo.',
+  'tasks.tags.none': 'Nessuno',
+  'tasks.tags.hint': 'Una parola per ritrovarla, per esempio «spesa». Invio per aggiungere.',
+  'tasks.reminder.needsTime.hint': 'Imposta prima un orario, poi potrai farti ricordare.',
+  'tasks.reminder.webOnly': 'Il promemoria arriva come notifica nell’app del telefono.',
+  'tasks.repeat.fromCompletion.hint': 'La prossima scadenza parte dal giorno in cui spunti — non dalla vecchia scadenza.',
+  'tasks.repeat.lessOften': 'Meno spesso',
+  'tasks.repeat.moreOften': 'Più spesso',
+  'tasks.quick.hint': 'Scrivi e basta — l’app capisce «domani alle 14», «ogni lunedì» o «#spesa».',
 } as const satisfies Partial<Record<TranslationKey, string>>;

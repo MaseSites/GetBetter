@@ -1,5 +1,5 @@
 import { notifyDataChanged } from './live';
-import { callService, serviceUrl } from './service';
+import { callService, serviceUrl, withToken } from './service';
 import { db, refresh } from './store';
 import {
   MAIL_FOLDER_ROLES,
@@ -410,7 +410,10 @@ export const mail = {
       data: {
         html:
           typeof html === 'string'
-            ? html.replace(ATTACHMENT_SRC, (_match, route: string) => `src="${base}${route}"`)
+            ? html.replace(
+                ATTACHMENT_SRC,
+                (_match, route: string) => `src="${withToken(`${base}${route}`)}"`,
+              )
             : null,
         text: typeof text === 'string' ? text : '',
         remoteImages: typeof remoteImages === 'number' ? remoteImages : 0,
@@ -424,7 +427,9 @@ export const mail = {
    * kommen inline, alles andere als Download, hoechstens 25 MB.
    */
   attachmentUrl(messageId: string, index: number): string {
-    return `${serviceUrl()}${messagePath(messageId)}/attachments/${Math.max(0, Math.trunc(index))}`;
+    return withToken(
+      `${serviceUrl()}${messagePath(messageId)}/attachments/${Math.max(0, Math.trunc(index))}`,
+    );
   },
 
   /**

@@ -68,8 +68,6 @@ export const enPlan = {
   'plan.locked': 'Subscription',
   'plan.hint': 'Personalise with a subscription',
   'plan.see': 'See subscription',
-  'plan.setup.bubble':
-    'Light or dark? You choose that here. Colours, background, avatar and voice you can adjust with a subscription.',
 
   'news.planApproved': 'Your {app} subscription is active',
   'news.planApproved.body': 'You can now personalise everything.',

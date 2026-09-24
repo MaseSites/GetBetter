@@ -45,16 +45,37 @@
           }
         }
       ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Damit du ein eigenes Bild als Hintergrund wählen kannst.",
-          "cameraPermission": false
+          "photosPermission": "BetterAi zeigt deine Fotos nur, wenn du ein Bild wählst — für Hintergrund, Profil oder Notiz.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "BetterAi braucht das Mikrofon nur, wenn du dem Assistenten etwas vorsagst.",
+          "speechRecognitionPermission": "BetterAi wandelt Gesprochenes in Text um, wenn du dem Assistenten etwas vorsagst.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

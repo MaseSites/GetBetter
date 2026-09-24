@@ -109,7 +109,7 @@ describe('Better Fit: Ende-zu-Ende', () => {
 
   test('6. Mahlzeit ersetzen: nur nach Bestaetigung, die Liste wird als veraltet markiert und per Diff aktualisiert', async () => {
     const plan = (await call('GET', '/v1/fit/meal-plans/current')).body.plan;
-    const entry = plan.days.flatMap((day) => day.entries).find((candidate) => candidate.slot === 'dinner' && !candidate.fromEntryId && candidate.day > today);
+    const entry = plan.days.flatMap((day) => day.entries).find((candidate) => candidate.slot === 'dinner' && !candidate.fromEntryId && candidate.day > today && candidate.recipeId !== 'lib:lentil-curry');
     const proposed = await call('PATCH', `/v1/fit/meal-plans/${planId}/entries/${entry.id}`, { change: { recipeId: 'lib:lentil-curry' } });
     assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
     assert.equal(proposed.body.action.preview.summary.shoppingListAffected, true);

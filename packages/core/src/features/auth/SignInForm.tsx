@@ -9,7 +9,6 @@ import { ERROR_KEY, isEmailError, isGeneralError, isPasswordError, type FormErro
 
 export type SignInFormProps = {
   title: string;
-  subtitle: string;
   submitLabel: string;
   switchLabel: string;
   onSubmit: (email: string, password: string) => Promise<AuthResult>;
@@ -24,7 +23,6 @@ export type SignInFormProps = {
  */
 export function SignInForm({
   title,
-  subtitle,
   submitLabel,
   switchLabel,
   onSubmit,
@@ -60,7 +58,6 @@ export function SignInForm({
   return (
     <AuthShell
       title={title}
-      subtitle={subtitle}
       submitLabel={submitLabel}
       switchLabel={switchLabel}
       onSubmit={submit}
@@ -82,7 +79,6 @@ export function SignInForm({
       />
       <Input
         label={t('auth.password')}
-        placeholder={t('auth.passwordPlaceholder')}
         value={password}
         onChangeText={change(setPassword)}
         icon="lock"
@@ -91,9 +87,7 @@ export function SignInForm({
         editable={!busy}
         onSubmitEditing={submit}
         returnKeyType="done"
-        {...(isPasswordError(error) && error
-          ? { error: t(ERROR_KEY[error]) }
-          : { hint: t('auth.passwordHint') })}
+        {...(isPasswordError(error) && error ? { error: t(ERROR_KEY[error]) } : {})}
       />
     </AuthShell>
   );

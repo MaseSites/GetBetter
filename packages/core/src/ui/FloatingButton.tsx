@@ -11,7 +11,7 @@ import { FLOATING_BUTTON_COMPACT, FLOATING_BUTTON_SIZE, HIT_TARGET } from './lay
 import { measureAnchor, type MenuAnchor } from './Menu';
 import { AfterClose, Overlay } from './Overlay';
 import { Text } from './Text';
-import { useReserveFloatingButtonSpace } from './UndoToast';
+import { useToastVisible } from './UndoToast';
 import { usePressScale } from './usePressScale';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -72,14 +72,28 @@ export function FloatingButton({
   const press = usePressScale();
   const reduced = useReducedMotion();
   const focused = useIsFocused();
-  const reserve = useReserveFloatingButtonSpace();
+  // Unten steht „Gelöscht · Rückgängig“ — solange tritt der Knopf zurueck.
+  const toast = useToastVisible();
+  const away = toast && focused;
 
   const node = useRef<View>(null);
   const [fan, setFan] = useState<{ anchor: MenuAnchor; open: boolean } | null>(null);
   const [expand] = useState(() => new Animated.Value(collapsed ? 0 : 1));
+  const [step] = useState(() => new Animated.Value(1));
 
-  // Solange der Knopf zu sehen ist, steht „Rückgängig“ darueber statt darauf.
-  useEffect(() => (focused ? reserve() : undefined), [focused, reserve]);
+  useEffect(() => {
+    const to = away ? 0 : 1;
+    if (reduced === true) {
+      step.setValue(to);
+      return;
+    }
+    Animated.timing(step, {
+      toValue: to,
+      duration: theme.motion.duration.reveal,
+      easing: theme.motion.easing.out,
+      useNativeDriver,
+    }).start();
+  }, [away, reduced, step, theme.motion]);
 
   useEffect(() => {
     const to = collapsed ? 0 : 1;
@@ -110,15 +124,18 @@ export function FloatingButton({
 
   return (
     <>
-      <View
+      <Animated.View
         ref={node}
         collapsable={false}
+        pointerEvents={away ? 'none' : 'auto'}
         style={[
           styles.place,
           {
             right: compact ? theme.spacing.edge : theme.spacing.lg,
             bottom:
               (compact ? theme.spacing.xxl : theme.spacing.lg) + (aboveTabBar ? 0 : insets.bottom),
+            opacity: step,
+            transform: [{ scale: step.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }],
           },
         ]}
       >
@@ -184,7 +201,7 @@ export function FloatingButton({
             </Animated.View>
           ) : null}
         </AnimatedPressable>
-      </View>
+      </Animated.View>
 
       {hasMenu && fan ? (
         <FanMenu

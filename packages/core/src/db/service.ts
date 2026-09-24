@@ -4,8 +4,6 @@ import { Platform } from 'react-native';
 import { refusesCall, reportReadOnly, viewHeaders } from '@/app/viewMode';
 import type { AvatarStyle } from '@/features/avatar/style';
 
-import { authHeaders, setSessionToken } from './sessionToken';
-
 /**
  * Der Draht zur gemeinsamen Datenbank (`services/api`). Dort liegen die
  * Profile und die Daten aller Better-Apps — deshalb gilt dieselbe Anmeldung
@@ -27,6 +25,83 @@ export function serviceUrl(): string {
   if (Platform.OS === 'web') return `http://localhost:${API_PORT}`;
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${host ?? 'localhost'}:${API_PORT}`;
+}
+
+/**
+ * Das Geheimnis fuer einen Dienst im Netz (`BETTER_API_TOKEN` dort,
+ * `EXPO_PUBLIC_API_TOKEN` hier, beim Bauen gesetzt). Leer in der Entwicklung.
+ */
+export function apiToken(): string | null {
+  const configured = process.env.EXPO_PUBLIC_API_TOKEN;
+  return configured && configured.length > 0 ? configured : null;
+}
+
+/**
+ * Die Sitzung dieses Kontos: das Geheimnis, das der Dienst beim Anmelden
+ * ausgibt (`session`) und mit dem er jede Anfrage diesem Konto zuordnet —
+ * und ihm nur noch dessen Daten gibt. Gemerkt wird sie in `auth/sessionStore`.
+ */
+let session: string | null = null;
+const lostListeners = new Set<() => void>();
+
+export function setSession(token: string | null): void {
+  session = token;
+}
+
+export function currentSession(): string | null {
+  return session;
+}
+
+/**
+ * Der Dienst kennt die Sitzung nicht mehr — abgemeldet, neues Passwort,
+ * Konto geloescht. Wer zuhoert (`AppContext`), meldet die App dann ab.
+ */
+export function onSessionLost(listener: () => void): () => void {
+  lostListeners.add(listener);
+  return () => {
+    lostListeners.delete(listener);
+  };
+}
+
+function reportSessionLost(): void {
+  if (!session) return;
+  session = null;
+  for (const listener of lostListeners) listener();
+}
+
+/** Eine Antwort des Dienstes, die die Sitzung fuer ungueltig erklaert. */
+export function noteSessionResponse(status: number, error: unknown): void {
+  if (status === 401 && error === 'session_invalid') reportSessionLost();
+}
+
+/** Die Kopfzeilen jeder Anfrage: Nur-ansehen, das Geheimnis der App und die Sitzung. */
+export function serviceHeaders(): Record<string, string> {
+  const token = apiToken();
+  return {
+    ...viewHeaders(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(session ? { 'X-Better-Session': session } : {}),
+  };
+}
+
+/**
+ * Eine Adresse, die der Browser oder ein Bild selbst laedt — ohne Kopfzeile.
+ * Dort haengen Geheimnis und Sitzung als `?token=` und `?session=` an.
+ */
+export function withToken(url: string): string {
+  const token = apiToken();
+  const parts = [
+    ...(token ? [`token=${encodeURIComponent(token)}`] : []),
+    ...(session ? [`session=${encodeURIComponent(session)}`] : []),
+  ];
+  if (parts.length === 0) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}${parts.join('&')}`;
+}
+
+/** Abmelden beim Dienst: die Sitzung gilt danach nirgends mehr. */
+export async function endSession(): Promise<void> {
+  if (session) await callService('/v1/sessions', { method: 'DELETE' });
+  session = null;
 }
 
 /** Was der Dienst ueber ein Konto herausgibt — nie Salt oder Hash. */
@@ -74,11 +149,16 @@ export type ServiceResult =
 function requestInit(
   method: string,
   body: unknown,
+  /**
+   * Kopfzeilen, die nur eine Route braucht — Better Fit schickt so seinen
+   * `Idempotency-Key` und `Accept-Language`. Die Sitzung selbst kommt immer
+   * aus `serviceHeaders()` und laesst sich hier nicht ueberschreiben.
+   */
   extra: Record<string, string> = {},
 ): RequestInit {
   const json: Record<string, string> =
     body === undefined ? {} : { 'Content-Type': 'application/json' };
-  const headers: Record<string, string> = { ...viewHeaders(), ...authHeaders(), ...json, ...extra };
+  const headers: Record<string, string> = { ...extra, ...serviceHeaders(), ...json };
   return {
     method,
     headers,
@@ -99,9 +179,12 @@ async function call(
   try {
     const response = await fetch(`${serviceUrl()}${path}`, requestInit(method, init?.body));
     const data: unknown = await response.json();
-    const payload = data as { account?: RemoteAccount; error?: ServiceError; token?: string };
-    // Anmelden und Registrieren bringen ein Token fuer die persoenlichen Routen mit.
-    if (payload.account && typeof payload.token === 'string') await setSessionToken(payload.token);
+    const payload = data as { account?: RemoteAccount; error?: ServiceError; session?: unknown };
+    // Anmelden, Registrieren und das Einloesen eines Tickets bringen die Sitzung mit.
+    if (typeof payload.session === 'string' && payload.session.length > 0) {
+      setSession(payload.session);
+    }
+    noteSessionResponse(response.status, payload.error);
     if (payload.account) return { ok: true, account: payload.account };
     return { ok: false, error: payload.error ?? 'offline' };
   } catch {
@@ -167,7 +250,7 @@ export type ServiceCall<T> =
 export async function callService<T>(
   path: string,
   init?: {
-    method: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT';
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
     body?: unknown;
     headers?: Record<string, string>;
   },
@@ -183,6 +266,7 @@ export async function callService<T>(
       requestInit(method, init?.body, init?.headers),
     );
     const data = (await response.json()) as T & { error?: string };
+    noteSessionResponse(response.status, data.error);
     if (!response.ok || typeof data.error === 'string') {
       return { ok: false, error: data.error ?? `http_${response.status}`, details: data };
     }

@@ -2,11 +2,11 @@ import type { TranslationKey } from './de';
 
 /** Englisch: die Aufgaben (de-tasks.ts). Teil von `en`. */
 export const enTasks = {
-  'tasks.view.inbox': 'Inbox',
+  'tasks.view.inbox': 'No date',
   'tasks.view.today': 'Today',
   'tasks.view.planned': 'Upcoming',
   'tasks.view.projects': 'Projects',
-  'tasks.view.lists': 'All lists',
+  'tasks.view.lists': 'Overview',
   'tasks.new': 'New task',
   'tasks.more': 'More options',
   'tasks.menu.showDone': 'Show completed',
@@ -23,7 +23,7 @@ export const enTasks = {
   'tasks.empty.today': 'Nothing left for today.',
   'tasks.empty.tomorrow': 'Tomorrow: {count} tasks',
   'tasks.empty.tomorrowOne': 'Tomorrow: 1 task',
-  'tasks.empty.inbox': 'Inbox is empty.',
+  'tasks.empty.inbox': 'Everything has a date.',
   'tasks.empty.projects': 'No projects yet.',
 
   'tasks.search.placeholder': 'Search tasks',
@@ -38,13 +38,13 @@ export const enTasks = {
 
   'tasks.action.done': 'Done',
   'tasks.action.reopen': 'Reopen',
-  'tasks.action.plan': 'Schedule',
-  'tasks.action.planMore': 'Schedule …',
+  'tasks.action.plan': 'Date',
+  'tasks.action.planMore': 'Set a date …',
   'tasks.action.priorityMore': 'Priority …',
-  'tasks.action.moveMore': 'Move to …',
+  'tasks.action.moveMore': 'Into a project …',
   'tasks.action.move': 'Move',
   'tasks.action.duplicate': 'Duplicate',
-  'tasks.action.select': 'Select',
+  'tasks.action.select': 'Select several',
   'tasks.action.moveUp': 'Move up',
   'tasks.action.moveDown': 'Move down',
 
@@ -59,6 +59,13 @@ export const enTasks = {
   'tasks.postpone.today': 'Today',
   'tasks.postpone.tomorrow': 'Tomorrow',
   'tasks.postpone.nextWeek': 'Next week',
+  'tasks.reminder.push': 'Your task is due soon.',
+  'birthdays.import': 'Import from contacts',
+  'birthdays.import.done': '{count} birthdays imported',
+  'birthdays.import.none': 'There is no new birthday in your contacts.',
+  'birthdays.import.denied':
+    'This needs access to your contacts — you can allow it in your phone settings.',
+  'birthdays.import.failed': 'That did not work. Try again later.',
 
   'tasks.priority.none': 'None',
   'tasks.priority.low': 'Low',
@@ -111,7 +118,7 @@ export const enTasks = {
   'tasks.field.attachments': 'Attachments',
 
   'tasks.detail.when': 'When',
-  'tasks.detail.organize': 'Organise',
+  'tasks.detail.organize': 'Project and tags',
   'tasks.detail.titlePlaceholder': 'Title',
   'tasks.detail.notesPlaceholder': 'Note',
   'tasks.detail.addSubtask': 'Add subtask',
@@ -128,11 +135,10 @@ export const enTasks = {
   'tasks.time.error': 'Please use HH:MM.',
 
   'tasks.reminder.none': 'None',
-  'tasks.reminder.atDue': 'At time of task',
+  'tasks.reminder.atDue': 'Right on time',
   'tasks.reminder.before': '{count} min before',
   'tasks.reminder.dayBefore': 'Day before 18:00',
-  'tasks.reminder.needsTime': 'Only with a time',
-  'tasks.reminder.pending': 'Reminders will arrive once the app can send notifications.',
+  'tasks.reminder.needsTime': 'Needs a time first',
 
   'tasks.repeat.never': 'Never',
   'tasks.repeat.daily': 'Daily',
@@ -145,9 +151,7 @@ export const enTasks = {
   'tasks.repeat.everyYears': 'Every {count} years',
   'tasks.repeat.weeklyOn': 'Every {days}',
   'tasks.repeat.everyWeeksOn': 'Every {count} weeks on {days}',
-  'tasks.repeat.fromCompletion': 'Count from completion',
-  'tasks.repeat.fewer': 'Less often',
-  'tasks.repeat.more': 'More often',
+  'tasks.repeat.fromCompletion': 'Count from ticking off',
 
   'tasks.selection.count': '{count} selected',
   'tasks.selection.close': 'End selection',
@@ -161,4 +165,18 @@ export const enTasks = {
   'tasks.a11y.attachment': 'with attachment',
   'tasks.a11y.note': 'with note',
   'tasks.a11y.subtasks': '{done} of {total} subtasks',
+  'tasks.view.inbox.detail': 'Not scheduled yet',
+  'tasks.view.today.detail': 'Due today, plus anything overdue',
+  'tasks.view.planned.detail': 'Everything with a date, by day',
+  'tasks.view.projects.detail': 'Tasks grouped by topic',
+  'tasks.view.lists.detail': 'All lists, projects and tags',
+  'tasks.priority.hint': 'Important ones move up and get a mark before the title.',
+  'tasks.tags.none': 'None',
+  'tasks.tags.hint': 'A word to find it again, like “shopping”. Press enter to add.',
+  'tasks.reminder.needsTime.hint': 'Set a time first, then you can be reminded.',
+  'tasks.reminder.webOnly': 'The reminder arrives as a notification in the phone app.',
+  'tasks.repeat.fromCompletion.hint': 'The next due date starts on the day you tick it off — not on the old due date.',
+  'tasks.repeat.lessOften': 'Less often',
+  'tasks.repeat.moreOften': 'More often',
+  'tasks.quick.hint': 'Just type — the app understands “tomorrow 2pm”, “every Monday” or “#shopping”.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

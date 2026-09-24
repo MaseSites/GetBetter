@@ -849,11 +849,7 @@ export function WorkspaceScreen() {
         }
       >
         {view === 'grid' ? (
-          <HomeGrid
-            onAddTask={() =>
-              setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
-            }
-          />
+          <HomeGrid />
         ) : view === 'custom' ? (
           <HomeCustom
             onAddTask={() =>
@@ -861,11 +857,7 @@ export function WorkspaceScreen() {
             }
           />
         ) : view === 'focus' ? (
-          <HomeFocus
-            onAddTask={() =>
-              setTaskAdd((current) => ({ id: (current?.id ?? 0) + 1, day: shownDay }))
-            }
-          />
+          <HomeFocus />
         ) : (
           <>
             {/* Zuerst, was neu ist, dann der Tag — und darunter, was man oft braucht. */}

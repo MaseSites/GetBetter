@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { dayKey, useLiveQuery, type TaskRow } from '@/db';
@@ -7,13 +7,24 @@ import { tasks as taskRepo } from '@/db/repositories';
 import { dueDayOf, priorityOf } from '@/db/taskFields';
 import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import { relativeDay } from '@/features/shared/days';
-import { POSTPONE_ICONS, PRIORITY_MARKS } from '@/features/tasks/labels';
-import type { PostponeKind } from '@/features/tasks/postpone';
+import { DateSheet, type DateRequest } from '@/features/tasks/DateSheet';
+import { POSTPONE_ICONS, postponeLabel, PRIORITY_MARKS } from '@/features/tasks/labels';
+import { postponeKindsFor, type PostponeKind } from '@/features/tasks/postpone';
 import { useTaskActions } from '@/features/tasks/useTaskActions';
 import { useI18n } from '@/i18n';
 import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { Chip, Icon, SectionHead, SwipeRow, Text } from '@/ui';
+import {
+  Chip,
+  Icon,
+  Menu,
+  measureAnchor,
+  SectionHead,
+  SwipeRow,
+  Text,
+  type MenuAnchor,
+  type MenuEntry,
+} from '@/ui';
 
 import { dayTaskCount, dayTaskGroups } from './taskGroups';
 
@@ -43,8 +54,8 @@ const MARGIN_ALPHA = '59';
  * stehen (Ansicht „Jetzt“, wo er das Einzige unter der grossen Karte ist) und
  * sagt, dass nichts offen ist.
  *
- * Je Aufgabe: der Kreis hakt ab, ein Knopf schiebt sie mit einem Tipp auf
- * morgen (an anderen Tagen holt er sie auf heute), ein Tipp auf den Text
+ * Je Aufgabe: der Kreis hakt ab, **Verschieben** oeffnet ein kleines Menue
+ * (Heute · Morgen · Nächste Woche · Datum wählen …), ein Tipp auf den Text
  * oeffnet sie. Nach rechts wischen heisst erledigt, nach links Verschieben
  * oder Loeschen — alles mit „Rückgängig“. Die letzte Zeile oeffnet unten die
  * Schnelleingabe der Aufgaben (`onAdd`, `TaskQuickAdd`).
@@ -67,6 +78,8 @@ export function DayTasks({
   const actions = useTaskActions();
   const celebrate = useCelebrate();
   const householdId = household?.id ?? null;
+  // „Datum wählen …“ aus dem Verschieben-Menue — ein Blatt fuer die ganze Seite.
+  const [pick, setPick] = useState<DateRequest | null>(null);
 
   const list = useLiveQuery(
     () => taskRepo.listOpen(account.id, householdId),
@@ -79,8 +92,6 @@ export function DayTasks({
   // Ohne Aufgaben an diesem Tag steht hier nichts. Erst wenn geladen ist,
   // sonst blitzt der Bereich beim Öffnen kurz auf.
   if (!keepEmpty && list.data && count === 0) return null;
-  // Heute schiebt der Knopf auf morgen; an jedem anderen Tag holt er auf heute.
-  const quick: PostponeKind = isToday ? 'tomorrow' : 'today';
   const margin = `${theme.colors.danger}${MARGIN_ALPHA}`;
   // Der rote Rand steht zwischen Kreis und Text.
   const marginX = theme.spacing.md + CIRCLE + theme.spacing.md / 2;
@@ -155,7 +166,7 @@ export function DayTasks({
           key={task.id}
           task={task}
           overdue={section.danger}
-          quick={quick}
+          kinds={postponeKindsFor(dueDayOf(task), today)}
           lineStyle={ruled}
           marginX={marginX}
           onComplete={() => {
@@ -163,6 +174,14 @@ export function DayTasks({
             void actions.complete(task);
           }}
           onPostpone={(kind) => void actions.postpone([task], kind)}
+          onPick={() =>
+            setPick((current) => ({
+              id: (current?.id ?? 0) + 1,
+              day: dueDayOf(task),
+              time: task.dueTime ?? null,
+              onApply: (schedule) => void actions.schedule([task], schedule),
+            }))
+          }
           onRemove={() => void actions.remove(task)}
           onOpen={() => router.push(`/run/tasks?task=${encodeURIComponent(task.id)}`)}
         />,
@@ -258,6 +277,7 @@ export function DayTasks({
         {/* Der rote Rand, ueber die ganze Seite — faengt keine Tipps ab. */}
         <View style={[styles.margin, { left: marginX, backgroundColor: margin }]} />
       </View>
+      {pick ? <DateSheet request={pick} onClose={() => setPick(null)} /> : null}
     </View>
   );
 }
@@ -265,32 +285,38 @@ export function DayTasks({
 /**
  * Eine Aufgabe auf ihrer Heftzeile: links vom Rand der Kreis, rechts davon
  * Titel mit „!!“ und darunter Uhrzeit oder wie lange sie schon wartet, ganz
- * rechts der eine Knopf zum Verschieben. Kreis, Text und Knopf sind je ein
- * eigener Knopf — keiner steckt im anderen.
+ * rechts **Verschieben**. Ein Tipp darauf oeffnet ein kleines Menue neben dem
+ * Knopf: die naechsten Tage und „Datum wählen …“ fuer jeden anderen Tag.
+ * Kreis, Text und Knopf sind je ein eigener Knopf — keiner steckt im anderen.
  */
 function TaskLine({
   task,
   overdue,
-  quick,
+  kinds,
   lineStyle,
   marginX,
   onComplete,
   onPostpone,
+  onPick,
   onRemove,
   onOpen,
 }: {
   task: TaskRow;
   overdue: boolean;
-  quick: PostponeKind;
+  /** Was im Menue steht — „Heute“ nur, wenn sie nicht schon heute faellig ist. */
+  kinds: readonly PostponeKind[];
   lineStyle: { height: number; borderBottomWidth: number; borderBottomColor: string };
   marginX: number;
   onComplete: () => void;
   onPostpone: (kind: PostponeKind) => void;
+  onPick: () => void;
   onRemove: () => void;
   onOpen: () => void;
 }) {
   const { t, language } = useI18n();
   const theme = useTheme();
+  const node = useRef<View>(null);
+  const [menu, setMenu] = useState<MenuAnchor | null>(null);
   const marks = PRIORITY_MARKS[priorityOf(task.priority)];
   const due = dueDayOf(task);
   const meta = [
@@ -300,9 +326,24 @@ function TaskLine({
   ]
     .filter((part): part is string => Boolean(part))
     .join(' · ');
-  const quickLabel = t(`tasks.postpone.${quick}`);
-  // Nach links gewischt: noch weiter weg — heute naechste Woche, sonst morgen.
-  const later: PostponeKind = quick === 'tomorrow' ? 'nextWeek' : 'tomorrow';
+  // Nach links gewischt: noch weiter weg — was heute faellig ist, auf naechste
+  // Woche, alles andere auf morgen.
+  const later: PostponeKind = kinds.includes('today') ? 'tomorrow' : 'nextWeek';
+  const items: MenuEntry[] = [
+    ...kinds.map((kind): MenuEntry => ({
+      key: kind,
+      label: postponeLabel(t, kind),
+      icon: POSTPONE_ICONS[kind],
+      onPress: () => onPostpone(kind),
+    })),
+    { key: 'pickDivider', divider: true },
+    { key: 'pick', label: t('tasks.plan.pick'), icon: 'calendar', onPress: onPick },
+  ];
+
+  async function openMenu() {
+    const anchor = await measureAnchor(node.current);
+    if (anchor) setMenu(anchor);
+  }
 
   return (
     <SwipeRow
@@ -377,7 +418,17 @@ function TaskLine({
             </Text>
           ) : null}
         </Pressable>
-        <Chip label={quickLabel} onPress={() => onPostpone(quick)} />
+        <View ref={node} collapsable={false}>
+          <Chip label={t('today.tasks.postpone')} onPress={() => void openMenu()} />
+        </View>
+        <Menu
+          visible={menu !== null}
+          anchor={menu}
+          onClose={() => setMenu(null)}
+          items={items}
+          align="end"
+          accessibilityLabel={t('today.tasks.postpone')}
+        />
       </View>
     </SwipeRow>
   );

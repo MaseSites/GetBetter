@@ -41,8 +41,4 @@ export const itAvatar = {
 
   'avatar.selected': '{label}, selezionato',
 
-  'intro.setup.avatar.bubble':
-    'Piacere! Ecco come appaio come {assistant}. Scegli un personaggio e un colore — mi trasformo subito.',
-  'intro.setup.style.bubbleAfterAvatar':
-    'Mi piace. Ora passiamo all’app — ogni modifica vale subito.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

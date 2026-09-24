@@ -12,7 +12,7 @@ import { usePressScale } from './usePressScale';
  * genau dann traegt es nichts mehr, wenn es *erledigt* heissen soll.
  * Dafuer gibt es `signal`, sparsam eingesetzt.
  */
-export type ButtonVariant = 'primary' | 'signal' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'signal' | 'secondary' | 'ghost' | 'outline' | 'danger';
 export type ButtonSize = 'md' | 'sm';
 
 export type ButtonProps = {
@@ -24,6 +24,8 @@ export type ButtonProps = {
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
+  /** Ganz runde Enden statt der ueblichen Ecken — auch der Rand folgt ihnen. */
+  pill?: boolean;
   accessibilityLabel?: string;
 };
 
@@ -38,6 +40,7 @@ export function Button({
   disabled = false,
   loading = false,
   fullWidth = true,
+  pill = false,
   accessibilityLabel,
 }: ButtonProps) {
   const theme = useTheme();
@@ -49,6 +52,7 @@ export function Button({
     signal: theme.colors.accent,
     secondary: theme.colors.surfaceMuted,
     ghost: 'transparent',
+    outline: 'transparent',
     danger: theme.colors.dangerSoft,
   };
   const foreground: Record<ButtonVariant, string> = {
@@ -56,6 +60,7 @@ export function Button({
     signal: theme.colors.textOnAccent,
     secondary: theme.colors.text,
     ghost: theme.colors.textMuted,
+    outline: theme.colors.text,
     danger: theme.colors.danger,
   };
 
@@ -77,11 +82,16 @@ export function Button({
         {
           height,
           paddingHorizontal,
-          borderRadius: theme.radii.sm,
+          borderRadius: pill ? theme.radii.pill : theme.radii.sm,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
-          // Nur der Umrissknopf traegt eine Linie; gefuellte brauchen keine.
-          borderWidth: variant === 'ghost' ? 1.5 : 0,
-          borderColor: inactive ? theme.colors.disabledBackground : theme.colors.borderStrong,
+          // Nur die Umrissknoepfe tragen eine Linie; gefuellte brauchen keine.
+          // `outline` ist der kraeftige: Rand in `textFaint` (3:1), Schrift voll.
+          borderWidth: variant === 'ghost' || variant === 'outline' ? 1.5 : 0,
+          borderColor: inactive
+            ? theme.colors.disabledBackground
+            : variant === 'outline'
+              ? theme.colors.textFaint
+              : theme.colors.borderStrong,
           backgroundColor: inactive ? theme.colors.disabledBackground : background[variant],
           transform: [{ scale: inactive ? 1 : press.scale }],
         },

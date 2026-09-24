@@ -10,6 +10,18 @@ import { Platform } from 'react-native';
  * (auch im Handy-Modus des Browsers) laufen ebenfalls am Code vorbei.
  */
 
+/**
+ * Wer seine `nativeID` so beginnt, rollt nicht mit: dort zieht der Finger
+ * etwas anderes — im Baukasten der Startseite das Element selbst. Im Browser
+ * wird `nativeID` zum `id`-Attribut, darum reicht ein Blick auf die Vorfahren.
+ */
+export const NO_DRAG_SCROLL = 'nodrag';
+
+/** Die Kennung fuer so ein Element. */
+export function noDragScrollId(key: string): string {
+  return `${NO_DRAG_SCROLL}-${key}`;
+}
+
 /** Bis hierhin ist es ein Klick, danach ein Zug. */
 const SLOP = 6;
 /** Wie stark der Schwung pro Bild nachlaesst. */
@@ -118,8 +130,15 @@ export function enableDragScroll(): void {
       swallowClick = false;
       if (event.pointerType !== 'mouse' || event.button !== 0) return;
       const target = event.target instanceof Element ? event.target : null;
-      // In Feldern markiert die Maus Text — das bleibt so.
-      if (!target || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      // In Feldern markiert die Maus Text — das bleibt so. Und wo der Zug
+      // selbst etwas bewegt, rollt nichts.
+      if (
+        !target ||
+        target.closest(
+          `input, textarea, select, [contenteditable="true"], [id^="${NO_DRAG_SCROLL}-"]`,
+        )
+      )
+        return;
       start = { x: event.clientX, y: event.clientY, target };
     },
     true,

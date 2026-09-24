@@ -12,7 +12,6 @@ export function SignUpScreen() {
   return (
     <SignUpForm
       title={t('auth.signUp.title')}
-      subtitle={t('auth.signUp.subtitleFull')}
       submitLabel={t('auth.start.createAccount')}
       switchLabel={t('auth.hasAccount')}
       bubble={t('intro.signUp.bubble')}

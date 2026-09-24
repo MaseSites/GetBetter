@@ -1,119 +1,117 @@
+'use strict';
+
 /**
- * Sitzungs-Tokens fuer die Routen mit persoenlichen Daten (Better Fit).
+ * Sitzungen: beim Anmelden bekommt ein Konto ein Geheimnis (48 Hex-Zeichen
+ * aus 24 Zufallsbytes), das die App bei jeder Anfrage mitschickt. Der Dienst
+ * merkt sich nur den SHA-256 davon — wer die Datei liest, kann sich damit
+ * nicht anmelden. Mit `BETTER_DATA_KEY` liegt die Datei verschluesselt.
  *
- * Anmelden und Registrieren geben ein Token zurueck: 32 Zufallsbytes, in der
- * App gespeichert, im Dienst nur als SHA-256. Wer das Token kennt, ist dieses
- * Konto — deshalb leiten die Fit-Routen das Konto nur hieraus ab, nie aus dem
- * Koerper einer Anfrage.
- *
- * Abgelegt in `<datenordner>/sessions.json`; ein Neustart meldet niemanden ab.
+ * Eine Sitzung aus dem Admin („App ansehen“) traegt `view: true` und darf nie
+ * schreiben — auch ohne die Kopfzeile `X-Better-View`.
  */
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const TOKEN_BYTES = 32;
-const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-/** Mehr offene Sitzungen je Konto braucht niemand; die aeltesten fallen weg. */
-const MAX_PER_ACCOUNT = 20;
-const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const { forDisk, unseal } = require('./crypt.js');
+
+const TOKEN_BYTES = 24;
+const TOKEN_PATTERN = /^[0-9a-f]{48}$/u;
+/** Wer sich ein halbes Jahr nicht meldet, muss sich neu anmelden. */
+const MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
 
 const hashOf = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-function createSessions({ dataDir, ttlMs = DEFAULT_TTL_MS, now = () => Date.now() }) {
+function createSessions({ dataDir, key = null, now = () => Date.now() }) {
   const file = path.join(dataDir, 'sessions.json');
-  let rows = null;
+  let entries = null;
   let writing = Promise.resolve();
 
   async function load() {
-    if (rows) return rows;
+    if (entries) return entries;
+    entries = new Map();
     try {
-      const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
-      rows = Array.isArray(parsed) ? parsed.filter((row) => typeof row?.hash === 'string') : [];
-    } catch {
-      rows = [];
+      const parsed = JSON.parse(unseal(key, await fs.readFile(file, 'utf8')));
+      const cutoff = now() - MAX_AGE_MS;
+      for (const [hash, entry] of Object.entries(parsed?.sessions ?? {})) {
+        if (typeof entry?.accountId !== 'string') continue;
+        if (Date.parse(entry.lastSeenAt ?? entry.createdAt ?? '') < cutoff) continue;
+        entries.set(hash, entry);
+      }
+    } catch (error) {
+      // Nichts da: leer anfangen. Alles andere (falscher Schluessel) soll man sehen.
+      if (error?.code !== 'ENOENT') throw error;
     }
-    return rows;
+    return entries;
   }
 
   function persist() {
-    const snapshot = JSON.stringify(rows);
+    const text = JSON.stringify({ sessions: Object.fromEntries(entries ?? []) });
     writing = writing
       .catch(() => {})
       .then(async () => {
         await fs.mkdir(dataDir, { recursive: true });
-        // Erst in eine Temp-Datei, dann umbenennen: ein Absturz mittendrin laesst
-        // die alte Datei ganz, nie eine halbe.
-        const temp = `${file}.${process.pid}.tmp`;
-        await fs.writeFile(temp, snapshot, { encoding: 'utf8', mode: 0o600 });
+        const temp = `${file}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+        await fs.writeFile(temp, forDisk(key, text), { encoding: 'utf8', mode: 0o600 });
         await fs.rename(temp, file);
       });
     return writing;
   }
 
-  const alive = (row) => row.expiresAt > now();
+  return {
+    /** Eine neue Sitzung — gibt das Geheimnis zurueck, das nur die App kennt. */
+    async issue(accountId, { view = false } = {}) {
+      const map = await load();
+      const token = crypto.randomBytes(TOKEN_BYTES).toString('hex');
+      const at = new Date(now()).toISOString();
+      map.set(hashOf(token), {
+        accountId,
+        createdAt: at,
+        lastSeenAt: at,
+        ...(view ? { view } : {}),
+      });
+      await persist();
+      return token;
+    },
 
-  /** Ein neues Token fuer ein Konto. `readOnly` gilt fuer „App ansehen“ im Admin. */
-  async function issue(accountId, { readOnly = false } = {}) {
-    if (typeof accountId !== 'string' || accountId.length === 0) throw new Error('accountId');
-    await load();
-    const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
-    const row = {
-      hash: hashOf(token),
-      accountId,
-      readOnly: readOnly === true,
-      createdAt: now(),
-      expiresAt: now() + ttlMs,
-    };
-    const own = rows.filter((entry) => entry.accountId === accountId && alive(entry));
-    const dropped = new Set(
-      own
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .slice(0, Math.max(0, own.length - (MAX_PER_ACCOUNT - 1)))
-        .map((entry) => entry.hash),
-    );
-    rows = [...rows.filter((entry) => alive(entry) && !dropped.has(entry.hash)), row];
-    await persist();
-    return token;
-  }
+    /** Zu wem gehoert dieses Geheimnis? `null`, wenn unbekannt oder abgelaufen. */
+    async lookup(token) {
+      if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) return null;
+      const map = await load();
+      const entry = map.get(hashOf(token));
+      if (!entry) return null;
+      if (Date.parse(entry.lastSeenAt ?? entry.createdAt) < now() - MAX_AGE_MS) {
+        map.delete(hashOf(token));
+        return null;
+      }
+      // Zuletzt gesehen nur im Speicher — die Platte bekommt es beim naechsten Schreiben.
+      entry.lastSeenAt = new Date(now()).toISOString();
+      return { accountId: entry.accountId, view: entry.view === true, createdAt: entry.createdAt };
+    },
 
-  /** Das Konto hinter einem Token, oder null — abgelaufen, falsch oder leer. */
-  async function resolve(token) {
-    if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) return null;
-    await load();
-    const wanted = hashOf(token);
-    const row = rows.find((entry) => entry.hash === wanted);
-    if (!row || !alive(row)) return null;
-    return { accountId: row.accountId, readOnly: row.readOnly === true };
-  }
+    /** Abmelden. */
+    async revoke(token) {
+      if (typeof token !== 'string') return false;
+      const map = await load();
+      const removed = map.delete(hashOf(token));
+      if (removed) await persist();
+      return removed;
+    },
 
-  async function revoke(token) {
-    if (typeof token !== 'string') return false;
-    await load();
-    const wanted = hashOf(token);
-    const before = rows.length;
-    rows = rows.filter((entry) => entry.hash !== wanted);
-    if (rows.length !== before) await persist();
-    return rows.length !== before;
-  }
-
-  /** Alle Sitzungen eines Kontos beenden — beim Sperren oder Loeschen. */
-  async function revokeAccount(accountId) {
-    await load();
-    const before = rows.length;
-    rows = rows.filter((entry) => entry.accountId !== accountId);
-    if (rows.length !== before) await persist();
-  }
-
-  return { issue, resolve, revoke, revokeAccount };
+    /** Alle Sitzungen eines Kontos — nach Passwortwechsel oder Loeschen. */
+    async revokeAccount(accountId) {
+      const map = await load();
+      let count = 0;
+      for (const [hash, entry] of map) {
+        if (entry.accountId === accountId) {
+          map.delete(hash);
+          count += 1;
+        }
+      }
+      if (count > 0) await persist();
+      return count;
+    },
+  };
 }
 
-/** `Authorization: Bearer <token>` -> Token, sonst null. */
-function bearerOf(req) {
-  const header = req.headers?.authorization;
-  if (typeof header !== 'string') return null;
-  const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
-  return match ? match[1] : null;
-}
-
-module.exports = { createSessions, bearerOf, TOKEN_PATTERN, MAX_PER_ACCOUNT };
+module.exports = { createSessions, TOKEN_PATTERN, MAX_AGE_MS };
