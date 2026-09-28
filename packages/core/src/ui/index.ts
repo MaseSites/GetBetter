@@ -35,7 +35,7 @@ export {
 export { LineRow, ListCard, TickRow } from './Rows';
 export type { LegendItem, PanelProps, Segment, SegmentKind } from './Panel';
 export { Loading, Skeleton } from './Loading';
-export { PhoneFrame, PHONE_HEIGHT, PHONE_WIDTH, usePhoneFrame } from './PhoneFrame';
+export { PhoneFrame, PHONE_HEIGHT, PHONE_RADIUS, PHONE_WIDTH, usePhoneFrame } from './PhoneFrame';
 export type { PhoneFrameMetrics } from './PhoneFrame';
 export { Screen } from './Screen';
 export { Segmented } from './Segmented';

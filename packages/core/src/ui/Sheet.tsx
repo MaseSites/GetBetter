@@ -17,7 +17,7 @@ import { useTheme, type Theme } from '@/theme';
 import { detentOffset, resolveSheetRelease, type SheetDetent } from './gestureLogic';
 import { FLING_VELOCITY, isDownwardSwipe, isVerticalSwipe } from './gestures';
 import { Icon } from './Icon';
-import { usePhoneFrame } from './PhoneFrame';
+import { PHONE_RADIUS, usePhoneFrame } from './PhoneFrame';
 import { Text } from './Text';
 
 export type { SheetDetent };
@@ -246,7 +246,10 @@ export function Sheet({
                   flexBasis: 'auto',
                   width: frame.width,
                   height: frame.height,
-                  borderRadius: 34,
+                  // Das Blatt liegt neben dem Telefon im Fenster, nicht darin:
+                  // es wird genauso verkleinert, sonst steht es daneben.
+                  transform: [{ scale: frame.scale }],
+                  borderRadius: PHONE_RADIUS,
                   overflow: 'hidden',
                 }
               : null,

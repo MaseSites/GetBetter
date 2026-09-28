@@ -6,7 +6,7 @@ import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
 
 import type { Rect } from './menuPlacement';
-import { usePhoneFrame } from './PhoneFrame';
+import { PHONE_RADIUS, usePhoneFrame } from './PhoneFrame';
 
 export type OverlayProps = {
   visible: boolean;
@@ -28,11 +28,15 @@ export function useOverlayBounds(): Rect {
   const frame = usePhoneFrame();
   const insets = useSafeAreaInsets();
   if (frame.framed) {
+    // Auf dem Schirm steht das Telefon verkleinert; ein Menue liegt daneben,
+    // nicht darin, und rechnet darum in Bildpunkten statt in Punkten.
+    const width = frame.width * frame.scale;
+    const height = frame.height * frame.scale;
     return {
-      x: (window.width - frame.width) / 2,
-      y: (window.height - frame.height) / 2,
-      width: frame.width,
-      height: frame.height,
+      x: (window.width - width) / 2,
+      y: (window.height - height) / 2,
+      width,
+      height,
     };
   }
   return {
@@ -86,7 +90,7 @@ export function Overlay({ visible, onClose, dim = false, onDismiss, children }: 
         top: bounds.y,
         width: bounds.width,
         height: bounds.height,
-        borderRadius: theme.radii.xl,
+        borderRadius: PHONE_RADIUS * frame.scale,
       }
     : { left: 0, top: 0, width: window.width, height: window.height };
 

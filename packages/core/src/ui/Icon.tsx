@@ -112,6 +112,9 @@ export const ICONS = {
   tag: 'pricetag-outline',
   select: 'checkmark-done-outline',
   happy: 'happy-outline',
+  /** Nur fuer die nachgebaute Statusleiste im Telefonrahmen. */
+  cellular: 'cellular',
+  wifi: 'wifi',
   /** Nur fuer „Mit Apple anmelden“ — das Zeichen, wie Apple es dort verlangt. */
   apple: 'logo-apple',
 } as const satisfies Record<string, IonName>;
