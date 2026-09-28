@@ -23,6 +23,7 @@ import { firstNameOf } from './conversation';
 import { senderName } from './format';
 import type { MailThread, SwipeAway } from './threads';
 import { listTime } from './time';
+import { useMailToTask } from './useMailToTask';
 
 export type ThreadCommand =
   | 'open'
@@ -38,7 +39,9 @@ export type ThreadCommand =
   | 'reply'
   | 'forward'
   | 'move'
-  | 'spam';
+  | 'spam'
+  /** „Als Aufgabe“ — erledigt die Zeile selbst (`useMailToTask`). */
+  | 'task';
 
 export type PreviewLines = 0 | 1 | 2;
 
@@ -101,6 +104,7 @@ export function threadMenu(
       ? item('unflag', t('mailui.action.unflag'), 'flag')
       : item('flag', t('mailui.action.flag'), 'flagFilled'),
     item('move', t('mailui.action.move'), 'repeat'),
+    ...(options.full ? [item('task', t('orgplus.mail.toTask'), 'checkCircle')] : []),
     ...(!options.full && options.canSpam ? [item('spam', t('mailui.action.spam'), 'warning')] : []),
     ...(options.full ? [...away, remove] : []),
   ];
@@ -140,6 +144,7 @@ export function ThreadRow({
   const { t, language } = useI18n();
   const theme = useTheme();
   const node = useRef<View>(null);
+  const toTask = useMailToTask();
 
   const { latest } = thread;
   const sender = threadSender(thread, role, t);
@@ -243,7 +248,9 @@ export function ThreadRow({
     >
       <View ref={node} collapsable={false}>
         <ContextMenu
-          items={threadMenu(thread, { canSpam, swipeAway, full: true }, t, onCommand)}
+          items={threadMenu(thread, { canSpam, swipeAway, full: true }, t, (command) =>
+            command === 'task' ? void toTask(latest) : onCommand(command),
+          )}
           onPress={() => onCommand('open')}
           onSelectMode={() => onCommand('select')}
           accessibilityLabel={label}

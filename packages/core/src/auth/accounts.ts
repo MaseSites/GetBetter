@@ -9,6 +9,7 @@ import { normalizeAvatar } from '@/features/avatar/style';
 
 import {
   authenticate,
+  callService,
   fetchAccount,
   fetchByUsername,
   pushProfile,
@@ -244,6 +245,25 @@ export async function updateAccount(
   if (Object.keys(shared).length > 0) void pushProfile(id, shared);
 
   return updated;
+}
+
+/** Wie das Loeschen des eigenen Kontos ausgegangen ist. */
+export type AccountDeletion = 'ok' | 'wrong_password' | 'too_many' | 'offline';
+
+/**
+ * Das eigene Konto ganz loeschen — in allen Better-Apps, samt Better Fit.
+ * Der Dienst verlangt das Passwort; danach gibt es keine Sicherung. Abmelden
+ * muss der Aufrufer selbst (die Sitzung ist beim Dienst schon weg).
+ */
+export async function deleteOwnAccount(id: string, password: string): Promise<AccountDeletion> {
+  const result = await callService<{ ok: true }>(`/v1/accounts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: { password },
+  });
+  if (result.ok) return 'ok';
+  if (result.error === 'wrong_password') return 'wrong_password';
+  if (result.error === 'too_many_attempts') return 'too_many';
+  return 'offline';
 }
 
 export async function accountCount(): Promise<number> {

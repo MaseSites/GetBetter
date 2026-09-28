@@ -35,10 +35,8 @@ import {
 } from '@/ui';
 
 import { parseAmount } from './amount';
-import { AmountCell, ProgressBar } from './parts';
-
-/** Vorschlaege, damit man nicht jedes Mal tippen muss. */
-const CATEGORIES = ['food', 'home', 'transport', 'fun', 'health', 'other'] as const;
+import { EXPENSE_CATEGORIES as CATEGORIES, guessExpenseCategory } from './categories';
+import { AmountCell, ProgressBar, usePaceLine } from './parts';
 
 /** Was diesen Monat rausging — und wie viel vom Budget noch da ist. */
 export function BudgetView({ module }: { module: ModuleDefinition }) {
@@ -58,6 +56,9 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
   const [settingLimit, setSettingLimit] = useState(false);
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
+  // Von Hand gewaehlt schlaegt geraten: danach aendert die Notiz nichts mehr.
+  const [categoryPicked, setCategoryPicked] = useState(false);
+  const [categoryGuessed, setCategoryGuessed] = useState(false);
   const [note, setNote] = useState('');
   const [limitDraft, setLimitDraft] = useState('');
   const [error, setError] = useState(false);
@@ -68,6 +69,8 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
   const spent = rows.reduce((total, row) => total + row.amountChf, 0);
   const limitChf = limit.data ?? null;
   const share = limitChf ? spent / limitChf : 0;
+  // Das Tempo gilt nur fuer den laufenden Monat — fuer andere gibt es kein Heute.
+  const paceLine = usePaceLine(spent, monthOffset === 0 ? limitChf : null);
 
   const money = (value: number) => formatMoney(language, value);
   const categoryLabel = (id: string) =>
@@ -100,8 +103,24 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
     });
     setAmount('');
     setNote('');
+    resetCategory();
     setError(false);
     setAdding(false);
+  }
+
+  function resetCategory() {
+    setCategory(CATEGORIES[0]);
+    setCategoryPicked(false);
+    setCategoryGuessed(false);
+  }
+
+  /** Beim Tippen der Notiz die Kategorie vorschlagen — solange nicht von Hand gewaehlt. */
+  function changeNote(text: string) {
+    setNote(text);
+    if (categoryPicked) return;
+    const guess = guessExpenseCategory(text);
+    setCategoryGuessed(guess !== null);
+    setCategory(guess ?? CATEGORIES[0]);
   }
 
   async function saveLimit() {
@@ -117,6 +136,10 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
   }
 
   function close() {
+    if (adding) {
+      setNote('');
+      resetCategory();
+    }
     setError(false);
     setAdding(false);
     setSettingLimit(false);
@@ -124,6 +147,7 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -174,6 +198,12 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
                     ? t('budget.over', { amount: money(spent - limitChf) })
                     : t('budget.left', { amount: money(limitChf - spent) })}
                 </Text>
+                {/* "Darf ich noch?" — ueber dem Budget sagt es die Zeile darueber schon. */}
+                {paceLine && !paceLine.over ? (
+                  <Text variant="label" tone={paceLine.tone} align="center">
+                    {paceLine.text}
+                  </Text>
+                ) : null}
               </>
             ) : null}
             <Button
@@ -249,6 +279,13 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
             {...(error ? { error: t('money.error.amount') } : {})}
           />
 
+          <Input
+            label={t('budget.note')}
+            placeholder={t('common.optional')}
+            value={note}
+            onChangeText={changeNote}
+          />
+
           <View style={{ gap: theme.spacing.sm }}>
             <Text variant="label" tone="muted">
               {t('budget.category')}
@@ -259,18 +296,20 @@ export function BudgetView({ module }: { module: ModuleDefinition }) {
                   key={entry}
                   label={categoryLabel(entry)}
                   selected={category === entry}
-                  onPress={() => setCategory(entry)}
+                  onPress={() => {
+                    setCategory(entry);
+                    setCategoryPicked(true);
+                    setCategoryGuessed(false);
+                  }}
                 />
               ))}
             </View>
+            {categoryGuessed ? (
+              <Text variant="caption" tone="muted">
+                {t('moneyplus.category.guessed')}
+              </Text>
+            ) : null}
           </View>
-
-          <Input
-            label={t('budget.note')}
-            placeholder={t('common.optional')}
-            value={note}
-            onChangeText={setNote}
-          />
 
           <Button label={t('common.done')} icon="check" onPress={save} />
         </View>

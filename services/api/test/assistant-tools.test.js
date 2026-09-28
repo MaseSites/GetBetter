@@ -36,6 +36,9 @@ test('dieselben Aufzaehlungen: Wochentage, Mahlzeiten, Kategorien, Aussehen', ()
   assert.deepEqual(listOf(actions, 'MEAL_SLOTS'), enumOf(toolNamed('log_meal'), 'slot'));
   assert.deepEqual(listOf(actions, 'EXPENSE_CATEGORIES'), enumOf(toolNamed('add_expense'), 'category'));
   assert.deepEqual(listOf(actions, 'THEME_MODES'), enumOf(toolNamed('set_theme'), 'mode'));
+  assert.deepEqual(listOf(actions, 'MED_SLOTS'), enumOf(toolNamed('take_med'), 'slot'));
+  assert.deepEqual(listOf(actions, 'SLEEP_QUALITIES'), enumOf(toolNamed('log_sleep'), 'quality'));
+  assert.deepEqual(listOf(actions, 'VITAL_KINDS'), enumOf(toolNamed('log_vital'), 'kind'));
 });
 
 test('jede App hat in der App dieselben Funktionen wie im Dienst', () => {

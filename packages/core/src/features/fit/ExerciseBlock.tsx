@@ -15,7 +15,13 @@ import { TrainingBlock } from './TrainingParts';
 import { dashRange, describeSets, type TrainingFormats } from './trainingText';
 import { TRAINING } from './trainingType';
 
-const KNOWN_ERRORS = ['workout_closed', 'workout_future', 'too_many_sets', 'workout_started', 'no_sets'];
+const KNOWN_ERRORS = [
+  'workout_closed',
+  'workout_future',
+  'too_many_sets',
+  'workout_started',
+  'no_sets',
+];
 
 /**
  * Warum heute dieses Ziel steht. `nextTarget` im Dienst nennt den Grund, hier
@@ -218,8 +224,7 @@ export function ExerciseBlock({
       ? t('fit6.v.todayOnly', { target: todayText })
       : null;
   // Der Grund fuer das heutige Ziel, solange noch kein Satz steht.
-  const whyLine =
-    target && work.length === 0 ? t(WHY_KEYS[target.reason]) : null;
+  const whyLine = target && work.length === 0 ? t(WHY_KEYS[target.reason]) : null;
   const plateKg = exercise.barbell ? (parseDecimal(weight) ?? todayKg) : null;
   const scheme = exercise.timed
     ? t('fit6.v.schemeTimed', { sets: exercise.sets, seconds: secondsOf(exercise.reps) })
@@ -305,80 +310,85 @@ export function ExerciseBlock({
         </View>
       ) : null}
 
-      <TableHead columns={columns} />
-      <View style={{ gap: theme.spacing.xs }}>
-        {warmups.map((set) => (
-          <SetRow
-            key={set.id}
-            kind="done"
-            warmup
-            columns={columns}
-            number={warmupMark}
-            last="—"
-            kg={kgOf(set.weightKg)}
-            reps={repsOf(set)}
-            label={setText(set, 0)}
-            checkLabel={t('fit6.set.remove', { number: t('fit6.warmup.title') })}
-            onCheck={readOnly ? undefined : () => void remove(set)}
-          />
-        ))}
-        {work.map((set, index) => {
-          const number = index + 1;
-          return (
-            <SetRow
-              key={set.id}
-              kind="done"
-              columns={columns}
-              number={String(number)}
-              last={short(lastSets[index])}
-              kg={kgOf(set.weightKg)}
-              reps={repsOf(set)}
-              note={set.rir !== null ? t('fit6.set.rir', { rir: set.rir }) : null}
-              label={[
-                setText(set, number),
-                set.rir !== null ? rirLabel(t, set.rir) : null,
-                set.isRecord ? t('fit6.newRecord') : null,
-              ]
-                .filter(Boolean)
-                .join(', ')}
-              checkLabel={t('fit6.set.remove', { number })}
-              onCheck={readOnly ? undefined : () => void remove(set)}
-            />
-          );
-        })}
-        {readOnly ? null : (
-          <SetRow
-            kind="now"
-            columns={columns}
-            number={String(work.length + 1)}
-            last={short(nextLast)}
-            kg={
-              weighted ? (
-                <CellInput
-                  value={weight}
-                  onChangeText={setWeight}
-                  label={t('fit6.input.kg')}
-                  decimal
-                />
-              ) : (
-                '—'
-              )
-            }
-            reps={
-              <CellInput
-                value={exercise.timed ? seconds : reps}
-                onChangeText={exercise.timed ? setSeconds : setReps}
-                label={exercise.timed ? t('fit6.input.seconds') : t('fit6.input.reps')}
-                onSubmit={() => void log()}
+      {/* Nur lesen und noch kein Satz: keine leere Tabelle, nur Name und Schema. */}
+      {readOnly && sets.length === 0 ? null : (
+        <>
+          <TableHead columns={columns} />
+          <View style={{ gap: theme.spacing.xs }}>
+            {warmups.map((set) => (
+              <SetRow
+                key={set.id}
+                kind="done"
+                warmup
+                columns={columns}
+                number={warmupMark}
+                last="—"
+                kg={kgOf(set.weightKg)}
+                reps={repsOf(set)}
+                label={setText(set, 0)}
+                checkLabel={t('fit6.set.remove', { number: t('fit6.warmup.title') })}
+                onCheck={readOnly ? undefined : () => void remove(set)}
               />
-            }
-            label={t('fit6.v.nowRow', { number: work.length + 1 })}
-            checkLabel={t('fit6.v.logSet', { number: work.length + 1 })}
-            disabled={busy}
-            onCheck={() => void log()}
-          />
-        )}
-      </View>
+            ))}
+            {work.map((set, index) => {
+              const number = index + 1;
+              return (
+                <SetRow
+                  key={set.id}
+                  kind="done"
+                  columns={columns}
+                  number={String(number)}
+                  last={short(lastSets[index])}
+                  kg={kgOf(set.weightKg)}
+                  reps={repsOf(set)}
+                  note={set.rir !== null ? t('fit6.set.rir', { rir: set.rir }) : null}
+                  label={[
+                    setText(set, number),
+                    set.rir !== null ? rirLabel(t, set.rir) : null,
+                    set.isRecord ? t('fit6.newRecord') : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                  checkLabel={t('fit6.set.remove', { number })}
+                  onCheck={readOnly ? undefined : () => void remove(set)}
+                />
+              );
+            })}
+            {readOnly ? null : (
+              <SetRow
+                kind="now"
+                columns={columns}
+                number={String(work.length + 1)}
+                last={short(nextLast)}
+                kg={
+                  weighted ? (
+                    <CellInput
+                      value={weight}
+                      onChangeText={setWeight}
+                      label={t('fit6.input.kg')}
+                      decimal
+                    />
+                  ) : (
+                    '—'
+                  )
+                }
+                reps={
+                  <CellInput
+                    value={exercise.timed ? seconds : reps}
+                    onChangeText={exercise.timed ? setSeconds : setReps}
+                    label={exercise.timed ? t('fit6.input.seconds') : t('fit6.input.reps')}
+                    onSubmit={() => void log()}
+                  />
+                }
+                label={t('fit6.v.nowRow', { number: work.length + 1 })}
+                checkLabel={t('fit6.v.logSet', { number: work.length + 1 })}
+                disabled={busy}
+                onCheck={() => void log()}
+              />
+            )}
+          </View>
+        </>
+      )}
 
       {!readOnly && plateKg !== null && plateKg > 0 ? (
         <View style={{ marginTop: theme.spacing.md }}>

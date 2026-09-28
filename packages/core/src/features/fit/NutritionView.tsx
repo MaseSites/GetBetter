@@ -165,6 +165,7 @@ export function NutritionView({ module }: { module: ModuleDefinition }) {
     <>
       <Screen
         gap={theme.spacing.sm}
+        floating
         contentStyle={{ paddingTop: QUOTE_TOP - theme.spacing.md }}
         header={
           <AreaHeader

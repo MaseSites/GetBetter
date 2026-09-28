@@ -1,4 +1,5 @@
 import type { AiAction, AiContextItem } from '../../db/ai';
+import { guessExpenseCategory } from '../money/categories';
 import { parseTaskInput } from '../tasks/parse';
 import { addDays, nextMonday, nextWeekday, weekdayOf, weekendDay } from '../tasks/days';
 
@@ -145,7 +146,7 @@ function titleOf(raw: string): string {
 const MAX_TITLE_WORDS = { event: 6, task: 8 } as const;
 const wordCount = (text: string) => text.split(/\s+/u).filter(Boolean).length;
 
-type When = { title: string; day: string | null; time: string | null; end: string | null };
+export type When = { title: string; day: string | null; time: string | null; end: string | null };
 
 const CLOCK = '(\\d{1,2}(?:[:.]\\d{2})?)';
 /** „von 15 bis 17 Uhr“, „15–17“, „zwischen 3 und 5“, „9:30 bis 11“. */
@@ -188,9 +189,10 @@ function spanOf(text: string, evening: boolean): { start: string; end: string; m
 /**
  * Tag, Uhrzeit (auch als Spanne) und was dann noch Titel ist. Tageszeiten
  * („abends“) geben eine Uhrzeit, wenn keine genannt ist; `evening` rueckt 1–7
- * Uhr auf den Nachmittag (bei Terminen, nie beim Wecker).
+ * Uhr auf den Nachmittag (bei Terminen, nie beim Wecker). Auch vom Kalender
+ * genutzt (`features/calendar/parseEvent.ts`) — eine Regel fuer beide.
  */
-function whenOf(text: string, today: string, evening: boolean): When {
+export function whenOf(text: string, today: string, evening: boolean): When {
   let rest = withClock(text);
   const span = spanOf(rest, evening);
   if (span) rest = rest.replace(span.match, ' ');
@@ -660,14 +662,6 @@ function workout(lower: string): Understood {
   return value >= 1 && value <= 600 ? guess('log_workout', { kind: capitalized(sport[0]), minutes: value }) : null;
 }
 
-const CATEGORIES: readonly (readonly [RegExp, string])[] = [
-  [words('essen|znacht|zmittag|zmorge|migros|coop|lidl|aldi|denner|restaurant|kaffee|lebensmittel|bäcker|baecker|pizza|food'), 'food'],
-  [words('zug|sbb|bus|tram|benzin|tanken|taxi|parkieren|parking|velo|ticket|ga|halbtax'), 'transport'],
-  [words('miete|möbel|moebel|ikea|strom|haushalt|putzmittel'), 'home'],
-  [words('kino|konzert|ausgang|bar|spiel|games?|ferien|ausflug'), 'fun'],
-  [words('apotheke|arzt|medikamente?|zahnarzt|brille|physio'), 'health'],
-];
-
 function expense(text: string, lower: string): Understood {
   const amount = new RegExp(`${AMOUNT}\\s*(?:fr\\.?|franken|chf|stutz|\\.-)(?![\\p{L}])|chf\\s*${AMOUNT}`, 'iu').exec(lower);
   const raw = amount?.[1] ?? amount?.[2];
@@ -675,7 +669,7 @@ function expense(text: string, lower: string): Understood {
   const value = Number(raw.replace(',', '.'));
   if (!(value >= 0.05 && value <= 100_000)) return null;
   const forWhat = /(?:für|fuer|for)\s+(.+?)(?:\s+(?:ausgegeben|bezahlt|gezahlt|gekauft))?[.!]?$/iu.exec(text)?.[1]?.trim();
-  const category = CATEGORIES.find(([pattern]) => pattern.test(lower))?.[1] ?? 'other';
+  const category = guessExpenseCategory(lower) ?? 'other';
   return guess('add_expense', { amount: value, category, ...(forWhat ? { note: capitalized(forWhat) } : {}) });
 }
 

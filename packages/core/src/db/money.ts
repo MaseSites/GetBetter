@@ -161,6 +161,8 @@ export const subscriptions = {
     name: string;
     amountChf: number;
     interval: SubscriptionInterval;
+    /** Eine Abbuchung `YYYY-MM-DD`, an der sich die naechsten ausrichten. */
+    startDay?: string | null;
   }): Promise<SubscriptionRow> {
     const row: SubscriptionRow = {
       id: newId('su'),
@@ -168,6 +170,7 @@ export const subscriptions = {
       name: input.name.trim(),
       amountChf: rappen(input.amountChf),
       interval: input.interval,
+      startDay: input.startDay ?? null,
       createdAt: now(),
     };
     return changed(await db.subscriptions.insert(row));

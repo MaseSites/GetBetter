@@ -31,6 +31,18 @@ function createBilling({ dataDir, findAccount = accountInStore, env = process.en
   const book = ledger ?? createLedger({ dataDir, now, speech: speechSettings(env) });
 
   /**
+   * Weitere Kosten, die nicht in den Protokollen von KI und Stimme stehen —
+   * etwa die Foto-Analysen von Better Fit (`fit.json`). Je Quelle eine
+   * synchrone Funktion `(accountId, app) => CHF dieses Monats`.
+   */
+  let sources = [];
+  const addSpendSource = (source) => {
+    sources = [...sources, source];
+  };
+  const extraOf = (accountId, app) =>
+    sources.reduce((total, source) => total + (Number(source(accountId, app)) || 0), 0);
+
+  /**
    * Der Stand eines Kontos in einer App — synchron, also erst nach
    * `await book.ready()` rufen. `account` darf null sein (dann Gratis).
    */
@@ -41,7 +53,8 @@ function createBilling({ dataDir, findAccount = accountInStore, env = process.en
     const budgetChf = budgetOf(plan, app, settings, term);
     const accountId = typeof account?.id === 'string' ? account.id : null;
     const usage = accountId ? book.usageOf(accountId, app) : { aiChf: 0, speechChf: 0, heldChf: 0 };
-    const spentChf = usage.aiChf + usage.speechChf + usage.heldChf;
+    const otherChf = accountId ? extraOf(accountId, app) : 0;
+    const spentChf = usage.aiChf + usage.speechChf + usage.heldChf + otherChf;
     const remainingChf = budgetChf - spentChf;
     return {
       plan,
@@ -49,6 +62,7 @@ function createBilling({ dataDir, findAccount = accountInStore, env = process.en
       priceChf: priceOf(app, settings),
       budgetChf,
       ...usage,
+      otherChf,
       spentChf,
       remainingChf,
       remainingShare: budgetChf > 0 ? Math.min(1, Math.max(0, remainingChf / budgetChf)) : 0,
@@ -81,7 +95,15 @@ function createBilling({ dataDir, findAccount = accountInStore, env = process.en
     });
   }
 
-  return { ledger: book, findAccount, standingOf, refusalOf, budget, speech: () => speechSettings(env) };
+  return {
+    ledger: book,
+    findAccount,
+    standingOf,
+    refusalOf,
+    budget,
+    addSpendSource,
+    speech: () => speechSettings(env),
+  };
 }
 
 module.exports = { accountInStore, createBilling, isAccountId };

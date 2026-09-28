@@ -21,7 +21,10 @@ import {
   events as eventRepo,
   shopping as shoppingRepo,
 } from '@/db/repositories';
+import { fit } from '@/db/fit';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { useFit } from '@/features/fit/useFit';
+import { useZurichToday } from '@/features/fit/useZurichToday';
 import { formatList, formatMoney, formatTime, useI18n } from '@/i18n';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -67,6 +70,10 @@ export function AppFamily() {
     () => (account ? mealRepo.kcalOf(account.id, dayKey()) : Promise.resolve(0)),
     [account?.id],
   );
+  // Better Fit fuehrt die Mahlzeiten im Dienst (fit.json), nicht in `meals` —
+  // ohne diese Abfrage stuende die Karte bei jedem Better-Fit-Konto auf „—“.
+  const today = useZurichToday();
+  const fitDay = useFit(() => fit.day(today), [account?.id, today]);
   const aiChats = useLiveQuery(
     () => (account ? chatRepo.list(account.id) : Promise.resolve([])),
     [account?.id],
@@ -135,7 +142,11 @@ export function AppFamily() {
     }
     if (id === 'bettergym') {
       const trained = gymMinutes.data ?? 0;
-      const eaten = gymKcal.data ?? 0;
+      const fitMeals = fitDay.data?.meals ?? [];
+      const eaten =
+        fitMeals.length > 0
+          ? Math.round(fitMeals.reduce((sum, meal) => sum + meal.total.kcal, 0))
+          : (gymKcal.data ?? 0);
       const night = gymSleep.data?.[0];
       const slept = night ? sleepMinutes(night) : 0;
       return [
@@ -262,14 +273,17 @@ function AppRow({ id, first, rows, open, installLabel, onOpen, onInstall }: AppR
               },
             ]}
           >
-            <Text variant="label" tone="muted" style={styles.text}>
+            <Text variant="label" tone="muted" numberOfLines={1} style={styles.fieldLabel}>
               {field.label}
             </Text>
             <Text
               variant="label"
               tone={field.value ? 'default' : 'faint'}
               numberOfLines={1}
-              style={{ fontWeight: theme.fontWeight.semibold }}
+              style={[
+                styles.fieldValue,
+                { marginLeft: theme.spacing.md, fontWeight: theme.fontWeight.semibold },
+              ]}
             >
               {field.value ?? '—'}
             </Text>
@@ -295,7 +309,9 @@ function AppRow({ id, first, rows, open, installLabel, onOpen, onInstall }: AppR
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
     >
-      <Animated.View style={[edge, { transform: [{ scale: press.scale }] }]}>{inside}</Animated.View>
+      <Animated.View style={[edge, { transform: [{ scale: press.scale }] }]}>
+        {inside}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -308,4 +324,7 @@ const styles = StyleSheet.create({
   name: { gap: 2 },
   faded: { opacity: 0.55 },
   field: { flexDirection: 'row', alignItems: 'center' },
+  // Die Beschriftung behaelt ihre Breite, der Wert nimmt den Rest und kuerzt mit "…".
+  fieldLabel: { flexShrink: 0 },
+  fieldValue: { flex: 1, minWidth: 0, textAlign: 'right' },
 });

@@ -8,10 +8,17 @@ import type { TaskRow } from '../../db/types';
  * Erinnerung zum Zeitpunkt „Uhrzeit minus Vorlauf“; Vergangenes faellt weg.
  */
 export type Reminder = {
+  /** Die Id der Zeile: bei Aufgaben die Aufgabe, bei Terminen die `groupId`. */
   taskId: string;
   title: string;
   /** Wann sie klingelt, als ISO-Zeit. */
   at: string;
+  /** Fehlt es, ist es eine Aufgabe; Termine kommen aus `features/calendar/reminders.ts`. */
+  kind?: 'task' | 'event';
+  /** Nur bei Terminen: wann er beginnt (ISO), fuer den Text der Mitteilung. */
+  startsAt?: string;
+  /** Nur bei Terminen: ganztaegig? */
+  allDay?: boolean;
 };
 
 /** iOS haelt hoechstens 64 offene Erinnerungen — darunter bleiben wir. */
@@ -61,7 +68,23 @@ export function sameReminders(a: readonly Reminder[], b: readonly Reminder[]): b
       other !== undefined &&
       other.taskId === entry.taskId &&
       other.title === entry.title &&
-      other.at === entry.at
+      other.at === entry.at &&
+      (other.kind ?? 'task') === (entry.kind ?? 'task') &&
+      other.startsAt === entry.startsAt
     );
   });
+}
+
+/**
+ * Aufgaben und Termine in eine Liste: frueheste zuerst, zusammen hoechstens
+ * `limit` — das Handy haelt nicht beliebig viele.
+ */
+export function mergeReminders(
+  lists: readonly (readonly Reminder[])[],
+  limit: number = MAX_SCHEDULED,
+): Reminder[] {
+  return lists
+    .flat()
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(0, Math.max(0, limit));
 }

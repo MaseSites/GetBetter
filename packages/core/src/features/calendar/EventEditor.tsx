@@ -1,22 +1,20 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useLiveQuery, type EventRow } from '@/db';
 import { hasHouseholds } from '@/app/identity';
 import { events as eventRepo, groupOf, targetOf, type EventTarget } from '@/db/repositories';
 import { useTranslate } from '@/i18n';
 import { useTheme } from '@/theme';
-import { Button, Chip, Icon, Input, Loading, Sheet, Text, Toggle } from '@/ui';
+import { Button, Chip, Input, Loading, Sheet, Text, Toggle } from '@/ui';
 import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 import { clockText } from '@/features/shared/clock';
 
-import {
-  EVENT_COLORS,
-  EVENT_COLOR_KEYS,
-  colorLabelKey,
-  eventColorKey,
-  type EventColorKey,
-} from './colors';
+import { eventColorKey, type EventColorKey } from './colors';
+import { EventColorPicker } from './EventColorPicker';
+import { EventReminderRow } from './EventReminderRow';
+import type { QuickPatch } from './parseEvent';
+import { QuickEventField } from './QuickEventField';
 import {
   addDays,
   endOfDay,
@@ -149,6 +147,7 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
     rows.length > 0 ? rows.map((row) => keyOf(targetOf(row))) : null,
   );
   const [isPrivate, setIsPrivate] = useState(editing?.isPrivate ?? false);
+  const [reminder, setReminder] = useState<number | null>(editing?.reminderMinutes ?? null);
   const [error, setError] = useState<{
     field: 'title' | 'date' | 'time' | 'calendar';
     message: string;
@@ -173,6 +172,20 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
       later.setHours(start.hour, start.minute + DEFAULT_MINUTES, 0, 0);
       setEndText(formatTimeValue(later));
     }
+  }
+
+  /** Was „Schnell eintragen“ erkannt hat, fuellt die Felder darunter. */
+  function applyQuick(patch: QuickPatch) {
+    if (patch.title !== undefined) setTitle(patch.title);
+    if (patch.day) {
+      const [year = 0, month = 1, date = 1] = patch.day.split('-').map(Number);
+      setDateText(formatDateValue(new Date(year, month - 1, date)));
+    }
+    if (patch.allDay !== undefined) setAllDay(patch.allDay);
+    if (patch.start) setStartText(patch.start);
+    if (patch.end) setEndText(patch.end);
+    if (patch.location !== undefined) setLocation(patch.location);
+    setError(null);
   }
 
   function settleEnd() {
@@ -239,6 +252,7 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
       notes,
       allDay,
       color,
+      reminderMinutes: reminder,
     };
     const chosen = targets.map(targetFor);
 
@@ -289,6 +303,8 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
 
   return (
     <View style={{ gap: theme.spacing.lg, paddingTop: theme.spacing.sm }}>
+      {editing ? null : <QuickEventField onPatch={applyQuick} />}
+
       <Input
         label={t('calendar.field.title')}
         placeholder={t('calendar.field.titlePlaceholder')}
@@ -433,31 +449,9 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
         </View>
       ) : null}
 
-      <View style={{ gap: theme.spacing.sm }}>
-        <Text variant="label" tone="muted">
-          {t('calendar.field.color')}
-        </Text>
-        <View style={[styles.row, { gap: theme.spacing.md, flexWrap: 'wrap' }]}>
-          {EVENT_COLOR_KEYS.map((key) => (
-            <Pressable
-              key={key}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: color === key }}
-              accessibilityLabel={t(colorLabelKey(key))}
-              onPress={() => setColor(key)}
-              style={[
-                styles.swatch,
-                {
-                  backgroundColor: EVENT_COLORS[key],
-                  borderColor: color === key ? theme.colors.text : 'transparent',
-                },
-              ]}
-            >
-              {color === key ? <Icon name="check" size={16} color="#FFFFFF" /> : null}
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      <EventReminderRow value={reminder} allDay={allDay} onChange={setReminder} />
+
+      <EventColorPicker value={color} onChange={setColor} />
 
       <Input
         label={t('calendar.field.location')}
@@ -487,12 +481,4 @@ function EventForm({ draft, accountId, rows, onClose }: EventFormProps) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  swatch: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

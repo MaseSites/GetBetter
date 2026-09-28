@@ -19,6 +19,7 @@ import {
   EmptyState,
   FloatingButton,
   Header,
+  Icon,
   Input,
   ListItem,
   Screen,
@@ -26,9 +27,13 @@ import {
   Sheet,
   SwipeRow,
   Text,
+  type IconName,
+  type TextTone,
 } from '@/ui';
 
 import { RemoveButton } from '../money/parts';
+
+import { bpCategoryOf, type BpCategory } from './bloodPressure';
 
 const KINDS: readonly VitalKind[] = ['weight', 'bp', 'pulse'];
 const BAR_HEIGHT = 72;
@@ -73,6 +78,7 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -108,6 +114,7 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
                 {deltaText}
               </Text>
             ) : null}
+            {kind === 'bp' && latest ? <BpBadge sys={latest.value} dia={latest.value2} /> : null}
 
             {recent.length > 1 ? (
               <View style={[styles.bars, { height: BAR_HEIGHT, gap: theme.spacing.xs }]}>
@@ -161,6 +168,35 @@ export function VitalsView({ module }: { module: ModuleDefinition }) {
         onClose={() => setAdding(false)}
       />
     </Screen>
+  );
+}
+
+/**
+ * Der letzte Blutdruck eingeordnet (ESC 2024): Zeichen und Wort, nicht nur
+ * Farbe — Haken, Info, Warnung. Darunter, dass es keine Diagnose ist.
+ */
+function BpBadge({ sys, dia }: { sys: number; dia: number | null }) {
+  const { t } = useI18n();
+  const theme = useTheme();
+  const category = bpCategoryOf(sys, dia);
+  const look: Record<BpCategory, { icon: IconName; color: string; tone: TextTone }> = {
+    normal: { icon: 'checkCircle', color: theme.colors.accentMark, tone: 'accent' },
+    elevated: { icon: 'info', color: theme.colors.textMuted, tone: 'default' },
+    hypertension: { icon: 'warning', color: theme.colors.danger, tone: 'danger' },
+  };
+  const { icon, color, tone } = look[category];
+  return (
+    <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
+      <View style={[styles.badge, { gap: theme.spacing.xs }]}>
+        <Icon name={icon} size={16} color={color} />
+        <Text variant="label" tone={tone}>
+          {t(`gymplus.bp.${category}` as TranslationKey)}
+        </Text>
+      </View>
+      <Text variant="caption" tone="muted">
+        {t('gymplus.bp.note')}
+      </Text>
+    </View>
   );
 }
 
@@ -238,4 +274,5 @@ function VitalAdd({
 
 const styles = StyleSheet.create({
   bars: { flexDirection: 'row', alignItems: 'flex-end', width: '100%' },
+  badge: { flexDirection: 'row', alignItems: 'center' },
 });

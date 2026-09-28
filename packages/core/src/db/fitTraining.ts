@@ -109,6 +109,8 @@ export type TrainingProgress = {
     name: string;
     history: { day: string; e1rm: number }[];
     change: number | null;
+    /** Die uebertroffene Bestleistung davor; `null` (oder fehlt): kein echter Rekord. */
+    previous?: number | null;
   })[];
   week: {
     start: string;

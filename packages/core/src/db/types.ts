@@ -174,6 +174,11 @@ export type EventRow = Row & {
   allDay: boolean;
   /** Schluessel aus EVENT_COLORS. Fehlt er, gilt die Standardfarbe. */
   color: string | null;
+  /**
+   * Erinnern so viele Minuten vor Beginn; `null` oder fehlend heisst nicht
+   * erinnern. Ganztaegig zaehlt vom Vortag 18:00 aus (`features/calendar/reminders.ts`).
+   */
+  reminderMinutes?: number | null;
   createdAt: string;
 };
 
@@ -382,6 +387,11 @@ export type ShoppingItemRow = Row & {
   /** Abteilung im Laden (`produce`, `dairy`, …); fehlt sie, wird geraten. */
   category?: string;
   done: boolean;
+  /**
+   * Weggeräumt („erledigte entfernen“): die Zeile fehlt in der Liste, zählt
+   * aber weiter für „Oft gekauft“ (`features/shopping/frequent.ts`).
+   */
+  clearedAt?: string | null;
   createdAt: string;
 };
 
@@ -460,6 +470,8 @@ export type ChoreRow = Row & {
   dueAt: string | null;
   lastDoneAt: string | null;
   lastDoneBy: string | null;
+  /** Reihum: Konto-Ids in ihrer Reihenfolge; nach dem Erledigen ist die nächste dran. */
+  rotation?: readonly string[];
   createdAt: string;
 };
 
@@ -555,6 +567,8 @@ export type ChatRow = Row & {
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** Angeheftet: steht oben in der Liste, zuletzt Angeheftetes zuerst. */
+  pinnedAt?: string | null;
 };
 
 export type ChatMessageRow = Row & {
@@ -621,6 +635,11 @@ export type SubscriptionRow = Row & {
   name: string;
   amountChf: number;
   interval: SubscriptionInterval;
+  /**
+   * Eine Abbuchung (`YYYY-MM-DD`), an der sich alle weiteren ausrichten —
+   * monatlich am selben Tag, jaehrlich am selben Datum. Fehlt bei alten Zeilen.
+   */
+  startDay?: string | null;
   createdAt: string;
 };
 

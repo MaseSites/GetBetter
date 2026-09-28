@@ -11,7 +11,9 @@ import {
   subscriptions as subscriptionRepo,
   useLiveQuery,
 } from '@/db';
-import { parseDay } from '@/features/shared/days';
+import { nextChargeDay } from '@/features/money/nextCharge';
+import { usePaceLine } from '@/features/money/parts';
+import { parseDay, relativeDay } from '@/features/shared/days';
 import { formatDayMonth, formatMonthName, useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import { useAccount } from '@/state/AppContext';
@@ -77,6 +79,8 @@ export function MoneyHomeScreen() {
   const left = budget === null ? 0 : budget - spent;
   const over = budget !== null && left < 0;
   const free = Math.max(0, left);
+  // „Noch CHF 23 pro Tag“ — ueber dem Budget sagt es die grosse Zahl schon.
+  const paceLine = usePaceLine(spent, budget);
 
   const now = new Date();
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -128,6 +132,15 @@ export function MoneyHomeScreen() {
     return { text: formatDayMonth(language, parseDay(day)), now: false, late: false };
   }
 
+  /** "Monatlich · In 3 Tagen" — ohne Datum nur, wie oft. */
+  function subscriptionSubtitle(row: (typeof subscriptions)[number]): string {
+    const interval = t(`subscriptions.interval.${row.interval}` as TranslationKey);
+    const next = row.startDay ? nextChargeDay(row.startDay, row.interval, today) : null;
+    return next
+      ? t('moneyplus.sub.next', { interval, when: relativeDay(t, language, next) })
+      : interval;
+  }
+
   const shareOf = (saved: number, target: number) => (target > 0 ? Math.min(1, saved / target) : 0);
   const firstGoal = goals[0];
 
@@ -154,6 +167,11 @@ export function MoneyHomeScreen() {
           }
           tone={over ? 'danger' : 'default'}
         />
+        {paceLine && !paceLine.over ? (
+          <Text variant="label" tone={paceLine.tone}>
+            {paceLine.text}
+          </Text>
+        ) : null}
         <SegmentBar segments={segments} />
         {legend.length > 0 ? <Legend items={legend} /> : null}
       </Panel>
@@ -203,7 +221,7 @@ export function MoneyHomeScreen() {
                 {index > 0 ? <Divider /> : null}
                 <MoneyRow
                   title={row.name}
-                  subtitle={t(`subscriptions.interval.${row.interval}` as TranslationKey)}
+                  subtitle={subscriptionSubtitle(row)}
                   amount={cents.format(row.amountChf)}
                   accessibilityLabel={`${row.name}, ${cents.format(row.amountChf)}`}
                   onPress={() => router.push('/run/subscriptions')}

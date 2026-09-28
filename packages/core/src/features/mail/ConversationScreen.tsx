@@ -11,6 +11,7 @@ import { ConversationBar, type ConversationBarProps } from './ConversationBar';
 import { focusOf, initiallyExpanded, planConversation } from './conversation';
 import { RoundButton, TopBar } from './MailChrome';
 import { MessageCard } from './MessageCard';
+import { useMailToTask } from './useMailToTask';
 
 /** Erst nach so langer Anzeige gilt die Unterhaltung als gelesen. */
 export const READ_DELAY_MS = 1000;
@@ -63,6 +64,8 @@ export function ConversationScreen(props: ConversationScreenProps) {
   const { t } = useI18n();
   const theme = useTheme();
   const { messages } = props;
+  const toTask = useMailToTask();
+  const latest = messages[messages.length - 1];
 
   const scroll = useRef<ScrollView>(null);
   const [memory] = useState(() => new ConversationMemory());
@@ -193,7 +196,10 @@ export function ConversationScreen(props: ConversationScreenProps) {
         ))}
       </ScrollView>
 
-      <ConversationBar {...props} />
+      <ConversationBar
+        {...props}
+        onTask={props.onTask ?? (latest ? () => void toTask(latest) : undefined)}
+      />
     </Screen>
   );
 }

@@ -110,6 +110,7 @@ Stand nichts überschreibt.
 | `GET /v1/accounts/:id`                              | Konto lesen                                                      |
 | `GET /v1/accounts/by-username/:name`                | Für Einladungen                                                  |
 | `PATCH /v1/accounts/:id`                            | Spitzname, Sprache, Benutzername (einmal im Monat), Profilbild, Aussehen, Assistent, Hintergrund |
+| `DELETE /v1/accounts/:id`                           | eigenes Konto löschen, mit `{ password }` — dieselben Regeln wie im Admin (`accountRemoval.js`), ohne Sicherung; Einstellungen → „Konto löschen“ |
 | `POST /v1/notifications`                            | Mitteilung für ein Konto anlegen                                 |
 | `POST /v1/notifications/:id/read`                   | als gelesen markieren                                            |
 | `DELETE /v1/notifications/:id`                      | löschen                                                          |
@@ -1128,10 +1129,14 @@ Ernährung, Vorrat, Rezepte, Wochenplan, Einkauf, Training und Coach als ein
 verbundenes System. Alles Nähere in [docs/better-fit.md](docs/better-fit.md);
 der fachliche Plan liegt in `apps/bettergym/BETTER_FIT_FINALER_MASTERPLAN_FUER_CLAUDE_CODE.md`.
 
-- **Geschützt**: Daten in `data/fit.json`, nie in `GET /v1/db`. Routen `/v1/fit/…`
-  nur mit Token (`Authorization: Bearer`, `services/api/sessions.js`); das Konto
-  kommt nur aus dem Token. Routen sehen nur `store.forOwner(id)` — das ist die
-  RLS des lokalen Dienstes. Für die Produktion: `supabase/migrations/`.
+- **Geschützt**: Daten in `data/fit.json`, nie in `GET /v1/db`, mit
+  `BETTER_DATA_KEY` verschlüsselt wie `db.json`. Routen `/v1/fit/…` nur mit
+  Sitzung (`X-Better-Session`, `services/api/sessions.js`); das Konto kommt nur
+  aus der Sitzung, gesperrt (`disabled`) oder BetterGym weggenommen
+  (`blockedApps`, `403 app_blocked`) gilt sofort. Routen sehen nur
+  `store.forOwner(id)` — das ist die RLS des lokalen Dienstes. Die
+  Supabase-Migration (`supabase/migrations/`) ist vorbereitet, aber an nichts
+  angeschlossen. `GET /v1/fit/export` gibt alles des Kontos (Auskunft nach DSG).
 - **Rechnen tut der Dienst**: Nährwerte = Gramm × Katalog je 100 g. Die KI
   (Gemini, im Mock-Modus Fixtures) liefert nur Lebensmittel und Gramm.
 - **Nichts ändert sich ungefragt**: Vorrat, Rezepte, Wochenplan, Einkaufsliste,
@@ -1140,7 +1145,19 @@ der fachliche Plan liegt in `apps/bettergym/BETTER_FIT_FINALER_MASTERPLAN_FUER_C
   (`fit/tools/engine.js`). Der Coach meldet nur, was wirklich gespeichert ist.
 - **Mock-Modus** ist Standard (`MEAL_ANALYSIS_MODE=mock`): kein Aufruf nach
   aussen, Katalog mit Beispielwerten. Schlüssel in `services/api/.env.local`
-  (Vorlage `.env.example`, nie im Git).
+  (Vorlage `.env.example`, nie im Git) — `server.js` liest die Datei in der
+  **ersten Zeile** (`test/env-file.test.js`; beim Merge am 24.09. war sie weg
+  und Better Fit lief unbemerkt mit Beispielwerten). Live **ohne** Schlüssel
+  heisst `503 not_configured`, nie still Mock. Beim Start meldet
+  `fit/readiness.js` jede Lücke; mit `NODE_ENV=production` (Dockerfile)
+  startet der Dienst nicht ohne live, Schlüssel und Schweizer Datenbank
+  (`FIT_ALLOW_MOCK=1` für eine Vorführung).
+- **Kontingent je Konto**: Foto- und Etiketten-Analysen zählen gegen das Budget
+  des Kontos in BetterGym (`usage.allowanceOf`, dasselbe wie Coach und Stimme;
+  `billing.addSpendSource` lässt die KI die Fotokosten sehen). Aufgebraucht:
+  `402 plan_budget_free` (die App zeigt „Abo ansehen“) bzw. `plan_budget_paid`.
+  Gemini fällt der Reihe nach auf `GEMINI_FALLBACK_MODEL` (Komma-Liste,
+  Standard `gemini-3.6-flash,gemini-3.5-flash`) zurück, auch bei 404.
 - **Oberfläche**: `packages/core/src/features/fit/`, Client `db/fit.ts` (Kern) aus
   `fitDiary.ts`, `fitKitchen.ts`, `fitTraining.ts` (Typen `db/fitTypes.ts`), Texte
   `i18n/*-fit.ts` bis `*-fit7.ts`.
@@ -1173,7 +1190,8 @@ und werden mit `formatMoney` gezeigt. Löschen nur über den Papierkorb
 ## Navigation
 
 Jede App hat dieselben drei Tabs — **Start**, **Funktionen**, **Profil** —,
-GetBetter dazu den **Assistenten**, BetterAi nur **Chat** und **Profil**. Alles
+GetBetter, BetterFamily, BetterGym und BetterMoney dazu den **Assistenten**,
+BetterAi nur **Chat** und **Profil**. Alles
 andere (Haushalt, Aussehen, die volle Ansicht einer Funktion) liegt dahinter
 als Route. Keine der beiden Übersichten ist ein Kachelbrett.
 
@@ -1858,6 +1876,42 @@ JPEG-Data-URL; `pickImage()` ohne Angabe nimmt die Fotos).
 
 Jedes Modul hat eine eigene Farbe (`theme/modules.ts`); `moduleTint(theme, id)`
 und `hueTint(theme, hue)` machen daraus die gezeichnete Fassung eines Logos.
+
+## Gegen die Konkurrenz (25.09.)
+
+Je App ein Vergleich mit Quellen in `docs/konkurrenz/` (organisation, family,
+money, gym-ai; Ernährung in `docs/better-fit-konkurrenz.md`). Daraus gebaut,
+alles als reine Funktion mit Test neben dem Code, Texte in `i18n/*-orgplus.ts`,
+`*-familyplus.ts`, `*-moneyplus.ts`, `*-gymplus.ts`, `*-fixes.ts`:
+
+- **GetBetter:** Mail → Aufgabe (`mail/toTask.ts`, Kontextmenü und Leiste),
+  Termin in einem Satz (`calendar/parseEvent.ts`, „Schnell eintragen“ im
+  Editor, dieselbe Zeitregel wie der Assistent), Erinnerung vor Terminen
+  (`EventRow.reminderMinutes`, `calendar/reminders.ts`, teilt sich mit den
+  Aufgaben die 60 geplanten Mitteilungen).
+- **BetterFamily:** `shopping.add` führt gleiche Posten zusammen und zählt die
+  Menge hoch (`shopping/merge.ts`, `quantity.ts`), „Oft gekauft“ als Chips
+  (`frequent.ts`; `clearDone` setzt dafür nur `clearedAt`, nach 180 Tagen
+  weg), Rezept für N Personen (`family/scale.ts`), Ämtli reihum
+  (`ChoreRow.rotation`, `chores/rotation.ts`).
+- **BetterMoney:** Budget-Tempo (`money/pace.ts`), nächste Abbuchung der Abos
+  (`SubscriptionRow.startDay`, `nextCharge.ts`, auch im Tagesband), Kategorie
+  raten (`money/categories.ts`, die Händler-Regeln teilen Formular und
+  Assistent), Swiss-QR-Rechnung als Text einfügen (`money/qrBill.ts`, SIX
+  v2.x, Prüfziffern QRR/SCOR; Kamera erst mit neuem Store-Bau).
+- **BetterGym:** Schlafschuld über 14 Nächte und Aufholtipp
+  (`gym/sleepStats.ts`), „Was dir guttut“ (`gym/moodInsights.ts`, erst ab 5
+  Tagen je Seite), Blutdruck nach ESC 2024 (`gym/bloodPressure.ts`, Zeichen und
+  Wort, „keine Diagnose“), Reichweite der Medikamente und „Alle genommen“
+  (`gym/medSupply.ts`). Der Assistent trägt Schlaf, Einnahme, Laune und Werte
+  ein (`log_sleep`, `take_med`, `log_mood`, `log_vital`).
+- **BetterAi:** Suche, Anheften (`pinnedAt`), Umbenennen (`ai/chatList.ts`).
+- **Zustandsbericht 24.09.** (`docs/Better-Apps-Zustand-2026-09-24.pdf`): die
+  Befunde sind behoben — u. a. Kalorien aus Better Fit auf der GetBetter-Karte,
+  eine Gewichtszahl (Trend) überall, `Screen floating` lässt unter dem Inhalt
+  Platz für den Knopf unten rechts, Werte je Funktion in allen Apps
+  (`screens/functionValues.ts`), Rekord erst gegen einen früheren Wert
+  (`previousBest` im Dienst), kein Einladungscode auf der Startseite.
 
 ## Veröffentlichen
 

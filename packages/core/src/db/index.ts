@@ -8,7 +8,7 @@ export { shares } from './shares';
 export { notifications } from './notifications';
 export { appAccess } from './appAccess';
 export { dayKey, drinks, meals, routines, workoutSets, workouts } from './gym';
-export { meds, moods, sleepMinutes, sleeps, vitals } from './health';
+export { healthInsights, meds, moods, sleepMinutes, sleeps, vitals } from './health';
 export { chatMessages, chatTitleOf, chats } from './chats';
 export { ai } from './ai';
 export { plans, cancelPlan, requestPlan, resumePlan } from './plans';

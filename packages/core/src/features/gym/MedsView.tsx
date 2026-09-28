@@ -22,12 +22,12 @@ import {
   Sheet,
   SwipeRow,
   Text,
+  useUndo,
 } from '@/ui';
 
-const SLOTS: readonly MedSlot[] = ['morning', 'noon', 'evening', 'night'];
+import { daysLeftOf, LOW_SUPPLY_DAYS, openDueTakes } from './medSupply';
 
-/** Ab hier steht "Nachschub" dran. */
-const LOW_STOCK = 5;
+const SLOTS: readonly MedSlot[] = ['morning', 'noon', 'evening', 'night'];
 
 /** Medikamente: je Einnahmezeit ein Chip, ein Tipp heisst genommen. */
 export function MedsView({ module }: { module: ModuleDefinition }) {
@@ -51,9 +51,41 @@ export function MedsView({ module }: { module: ModuleDefinition }) {
     0,
   );
   const slotLabel = (slot: MedSlot) => t(`meds.slot.${slot}` as TranslationKey);
+  const undo = useUndo();
+  // Was jetzt dran und noch offen ist — „Alle genommen“ hakt genau das ab.
+  const open = openDueTakes(rows, takes, new Date().getHours());
+
+  async function takeAll() {
+    const batch = open;
+    for (const take of batch) {
+      await medRepo.setTaken(take.medId, account.id, today, take.slot, true);
+    }
+    undo.show({
+      message:
+        batch.length === 1
+          ? t('gymplus.meds.tookAll.one')
+          : t('gymplus.meds.tookAll', { count: batch.length }),
+      onUndo: () =>
+        void (async () => {
+          for (const take of batch) {
+            await medRepo.setTaken(take.medId, account.id, today, take.slot, false);
+          }
+        })(),
+    });
+  }
+
+  function supplyText(med: MedRow): { text: string; low: boolean } | null {
+    const days = daysLeftOf(med);
+    if (days === null) return null;
+    const low = days <= LOW_SUPPLY_DAYS;
+    if (days === 0) return { text: t('gymplus.meds.empty'), low };
+    if (days === 1) return { text: t('gymplus.meds.daysLeft.one'), low };
+    return { text: t('gymplus.meds.daysLeft', { count: days }), low };
+  }
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -73,8 +105,13 @@ export function MedsView({ module }: { module: ModuleDefinition }) {
         <EmptyState title={t('meds.empty.title')} body={t('meds.empty.body')} />
       ) : null}
 
+      {open.length > 0 ? (
+        <Button label={t('gymplus.meds.takeAll')} icon="check" onPress={() => void takeAll()} />
+      ) : null}
+
       {rows.map((med) => {
-        const low = med.stock !== null && med.stock <= LOW_STOCK;
+        const supply = supplyText(med);
+        const low = supply?.low ?? false;
         return (
           // Nach links wischen loescht das Medikament; die Chips bleiben zum Antippen.
           <SwipeRow
@@ -93,11 +130,11 @@ export function MedsView({ module }: { module: ModuleDefinition }) {
                       </Text>
                     ) : null}
                   </View>
-                  {med.stock !== null ? (
+                  {supply ? (
                     <View style={[styles.row, { gap: theme.spacing.xs }]}>
                       {low ? <Icon name="warning" size={14} color={theme.colors.danger} /> : null}
                       <Text variant="label" tone={low ? 'danger' : 'muted'}>
-                        {low ? t('meds.stockLow') : t('meds.stockCount', { count: med.stock })}
+                        {supply.text}
                       </Text>
                     </View>
                   ) : null}

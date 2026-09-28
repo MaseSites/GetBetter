@@ -463,7 +463,12 @@ export function MailView(_: { module: ModuleDefinition }) {
       : undefined;
     screen = (
       <InboxScreen
-        title={t(FOLDER_LABEL_KEYS[activePlace.role])}
+        title={
+          // Ohne Postfach ist es die Einrichtung, nicht der Posteingang.
+          loaded && mailboxes.length === 0
+            ? t('fixes.mail.setupTitle')
+            : t(FOLDER_LABEL_KEYS[activePlace.role])
+        }
         overline={box && mailboxes.length > 1 ? box.email : null}
         role={activePlace.role}
         threads={threads}

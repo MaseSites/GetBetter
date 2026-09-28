@@ -15,6 +15,11 @@ import { enFit5 } from './en-fit5';
 import { enFit6 } from './en-fit6';
 import { enFit7 } from './en-fit7';
 import { enFit8 } from './en-fit8';
+import { enFixes } from './en-fixes';
+import { enFamilyPlus } from './en-familyplus';
+import { enGymPlus } from './en-gymplus';
+import { enMoneyPlus } from './en-moneyplus';
+import { enOrgPlus } from './en-orgplus';
 import { enPlan } from './en-plan';
 import { enShell } from './en-shell';
 import { enTasks } from './en-tasks';
@@ -38,6 +43,7 @@ export const en: Readonly<Record<TranslationKey, string>> = {
   ...enMailUi,
   ...enUi,
   ...enPlan,
+  ...enOrgPlus,
   ...enFit,
   ...enFit2,
   ...enFit3,
@@ -46,4 +52,8 @@ export const en: Readonly<Record<TranslationKey, string>> = {
   ...enFit6,
   ...enFit7,
   ...enFit8,
+  ...enFixes,
+  ...enFamilyPlus,
+  ...enGymPlus,
+  ...enMoneyPlus,
 };

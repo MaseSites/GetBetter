@@ -537,4 +537,20 @@ export const itC = {
   'settings.household.join': 'Unisciti a una casa',
   'settings.app': 'App',
   'settings.app.version': 'Versione',
+  'account.delete.row':
+    'Elimina account',
+  'account.delete.title':
+    'Elimina account',
+  'account.delete.body':
+    'Così elimini il tuo account in tutte le app Better – con alimentazione, allenamento, peso, appuntamenti, note e immagini. Non si può annullare. Un abbonamento attivo lo disdici nell’App Store o su Google Play.',
+  'account.delete.password':
+    'La tua password',
+  'account.delete.confirm':
+    'Elimina definitivamente',
+  'account.delete.wrongPassword':
+    'La password non è corretta.',
+  'account.delete.tooMany':
+    'Troppi tentativi. Aspetta qualche minuto.',
+  'account.delete.offline':
+    'Non ha funzionato. Controlla la connessione e riprova.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

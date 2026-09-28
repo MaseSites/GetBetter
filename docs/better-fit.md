@@ -223,6 +223,42 @@ gewinnt „Banane, roh“ vor „Banane, gedörrt“. Die Anzeige bleibt beim Wo
 Je Analyse gespeichert: Modell, Bilder, Tokens, Laufzeit, Kosten, Status, Ampel,
 Korrekturen, Gramm-Abweichung — nie Bild oder Text. Übersicht im Admin unter **Better Fit**.
 
+## Verkaufsbereit? Prüfung vom 25.09.2026
+
+**Nein, noch nicht.** Die Funktionen sind weit (1421 Tests grün), aber vier Dinge fehlten im Code und
+mehrere liegen beim Eigentümer.
+
+**Gefunden und behoben (25.09.):**
+
+- `.env.local` wurde seit dem Merge vom 24.09. **nicht mehr gelesen** — Better Fit lief unbemerkt im
+  Mock-Modus. `server.js` lädt sie wieder in der ersten Zeile (`test/env-file.test.js`); Test-Starter
+  setzen `BETTER_SKIP_ENV_FILE=1`.
+- Live ohne Schlüssel gab still **Beispielwerte** aus → jetzt `503 not_configured`. Beim Start meldet
+  `fit/readiness.js` jede Lücke, mit `NODE_ENV=production` startet der Dienst nicht halb eingerichtet.
+- Gratis-Konten konnten das **gemeinsame** Gemini-Budget leeren → Foto und Etikett zählen gegen das
+  Kontingent des Kontos in BetterGym (`402 plan_budget_free`, in der App „Abo ansehen“).
+- `fit.json` lag **unverschlüsselt** → mit `BETTER_DATA_KEY` wie `db.json`.
+- `.env*` und `*.key` wären ins **Docker-Bild** gewandert → `.dockerignore`.
+- `blockedApps` galt nicht für Better Fit → `403 app_blocked`. Fit-Bremse je Adresse nutzt `clientIp`.
+- Gemini: Kette von Ersatzmodellen (`gemini-3.6-flash,gemini-3.5-flash`), 404 und
+  **Tageskontingent** (`provider_quota`) werden erkannt und laut protokolliert statt „überlastet“.
+- **Konto löschen** in der App (Einstellungen, mit Passwort, `DELETE /v1/accounts/:id`, gemeinsam mit
+  dem Admin in `accountRemoval.js`) und **Auskunft** `GET /v1/fit/export`.
+- Open Food Facts: Kontakt im User-Agent über `FIT_OFF_CONTACT`.
+
+**Gemessen am 25.09.:** Der Gemini-Schlüssel steckt im **Gratis-Zugang** (20 Anfragen je Modell und
+Tag, für alle Konten zusammen; Google darf die Fotos zum Training nutzen; für Nutzer in der Schweiz
+laut Bedingungen nicht zulässig). Von 5 Tellern des Prüfstands kam 1 durch. Der Text-KI-Anbieter für
+den Coach (Safe Swiss Cloud oder Groq) ist nicht eingerichtet — alle 10 Aufrufe seit 23.09.:
+`not_configured`.
+
+**Beim Eigentümer (Reihenfolge):** Gemini-Abrechnung (volljährige Person) · Safe Swiss Cloud für den
+Coach · Kauf in der App (RevenueCat oder expo-iap; heute schaltet nur der Admin frei — im Store
+unzulässig) · Apple-/Google-Konto und `eas init` · Hosting in der Schweiz mit HTTPS,
+`BETTER_API_TOKEN`, `BETTER_DATA_KEY`, Schweizer Datenbank im Volume · Datenschutzerklärung, DSFA,
+ausdrückliche Einwilligung, Altersfreigabe 18+ (Gemini verlangt 18) · echte Telefone testen ·
+Rezeptbilder ersetzen · Icons der fünf Fit-Funktionen.
+
 ## Offen / bewusst noch nicht
 
 - **Auf echten Telefonen testen**: Kamera, Scanner und Fotos brauchen einen Dev-Build oder Expo Go auf iPhone/Android; im Browser geprüft ist nur der Web-Weg.

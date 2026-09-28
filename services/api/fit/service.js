@@ -21,7 +21,7 @@ const { trainingRoutes } = require('./routes/training.js');
 const { createTools } = require('./tools/index.js');
 const { fitStats } = require('./stats.js');
 const { createTempImages } = require('./tempImages.js');
-const { createUsage } = require('./usage.js');
+const { FIT_APP, createUsage } = require('./usage.js');
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,80}$/;
@@ -55,9 +55,17 @@ const guarded = (handler) => async (request) => {
   }
 };
 
-function createFitService({ dataDir, env = process.env, now = () => new Date(), ai = null, calendar = null }) {
+function createFitService({ dataDir, env = process.env, now = () => new Date(), ai = null, calendar = null, billing = null }) {
   const config = fitConfig(env);
-  const store = createFitStore({ dataDir, now: () => now().getTime() });
+  const store = createFitStore({ dataDir, now: () => now().getTime(), env });
+  // `billing`: das Kassenbuch der Abos. Foto- und Etiketten-Analysen zaehlen gegen
+  // das Kontingent des Kontos in BetterGym, und der Coach sieht, was sie kosteten.
+  const usage = createUsage({ store, config, now, billing });
+  if (billing) {
+    billing.addSpendSource((accountId, app) => (app === FIT_APP ? usage.accountSpendChf(accountId) : 0));
+    // Der Stand liegt sonst erst beim ersten Fit-Aufruf im Speicher.
+    store.warm().catch(() => {});
+  }
   const catalog = createCatalog({ dataDir, mode: config.mode });
 
   /**
@@ -126,7 +134,7 @@ function createFitService({ dataDir, env = process.env, now = () => new Date(), 
   const reference = createReference({ dataDir });
   // `ai`: der KI-Dienst des Projekts fuer freie Fragen an den Coach (mit Abo-Kontingent).
   // `calendar(accountId, day)`: Titel der eigenen Termine an einem Tag, fuer das Verschieben.
-  const context = { config, store, catalog, reference, images, ok, now, todayIn, isDay, shiftDay, once, dataDir, ai, calendar };
+  const context = { config, store, catalog, reference, images, usage, ok, now, todayIn, isDay, shiftDay, once, dataDir, ai, calendar };
   const engine = createTools(context);
   const routes = [
     ...packagedRoutes(context),
@@ -145,7 +153,6 @@ function createFitService({ dataDir, env = process.env, now = () => new Date(), 
     await store.transact((tx) => tx.forOwner(accountId).removeEverything());
   }
 
-  const usage = createUsage({ store, config, now });
   const stats = (month) => fitStats({ store, usage, now }, month);
 
   return { routes, config, store, catalog, reference, context, engine, removeAccount, stats };

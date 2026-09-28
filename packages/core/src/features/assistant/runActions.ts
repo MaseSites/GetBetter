@@ -7,11 +7,17 @@ import {
   expenses as expenseRepo,
   habits as habitRepo,
   meals as mealRepo,
+  meds as medRepo,
+  moods as moodRepo,
   notes as noteRepo,
+  sleepMinutes,
+  sleeps as sleepRepo,
   tasks as taskRepo,
+  vitals as vitalRepo,
   workouts as workoutRepo,
   type AiAction,
 } from '@/db';
+import { fit } from '@/db/fit';
 import {
   alarms as alarmRepo,
   chores as choreRepo,
@@ -23,6 +29,7 @@ import {
 } from '@/db/repositories';
 import { dueAtOfDay } from '@/db/taskFields';
 import type { CelebrationKind } from '@/features/celebrate/celebrations';
+import { pickMedTake } from '@/features/gym/medSupply';
 import { guessCategory, splitQuantity } from '@/features/shopping/categories';
 import {
   formatBirthDate,
@@ -92,6 +99,75 @@ function whenOf(language: Language, window: Pick<EventWindow, 'startsAt' | 'allD
 
 /** Ein Tag `YYYY-MM-DD` als Zeitpunkt mitten am Tag — so verrutscht er in keiner Zeitzone. */
 const noonOf = (day: string) => dueAtOfDay(day);
+
+/** Die Nacht gehoert zum Morgen danach — heute. */
+async function logSleep(action: Extract<AssistantAction, { name: 'log_sleep' }>, env: ActionEnv) {
+  const day = dayKey(env.now);
+  await sleepRepo.save({
+    accountId: env.accountId,
+    day,
+    bedtime: action.bedtime,
+    wakeTime: action.wake,
+    quality: action.quality,
+  });
+  const minutes = sleepMinutes({ bedtime: action.bedtime, wakeTime: action.wake });
+  return done(
+    env.t('assistant.did.sleep', {
+      duration: env.t('gymplus.hm', { hours: Math.floor(minutes / 60), minutes: minutes % 60 }),
+      bedtime: action.bedtime,
+      wake: action.wake,
+    }),
+    { celebrate: 'done' },
+  );
+}
+
+/** Eine Einnahme abhaken — nur, wenn klar ist, welche; sonst nachfragen. */
+async function takeMed(action: Extract<AssistantAction, { name: 'take_med' }>, env: ActionEnv) {
+  const { t, accountId } = env;
+  const day = dayKey(env.now);
+  const [list, takes] = await Promise.all([medRepo.list(accountId), medRepo.takes(accountId, day)]);
+  const pick = pickMedTake(list, takes, { med: action.med, slot: action.slot }, env.now.getHours());
+  if (pick.kind === 'none') return refused(t('assistant.did.noMed'));
+  if (pick.kind === 'which') {
+    return refused(t('assistant.did.medWhich', { names: formatList(env.language, pick.names) }));
+  }
+  const name = list.find((med) => med.id === pick.medId)?.name ?? '';
+  const slot = t(`meds.slot.${pick.slot}` as TranslationKey);
+  if (pick.kind === 'already') return done(t('assistant.did.medAlready', { name, slot }));
+  await medRepo.setTaken(pick.medId, accountId, day, pick.slot, true);
+  return done(t('assistant.did.med', { name, slot }), {
+    celebrate: 'done',
+    undo: () => medRepo.setTaken(pick.medId, accountId, day, pick.slot, false),
+  });
+}
+
+async function logVital(action: Extract<AssistantAction, { name: 'log_vital' }>, env: ActionEnv) {
+  const { t, language } = env;
+  const day = dayKey(env.now);
+  await vitalRepo.add({
+    accountId: env.accountId,
+    kind: action.kind,
+    day,
+    value: action.value,
+    value2: action.value2,
+  });
+  // Gewicht an einer Stelle — auch in Better Fit, wie im Bildschirm Werte.
+  if (action.kind === 'weight' && action.value >= 30 && action.value <= 350) {
+    void fit.logWeight(action.value, day);
+  }
+  const value =
+    action.value2 === null
+      ? formatNumber(language, action.value)
+      : `${formatNumber(language, action.value)}/${formatNumber(language, action.value2)}`;
+  return done(
+    t('assistant.did.vital', {
+      kind: t(`vitals.kind.${action.kind}` as TranslationKey),
+      value,
+      unit: t(`vitals.unit.${action.kind}` as TranslationKey),
+    }),
+    { celebrate: 'done' },
+  );
+}
 
 function eventTarget(env: ActionEnv): EventTarget | null {
   if (env.app !== 'betterfamily') return { calendar: 'personal', calendarId: null, householdId: null };
@@ -284,6 +360,17 @@ async function run(action: AssistantAction, env: ActionEnv): Promise<ActionOutco
       return done(t('assistant.did.workout', { kind: action.kind, minutes: action.minutes }), {
         celebrate: 'workout',
       });
+    case 'log_sleep':
+      return logSleep(action, env);
+    case 'take_med':
+      return takeMed(action, env);
+    case 'log_mood':
+      await moodRepo.save({ accountId, day: today, mood: action.mood, note: action.note });
+      return done(t('assistant.did.mood', { mood: t(`mind.mood.${action.mood}` as TranslationKey) }), {
+        celebrate: 'done',
+      });
+    case 'log_vital':
+      return logVital(action, env);
     case 'add_expense':
       await expenseRepo.add({
         accountId,

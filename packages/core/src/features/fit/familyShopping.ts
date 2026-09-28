@@ -38,10 +38,12 @@ export async function sendToFamilyList(
     });
   };
   for (const item of plan.add) await write(item);
-  // Die Liste kennt kein Aendern der Menge: die alte Zeile geht, die neue kommt.
+  // Die bestehende Zeile bekommt die noetige Menge — nie `add`, das wuerde
+  // seit der Zusammenfuehrung aufaddieren statt anheben.
   for (const { row, item } of plan.raise) {
-    await write(item);
-    await shoppingRepo.remove(row.id);
+    await shoppingRepo.update(row.id, {
+      quantity: item.amount !== null && item.unit ? format.quantity(item.amount, item.unit) : null,
+    });
   }
   return { added: plan.add.length, raised: plan.raise.length, skipped: plan.skipped };
 }

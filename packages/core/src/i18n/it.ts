@@ -15,6 +15,11 @@ import { itFit5 } from './it-fit5';
 import { itFit6 } from './it-fit6';
 import { itFit7 } from './it-fit7';
 import { itFit8 } from './it-fit8';
+import { itFixes } from './it-fixes';
+import { itFamilyPlus } from './it-familyplus';
+import { itGymPlus } from './it-gymplus';
+import { itMoneyPlus } from './it-moneyplus';
+import { itOrgPlus } from './it-orgplus';
 import { itPlan } from './it-plan';
 import { itShell } from './it-shell';
 import { itTasks } from './it-tasks';
@@ -38,6 +43,7 @@ export const it: Readonly<Record<TranslationKey, string>> = {
   ...itMailUi,
   ...itUi,
   ...itPlan,
+  ...itOrgPlus,
   ...itFit,
   ...itFit2,
   ...itFit3,
@@ -46,4 +52,8 @@ export const it: Readonly<Record<TranslationKey, string>> = {
   ...itFit6,
   ...itFit7,
   ...itFit8,
+  ...itFixes,
+  ...itFamilyPlus,
+  ...itGymPlus,
+  ...itMoneyPlus,
 };

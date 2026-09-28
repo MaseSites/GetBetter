@@ -169,7 +169,6 @@ export function ProgressView({ module }: { module: ModuleDefinition }) {
               value={value}
               onChangeText={setValue}
               keyboardType="decimal-pad"
-              placeholder="72,4"
               onSubmitEditing={() => void save()}
               {...(error ? { error } : {})}
             />

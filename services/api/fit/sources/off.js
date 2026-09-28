@@ -11,7 +11,14 @@ const { inferAllergens } = require('../catalog/allergens.js');
 const { checkPer100 } = require('../nutrition.js');
 
 const API_BASE = 'https://world.openfoodfacts.org';
-const USER_AGENT = 'BetterFit/0.1 (Entwicklung; https://github.com/MaseSites/GetBetter)';
+/**
+ * Open Food Facts verlangt `App/Version (Kontakt)`. Die Kontaktadresse kommt
+ * aus `FIT_OFF_CONTACT` (E-Mail des Betreibers), damit sie nicht im Code steht.
+ */
+function userAgent(env = process.env) {
+  const contact = env.FIT_OFF_CONTACT?.trim();
+  return `BetterFit/1.0 (${contact || 'https://github.com/MaseSites/GetBetter'})`;
+}
 const FOUND_DAYS = 30;
 const MISSING_DAYS = 1;
 const TIMEOUT_MS = 8_000;
@@ -105,7 +112,7 @@ function createOpenFoodFacts({ enabled, mode, baseUrl = API_BASE, fetchImpl = fe
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       try {
         const response = await fetchImpl(`${baseUrl}/api/v2/product/${code}.json?fields=${FIELDS.join(',')}`, {
-          headers: { 'User-Agent': USER_AGENT },
+          headers: { 'User-Agent': userAgent() },
           signal: controller.signal,
         });
         clearTimeout(timer);

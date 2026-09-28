@@ -31,11 +31,17 @@ function fitConfig(env = process.env) {
     geminiKey: env.GEMINI_API_KEY?.trim() || null,
     visionModel: env.GEMINI_VISION_MODEL?.trim() || 'gemini-3.8-flash',
     cheapModel: env.GEMINI_CHEAP_MODEL?.trim() || 'gemini-3.5-flash-lite',
-    /** Springt ein, wenn das Modell ueberlastet ist (503). Leer = keins. */
+    /**
+     * Springen der Reihe nach ein, wenn das Modell ueberlastet ist (429/5xx)
+     * oder es nicht mehr gibt (404). Komma-Liste; leer = keins. Am 25.09.2026
+     * waren 3.5 Flash und 3.7 Flash ueberlastet, 3.6 Flash nicht.
+     */
     fallbackModel:
       env.GEMINI_FALLBACK_MODEL === undefined
-        ? 'gemini-3.5-flash'
-        : env.GEMINI_FALLBACK_MODEL.trim() || null,
+        ? ['gemini-3.6-flash', 'gemini-3.5-flash']
+        : env.GEMINI_FALLBACK_MODEL.split(',')
+            .map((name) => name.trim())
+            .filter(Boolean),
     usdaKey: env.USDA_FDC_API_KEY?.trim() || null,
     storeOriginalImages: bool(env.STORE_ORIGINAL_MEAL_IMAGES, false),
     openFoodFacts: bool(env.ENABLE_OPEN_FOOD_FACTS, true),

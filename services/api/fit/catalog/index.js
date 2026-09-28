@@ -508,6 +508,8 @@ function createCatalog({ dataDir, mode }) {
     find,
     reload,
     info: () => ({ foods: base().foods.length, swissVersion: base().swissVersion, mode }),
+    /** Liegt die Schweizer Datenbank da? Liest, ohne sich etwas zu merken — fuer die Pruefung beim Start. */
+    probe: () => ({ swissVersion: readSwiss(dataDir)?.version ?? null }),
   };
 }
 

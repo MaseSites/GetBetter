@@ -269,6 +269,18 @@ function records(sets) {
 }
 
 /**
+ * Die Bestleistung vor dem Tag eines Rekords — derselben Uebung und Art. Nur
+ * wenn es sie gab und sie uebertroffen wurde, ist der Rekord wirklich einer;
+ * sonst `null` (der erste Eintrag ist nur ein Anfang).
+ */
+function previousBest(sets, entry) {
+  const before = records(sets.filter((set) => set.exerciseId === entry.exerciseId && set.day < entry.day));
+  const prior = before[entry.exerciseId];
+  if (!prior || prior.kind !== entry.kind || prior.value >= entry.value) return null;
+  return prior.value;
+}
+
+/**
  * Welche Saetze eines Trainings einen neuen Rekord setzen — verglichen mit der
  * Bestleistung vor diesem Training. Ohne fruehere Saetze derselben Art gibt es
  * keinen Rekord (der erste Satz ist nur ein Anfang).
@@ -432,6 +444,7 @@ module.exports = {
   muscleWeek,
   nextTarget,
   pickTemplate,
+  previousBest,
   rangeOf,
   recordSetIds,
   records,

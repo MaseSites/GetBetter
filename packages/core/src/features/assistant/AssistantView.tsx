@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -272,16 +273,29 @@ export function AssistantView() {
       footer={
         <View style={{ gap: theme.spacing.sm }}>
           {empty && draft.length === 0 && voicing.mode === 'off' ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.edge }}
-            >
-              {suggestions.map((key) => (
-                <SuggestionChip key={key} label={t(key)} onPress={() => void ask(t(key))} />
-              ))}
-            </ScrollView>
+            // Die Chips laufen bis an den Bildschirmrand und verblassen dort —
+            // so sehen sie geschoben aus, nicht mitten im Wort abgeschnitten.
+            <View style={{ marginHorizontal: -theme.spacing.edge }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{
+                  gap: theme.spacing.sm,
+                  paddingHorizontal: theme.spacing.edge,
+                }}
+              >
+                {suggestions.map((key) => (
+                  <SuggestionChip key={key} label={t(key)} onPress={() => void ask(t(key))} />
+                ))}
+              </ScrollView>
+              <LinearGradient
+                colors={[`${theme.colors.background}00`, theme.colors.background]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.chipFade, { width: theme.spacing.xl, pointerEvents: 'none' }]}
+              />
+            </View>
           ) : null}
 
           {planOffer ? (
@@ -395,6 +409,7 @@ const styles = StyleSheet.create({
   // Das Gespraech und darueber der Avatar — er soll nichts verschieben.
   stage: { flex: 1 },
   offer: { alignSelf: 'flex-start' },
+  chipFade: { position: 'absolute', top: 0, bottom: 0, right: 0 },
   ask: { alignSelf: 'flex-end', maxWidth: '85%' },
   said: { maxWidth: 305 },
 });

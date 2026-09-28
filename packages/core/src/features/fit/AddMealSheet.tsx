@@ -20,12 +20,14 @@ import {
 } from '@/features/personalize/pickImage';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
+import { usePlanSheet } from '@/features/plan/PlanSheet';
 import { Segmented, Sheet, Text } from '@/ui';
 
 import { ActionCard } from './ActionCard';
 import { AddFoodSheet } from './AddFoodSheet';
 import { ChoiceTile } from './ChoiceTile';
 import { IntentKeys } from './intentKeys';
+import { Pill } from './KitchenKit';
 import { PhotoAnalysisSheet } from './PhotoAnalysisSheet';
 import { useFit } from './useFit';
 import { useMealToast } from './useMealToast';
@@ -36,7 +38,18 @@ export { slotForNow } from './slots';
 type Open =
   { kind: 'search' | 'barcode' } | { kind: 'photo'; analysis: MealAnalysis | null } | null;
 
-const PHOTO_ERRORS = ['daily_limit', 'budget_exhausted', 'no_food', 'offline'];
+const PHOTO_ERRORS = [
+  'daily_limit',
+  'budget_exhausted',
+  'plan_budget_free',
+  'plan_budget_paid',
+  'not_configured',
+  'provider_busy',
+  'provider_quota',
+  'provider_timeout',
+  'no_food',
+  'offline',
+];
 
 /**
  * Was hinter dem Plus steckt: oben die Mahlzeit, darunter die Wege, etwas
@@ -62,6 +75,9 @@ export function AddMealSheet({
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Gratis-Kontingent aufgebraucht: unter dem Satz steht „Abo ansehen“.
+  const [offerPlan, setOfferPlan] = useState(false);
+  const plans = usePlanSheet();
   const [pantryAction, setPantryAction] = useState<FitAction | null>(null);
   const status = useFit(() => fit.status(), []);
   const plan = useFit(() => fit.currentPlan(), [], ['kitchen']);
@@ -115,6 +131,7 @@ export function AddMealSheet({
       setBusy('photo');
       const result = await fit.startAnalysis({ image, day, slot, language });
       setBusy(null);
+      setOfferPlan(!result.ok && result.error === 'plan_budget_free');
       if (result.ok) setOpen({ kind: 'photo', analysis: result.data.analysis });
       else
         setError(
@@ -201,6 +218,18 @@ export function AddMealSheet({
               <Text variant="label" tone="danger">
                 {error}
               </Text>
+            ) : null}
+            {error && offerPlan ? (
+              <Pill
+                label={t('fit6.coach.plan')}
+                tone="soft"
+                size="sm"
+                onPress={() => {
+                  // Nie zwei Blaetter uebereinander: erst dieses zu, dann das Abo.
+                  onClose();
+                  plans.open();
+                }}
+              />
             ) : null}
 
             {planned.map((entry) => (

@@ -115,7 +115,8 @@ export function HouseholdHomeScreen() {
                 right: (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${t('household.invite.title')}: ${household.inviteCode}`}
+                    // Der Code selbst steht nur in der Haushalt-Ansicht — hier liest jeder mit.
+                    accessibilityLabel={t('fixes.household.inviteA11y')}
                     onPress={() => router.push('/household')}
                     hitSlop={theme.spacing.sm}
                     style={({ pressed }) => [
@@ -141,7 +142,7 @@ export function HouseholdHomeScreen() {
                         letterSpacing: theme.tracking.label,
                       }}
                     >
-                      {household.inviteCode}
+                      {t('fixes.household.invite')}
                     </Text>
                   </Pressable>
                 ),

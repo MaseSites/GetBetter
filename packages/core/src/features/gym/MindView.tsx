@@ -2,9 +2,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { dayKey, moods as moodRepo, useLiveQuery } from '@/db';
+import { dayKey, healthInsights, moods as moodRepo, useLiveQuery } from '@/db';
+import { addDays } from '@/features/calendar/dates';
 import { relativeDay } from '@/features/shared/days';
-import { useI18n, type TranslationKey } from '@/i18n';
+import { localeFor, useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -24,6 +25,12 @@ import {
 } from '@/ui';
 
 import { RemoveButton } from '../money/parts';
+
+import { moodInsightsOf, type MoodFactor } from './moodInsights';
+import { TARGET_DL } from './WaterView';
+
+/** So weit zurueck sucht „Was dir guttut“ nach Zusammenhaengen. */
+const INSIGHT_DAYS = 60;
 
 const MOODS = [1, 2, 3, 4, 5] as const;
 
@@ -110,6 +117,8 @@ export function MindView({ module }: { module: ModuleDefinition }) {
         </View>
       </Card>
 
+      <MoodInsights accountId={account.id} today={today} />
+
       <Breathing />
 
       {rows.length === 0 ? (
@@ -143,6 +152,53 @@ export function MindView({ module }: { module: ModuleDefinition }) {
         </View>
       )}
     </Screen>
+  );
+}
+
+/**
+ * „Was dir guttut“: die Laune an Tagen mit und ohne Training, gutem Schlaf,
+ * erreichtem Trinkziel. Erst, wenn es genug Tage gibt — sonst steht nichts da.
+ */
+function MoodInsights({ accountId, today }: { accountId: string; today: string }) {
+  const { t, language } = useI18n();
+  const theme = useTheme();
+  const from = dayKey(addDays(new Date(`${today}T12:00:00`), -INSIGHT_DAYS));
+  const data = useLiveQuery(() => healthInsights.since(accountId, from), [accountId, from]);
+  if (!data.data) return null;
+  const { moods, sleeps, workouts, drinks } = data.data;
+  const insights = moodInsightsOf(moods, sleeps, workouts, drinks, { waterTargetDl: TARGET_DL });
+  if (insights.length === 0) return null;
+  const one = new Intl.NumberFormat(localeFor(language), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  const keyOf: Record<MoodFactor, TranslationKey> = {
+    workout: 'gymplus.mood.workout',
+    sleep: 'gymplus.mood.sleep',
+    water: 'gymplus.mood.water',
+  };
+
+  return (
+    <Card title={t('gymplus.mood.title')}>
+      <View style={{ gap: theme.spacing.md }}>
+        {insights.map((insight) => (
+          <View key={insight.factor} style={{ gap: 2 }}>
+            <Text variant="label">
+              {t(keyOf[insight.factor], {
+                with: one.format(insight.withMood),
+                without: one.format(insight.withoutMood),
+              })}
+            </Text>
+            <Text variant="caption" tone="muted">
+              {t('gymplus.mood.days', { with: insight.withDays, without: insight.withoutDays })}
+            </Text>
+          </View>
+        ))}
+        <Text variant="caption" tone="muted">
+          {t('gymplus.mood.note')}
+        </Text>
+      </View>
+    </Card>
   );
 }
 

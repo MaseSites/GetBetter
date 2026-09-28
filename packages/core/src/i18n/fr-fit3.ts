@@ -115,7 +115,6 @@ export const frFit3: Readonly<Record<keyof typeof deFit3, string>> = {
   'fit.link.restDetail': 'Pas d’entraînement aujourd’hui — l’objectif est un peu plus bas',
   'fit.link.noPlan': 'Pas encore de plan d’entraînement — le créer ici',
   'fit.water.progress': '{drunk} sur {target} l bus',
-  'fit.water.add': '+{dl} dl',
   'fit.water.trainingHint': 'Jour d’entraînement : un demi-litre de plus.',
   'fit.meal.emptySlot': 'Rien noté pour l’instant',
   'fit.training.startTitle': 'Ton plan d’entraînement',

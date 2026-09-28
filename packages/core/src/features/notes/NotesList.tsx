@@ -11,6 +11,7 @@ import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
   Button,
+  EmptyState,
   FLOATING_BUTTON_SIZE,
   FloatingButton,
   Header,
@@ -255,17 +256,19 @@ export function NotesList({ initialFolderId, initialTag }: NotesListProps) {
           },
         ];
 
-  const emptyLine = list.loading
-    ? null
-    : trimmed && visible.length === 0
+  // Suche ohne Treffer: eine Zeile. Gar keine Notizen: ein richtiger leerer Zustand.
+  const emptyLine =
+    !list.loading && trimmed && visible.length === 0
       ? t('notes.list.noResults', { query: trimmed })
-      : !trimmed && scoped.length === 0
-        ? current.kind === 'folder'
-          ? t('notes.list.emptyFolder', { name: currentFolder?.name ?? '' })
-          : current.kind === 'tag'
-            ? t('notes.list.emptyTag', { tag: current.tag })
-            : t('notes.list.empty')
-        : null;
+      : null;
+  const emptyTitle =
+    list.loading || trimmed || scoped.length > 0
+      ? null
+      : current.kind === 'folder'
+        ? t('notes.list.emptyFolder', { name: currentFolder?.name ?? '' })
+        : current.kind === 'tag'
+          ? t('notes.list.emptyTag', { tag: current.tag })
+          : t('notes.list.empty');
 
   function renderRows(rows: readonly NoteRow[]) {
     const itemProps = (note: NoteRow) => ({
@@ -387,6 +390,18 @@ export function NotesList({ initialFolderId, initialTag }: NotesListProps) {
               <Text variant="body" tone="muted" align="center">
                 {emptyLine}
               </Text>
+            ) : null}
+            {emptyTitle ? (
+              <EmptyState
+                title={emptyTitle}
+                body={
+                  current.kind === 'tag'
+                    ? t('fixes.notes.emptyTagBody', { tag: current.tag })
+                    : t('fixes.notes.emptyBody')
+                }
+                actionLabel={t('notes.new')}
+                onAction={() => router.push(newNoteHref(currentFolder?.id ?? null))}
+              />
             ) : null}
             {trimmed && visible.length === 0 && current.kind !== 'all' ? (
               <Button

@@ -1,14 +1,35 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
-import { chatMessages as messageRepo, chats as chatRepo, dayKey, useLiveQuery } from '@/db';
+import {
+  chatMessages as messageRepo,
+  chats as chatRepo,
+  dayKey,
+  useLiveQuery,
+  type ChatRow,
+} from '@/db';
 import { relativeDay } from '@/features/shared/days';
 import { useI18n } from '@/i18n';
 import { AI_CHAT_STARTER_KEYS } from '@/mocks/aiChat';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
-import { ComposeBar, EmptyState, Header, Screen, SuggestionChip, SwipeRow, Text } from '@/ui';
+import {
+  Button,
+  ComposeBar,
+  ContextMenu,
+  EmptyState,
+  Header,
+  Icon,
+  Input,
+  Screen,
+  Sheet,
+  SuggestionChip,
+  SwipeRow,
+  Text,
+} from '@/ui';
+
+import { filterChats, SEARCH_FROM } from './chatList';
 
 /**
  * Die Startseite von BetterAi: die Gespraeche, das Neueste zuerst, im Aussehen
@@ -22,11 +43,17 @@ export function ChatsView() {
   const account = useAccount();
 
   const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
+  const [renaming, setRenaming] = useState<ChatRow | null>(null);
 
   const list = useLiveQuery(() => chatRepo.list(account.id), [account.id]);
   const latest = useLiveQuery(() => messageRepo.latest(account.id), [account.id]);
+  const everything = useLiveQuery(() => messageRepo.listAll(account.id), [account.id]);
   const rows = list.data ?? [];
   const previews = latest.data ?? new Map();
+  // Angeheftete oben; mit Suche nur, was im Titel oder einer Nachricht passt.
+  const shown = filterChats(rows, everything.data ?? [], query);
+  const searching = query.trim().length > 0;
 
   async function startChat(firstMessage?: string) {
     const created = await chatRepo.create(account.id);
@@ -105,32 +132,84 @@ export function ChatsView() {
           <EmptyState title={t('chats.empty.title')} body={t('chats.empty.body')} />
         ) : null}
 
-        {rows.map((chat) => {
+        {rows.length >= SEARCH_FROM || searching ? (
+          <Input
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('gymplus.chats.search')}
+            accessibilityLabel={t('gymplus.chats.search')}
+            icon="search"
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+        ) : null}
+
+        {searching && shown.length === 0 ? (
+          <EmptyState
+            title={t('gymplus.chats.noResults')}
+            body={t('gymplus.chats.noResultsBody', { query: query.trim() })}
+          />
+        ) : null}
+
+        {shown.map((chat) => {
           const preview = previews.get(chat.id);
           const title = chat.title || t('chats.untitled');
-          // Loeschen: nach links wischen, oder im Gespraech selbst.
+          const pinned = Boolean(chat.pinnedAt);
+          const togglePin = () => void chatRepo.setPinned(chat.id, !pinned);
+          // Nach rechts wischen heftet an, nach links loescht; ein langer Druck kann beides und mehr.
           return (
             <SwipeRow
               key={chat.id}
               radius={theme.radii.item}
+              leading={{
+                key: 'pin',
+                label: pinned ? t('gymplus.chats.unpin') : t('gymplus.chats.pin'),
+                icon: pinned ? 'pin' : 'pinFilled',
+                tone: 'accent',
+                onPress: togglePin,
+              }}
               onDelete={() => void chatRepo.remove(chat.id)}
             >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={title}
+              <ContextMenu
+                accessibilityLabel={pinned ? `${t('gymplus.chats.pinned')}: ${title}` : title}
                 onPress={() => router.push(`/chat/${chat.id}`)}
-                style={({ pressed }) => ({
+                items={[
+                  {
+                    key: 'pin',
+                    label: pinned ? t('gymplus.chats.unpin') : t('gymplus.chats.pin'),
+                    icon: pinned ? 'pin' : 'pinFilled',
+                    onPress: togglePin,
+                  },
+                  {
+                    key: 'rename',
+                    label: t('gymplus.chats.rename'),
+                    icon: 'note',
+                    onPress: () => setRenaming(chat),
+                  },
+                  { key: 'divider', divider: true },
+                  {
+                    key: 'delete',
+                    label: t('common.delete'),
+                    icon: 'trash',
+                    destructive: true,
+                    onPress: () => void chatRepo.remove(chat.id),
+                  },
+                ]}
+                style={{
                   gap: theme.spacing.xs,
                   padding: theme.spacing.lg,
                   borderRadius: theme.radii.item,
                   borderWidth: 1,
                   borderColor: theme.colors.border,
-                  backgroundColor: pressed ? theme.colors.surfaceMuted : theme.colors.surface,
-                })}
+                  backgroundColor: theme.colors.surface,
+                }}
               >
                 <View
                   style={{ flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing.sm }}
                 >
+                  {pinned ? (
+                    <Icon name="pinFilled" size={14} color={theme.colors.accentMark} />
+                  ) : null}
                   <Text
                     variant="label"
                     numberOfLines={1}
@@ -152,11 +231,50 @@ export function ChatsView() {
                     {preview.text}
                   </Text>
                 ) : null}
-              </Pressable>
+              </ContextMenu>
             </SwipeRow>
           );
         })}
       </ScrollView>
+
+      <RenameSheet chat={renaming} onClose={() => setRenaming(null)} />
     </Screen>
+  );
+}
+
+/** Ein Feld, ein Knopf: der Titel eines Gespraechs, von Hand. */
+function RenameSheet({ chat, onClose }: { chat: ChatRow | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const theme = useTheme();
+  // Je Gespraech frisch: der Schluessel setzt das Feld zurueck.
+  return (
+    <Sheet visible={chat !== null} onClose={onClose} title={t('gymplus.chats.renameTitle')}>
+      {chat ? <RenameForm key={chat.id} chat={chat} onClose={onClose} gap={theme.spacing.lg} /> : null}
+    </Sheet>
+  );
+}
+
+function RenameForm({ chat, onClose, gap }: { chat: ChatRow; onClose: () => void; gap: number }) {
+  const { t } = useI18n();
+  const [title, setTitle] = useState(chat.title);
+
+  async function save() {
+    await chatRepo.rename(chat.id, title);
+    onClose();
+  }
+
+  return (
+    <View style={{ gap, paddingBottom: gap }}>
+      <Input
+        value={title}
+        onChangeText={setTitle}
+        placeholder={t('chats.untitled')}
+        accessibilityLabel={t('gymplus.chats.rename')}
+        autoCapitalize="sentences"
+        returnKeyType="done"
+        onSubmitEditing={() => void save()}
+      />
+      <Button label={t('common.done')} icon="check" onPress={() => void save()} />
+    </View>
   );
 }

@@ -116,3 +116,37 @@ test('movedWindow: was nicht genannt ist, bleibt — Tag, Zeit und Dauer', () =>
 test('mealSlotAt: Fruehstueck, Mittag, Zvieri, Znacht', () => {
   assert.deepEqual([7, 12, 16, 19, 23].map(mealSlotAt), ['breakfast', 'lunch', 'snack', 'dinner', 'snack']);
 });
+
+test('Gesundheit: Schlaf, Medikament, Laune und Messwert, mit Grenzen je Art', () => {
+  assert.deepEqual(parseAction({ name: 'log_sleep', args: { bedtime: '23:15', wake: '06:45', quality: 'good' } }), {
+    name: 'log_sleep',
+    bedtime: '23:15',
+    wake: '06:45',
+    quality: 3,
+  });
+  assert.equal(parseAction({ name: 'log_sleep', args: { bedtime: '23:00', wake: '23:00' } }), null);
+  assert.deepEqual(parseAction({ name: 'take_med', args: {} }), { name: 'take_med', med: null, slot: null });
+  assert.deepEqual(parseAction({ name: 'take_med', args: { med: ' Vitamin D ', slot: 'noon' } }), {
+    name: 'take_med',
+    med: 'Vitamin D',
+    slot: 'noon',
+  });
+  assert.deepEqual(parseAction({ name: 'log_mood', args: { mood: 4 } }), { name: 'log_mood', mood: 4, note: null });
+  assert.equal(parseAction({ name: 'log_mood', args: { mood: 4.5 } }), null);
+  assert.deepEqual(parseAction({ name: 'log_vital', args: { kind: 'bp', value: 128, value2: 82 } }), {
+    name: 'log_vital',
+    kind: 'bp',
+    value: 128,
+    value2: 82,
+  });
+  // Unten groesser als oben ist verhoert, ebenso ein Puls von 300.
+  assert.equal(parseAction({ name: 'log_vital', args: { kind: 'bp', value: 80, value2: 120 } }), null);
+  assert.equal(parseAction({ name: 'log_vital', args: { kind: 'bp', value: 128 } }), null);
+  assert.equal(parseAction({ name: 'log_vital', args: { kind: 'pulse', value: 300 } }), null);
+  assert.deepEqual(parseAction({ name: 'log_vital', args: { kind: 'weight', value: '72.4' } }), {
+    name: 'log_vital',
+    kind: 'weight',
+    value: 72.4,
+    value2: null,
+  });
+});

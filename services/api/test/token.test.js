@@ -49,6 +49,8 @@ before(async () => {
       ...process.env,
       PORT: String(port),
       BETTER_DATA_DIR: dataDir,
+      // Nie die echten Schluessel aus .env.local in einem Test.
+      BETTER_SKIP_ENV_FILE: '1',
       BETTER_MAIL_SYNC_MS: '0',
       BETTER_ADMIN_PORT: '0',
       BETTER_API_TOKEN: TOKEN,

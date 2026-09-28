@@ -249,4 +249,15 @@ export const itFit: Readonly<Record<keyof typeof deFit, string>> = {
   'fit.photo.error.offline': 'Il servizio non risponde al momento.',
   'fit.photo.error.too_many_images': 'Due foto bastano.',
   'fit.photo.error.generic': 'L’analisi non ha funzionato. Riprova o aggiungi a mano.',
+  'fit.photo.error.plan_budget_free':
+    'Le tue analisi foto gratuite di questo mese sono finite. Con l’abbonamento puoi continuare – aggiungere a mano funziona sempre.',
+  'fit.photo.error.plan_budget_paid':
+    'Il tuo contingente foto di questo mese è finito. Riparte il primo del mese – aggiungere a mano funziona sempre.',
+  'fit.photo.error.not_configured':
+    'L’analisi foto al momento non è configurata. Aggiungere a mano funziona ancora.',
+  'fit.photo.error.provider_quota':
+    'L’analisi foto per oggi è al completo. Aggiungere a mano funziona ancora.',
+  'fit.photo.error.provider_busy': 'L’IA delle foto è sovraccarica. Riprova tra un minuto.',
+  'fit.photo.error.provider_timeout':
+    'L’IA delle foto ci ha messo troppo. Riprova o aggiungi a mano.',
 };

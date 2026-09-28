@@ -10,6 +10,7 @@ import {
   dayKey,
   documents as documentRepo,
   habits as habitRepo,
+  subscriptions as subscriptionRepo,
   trips as tripRepo,
   useLiveQuery,
 } from '@/db';
@@ -21,6 +22,7 @@ import {
 import { WEEKDAYS } from '@/features/alarm/AlarmView';
 import { calendarLinkOf } from '@/features/calendar/links';
 import { useCalendarAccess } from '@/features/calendar/useCalendarAccess';
+import { subscriptionsChargedOn } from '@/features/money/nextCharge';
 import { daysUntil, nextBirthday, parseDay, relativeDay, shiftDay } from '@/features/shared/days';
 import { formatMoney, useI18n } from '@/i18n';
 import { MODULES, modulesOfApp } from '@/mocks/modules';
@@ -46,7 +48,7 @@ export type DayThreadData = {
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Wie viel die Startseite zeigt — der grosse Zeitstrahl zeigt alles. */
-const SHORT = { events: 3, habits: 3, bills: 2, documents: 2 } as const;
+const SHORT = { events: 3, habits: 3, bills: 2, subscriptions: 2, documents: 2 } as const;
 
 /**
  * Was an einem Tag im Band steht — fuer die Startseite und den grossen
@@ -106,6 +108,7 @@ export function useDayThread(
   const habitList = useLiveQuery(() => habitRepo.list(account.id), [account.id]);
   const habitTicks = useLiveQuery(() => habitRepo.ticks(account.id), [account.id]);
   const openBills = useLiveQuery(() => billRepo.listOpen(account.id), [account.id]);
+  const subscriptionList = useLiveQuery(() => subscriptionRepo.list(account.id), [account.id]);
   const documentList = useLiveQuery(() => documentRepo.list(account.id), [account.id]);
   const tripList = useLiveQuery(() => tripRepo.list(account.id), [account.id]);
   const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
@@ -215,6 +218,22 @@ export function useDayThread(
       onPress: owns('bills') ? () => router.push('/run/bills') : () => openApp('bettermoney'),
       // Antippen heisst bezahlt — wie beim Abhaken einer Aufgabe.
       onToggle: () => void billRepo.setPaid(bill.id, true),
+    });
+  }
+
+  // Abos an ihrem Abbuchungstag — wie Rechnungen, aber ohne Kreis: bezahlt wird von selbst.
+  const daySubscriptions = subscriptionsChargedOn(subscriptionList.data ?? [], day);
+  for (const row of cap(daySubscriptions, SHORT.subscriptions)) {
+    entries.push({
+      key: `subscription-${row.id}`,
+      moduleId: 'subscriptions',
+      icon: iconOf('subscriptions'),
+      title: row.name,
+      meta: formatMoney(language, row.amountChf),
+      tag: nameOf('subscriptions'),
+      onPress: owns('subscriptions')
+        ? () => router.push('/run/subscriptions')
+        : () => openApp('bettermoney'),
     });
   }
 
@@ -349,6 +368,7 @@ export function useDayThread(
       habitList,
       habitTicks,
       openBills,
+      subscriptionList,
       documentList,
       tripList,
       contactList,

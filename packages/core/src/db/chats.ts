@@ -39,6 +39,16 @@ export const chats = {
     return changed(await db.chats.insert(row));
   },
 
+  /** Anheften oder loesen; die letzte Nachricht (`updatedAt`) bleibt, wie sie war. */
+  async setPinned(id: string, pinned: boolean) {
+    return changed(await db.chats.update(id, { pinnedAt: pinned ? now() : null }));
+  },
+
+  /** Ein eigener Titel; leer heisst: wieder „Ohne Titel“. */
+  async rename(id: string, title: string) {
+    return changed(await db.chats.update(id, { title: title.trim().slice(0, 120) }));
+  },
+
   async remove(id: string) {
     const messages = await db.chatMessages.list({ where: (row) => row.chatId === id });
     for (const message of messages) await db.chatMessages.remove(message.id);
@@ -53,6 +63,11 @@ export const chatMessages = {
       where: (row) => row.chatId === chatId,
       sort: (a, b) => a.createdAt.localeCompare(b.createdAt),
     });
+  },
+
+  /** Alle Nachrichten eines Kontos — fuer die Suche ueber alle Gespraeche. */
+  listAll(accountId: string) {
+    return db.chatMessages.list({ where: (row) => row.accountId === accountId });
   },
 
   /** Die letzte Nachricht je Gespraech — fuer die Vorschau in der Liste. */

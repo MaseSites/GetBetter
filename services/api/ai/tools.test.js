@@ -19,7 +19,17 @@ describe('Funktionen des Assistenten', () => {
     assert.equal(names('getbetter').includes('log_water'), false);
     assert.deepEqual(
       names('bettergym').sort(),
-      ['log_meal', 'log_water', 'log_workout', 'open_function', 'set_theme'],
+      [
+        'log_meal',
+        'log_mood',
+        'log_sleep',
+        'log_vital',
+        'log_water',
+        'log_workout',
+        'open_function',
+        'set_theme',
+        'take_med',
+      ],
     );
     assert.deepEqual(names('bettermoney').sort(), ['add_bill', 'add_expense', 'open_function', 'set_theme']);
     for (const tool of toolsFor('betterfamily')) {
@@ -115,6 +125,42 @@ describe('Funktionen des Assistenten', () => {
       { name: 'add_bill', args: { title: 'Miete', amount: 1200, due_date: '2026-10-01' } },
     ]);
     assert.equal(money.rejected, 1);
+  });
+
+  test('Gesundheit in BetterGym: Schlaf, Medikament, Laune, Messwert', () => {
+    const health = actionsOf(
+      [
+        call('log_sleep', { bedtime: '23:15', wake: '06:45', quality: 'super' }),
+        call('log_sleep', { bedtime: '23 Uhr', wake: '06:45' }),
+        call('take_med', {}),
+        call('take_med', { med: 'Vitamin D', slot: 'morning' }),
+        call('log_mood', { mood: 4, note: 'Guter Tag' }),
+        call('log_mood', { mood: 6 }),
+      ],
+      'bettergym',
+    );
+    assert.deepEqual(health.actions, [
+      // Eine unbekannte Guete ist nur ein Nebenfeld: die Nacht bleibt.
+      { name: 'log_sleep', args: { bedtime: '23:15', wake: '06:45' } },
+      { name: 'take_med', args: {} },
+      { name: 'take_med', args: { med: 'Vitamin D', slot: 'morning' } },
+      { name: 'log_mood', args: { mood: 4, note: 'Guter Tag' } },
+    ]);
+    assert.equal(health.rejected, 2);
+
+    const vitals = actionsOf(
+      [
+        call('log_vital', { kind: 'bp', value: 128, value2: 82 }),
+        call('log_vital', { kind: 'sugar', value: 5 }),
+        call('log_vital', { kind: 'weight', value: 72.4 }),
+      ],
+      'bettergym',
+    );
+    assert.deepEqual(vitals.actions, [
+      { name: 'log_vital', args: { kind: 'bp', value: 128, value2: 82 } },
+      { name: 'log_vital', args: { kind: 'weight', value: 72.4 } },
+    ]);
+    assert.equal(actionsOf([call('log_mood', { mood: 3 })], 'getbetter').rejected, 1);
   });
 });
 

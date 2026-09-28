@@ -250,4 +250,15 @@ export const frFit: Readonly<Record<keyof typeof deFit, string>> = {
   'fit.photo.error.offline': 'Le service ne répond pas pour le moment.',
   'fit.photo.error.too_many_images': 'Deux photos suffisent.',
   'fit.photo.error.generic': 'L’analyse n’a pas marché. Réessaie ou ajoute à la main.',
+  'fit.photo.error.plan_budget_free':
+    'Tes analyses photo gratuites de ce mois sont épuisées. Avec l’abonnement, tu peux continuer – l’ajout à la main marche toujours.',
+  'fit.photo.error.plan_budget_paid':
+    'Ton quota de photos de ce mois est épuisé. Il repart le premier du mois – l’ajout à la main marche toujours.',
+  'fit.photo.error.not_configured':
+    'L’analyse photo n’est pas configurée pour le moment. L’ajout à la main marche toujours.',
+  'fit.photo.error.provider_quota':
+    'L’analyse photo est saturée pour aujourd’hui. L’ajout à la main marche toujours.',
+  'fit.photo.error.provider_busy': 'L’IA photo est surchargée. Réessaie dans une minute.',
+  'fit.photo.error.provider_timeout':
+    'L’IA photo a mis trop de temps. Réessaie ou ajoute à la main.',
 };

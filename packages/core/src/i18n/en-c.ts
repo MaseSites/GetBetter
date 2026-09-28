@@ -530,4 +530,20 @@ export const enC = {
   'settings.household.join': 'Join household',
   'settings.app': 'App',
   'settings.app.version': 'Version',
+  'account.delete.row':
+    'Delete account',
+  'account.delete.title':
+    'Delete account',
+  'account.delete.body':
+    'This deletes your account in all Better apps – including nutrition, training, weight, events, notes and pictures. It can’t be undone. You cancel a running subscription in the App Store or on Google Play.',
+  'account.delete.password':
+    'Your password',
+  'account.delete.confirm':
+    'Delete for good',
+  'account.delete.wrongPassword':
+    'That password isn’t right.',
+  'account.delete.tooMany':
+    'Too many attempts. Wait a few minutes.',
+  'account.delete.offline':
+    'That didn’t work. Check your connection and try again.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

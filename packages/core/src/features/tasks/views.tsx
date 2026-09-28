@@ -187,8 +187,14 @@ export function TodayBody({
       {dueCount === 0 ? (
         <QuietEmpty
           title={t('tasks.empty.today')}
-          actionLabel={tomorrowLabel}
-          onAction={onShowTomorrow}
+          body={t('fixes.tasks.todayBody')}
+          // Kommt morgen etwas, fuehrt der Weg dorthin; sonst gleich zu einer neuen Aufgabe.
+          actionLabel={tomorrowLabel ?? t('tasks.add')}
+          onAction={
+            tomorrowLabel
+              ? onShowTomorrow
+              : () => env.addWith({ day: env.today, projectId: null, section: null })
+          }
         />
       ) : (
         <>
@@ -224,12 +230,18 @@ export function InboxBody({
   sort: TaskSort;
   showDone: boolean;
 }) {
+  const env = useTaskList();
   const { t } = useI18n();
   const inbox = inboxTasks(rows, sort);
   return (
     <>
       {inbox.length === 0 ? (
-        <QuietEmpty title={t('tasks.empty.inbox')} />
+        <QuietEmpty
+          title={t('tasks.empty.inbox')}
+          body={t('fixes.tasks.inboxBody')}
+          actionLabel={t('tasks.add')}
+          onAction={() => env.addWith({ day: null, projectId: null, section: null })}
+        />
       ) : sort === 'priority' ? (
         <TaskRows rows={inbox} mode={FULL_MODE} />
       ) : (

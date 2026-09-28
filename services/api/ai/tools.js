@@ -219,6 +219,56 @@ const TOOLS = [
     ),
   },
   {
+    name: 'log_sleep',
+    apps: ['bettergym'],
+    description:
+      'Traegt die letzte Nacht ein: wann ins Bett, wann aufgestanden, wie gut. Aus „gut 7 Stunden“ ohne Zeiten: Aufstehen 07:00 annehmen und zurueckrechnen.',
+    parameters: object(
+      {
+        bedtime: TIME,
+        wake: TIME,
+        quality: { type: 'string', enum: ['bad', 'ok', 'good'] },
+      },
+      ['bedtime', 'wake'],
+    ),
+  },
+  {
+    name: 'take_med',
+    apps: ['bettergym'],
+    description:
+      'Hakt eine Einnahme von heute ab. Name weglassen, wenn nicht gesagt; Tageszeit weglassen, wenn nicht gesagt.',
+    parameters: object(
+      {
+        med: { type: 'string', minLength: 1, maxLength: 80 },
+        slot: { type: 'string', enum: ['morning', 'noon', 'evening', 'night'] },
+      },
+      [],
+    ),
+  },
+  {
+    name: 'log_mood',
+    apps: ['bettergym'],
+    description: 'Haelt die Laune von heute fest, 1 mies bis 5 super, mit einem Satz zum Tag.',
+    parameters: object(
+      { mood: { type: 'integer', minimum: 1, maximum: 5 }, note: NOTE },
+      ['mood'],
+    ),
+  },
+  {
+    name: 'log_vital',
+    apps: ['bettergym'],
+    description:
+      'Traegt einen Messwert von heute ein: Gewicht in kg, Blutdruck (value oben, value2 unten, mmHg) oder Puls.',
+    parameters: object(
+      {
+        kind: { type: 'string', enum: ['weight', 'bp', 'pulse'] },
+        value: { type: 'number', minimum: 20, maximum: 350 },
+        value2: { type: 'number', minimum: 30, maximum: 200 },
+      },
+      ['kind', 'value'],
+    ),
+  },
+  {
     name: 'add_expense',
     apps: ['bettermoney'],
     description: 'Traegt eine Ausgabe von heute ins Budget ein.',

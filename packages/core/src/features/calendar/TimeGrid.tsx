@@ -7,6 +7,7 @@ import { FlashRing, Text } from '@/ui';
 
 import { eventColor } from './colors';
 import { isToday, minutesOfDay, startOfDay } from './dates';
+import { hourLabelHidden } from './hourLabels';
 
 /** Eine Stunde im Raster. Jeder Termin ist so hoch, wie er dauert. */
 export const HOUR_HEIGHT = 56;
@@ -136,8 +137,13 @@ export function TimeGrid({
       <View style={[styles.body, { height: 24 * HOUR_HEIGHT }]}>
         {/* Stundenlinien und Beschriftung */}
         {Array.from({ length: 24 }, (_, hour) => {
-          // Liegt die Jetzt-Zeit zu nah an der Stunde, nimmt sie deren Platz.
-          const hideLabel = hour === 0 || (showNow && Math.abs(hour * 60 - nowMinutes) < 25);
+          // Nur wenn sich Jetzt-Zeit und Stundenzahl wirklich ueberlagern, weicht die Stunde.
+          const hideLabel = hourLabelHidden(
+            hour,
+            showNow ? nowMinutes : null,
+            HOUR_HEIGHT,
+            theme.lineHeight.caption,
+          );
           return (
             <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT, right }]}>
               <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>

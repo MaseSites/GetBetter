@@ -11,6 +11,7 @@ import { useAvatarStyle } from '@/features/avatar/useAvatarStyle';
 import { StylePicker } from '@/features/onboarding/StylePicker';
 import { AccountFieldSheet } from '@/features/personalize/AccountFieldSheet';
 import { AccountPhoto } from '@/features/profile/AccountPhoto';
+import { DeleteAccountSheet } from '@/features/profile/DeleteAccountSheet';
 import { ProfileSheets } from '@/features/profile/ProfileSheets';
 import { AiUsageRow } from '@/features/personalize/AiUsageRow';
 import { BackdropPicker } from '@/features/personalize/BackdropPicker';
@@ -53,6 +54,7 @@ type Sheeted =
   | 'language'
   | 'style'
   | 'backdrop'
+  | 'delete'
   | null;
 
 /** Diese Blaetter gibt es nur mit Abo — ohne oeffnet die Zeile das Abo. */
@@ -312,8 +314,16 @@ export function SettingsScreen() {
               void signOut();
             }}
           />
+          <SettingsRow
+            icon="trash"
+            label={t('account.delete.row')}
+            danger
+            onPress={() => setSheet('delete')}
+          />
         </SettingsList>
       </SettingsGroup>
+
+      <DeleteAccountSheet visible={sheet === 'delete'} onClose={() => setSheet(null)} />
 
       {/* Spitzname, Benutzername und Bild — dieselben Blaetter wie im Profil. */}
       <ProfileSheets

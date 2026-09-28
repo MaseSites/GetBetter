@@ -2,6 +2,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { drinks as drinkRepo, useLiveQuery } from '@/db';
 import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
+import { waterAddLabel } from '@/features/gym/waterLabel';
 import { useI18n } from '@/i18n';
 import { useAccount } from '@/state/AppContext';
 import { useTheme } from '@/theme';
@@ -99,8 +100,7 @@ export function WaterCard({
               key={dl}
               icon="plus"
               primary
-              label={t('water.add', { amount: decilitres.format(dl) })}
-              accessibilityLabel={t('fit.water.add', { dl: decilitres.format(dl) })}
+              label={waterAddLabel(t, language, dl)}
               onPress={() => void add(dl)}
             />
           ))}

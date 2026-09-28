@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import type { TrainingProgress } from '@/db/fitTraining';
 import { useI18n, type Translate, type TranslationKey } from '@/i18n';
-import { hueTint, numeric, useTheme } from '@/theme';
+import { numeric, useTheme } from '@/theme';
 import { Text } from '@/ui';
 
 import { AreaPanel } from './AreaBlocks';
@@ -146,7 +146,7 @@ function small(theme: ReturnType<typeof useTheme>) {
   } as const;
 }
 
-/** Eine Zeile: Name, Veraenderung (oder „Rekord“ in Rot), rechts die Zahl gross. */
+/** Eine Zeile: Name, Veraenderung (oder „Rekord“ im Akzent), rechts die Zahl gross. */
 function RecordRow({
   last,
   name,
@@ -198,9 +198,8 @@ function RecordRow({
           style={[
             numeric,
             small(theme),
-            fresh
-              ? { color: hueTint(theme, 'health').base, fontWeight: theme.fontWeight.semibold }
-              : null,
+            // Ein Rekord ist ein Erfolg: Schrift im Akzent (Rot gehoert der Gesundheit).
+            fresh ? { color: theme.colors.accentStrong, fontWeight: theme.fontWeight.semibold } : null,
           ]}
         >
           {note}
@@ -249,7 +248,8 @@ export function Records({ records }: { records: TrainingProgress['records'] }) {
             entry.change !== null
               ? t('fit6.e1rm.change', { delta: formats.signed.format(entry.change) })
               : null;
-          const fresh = entry.day >= since;
+          // Rekord nur, wenn frisch UND eine fruehere Bestleistung uebertroffen wurde.
+          const fresh = entry.day >= since && entry.previous != null;
           return (
             <RecordRow
               key={entry.exerciseId}
@@ -299,7 +299,8 @@ export function OtherRecords({ records }: { records: TrainingProgress['records']
             entry.kind === 'seconds'
               ? `${formats.whole.format(entry.seconds ?? 0)} ${t('fit6.unit.seconds')}`
               : formats.whole.format(entry.reps ?? 0);
-          const fresh = entry.day >= since;
+          // Rekord nur, wenn frisch UND eine fruehere Bestleistung uebertroffen wurde.
+          const fresh = entry.day >= since && entry.previous != null;
           return (
             <RecordRow
               key={entry.exerciseId}

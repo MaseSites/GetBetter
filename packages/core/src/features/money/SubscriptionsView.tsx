@@ -2,7 +2,14 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { subscriptions as subscriptionRepo, useLiveQuery, type SubscriptionInterval } from '@/db';
+import {
+  dayKey,
+  subscriptions as subscriptionRepo,
+  useLiveQuery,
+  type SubscriptionInterval,
+} from '@/db';
+import { DayPicker } from '@/features/shared/DayPicker';
+import { relativeDay } from '@/features/shared/days';
 import { formatMoney, useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
@@ -24,6 +31,7 @@ import {
 } from '@/ui';
 
 import { parseAmount } from './amount';
+import { nextChargeDay } from './nextCharge';
 import { AmountCell } from './parts';
 
 const MONTHS_PER_YEAR = 12;
@@ -39,6 +47,8 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [interval, setInterval] = useState<SubscriptionInterval>('month');
+  // Vorgewaehlt heute: ein Tipp weniger, und wer es nicht weiss, waehlt "Kein Datum".
+  const [startDay, setStartDay] = useState<string | null>(() => dayKey());
   const [error, setError] = useState<'name' | 'amount' | null>(null);
 
   const list = useLiveQuery(() => subscriptionRepo.list(account.id), [account.id]);
@@ -50,6 +60,15 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
   );
 
   const money = (value: number) => formatMoney(language, value);
+  const today = dayKey();
+  /** "Monatlich · In 3 Tagen" — ohne Datum nur, wie oft. */
+  const subtitleOf = (row: (typeof rows)[number]) => {
+    const intervalText = t(`subscriptions.interval.${row.interval}` as TranslationKey);
+    const next = row.startDay ? nextChargeDay(row.startDay, row.interval, today) : null;
+    return next
+      ? t('moneyplus.sub.next', { interval: intervalText, when: relativeDay(t, language, next) })
+      : intervalText;
+  };
 
   async function save() {
     const value = parseAmount(amount);
@@ -61,15 +80,23 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
       setError('amount');
       return;
     }
-    await subscriptionRepo.add({ accountId: account.id, name, amountChf: value, interval });
+    await subscriptionRepo.add({
+      accountId: account.id,
+      name,
+      amountChf: value,
+      interval,
+      startDay,
+    });
     setName('');
     setAmount('');
+    setStartDay(dayKey());
     setError(null);
     setAdding(false);
   }
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -97,7 +124,7 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
                 <SwipeRow onDelete={() => void subscriptionRepo.remove(row.id)}>
                   <ListItem
                     title={row.name}
-                    subtitle={t(`subscriptions.interval.${row.interval}` as TranslationKey)}
+                    subtitle={subtitleOf(row)}
                     right={
                       <AmountCell
                         amount={money(row.amountChf)}
@@ -147,6 +174,7 @@ export function SubscriptionsView({ module }: { module: ModuleDefinition }) {
             onChange={setInterval}
             accessibilityLabel={t('subscriptions.interval')}
           />
+          <DayPicker label={t('moneyplus.sub.startDay')} value={startDay} onChange={setStartDay} />
           <Button label={t('common.done')} icon="check" onPress={save} />
         </View>
       </Sheet>

@@ -33,7 +33,8 @@ export function KitchenView({ module }: { module: ModuleDefinition }) {
   const { t } = useI18n();
   const theme = useTheme();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('recipes');
+  // Die Kueche oeffnet immer beim ersten Reiter: was da ist.
+  const [tab, setTab] = useState<Tab>('pantry');
   const status = useFit(() => fit.status(), [], ['profile']);
   const name = moduleName(t, module.id);
 

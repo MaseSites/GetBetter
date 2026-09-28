@@ -4,3 +4,8 @@ test/
 **/*.test.js
 node_modules/
 .DS_Store
+# Schluessel gehoeren in die Umgebung des Servers, nie ins Bild.
+.env*
+!.env.example
+*.key
+.claude-flow/

@@ -32,6 +32,8 @@ import {
 
 import { RemoveButton } from '../money/parts';
 
+import { catchUpOf, DEBT_NIGHTS, regularityOf, sleepDebtOf } from './sleepStats';
+
 const BEDTIMES = ['21:30', '22:00', '22:30', '23:00', '23:30', '00:00'] as const;
 const WAKE_TIMES = ['05:30', '06:00', '06:30', '07:00', '07:30', '08:00'] as const;
 const QUALITIES = [1, 2, 3] as const;
@@ -45,6 +47,23 @@ function durationText(
   minutes: number,
 ): string {
   return t('sleep.duration', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+}
+
+/** „7 Std. 10 Min.“, „2 Std.“, „45 Min.“ — ohne Null-Teile. */
+function spanText(
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+  minutes: number,
+): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return t('gymplus.m', { minutes: rest });
+  if (rest === 0) return t('gymplus.h', { hours });
+  return t('gymplus.hm', { hours, minutes: rest });
+}
+
+function clockMinutes(time: string): number {
+  const [hour, minute] = time.split(':').map(Number);
+  return (hour ?? 0) * 60 + (minute ?? 0);
 }
 
 /** Schlaf: wann ins Bett, wann raus — und ein Tipp aus dem Kalender. */
@@ -82,10 +101,26 @@ export function SleepView({ module }: { module: ModuleDefinition }) {
       )
     : null;
 
+  // Schuld ueber 14 Naechte; Aufholen vom Aufstehen morgen zurueckgerechnet —
+  // eine Stunde vor dem ersten Termin, sonst wie zuletzt.
+  const debt = sleepDebtOf(rows, TARGET_MINUTES);
+  const regularity = regularityOf(rows.slice(0, DEBT_NIGHTS));
+  const startsAt = nextEvent ? new Date(nextEvent.startsAt) : null;
+  const wakeMinutes = startsAt
+    ? startsAt.getHours() * 60 + startsAt.getMinutes() - WIND_DOWN_MINUTES
+    : last
+      ? clockMinutes(last.wakeTime)
+      : null;
+  const catchUp =
+    debt && wakeMinutes !== null
+      ? catchUpOf({ debtMinutes: debt.debtMinutes, goalMinutes: TARGET_MINUTES, wakeMinutes })
+      : null;
+
   const qualityLabel = (quality: number) => t(`sleep.quality.${quality}` as TranslationKey);
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -99,6 +134,34 @@ export function SleepView({ module }: { module: ModuleDefinition }) {
         />
       }
     >
+      {debt ? (
+        <Card>
+          <View style={{ gap: theme.spacing.xs }}>
+            <Text variant="title">
+              {debt.debtMinutes > 0
+                ? t('gymplus.sleep.summary', {
+                    average: spanText(t, debt.averageMinutes),
+                    debt: spanText(t, debt.debtMinutes),
+                  })
+                : t('gymplus.sleep.summaryNoDebt', { average: spanText(t, debt.averageMinutes) })}
+            </Text>
+            <Text variant="caption" tone="muted">
+              {regularity !== null
+                ? `${t('gymplus.sleep.regularity', { minutes: regularity })} · ${t('gymplus.sleep.window')}`
+                : t('gymplus.sleep.window')}
+            </Text>
+            {catchUp ? (
+              <Text variant="label" tone="accent">
+                {t('gymplus.sleep.catchUp', {
+                  bedtime: catchUp.bedtime,
+                  minutes: spanText(t, catchUp.catchUpMinutes),
+                })}
+              </Text>
+            ) : null}
+          </View>
+        </Card>
+      ) : null}
+
       {last ? (
         <Card title={t('sleep.lastNight')}>
           <View style={{ alignItems: 'center', gap: theme.spacing.md }}>

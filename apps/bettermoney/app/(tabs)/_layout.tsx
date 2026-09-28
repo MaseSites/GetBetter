@@ -20,7 +20,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('lines') }} />
       <Tabs.Screen
         name="finder"
-        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('grid') }}
+        options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('grid') }}
       />
       <Tabs.Screen
         name="assistant"

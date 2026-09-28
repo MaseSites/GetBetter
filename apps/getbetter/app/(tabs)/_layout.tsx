@@ -24,7 +24,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="modules"
-        options={{ title: t('tabs.finder'), tabBarIcon: tabIcon('grid') }}
+        options={{ title: t('tabs.functions'), tabBarIcon: tabIcon('grid') }}
       />
       <Tabs.Screen
         name="assistant"

@@ -231,6 +231,20 @@ describe('Better Fit: Tagebuch und Schutz', () => {
     assert.equal((await server.call('GET', '/v1/fit/day', { token })).status, 401);
   });
 
+  test('Auskunft: der Export enthaelt nur die eigenen Daten, ohne Besitzer-Feld', async () => {
+    const mine = await server.call('GET', '/v1/fit/export', { token: anna.token });
+    assert.equal(mine.status, 200);
+    assert.equal(mine.body.format, 'better-fit-export-v1');
+    assert.ok(mine.body.tables.profiles.length >= 1);
+    assert.equal(mine.body.tables.idempotency, undefined);
+    const rows = Object.values(mine.body.tables).flat();
+    assert.ok(rows.every((row) => row.ownerId === undefined));
+    const theirs = await server.call('GET', '/v1/fit/export', { token: ben.token });
+    const ids = new Set(Object.values(theirs.body.tables).flat().map((row) => row.id));
+    assert.ok(rows.every((row) => !ids.has(row.id)));
+    assert.equal((await server.call('GET', '/v1/fit/export')).status, 401);
+  });
+
   test('alle Fit-Daten loeschen nur mit Bestaetigung', async () => {
     assert.equal(
       (await server.call('DELETE', '/v1/fit/data', { token: anna.token, body: {} })).status,

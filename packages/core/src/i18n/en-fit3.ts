@@ -113,7 +113,6 @@ export const enFit3: Readonly<Record<keyof typeof deFit3, string>> = {
   'fit.link.restDetail': 'No training today — the target is a little lower',
   'fit.link.noPlan': 'No training plan yet — create one here',
   'fit.water.progress': '{drunk} of {target} l drunk',
-  'fit.water.add': '+{dl} dl',
   'fit.water.trainingHint': 'Training day: half a litre more.',
   'fit.meal.emptySlot': 'Nothing logged yet',
   'fit.training.startTitle': 'Your training plan',

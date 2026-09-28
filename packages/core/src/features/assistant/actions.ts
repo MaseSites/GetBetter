@@ -25,6 +25,10 @@ export const ACTION_NAMES = [
   'log_water',
   'log_meal',
   'log_workout',
+  'log_sleep',
+  'take_med',
+  'log_mood',
+  'log_vital',
   'add_expense',
   'add_bill',
   'open_function',
@@ -54,7 +58,16 @@ export const APP_ACTIONS: Readonly<Record<string, readonly ActionName[]>> = {
     ...EVERYWHERE,
   ],
   betterfamily: [...CALENDAR, 'add_shopping', 'add_chore', ...EVERYWHERE],
-  bettergym: ['log_water', 'log_meal', 'log_workout', ...EVERYWHERE],
+  bettergym: [
+    'log_water',
+    'log_meal',
+    'log_workout',
+    'log_sleep',
+    'take_med',
+    'log_mood',
+    'log_vital',
+    ...EVERYWHERE,
+  ],
   bettermoney: ['add_expense', 'add_bill', ...EVERYWHERE],
 };
 
@@ -62,6 +75,9 @@ export const ALARM_DAYS = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'] as const;
 export const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 export const EXPENSE_CATEGORIES = ['food', 'home', 'transport', 'fun', 'health', 'other'] as const;
 export const THEME_MODES = ['light', 'dark', 'system'] as const;
+export const MED_SLOTS = ['morning', 'noon', 'evening', 'night'] as const;
+export const SLEEP_QUALITIES = ['bad', 'ok', 'good'] as const;
+export const VITAL_KINDS = ['weight', 'bp', 'pulse'] as const;
 
 export type AlarmDay = (typeof ALARM_DAYS)[number];
 export type MealSlot = (typeof MEAL_SLOTS)[number];
@@ -98,6 +114,10 @@ export type AssistantAction =
   | { name: 'log_water'; dl: number }
   | { name: 'log_meal'; meal: string; kcal: number; slot: MealSlot | null }
   | { name: 'log_workout'; kind: string; minutes: number }
+  | { name: 'log_sleep'; bedtime: string; wake: string; quality: 1 | 2 | 3 }
+  | { name: 'take_med'; med: string | null; slot: (typeof MED_SLOTS)[number] | null }
+  | { name: 'log_mood'; mood: number; note: string | null }
+  | { name: 'log_vital'; kind: (typeof VITAL_KINDS)[number]; value: number; value2: number | null }
   | { name: 'add_expense'; amount: number; category: ExpenseCategory; note: string | null }
   | { name: 'add_bill'; title: string; amount: number; dueDate: string }
   | { name: 'open_function'; module: string }
@@ -284,6 +304,39 @@ const READERS: Readonly<Record<ActionName, Reader>> = {
     const kind = text(args, 'kind', 60);
     const minutes = integerIn(args, 'minutes', 1, 600);
     return kind && minutes !== null ? { name: 'log_workout', kind, minutes } : null;
+  },
+  log_sleep: (args) => {
+    const bedtime = matching(args, 'bedtime', TIME);
+    const wake = matching(args, 'wake', TIME);
+    const quality = oneOf(args, 'quality', SLEEP_QUALITIES);
+    return bedtime && wake && bedtime !== wake
+      ? { name: 'log_sleep', bedtime, wake, quality: quality === 'bad' ? 1 : quality === 'good' ? 3 : 2 }
+      : null;
+  },
+  take_med: (args) => ({
+    name: 'take_med',
+    med: text(args, 'med', 80),
+    slot: oneOf(args, 'slot', MED_SLOTS),
+  }),
+  log_mood: (args) => {
+    const mood = integerIn(args, 'mood', 1, 5);
+    return mood === null ? null : { name: 'log_mood', mood, note: text(args, 'note', 500) };
+  },
+  log_vital: (args) => {
+    const kind = oneOf(args, 'kind', VITAL_KINDS);
+    const value = numberIn(args, 'value', 1, 400);
+    if (!kind || value === null) return null;
+    // Die Grenzen je Art: was ausserhalb liegt, ist fast sicher verhoert.
+    if (kind === 'weight') return value >= 20 && value <= 350 ? { name: 'log_vital', kind, value, value2: null } : null;
+    if (kind === 'pulse') {
+      return Number.isInteger(value) && value >= 25 && value <= 250
+        ? { name: 'log_vital', kind, value, value2: null }
+        : null;
+    }
+    const value2 = numberIn(args, 'value2', 30, 160);
+    return value >= 60 && value <= 260 && value2 !== null && value2 < value
+      ? { name: 'log_vital', kind, value: Math.round(value), value2: Math.round(value2) }
+      : null;
   },
   add_expense: (args) => {
     const amount = numberIn(args, 'amount', 0.05, 100_000);

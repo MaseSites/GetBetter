@@ -62,6 +62,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function geminiAnalyze({
   apiKey,
   model,
+  /** Ein Name, eine Liste der Reihe nach, oder `null`. */
   fallbackModel = null,
   images,
   context = '',
@@ -108,12 +109,20 @@ async function geminiAnalyze({
 
   const started = Date.now();
   let lastError = 'provider_error';
-  // Ist Google ueberlastet, erst dasselbe Modell mit Pause, dann einmal das Ersatzmodell.
+  // Ist Google ueberlastet, erst dasselbe Modell mit Pause, dann der Reihe nach
+  // die Ersatzmodelle (je einmal). Bei Google sind oft einzelne Modelle voll,
+  // andere nicht — eine Kette faengt das ab, ein einzelnes Ersatzmodell nicht.
+  const fallbacks = (Array.isArray(fallbackModel) ? fallbackModel : [fallbackModel]).filter(
+    (name, index, all) => typeof name === 'string' && name !== '' && name !== model && all.indexOf(name) === index,
+  );
   const tries = [
     ...[0, ...retryDelays].map((delay) => ({ name: model, delay })),
-    ...(fallbackModel && fallbackModel !== model ? [{ name: fallbackModel, delay: 0 }] : []),
+    ...fallbacks.map((name) => ({ name, delay: 0 })),
   ];
+  // Ein Modell, das es nicht (mehr) gibt, wird nicht dreimal gefragt.
+  const missing = new Set();
   for (const [attempt, { name, delay }] of tries.entries()) {
+    if (missing.has(name)) continue;
     if (attempt > 0 && delay > 0) await wait(delay);
     const left = DEADLINE_MS - (Date.now() - started);
     if (left < 3_000) break;
@@ -130,12 +139,40 @@ async function geminiAnalyze({
         },
       );
       clearTimeout(timer);
-      if (response.status === 429 || response.status >= 500) {
-        lastError = response.status === 429 ? 'provider_busy' : 'provider_error';
+      if (response.status === 429) {
+        // Tageskontingent (etwa Gratis-Zugang: 20 je Modell und Tag) ist kein
+        // „ueberlastet“: warten hilft nicht, erst morgen oder mit Abrechnung.
+        const text = await response.text().catch(() => '');
+        const quotaId = /"quotaId":\s*"([^"]+)"/.exec(text)?.[1] ?? '';
+        if (/PerDay/i.test(quotaId)) {
+          process.stderr.write(
+            `[fit] Gemini-Tageskontingent fuer ${name} aufgebraucht (${quotaId}) — Abrechnung in AI Studio einschalten\n`,
+          );
+          missing.add(name);
+          lastError = 'provider_quota';
+          continue;
+        }
+        lastError = 'provider_busy';
         continue;
       }
-      if (response.status === 401 || response.status === 403)
+      if (response.status >= 500) {
+        lastError = 'provider_error';
+        continue;
+      }
+      if (response.status === 401 || response.status === 403) {
+        // Schluessel falsch, gesperrt oder die Abrechnung fehlt: das muss der Betreiber sehen.
+        process.stderr.write(
+          `[fit] Gemini lehnt den Schluessel ab (${response.status}) — GEMINI_API_KEY und Abrechnung pruefen\n`,
+        );
         return { ok: false, error: 'provider_auth' };
+      }
+      if (response.status === 404) {
+        // Umbenannt oder abgeschaltet: melden und das naechste Modell nehmen.
+        process.stderr.write(`[fit] Gemini-Modell ${name} gibt es nicht (404) — GEMINI_*_MODEL anpassen\n`);
+        missing.add(name);
+        lastError = 'provider_error';
+        continue;
+      }
       if (!response.ok) return { ok: false, error: 'provider_error' };
       const data = await response.json();
       const inputTokens = Number(data?.usageMetadata?.promptTokenCount) || 0;

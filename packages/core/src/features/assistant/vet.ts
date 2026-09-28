@@ -29,6 +29,9 @@ const CREATING: ReadonlySet<string> = new Set([
   'log_water',
   'log_meal',
   'log_workout',
+  'log_sleep',
+  'log_mood',
+  'log_vital',
   'add_expense',
   'add_bill',
 ]);

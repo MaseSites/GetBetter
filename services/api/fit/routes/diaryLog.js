@@ -5,6 +5,10 @@
 const { adaptiveTarget, estimateExpenditure } = require('../energy.js');
 const { suggestAdjustment, weightTrend } = require('../goals.js');
 const { goalsOf, intakeByDay } = require('../diary.js');
+const { PERSONAL } = require('../store.js');
+
+/** Nur fuer den Dienst selbst — gemerkte Antworten, keine Angaben der Person. */
+const NOT_EXPORTED = new Set(['idempotency']);
 
 function logRoutes(ctx) {
   const { ok, store } = ctx;
@@ -157,6 +161,23 @@ function logRoutes(ctx) {
           }
           own.update('changeLog', id, { undoneAt: ctx.now().toISOString() });
           return ok(200, { ok: true });
+        }),
+    },
+    {
+      // Auskunft (DSG Art. 25, DSGVO Art. 15/20): alles, was Better Fit ueber
+      // dieses Konto gespeichert hat, maschinenlesbar. Fotos gibt es keine —
+      // sie leben hoechstens eine Stunde (ausser mit Zustimmung behalten).
+      method: 'GET',
+      path: /^\/v1\/fit\/export$/,
+      handler: ({ auth }) =>
+        read(auth, (own) => {
+          const tables = Object.fromEntries(
+            PERSONAL.filter((name) => !NOT_EXPORTED.has(name)).map((name) => [
+              name,
+              own.list(name).map(({ ownerId: _owner, ...row }) => row),
+            ]),
+          );
+          return ok(200, { exportedAt: ctx.now().toISOString(), format: 'better-fit-export-v1', tables });
         }),
     },
     {

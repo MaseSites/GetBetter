@@ -19,6 +19,11 @@ import { deFit5 } from './de-fit5';
 import { deFit6 } from './de-fit6';
 import { deFit7 } from './de-fit7';
 import { deFit8 } from './de-fit8';
+import { deFixes } from './de-fixes';
+import { deFamilyPlus } from './de-familyplus';
+import { deGymPlus } from './de-gymplus';
+import { deMoneyPlus } from './de-moneyplus';
+import { deOrgPlus } from './de-orgplus';
 import { dePlan } from './de-plan';
 import { deQuick } from './de-quick';
 import { deSettings } from './de-settings';
@@ -53,6 +58,7 @@ export const de = {
   ...deMailUi,
   ...deUi,
   ...dePlan,
+  ...deOrgPlus,
   ...deFit,
   ...deFit2,
   ...deFit3,
@@ -61,6 +67,10 @@ export const de = {
   ...deFit6,
   ...deFit7,
   ...deFit8,
+  ...deFixes,
+  ...deFamilyPlus,
+  ...deGymPlus,
+  ...deMoneyPlus,
 
   'app.tagline': 'Alles, was dein Alltag braucht — an einem Ort.',
   'apps.getbetter.tagline':
@@ -197,7 +207,7 @@ export const de = {
   'gym.minutes': '{minutes} Min',
   'gym.week': 'Diese Woche {minutes} Minuten',
   'gym.empty.title': 'Noch kein Training',
-  'gym.empty.body': 'Trag unten ein, was du gemacht hast.',
+  'gym.empty.body': 'Mit dem Plus trägst du ein, was du gemacht hast.',
   'gym.start': 'Training starten',
   'gym.kind.strength': 'Kraft',
   'gym.kind.run': 'Laufen',
@@ -479,7 +489,7 @@ export const de = {
   'budget.nextMonth': 'Monat vor',
   'budget.limit': 'Budget im Monat',
   'budget.empty.title': 'Noch keine Ausgaben',
-  'budget.empty.body': 'Trag unten ein, was du ausgegeben hast.',
+  'budget.empty.body': 'Mit dem Plus trägst du ein, was du ausgegeben hast.',
   'bills.add': 'Rechnung eintragen',
   'bills.title': 'Was',
   'bills.titlePlaceholder': 'Zum Beispiel Krankenkasse',
@@ -491,7 +501,7 @@ export const de = {
   'bills.open': '{count} offen · {amount}',
   'bills.paid': 'Bezahlt',
   'bills.empty.title': 'Keine offenen Rechnungen',
-  'bills.empty.body': 'Trag unten ein, was reinkommt — antippen heisst bezahlt.',
+  'bills.empty.body': 'Mit dem Plus trägst du ein, was reinkommt — antippen heisst bezahlt.',
   'subscriptions.add': 'Abo eintragen',
   'subscriptions.name': 'Was',
   'subscriptions.namePlaceholder': 'Zum Beispiel Streaming',

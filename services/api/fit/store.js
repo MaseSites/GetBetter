@@ -17,6 +17,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+const { dataKey, forDisk, unseal } = require('../crypt.js');
 const { applyRetention } = require('./retention.js');
 
 /** Tabellen mit persoenlichen Daten — jede Zeile traegt `ownerId`. */
@@ -164,8 +165,11 @@ class StoreUnavailableError extends Error {
   }
 }
 
-function createFitStore({ dataDir, now = () => Date.now() }) {
+function createFitStore({ dataDir, now = () => Date.now(), env = process.env }) {
   const file = path.join(dataDir, 'fit.json');
+  // Wie `db.json`: mit `BETTER_DATA_KEY` liegt die Datei als AES-256-GCM da.
+  // Gewicht, Mahlzeiten und Allergien sind besonders schuetzenswerte Daten.
+  const key = dataKey(env);
   let tables = null;
   let broken = false;
   let queue = Promise.resolve();
@@ -181,7 +185,9 @@ function createFitStore({ dataDir, now = () => Date.now() }) {
     }
     if (text !== null) {
       try {
-        const parsed = JSON.parse(text);
+        // Ohne passenden Schluessel ist die Datei so unlesbar wie eine kaputte:
+        // nie leer weitermachen und beim naechsten Speichern ueberschreiben.
+        const parsed = JSON.parse(unseal(key, text));
         for (const name of Object.keys(next)) {
           if (Array.isArray(parsed?.tables?.[name])) next[name] = parsed.tables[name];
         }
@@ -189,6 +195,9 @@ function createFitStore({ dataDir, now = () => Date.now() }) {
         // Kaputt: nie still leer ueberschreiben. Eine Abschrift beiseitelegen und
         // jedes Schreiben verweigern (503), bis die Datei von Hand repariert ist.
         broken = true;
+        process.stderr.write(
+          '[fit] fit.json unlesbar (kaputt oder falscher/fehlender BETTER_DATA_KEY) — Better Fit antwortet mit 503\n',
+        );
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         await fs.copyFile(file, `${file}.corrupt-${stamp}`).catch(() => {});
       }
@@ -200,7 +209,7 @@ function createFitStore({ dataDir, now = () => Date.now() }) {
   async function persist(snapshot) {
     await fs.mkdir(dataDir, { recursive: true });
     const temp = `${file}.${process.pid}.tmp`;
-    await fs.writeFile(temp, JSON.stringify({ version: 1, tables: snapshot }), {
+    await fs.writeFile(temp, forDisk(key, JSON.stringify({ version: 1, tables: snapshot })), {
       encoding: 'utf8',
       mode: 0o600,
     });
@@ -265,7 +274,21 @@ function createFitStore({ dataDir, now = () => Date.now() }) {
     return ((await load())[name] ?? []).reduce(reducer, initial);
   }
 
-  return { transact, read, sumAll, fold, isBroken: () => broken };
+  /**
+   * Synchron, ohne Kopie: eine Summe ueber die Zeilen EINES Kontos im zuletzt
+   * gespeicherten Stand — fuer das Kassenbuch der Abos, das nicht warten kann.
+   * Vor dem ersten Laden 0 (`warm()` laedt beim Start).
+   */
+  function ownerSum(ownerId, name, field, where = () => true) {
+    if (!tables || !PERSONAL.includes(name)) return 0;
+    return tables[name]
+      .filter((row) => row.ownerId === ownerId && where(row))
+      .reduce((total, row) => total + (Number(row[field]) || 0), 0);
+  }
+
+  const warm = () => load().then(() => undefined);
+
+  return { transact, read, sumAll, fold, ownerSum, warm, isBroken: () => broken };
 }
 
 module.exports = { createFitStore, ownerView, newId, PERSONAL, SHARED, OwnerError, StoreUnavailableError };

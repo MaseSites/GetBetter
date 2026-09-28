@@ -1,3 +1,6 @@
+import { nextAssignee } from '../features/chores/rotation';
+import { planAdd } from '../features/shopping/merge';
+
 import { notifyDataChanged } from './live';
 import { db, newId } from './store';
 import type {
@@ -203,6 +206,22 @@ export const events = {
       .then(dedupe);
   },
 
+  /**
+   * Eigene Termine, die noch kommen und eine Erinnerung tragen — fuer die
+   * Mitteilungen des Handys (`features/calendar/reminders.ts`).
+   */
+  listWithReminder(accountId: string, fromIso: string) {
+    return db.events
+      .list({
+        where: (row) =>
+          row.accountId === accountId &&
+          typeof row.reminderMinutes === 'number' &&
+          row.startsAt >= fromIso,
+        sort: (a, b) => a.startsAt.localeCompare(b.startsAt),
+      })
+      .then(dedupe);
+  },
+
   /** Alle Kopien eines Termins, damit der Editor die Kalender vorwaehlen kann. */
   group(groupId: string) {
     return db.events.list({ where: (row) => groupOf(row) === groupId });
@@ -286,6 +305,8 @@ export type EventFields = {
   notes?: string | null;
   allDay?: boolean;
   color?: string | null;
+  /** Fehlt es, bleibt die Erinnerung, wie sie ist. */
+  reminderMinutes?: number | null;
 };
 
 export function targetOf(row: EventRow): EventTarget {
@@ -313,6 +334,9 @@ function fieldsFor(input: EventFields, target: EventTarget) {
     endsAt: input.endsAt ?? null,
     allDay: input.allDay ?? false,
     color: input.color ?? null,
+    // Nur mitschreiben, wenn es gesetzt ist — sonst loeschte ein Verschieben
+    // aus dem Assistenten die Erinnerung.
+    ...(input.reminderMinutes !== undefined ? { reminderMinutes: input.reminderMinutes } : {}),
   };
 }
 
@@ -337,10 +361,22 @@ function shoppingVisible(
   return row.accountId === viewerId && !row.householdId;
 }
 
+/** Weggeräumtes zählt so lange für „Oft gekauft“, danach geht es ganz. */
+const SHOPPING_HISTORY_DAYS = 180;
+
+export type ShoppingAddResult = {
+  row: ShoppingItemRow;
+  /** Stand der Posten schon offen drauf? Dann ist nur die Menge gewachsen. */
+  merged: boolean;
+  /** Die Menge vor dem Zusammenführen — für „Rückgängig“. */
+  previousQuantity: string | null;
+};
+
 export const shopping = {
+  /** Die Liste, ohne Weggeräumtes. */
   list(viewerId: string, householdId: string | null) {
     return db.shoppingItems.list({
-      where: (row) => shoppingVisible(row, viewerId, householdId),
+      where: (row) => !row.clearedAt && shoppingVisible(row, viewerId, householdId),
       sort: (a, b) => {
         if (a.done !== b.done) return a.done ? 1 : -1;
         return a.createdAt.localeCompare(b.createdAt);
@@ -354,6 +390,17 @@ export const shopping = {
     );
   },
 
+  /** Alles, was je auf der Liste stand, auch Weggeräumtes — für „Oft gekauft“. */
+  history(viewerId: string, householdId: string | null) {
+    return db.shoppingItems.list({
+      where: (row) => shoppingVisible(row, viewerId, householdId),
+    });
+  },
+
+  /**
+   * Auf die Liste — steht der Posten schon offen drauf (gleicher Name, siehe
+   * `itemKey`), wächst dort die Menge statt einer zweiten Zeile.
+   */
   async add(input: {
     accountId: string;
     householdId: string | null;
@@ -361,6 +408,32 @@ export const shopping = {
     quantity?: string | null;
     category?: string;
   }): Promise<ShoppingItemRow> {
+    return (await shopping.addMerging(input)).row;
+  },
+
+  /** Wie `add`, sagt aber, ob zusammengeführt wurde. */
+  async addMerging(input: {
+    accountId: string;
+    householdId: string | null;
+    name: string;
+    quantity?: string | null;
+    category?: string;
+  }): Promise<ShoppingAddResult> {
+    const open = await db.shoppingItems.list({
+      where: (entry) =>
+        !entry.done &&
+        !entry.clearedAt &&
+        shoppingVisible(entry, input.accountId, input.householdId),
+    });
+    const plan = planAdd(open, { name: input.name, quantity: input.quantity?.trim() || null });
+    if (plan.kind === 'merge') {
+      const updated = await db.shoppingItems.update(plan.row.id, { quantity: plan.quantity });
+      return changed({
+        row: updated ?? plan.row,
+        merged: true,
+        previousQuantity: plan.row.quantity,
+      });
+    }
     const row: ShoppingItemRow = {
       id: newId('sh'),
       accountId: input.accountId,
@@ -371,7 +444,26 @@ export const shopping = {
       done: false,
       createdAt: now(),
     };
-    return changed(await db.shoppingItems.insert(row));
+    return changed({
+      row: await db.shoppingItems.insert(row),
+      merged: false,
+      previousQuantity: null,
+    });
+  },
+
+  /** Name, Menge oder Abteilung ändern. */
+  async update(
+    id: string,
+    patch: Partial<Pick<ShoppingItemRow, 'name' | 'quantity' | 'category'>>,
+  ) {
+    const clean: Partial<ShoppingItemRow> = { ...patch };
+    if (patch.name !== undefined) {
+      const name = patch.name.trim();
+      if (name.length === 0) delete clean.name;
+      else clean.name = name;
+    }
+    if (patch.quantity !== undefined) clean.quantity = patch.quantity?.trim() || null;
+    return changed(await db.shoppingItems.update(id, clean));
   },
 
   async setDone(id: string, done: boolean) {
@@ -383,11 +475,25 @@ export const shopping = {
     changed(null);
   },
 
+  /**
+   * Erledigtes wegräumen. Die Zeilen bleiben als Geschichte (`clearedAt`)
+   * stehen, damit „Oft gekauft“ weiss, was man immer wieder kauft — der
+   * einfachste sichere Weg: keine neue Sammlung, der Dienst sieht die Zeilen
+   * schon nach `householdId`, und wer austritt, nimmt nichts Fremdes mit.
+   * Nach `SHOPPING_HISTORY_DAYS` gehen sie ganz, damit nichts endlos wächst.
+   */
   async clearDone(viewerId: string, householdId: string | null) {
-    const removed = await db.shoppingItems.removeWhere(
-      (row) => row.done && shoppingVisible(row, viewerId, householdId),
+    const at = now();
+    const cutoff = new Date(Date.now() - SHOPPING_HISTORY_DAYS * 86_400_000).toISOString();
+    await db.shoppingItems.removeWhere(
+      (row) =>
+        !!row.clearedAt && row.clearedAt < cutoff && shoppingVisible(row, viewerId, householdId),
     );
-    return changed(removed);
+    const rows = await db.shoppingItems.list({
+      where: (row) => row.done && !row.clearedAt && shoppingVisible(row, viewerId, householdId),
+    });
+    await Promise.all(rows.map((row) => db.shoppingItems.update(row.id, { clearedAt: at })));
+    return changed(rows.length);
   },
 };
 
@@ -420,16 +526,20 @@ export const chores = {
     assignedTo?: string | null;
     repeat?: ChoreRepeat;
     dueAt?: string | null;
+    /** Reihum: wer in welcher Reihenfolge; die erste Person beginnt. */
+    rotation?: readonly string[];
   }): Promise<ChoreRow> {
+    const rotation = input.rotation && input.rotation.length > 0 ? [...input.rotation] : null;
     const row: ChoreRow = {
       id: newId('ch'),
       householdId: input.householdId,
       title: input.title.trim(),
-      assignedTo: input.assignedTo ?? null,
+      assignedTo: input.assignedTo ?? rotation?.[0] ?? null,
       repeat: input.repeat ?? 'weekly',
       dueAt: input.dueAt ?? null,
       lastDoneAt: null,
       lastDoneBy: null,
+      ...(rotation ? { rotation } : {}),
       createdAt: now(),
     };
     return changed(await db.chores.insert(row));
@@ -439,14 +549,30 @@ export const chores = {
     return changed(await db.chores.update(id, { assignedTo: accountId }));
   },
 
-  /** Erledigt: Zeitstempel setzen und bei Wiederholung neu faellig machen. */
+  /**
+   * Erledigt: Zeitstempel setzen, bei Wiederholung neu faellig machen und —
+   * reihum — der naechsten Person im Haushalt zuteilen (`nextAssignee`).
+   */
   async complete(id: string, byAccountId: string) {
     const chore = await db.chores.find(id);
     if (!chore) return undefined;
     const done = now();
     const next = nextDue(chore.repeat, new Date());
+    const members = chore.rotation?.length
+      ? await db.householdMembers.list({
+          where: (row) => row.householdId === chore.householdId && row.status !== 'pending',
+        })
+      : [];
+    const assignedTo =
+      chore.repeat === 'once'
+        ? chore.assignedTo
+        : nextAssignee(
+            chore,
+            members.map((row) => row.accountId),
+          );
     return changed(
       await db.chores.update(id, {
+        assignedTo,
         lastDoneAt: done,
         lastDoneBy: byAccountId,
         dueAt: next ? next.toISOString() : null,

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useLiveQuery, type ShoppingItemRow } from '@/db';
 import { shopping as shoppingRepo } from '@/db/repositories';
@@ -23,6 +23,7 @@ import {
   Screen,
   SwipeRow,
   Text,
+  useUndo,
 } from '@/ui';
 
 import {
@@ -32,6 +33,8 @@ import {
   splitQuantity,
   type ShoppingCategory,
 } from './categories';
+import { frequentItems } from './frequent';
+import { ShoppingItemSheet } from './ShoppingItemSheet';
 
 /** Die Abteilung einer Zeile — gespeichert oder geraten. */
 function categoryOf(item: ShoppingItemRow): ShoppingCategory {
@@ -54,10 +57,19 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
 
   const [draft, setDraft] = useState('');
   const [chosen, setChosen] = useState<ShoppingCategory | null>(null);
+  const [editing, setEditing] = useState<ShoppingItemRow | null>(null);
+  const undo = useUndo();
   const list = useLiveQuery(
     () => shoppingRepo.list(account.id, householdId),
     [account.id, householdId],
   );
+  // Die ganze Geschichte, auch Weggeraeumtes — daraus „Oft gekauft“.
+  const history = useLiveQuery(
+    () => shoppingRepo.history(account.id, householdId),
+    [account.id, householdId],
+  );
+  const [today] = useState(() => new Date());
+  const frequent = frequentItems(history.data ?? [], today);
   const items = list.data ?? [];
   const open = items.filter((item) => !item.done);
   const done = items.filter((item) => item.done);
@@ -70,18 +82,33 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
   const label = (category: ShoppingCategory) =>
     t(`shopping.category.${category}` as TranslationKey);
 
-  async function add() {
-    const { name, quantity } = splitQuantity(draft);
+  /** Anlegen — oder, steht es schon offen drauf, die Menge erhoehen und es sagen. */
+  async function put(text: string) {
+    const { name, quantity } = splitQuantity(text);
     if (name.length === 0) return;
-    setDraft('');
     celebrate('shopping');
-    await shoppingRepo.add({
+    const result = await shoppingRepo.addMerging({
       accountId: account.id,
       householdId,
       name,
       quantity,
       category: chosen ?? guessCategory(name),
     });
+    if (!result.merged) return;
+    undo.show({
+      message: t('familyplus.shopping.merged', {
+        name: result.row.name,
+        quantity: result.row.quantity ?? '',
+      }),
+      onUndo: () =>
+        void shoppingRepo.update(result.row.id, { quantity: result.previousQuantity }),
+    });
+  }
+
+  async function add() {
+    const text = draft;
+    setDraft('');
+    await put(text);
   }
 
   /**
@@ -114,20 +141,28 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
               color={item.done ? theme.colors.accentMark : theme.colors.textFaint}
             />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text
-              variant="body"
-              tone={item.done ? 'faint' : 'default'}
-              style={item.done ? { textDecorationLine: 'line-through' } : undefined}
-            >
-              {item.name}
-            </Text>
-          </View>
-          {item.quantity ? (
-            <Text variant="label" tone="muted">
-              {item.quantity}
-            </Text>
-          ) : null}
+          {/* Ein Tipp auf Name oder Menge oeffnet den Posten zum Nachbessern. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('familyplus.shopping.editItem', { name: item.name })}
+            onPress={() => setEditing(item)}
+            style={[styles.row, { flex: 1, gap: theme.spacing.md }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="body"
+                tone={item.done ? 'faint' : 'default'}
+                style={item.done ? { textDecorationLine: 'line-through' } : undefined}
+              >
+                {item.name}
+              </Text>
+            </View>
+            {item.quantity ? (
+              <Text variant="label" tone="muted">
+                {item.quantity}
+              </Text>
+            ) : null}
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${t('shopping.remove')}: ${item.name}`}
@@ -157,6 +192,24 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
       }
       footer={
         <View style={{ gap: theme.spacing.sm }}>
+          {/* Oft gekauft: ein Tipp legt an, ohne zu tippen. */}
+          {frequent.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              accessibilityLabel={t('familyplus.shopping.frequent')}
+              contentContainerStyle={[styles.row, { gap: theme.spacing.xs }]}
+            >
+              {frequent.map((name) => (
+                <Chip
+                  key={name}
+                  label={`+ ${name}`}
+                  accessibilityLabel={t('familyplus.shopping.addFrequent', { name })}
+                  onPress={() => void put(name)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
           {/* Die Abteilung vorwaehlen — sonst raet die App. */}
           <View style={[styles.chips, { gap: theme.spacing.xs }]}>
             <Chip
@@ -226,6 +279,12 @@ export function ShoppingView({ module }: { module: ModuleDefinition }) {
           />
         </View>
       ) : null}
+
+      <ShoppingItemSheet
+        key={editing?.id ?? 'closed'}
+        item={editing}
+        onClose={() => setEditing(null)}
+      />
     </Screen>
   );
 }

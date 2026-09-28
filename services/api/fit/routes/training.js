@@ -30,6 +30,7 @@ const {
   mondayOf,
   muscleWeek,
   nextTarget,
+  previousBest,
   recordSetIds,
   records,
   shiftDay,
@@ -392,7 +393,14 @@ function trainingRoutes(ctx, engine) {
             const history = e1rmHistory(sets, entry.exerciseId).filter((point) => point.day >= since);
             const change =
               history.length > 1 ? Math.round((history.at(-1).e1rm - history[0].e1rm) * 10) / 10 : null;
-            return { ...entry, name: exerciseName(entry.exerciseId, language), history: history.slice(-8), change };
+            // `previous`: die uebertroffene Bestleistung davor — ohne sie ist es kein Rekord.
+            return {
+              ...entry,
+              name: exerciseName(entry.exerciseId, language),
+              history: history.slice(-8),
+              change,
+              previous: previousBest(sets, entry),
+            };
           });
           const done = own.list('scheduledWorkouts', (row) => row.status === 'done');
           const doneIds = new Set(done.map((row) => row.id));

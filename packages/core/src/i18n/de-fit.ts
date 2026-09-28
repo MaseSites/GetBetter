@@ -258,4 +258,16 @@ export const deFit = {
   'fit.photo.error.too_many_images': 'Mehr als zwei Fotos braucht es nicht.',
   'fit.photo.error.generic':
     'Die Analyse hat nicht geklappt. Versuch es nochmal oder trag von Hand ein.',
+  'fit.photo.error.plan_budget_free':
+    'Deine Gratis-Foto-Analysen für diesen Monat sind aufgebraucht. Mit dem Abo geht es weiter – von Hand eintragen geht immer.',
+  'fit.photo.error.plan_budget_paid':
+    'Dein Foto-Kontingent für diesen Monat ist aufgebraucht. Am Monatsersten geht es weiter – von Hand eintragen geht immer.',
+  'fit.photo.error.not_configured':
+    'Die Foto-Analyse ist gerade nicht eingerichtet. Von Hand eintragen geht weiter.',
+  'fit.photo.error.provider_quota':
+    'Die Foto-Analyse ist für heute ausgelastet. Von Hand eintragen geht weiter.',
+  'fit.photo.error.provider_busy':
+    'Die Foto-KI ist gerade überlastet. Versuch es in einer Minute nochmal.',
+  'fit.photo.error.provider_timeout':
+    'Die Foto-KI hat zu lange gebraucht. Versuch es nochmal oder trag von Hand ein.',
 } as const;

@@ -247,6 +247,8 @@ async function main() {
     MONTHLY_AI_BUDGET_CHF: String(Math.max(50, args.maxChf * 10)),
     MAX_MEAL_ANALYSES_PER_USER_PER_DAY: '500',
     FIT_RATE_LIMIT_PER_MINUTE: '1000',
+    // Das Konto des Prüfstands ist gratis: sein Kontingent darf den Lauf nicht bremsen.
+    BETTER_TRIAL_BUDGET_CHF: String(Math.max(50, args.maxChf * 10)),
   };
   // Leer heisst: kein Ersatzmodell. So antwortet entweder das Hauptmodell oder gar nichts.
   if (!args.allowFallback) serverEnv.GEMINI_FALLBACK_MODEL = '';

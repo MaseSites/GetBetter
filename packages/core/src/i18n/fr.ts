@@ -15,6 +15,11 @@ import { frFit5 } from './fr-fit5';
 import { frFit6 } from './fr-fit6';
 import { frFit7 } from './fr-fit7';
 import { frFit8 } from './fr-fit8';
+import { frFixes } from './fr-fixes';
+import { frFamilyPlus } from './fr-familyplus';
+import { frGymPlus } from './fr-gymplus';
+import { frMoneyPlus } from './fr-moneyplus';
+import { frOrgPlus } from './fr-orgplus';
 import { frPlan } from './fr-plan';
 import { frShell } from './fr-shell';
 import { frTasks } from './fr-tasks';
@@ -38,6 +43,7 @@ export const fr: Readonly<Record<TranslationKey, string>> = {
   ...frMailUi,
   ...frUi,
   ...frPlan,
+  ...frOrgPlus,
   ...frFit,
   ...frFit2,
   ...frFit3,
@@ -46,4 +52,8 @@ export const fr: Readonly<Record<TranslationKey, string>> = {
   ...frFit6,
   ...frFit7,
   ...frFit8,
+  ...frFixes,
+  ...frFamilyPlus,
+  ...frGymPlus,
+  ...frMoneyPlus,
 };

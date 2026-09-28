@@ -540,4 +540,20 @@ export const frC = {
   'settings.household.join': 'Rejoindre un foyer',
   'settings.app': 'App',
   'settings.app.version': 'Version',
+  'account.delete.row':
+    'Supprimer le compte',
+  'account.delete.title':
+    'Supprimer le compte',
+  'account.delete.body':
+    'Tu supprimes ainsi ton compte dans toutes les apps Better – avec la nutrition, l’entraînement, le poids, les rendez-vous, les notes et les images. C’est définitif. Un abonnement en cours se résilie dans l’App Store ou sur Google Play.',
+  'account.delete.password':
+    'Ton mot de passe',
+  'account.delete.confirm':
+    'Supprimer définitivement',
+  'account.delete.wrongPassword':
+    'Le mot de passe n’est pas correct.',
+  'account.delete.tooMany':
+    'Trop d’essais. Attends quelques minutes.',
+  'account.delete.offline':
+    'Ça n’a pas marché. Vérifie la connexion et réessaie.',
 } as const satisfies Partial<Record<TranslationKey, string>>;

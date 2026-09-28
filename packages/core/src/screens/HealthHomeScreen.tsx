@@ -20,6 +20,7 @@ import { shiftDay } from '@/features/fit/zurichDay';
 import { MedsPanel, MindPanel, SleepPanel } from '@/features/gym/HealthPanels';
 import { DAILY_TARGET, SLOTS } from '@/features/gym/MealsView';
 import { PORTIONS, TARGET_DL } from '@/features/gym/WaterView';
+import { waterAddLabel } from '@/features/gym/waterLabel';
 import { parseDay } from '@/features/shared/days';
 import {
   formatDayMonth,
@@ -163,7 +164,19 @@ export function HealthHomeScreen() {
     : [...(weightList.data ?? [])].reverse();
   const firstWeight = weights[0];
   const lastWeight = weights[weights.length - 1];
-  const delta = firstWeight && lastWeight ? lastWeight.value - firstWeight.value : 0;
+  // Mit Better Fit dieselbe Zahl wie im Fortschritt: der geglaettete Trend,
+  // nicht erste gegen letzte Waegung — sonst zwei Wahrheiten mit einem Stichtag.
+  const trendInWindow = fitEntries
+    ? (fitWeights.data?.trend ?? []).filter((point) => point.day >= (firstWeight?.day ?? today))
+    : [];
+  const trendFirst = trendInWindow[0];
+  const trendLast = trendInWindow.at(-1);
+  const delta =
+    trendFirst && trendLast
+      ? Math.round((trendLast.trendKg - trendFirst.trendKg) * 10) / 10
+      : firstWeight && lastWeight
+        ? lastWeight.value - firstWeight.value
+        : 0;
 
   const now = slotForNow();
   const addMenu = [now, ...MEAL_SLOTS.filter((slot) => slot !== now)].map((slot) => ({
@@ -183,6 +196,7 @@ export function HealthHomeScreen() {
     <>
       <Screen
         gap={theme.spacing.sm}
+        floating
         contentStyle={{ paddingTop: theme.spacing.xs }}
         header={
           <Header
@@ -232,7 +246,7 @@ export function HealthHomeScreen() {
               <PanelAction
                 key={amount}
                 icon="plus"
-                label={t('water.add', { amount: oneDecimal.format(amount) })}
+                label={waterAddLabel(t, language, amount)}
                 primary
                 onPress={() => void drinkRepo.add(account.id, today, amount)}
               />

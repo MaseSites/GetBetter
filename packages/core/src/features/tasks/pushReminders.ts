@@ -5,8 +5,9 @@ import type { Reminder } from './reminders';
 
 /**
  * Erinnerungen als Mitteilung aufs Handy (`expo-notifications`): lokal
- * geplant, kein Server dazwischen. Im Browser gibt es das nicht — dort steht
- * die Erinnerung nur an der Aufgabe.
+ * geplant, kein Server dazwischen. Aufgaben und Termine teilen sich diesen
+ * Weg (`mergeReminders`). Im Browser gibt es das nicht — dort steht die
+ * Erinnerung nur an der Aufgabe bzw. am Termin.
  */
 export const canPushReminders = Platform.OS !== 'web';
 
@@ -56,7 +57,10 @@ export async function syncPushReminders(
         content: {
           title: reminder.title,
           body: bodyOf(reminder),
-          data: { taskId: reminder.taskId },
+          data:
+            reminder.kind === 'event'
+              ? { eventId: reminder.taskId }
+              : { taskId: reminder.taskId },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,

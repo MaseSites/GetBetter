@@ -29,6 +29,8 @@ import { useAccount, useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import { EmptyState, Header, Icon, ModuleIcon, Screen, Segmented, Text, usePressScale } from '@/ui';
 
+import { useFunctionValues } from './functionValues';
+
 /** Was rechts in einer Zeile steht: ein Wert, laut oder still. */
 type RowValue = { text: string; quiet?: boolean };
 
@@ -78,16 +80,18 @@ export function FunctionsScreen() {
   const habitTicks = useLiveQuery(() => habitRepo.ticks(account.id), [account.id]);
   const tripList = useLiveQuery(() => tripRepo.list(account.id), [account.id]);
   const contactList = useLiveQuery(() => contactRepo.list(account.id), [account.id]);
+  // BetterGym, BetterFamily und BetterMoney: dieselben Zahlen wie auf ihrer Startseite.
+  const appValueOf = useFunctionValues();
 
-  /** Der Wert einer Funktion — vorerst nur in GetBetter, die anderen Apps folgen. */
+  /** Der Wert einer Funktion: der Kalender ueberall, der Rest je App. */
   function valueOf(id: string): RowValue | null {
-    if (!main) return null;
     if (id === 'calendar') {
       const count = (upcoming.data ?? []).filter(
         (row) => row.startsAt.slice(0, 10) === today,
       ).length;
       return { text: t('value.today', { count }), quiet: count === 0 };
     }
+    if (!main) return appValueOf(id);
     if (id === 'tasks') {
       const count = openTasks.data ?? 0;
       return { text: String(count), quiet: count === 0 };
@@ -169,7 +173,7 @@ export function FunctionsScreen() {
 
   return (
     <Screen
-      header={<Header large title={main ? t('areas.title') : t('functions.title')} />}
+      header={<Header large title={t('functions.title')} />}
       gap={theme.spacing.sm}
     >
       <Segmented

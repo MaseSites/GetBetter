@@ -12,13 +12,13 @@ const { LANGUAGES } = require('../lang.js');
 const { validPieceGrams } = require('../limits.js');
 const { checkPer100 } = require('../nutrition.js');
 const { createOpenFoodFacts } = require('../sources/off.js');
-const { createUsage } = require('../usage.js');
+const { createUsage, statusOfRefusal } = require('../usage.js');
 const { geminiAnalyze } = require('../vision/gemini.js');
 const { LABEL_SCHEMA, MOCK_LABEL, labelInstruction, validateLabel } = require('../vision/label.js');
 
 function packagedRoutes(ctx) {
   const { ok, store, config } = ctx;
-  const usage = createUsage({ store, config, now: ctx.now });
+  const usage = ctx.usage ?? createUsage({ store, config, now: ctx.now });
   const off = createOpenFoodFacts({
     enabled: config.openFoodFacts,
     mode: config.mode,
@@ -55,8 +55,9 @@ function packagedRoutes(ctx) {
     const language = LANGUAGES.includes(body.language) ? body.language : LANGUAGES.includes(requestLanguage) ? requestLanguage : 'de';
     const today = ctx.todayIn('Europe/Zurich', ctx.now());
     // Pruefen und reservieren in einem Schritt: parallele Scans ueberziehen nichts.
+    const allowance = await usage.allowanceOf(auth.accountId);
     const admission = await store.transact((tx) => {
-      const reserved = usage.reserve(tx, auth.accountId, { today, kind: 'label_scan' });
+      const reserved = usage.reserve(tx, auth.accountId, { today, kind: 'label_scan', allowance });
       if (!reserved.ok) return reserved;
       const row = tx.forOwner(auth.accountId).insert('mealAnalyses', {
         day: today,
@@ -68,7 +69,7 @@ function packagedRoutes(ctx) {
       });
       return { ...reserved, rowId: row.id };
     });
-    if (!admission.ok) return ok(admission.error === 'daily_limit' ? 429 : 503, admission);
+    if (!admission.ok) return ok(statusOfRefusal(admission.error), admission);
 
     let response;
     try {

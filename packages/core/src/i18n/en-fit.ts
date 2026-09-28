@@ -248,4 +248,15 @@ export const enFit: Readonly<Record<keyof typeof deFit, string>> = {
   'fit.photo.error.offline': 'The service isn’t responding right now.',
   'fit.photo.error.too_many_images': 'Two photos are enough.',
   'fit.photo.error.generic': 'The analysis didn’t work. Try again or add it by hand.',
+  'fit.photo.error.plan_budget_free':
+    'Your free photo analyses for this month are used up. The subscription lets you keep going – adding by hand always works.',
+  'fit.photo.error.plan_budget_paid':
+    'Your photo allowance for this month is used up. It resets on the first of the month – adding by hand always works.',
+  'fit.photo.error.not_configured':
+    'Photo analysis isn’t set up right now. Adding by hand still works.',
+  'fit.photo.error.provider_quota':
+    'Photo analysis is maxed out for today. Adding by hand still works.',
+  'fit.photo.error.provider_busy': 'The photo AI is overloaded right now. Try again in a minute.',
+  'fit.photo.error.provider_timeout':
+    'The photo AI took too long. Try again or add it by hand.',
 };

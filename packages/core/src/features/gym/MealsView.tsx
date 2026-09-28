@@ -66,6 +66,7 @@ export function MealsView({ module }: { module: ModuleDefinition }) {
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}

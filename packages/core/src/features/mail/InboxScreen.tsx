@@ -238,7 +238,10 @@ export function InboxScreen(props: InboxScreenProps) {
         }}
         ItemSeparatorComponent={Separator}
         ListHeaderComponent={header}
-        ListEmptyComponent={empty ? <View style={styles.empty}>{empty}</View> : null}
+        ListEmptyComponent={
+          // Die Einrichtung steht gleich unter dem Titel, ein leerer Zustand mittig.
+          empty ? <View style={ready ? styles.empty : styles.setup}>{empty}</View> : null
+        }
         refreshControl={
           ready ? (
             <RefreshControl
@@ -308,4 +311,5 @@ export function InboxScreen(props: InboxScreenProps) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   empty: { flexGrow: 1, justifyContent: 'center' },
+  setup: { flexGrow: 1 },
 });

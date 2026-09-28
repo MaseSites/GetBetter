@@ -3,13 +3,26 @@ import { View } from 'react-native';
 
 import { fit, type FitFood, type NutritionLabel } from '@/db/fit';
 import { canPickImage, hasCamera, pickImage } from '@/features/personalize/pickImage';
-import { useI18n } from '@/i18n';
+import { useI18n, type TranslationKey } from '@/i18n';
 import { useTheme } from '@/theme';
 import { Button, Input, Text } from '@/ui';
 
 import { canDetectBarcode, detectBarcode } from './barcodeScan';
 import { BarcodeScanner, canScanLive } from './BarcodeScanner';
 import { parseDecimal } from './setupForm';
+
+/** Ablehnungen des Etiketten-Lesens mit eigenem Satz (dieselben wie beim Foto). */
+const LABEL_ERRORS = [
+  'daily_limit',
+  'budget_exhausted',
+  'plan_budget_free',
+  'plan_budget_paid',
+  'not_configured',
+  'provider_busy',
+  'provider_quota',
+  'provider_timeout',
+  'offline',
+];
 
 const PNG_SAMPLE =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -122,7 +135,13 @@ export function PackagedFlow({
         setProblems(result.data.label.plausible ? [] : result.data.label.problems);
       } else
         setMessage(
-          t(result.error === 'label_unreadable' ? 'fit.label.unreadable' : 'fit.error.body'),
+          t(
+            result.error === 'label_unreadable'
+              ? 'fit.label.unreadable'
+              : LABEL_ERRORS.includes(result.error)
+                ? (`fit.photo.error.${result.error}` as TranslationKey)
+                : 'fit.error.body',
+          ),
         );
     } catch {
       setBusy(false);

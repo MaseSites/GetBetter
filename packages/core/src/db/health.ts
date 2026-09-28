@@ -118,6 +118,20 @@ export const meds = {
     changed(null);
   },
 
+  /** Wie `toggle`, aber nur, wenn es nicht schon so ist — fuer „Alle genommen“ und Rueckgaengig. */
+  async setTaken(
+    medId: string,
+    accountId: string,
+    day: string,
+    slot: MedSlot,
+    taken: boolean,
+  ): Promise<void> {
+    const existing = await db.medTakes.findBy(
+      (row) => row.medId === medId && row.day === day && row.slot === slot,
+    );
+    if (Boolean(existing) !== taken) await meds.toggle(medId, accountId, day, slot);
+  },
+
   async setStock(id: string, stock: number | null) {
     return changed(await db.meds.update(id, { stock }));
   },
@@ -207,5 +221,25 @@ export const moods = {
   async remove(id: string) {
     await db.moods.remove(id);
     changed(null);
+  },
+};
+
+// ------------------------------------------------------ Zusammenhaenge
+
+/**
+ * Alles, was „Was dir guttut“ braucht, seit einem Tag: Laune, Naechte,
+ * Trainings und Getrunkenes — gerechnet wird in `features/gym/moodInsights.ts`.
+ */
+export const healthInsights = {
+  async since(accountId: string, fromDay: string) {
+    const mine = (row: { accountId: string; day: string }) =>
+      row.accountId === accountId && row.day >= fromDay;
+    const [moodRows, sleepRows, workoutRows, drinkRows] = await Promise.all([
+      db.moods.list({ where: mine }),
+      db.sleeps.list({ where: mine }),
+      db.workouts.list({ where: mine }),
+      db.drinks.list({ where: mine }),
+    ]);
+    return { moods: moodRows, sleeps: sleepRows, workouts: workoutRows, drinks: drinkRows };
   },
 };

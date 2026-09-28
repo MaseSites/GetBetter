@@ -11,6 +11,7 @@ const {
   recordSetIds,
   nextTarget,
   pickTemplate,
+  previousBest,
   records,
   rescheduleCheck,
   warmupSets,
@@ -228,6 +229,17 @@ describe('Training, genauer', () => {
       { id: 'w', ...work('bench_press', 100, 5, { warmup: true }) },
     ];
     assert.deepEqual([...recordSetIds(today, prior)], ['b', 'c', 'd']);
+  });
+
+  test('ein Rekord braucht eine fruehere, uebertroffene Bestleistung', () => {
+    const first = [work('squat', 100, 5, { day: '2026-09-02' }), work('squat', 110, 5, { day: '2026-09-02' })];
+    // Nur ein Tag: kein Vorher, also kein Rekord — auch nicht vom zweiten Satz.
+    assert.equal(previousBest(first, records(first).squat), null);
+    const later = [...first, work('squat', 115, 5, { day: '2026-09-09' })];
+    assert.equal(previousBest(later, records(later).squat), e1rm(110, 5));
+    // Der Beste liegt am ersten Tag, spaeter kam weniger: der Rekord ist alt, nicht neu.
+    const weaker = [...first, work('squat', 90, 5, { day: '2026-09-09' })];
+    assert.equal(previousBest(weaker, records(weaker).squat), null);
   });
 
   test('Muskelgruppen der Woche zaehlen Saetze auch ohne Gewicht; 1RM je Tag', () => {

@@ -10,9 +10,16 @@
  * JSON-Datei im Datenordner. Das ist ein Dienst fuer die Entwicklung — was
  * ihm fehlt, steht in der README des Ordners.
  */
+// Zuerst die Schluessel aus `.env.local` (Gemini, Better Fit) — vor jedem
+// Modul, das beim Laden die Umgebung liest. Beim Zusammenfuehren am 24.09.
+// ging diese Zeile verloren, und Better Fit lief unbemerkt mit Beispielwerten;
+// `test/env-file.test.js` haelt sie jetzt fest.
+if (process.env.BETTER_SKIP_ENV_FILE !== '1') require('./env.js').loadEnvFile();
+
 const http = require('node:http');
 const crypto = require('node:crypto');
 
+const { removeAccount } = require('./accountRemoval.js');
 const { recordActivity } = require('./activity.js');
 const { startAdminServer } = require('./admin/server.js');
 const { createAiService } = require('./ai/service.js');
@@ -37,6 +44,7 @@ const { createLimiter } = require('./ratelimit.js');
 const { mergeCollection, publicAccount, visibleTables } = require('./scope.js');
 const { createSessions } = require('./sessions.js');
 const { createFitService } = require('./fit/service.js');
+const { fitProblems, mustRefuse, PROBLEM_TEXT } = require('./fit/readiness.js');
 const { languageOf } = require('./fit/lang.js');
 const { createMailService } = require('./mail/service.js');
 const { createSpeechService } = require('./speech/service.js');
@@ -598,7 +606,21 @@ async function calendarTitles(accountId, day) {
 
 // Better Fit: eigener Datenbestand (fit.json), eigene Routen. Das Konto kommt
 // ausschliesslich aus der Sitzung, die `server` schon aufgeloest hat.
-const fit = createFitService({ dataDir: dataDir(), ai, calendar: calendarTitles });
+const fit = createFitService({ dataDir: dataDir(), ai, calendar: calendarTitles, billing });
+
+// Bereit fuer echte Menschen? In der Produktion startet der Dienst mit einer
+// Luecke gar nicht — lieber kein Better Fit als Beispielwerte fuer zahlende Konten.
+{
+  // `probe`, nicht `info`: nichts zwischenspeichern — der Prüfstand legt den Katalog erst nach dem Start hinein.
+  const problems = fitProblems(fit.config, fit.catalog.probe());
+  for (const problem of problems) process.stderr.write(`[fit] ${PROBLEM_TEXT[problem]}\n`);
+  if (mustRefuse(problems)) {
+    process.stderr.write(
+      '[fit] Produktion ohne echte Foto-Analyse und Schweizer Datenbank: Start abgebrochen (FIT_ALLOW_MOCK=1 fuer eine Vorfuehrung).\n',
+    );
+    process.exit(1);
+  }
+}
 const fitLimiter = createLimiter({ limit: fit.config.rateLimitPerMinute, windowMs: 60_000 });
 const fitIpLimiter = createLimiter({
   limit: fit.config.rateLimitPerMinute * 3,
@@ -696,6 +718,29 @@ const ROUTES = [
     body: true,
     owner: async ([id]) => id,
     handler: ({ params: [id], body }) => patchProfile(id, body),
+  },
+  {
+    // Konto loeschen, von der Person selbst (Apple 5.1.1(v), DSG): mit dem
+    // Passwort bestaetigt, dieselben Regeln wie im Admin, aber ohne Sicherung.
+    method: 'DELETE',
+    path: /^\/v1\/accounts\/([^/]+)$/,
+    body: true,
+    owner: async ([id]) => id,
+    handler: async ({ params: [id], body, req }) => {
+      const byAddress = gateOf(loginByAddress, clientIp(req));
+      const byAccount = gateOf(loginByEmail, `delete:${id}`);
+      if (!byAddress.allowed) return tooMany(byAddress);
+      if (!byAccount.allowed) return tooMany(byAccount);
+      const row = (await load()).tables.accounts.find((entry) => entry.id === id);
+      if (!row) return ok(404, { error: 'not_found' });
+      if (!row.passwordHash || !row.passwordSalt) return ok(401, { error: 'wrong_password' });
+      const attempt = await hashPassword(String(body.password ?? ''), row.passwordSalt);
+      if (!matches(attempt, row.passwordHash)) return ok(401, { error: 'wrong_password' });
+      const result = await removeAccount({ dataDir: dataDir(), mail, fit, sessions }, id);
+      if (!result.ok) return ok(404, { error: result.error });
+      await track({ accountId: id, kind: 'account.deleted', detail: {} });
+      return ok(200, { ok: true });
+    },
   },
 
   // Haushalt
@@ -965,7 +1010,12 @@ const server = http.createServer(async (req, res) => {
       );
       if (!owner) return send(res, 401, { error: 'auth_required' });
       if (owner.disabled === true) return send(res, 403, { error: 'account_disabled' });
-      const byIp = gateOf(fitIpLimiter, req.socket.remoteAddress ?? 'unknown');
+      // Better Fit gehoert zu BetterGym: wem der Admin die App weggenommen hat, der kommt nicht hinein.
+      if (Array.isArray(owner.blockedApps) && owner.blockedApps.includes('bettergym')) {
+        return send(res, 403, { error: 'app_blocked' });
+      }
+      // Hinter einem Proxy die echte Adresse, sonst teilten sich alle eine Bremse.
+      const byIp = gateOf(fitIpLimiter, clientIp(req));
       if (!byIp.allowed) return send(res, 429, tooMany(byIp).body);
       const byAccount = gateOf(fitLimiter, session.accountId);
       if (!byAccount.allowed) return send(res, 429, tooMany(byAccount).body);

@@ -118,7 +118,6 @@ export const deFit3 = {
   'fit.link.restDetail': 'Kein Training heute — das Ziel ist etwas tiefer',
   'fit.link.noPlan': 'Noch kein Trainingsplan — hier erstellen',
   'fit.water.progress': '{drunk} von {target} l getrunken',
-  'fit.water.add': '+{dl} dl',
   'fit.water.trainingHint': 'Trainingstag: einen halben Liter mehr.',
   'fit.meal.emptySlot': 'Noch nichts eingetragen',
 

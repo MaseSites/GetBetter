@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { recipes as recipeRepo, useLiveQuery, type RecipeRow } from '@/db';
 import { shopping as shoppingRepo } from '@/db/repositories';
-import { guessCategory, splitQuantity } from '@/features/shopping/categories';
+import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
+import { guessCategory } from '@/features/shopping/categories';
+import { mergeBatch } from '@/features/shopping/merge';
 import { useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
@@ -18,6 +20,7 @@ import {
   FloatingButton,
   Header,
   Icon,
+  IconButton,
   Input,
   Screen,
   Sheet,
@@ -25,8 +28,11 @@ import {
   Text,
 } from '@/ui';
 
+import { ingredientForShopping, scaleIngredient } from './scale';
+
 const SERVINGS = [1, 2, 4, 6] as const;
 const TAGS = ['quick', 'vegi', 'kids', 'guests'] as const;
+const MAX_PERSONS = 20;
 
 type Editor = { mode: 'new' } | { mode: 'edit'; row: RecipeRow } | null;
 
@@ -52,6 +58,7 @@ export function RecipesView({ module }: { module: ModuleDefinition }) {
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -145,7 +152,16 @@ function RecipeEditor({
   const [steps, setSteps] = useState(existing?.steps ?? '');
   const [tags, setTags] = useState<string[]>(existing ? [...existing.tags] : []);
   const [error, setError] = useState(false);
-  const [sent, setSent] = useState(0);
+  const [sent, setSent] = useState<{ added: number; merged: number } | null>(null);
+  // Für wie viele eingekauft wird — anfangs so viele, wie das Rezept ergibt.
+  const [shopFor, setShopFor] = useState<number>(existing?.servings ?? 4);
+  const celebrate = useCelebrate();
+  const factor = shopFor / Math.max(1, servings);
+
+  function changeShopFor(next: number) {
+    setShopFor(Math.min(MAX_PERSONS, Math.max(1, next)));
+    setSent(null);
+  }
 
   const lines = ingredients
     .split('\n')
@@ -163,19 +179,29 @@ function RecipeEditor({
     onClose();
   }
 
-  /** Jede Zutat als Posten auf die Liste — mit Menge, wenn eine davorsteht. */
+  /**
+   * Jede Zutat als Posten auf die Liste — für `shopFor` Personen umgerechnet.
+   * Gleiches im Rezept wird vorab eins, was schon offen drauf steht, wächst
+   * dort (`shopping.addMerging`) statt doppelt zu stehen.
+   */
   async function toShopping() {
-    for (const line of lines) {
-      const { name, quantity } = splitQuantity(line);
-      await shoppingRepo.add({
+    const factor = shopFor / Math.max(1, servings);
+    const items = mergeBatch(lines.map((line) => ingredientForShopping(line, factor)));
+    let added = 0;
+    let merged = 0;
+    for (const { name, quantity } of items) {
+      const result = await shoppingRepo.addMerging({
         accountId: scope.accountId,
         householdId: scope.householdId,
         name,
         quantity,
         category: guessCategory(name),
       });
+      if (result.merged) merged += 1;
+      else added += 1;
     }
-    setSent(lines.length);
+    celebrate('shopping');
+    setSent({ added, merged });
   }
 
   async function remove() {
@@ -225,16 +251,46 @@ function RecipeEditor({
         />
 
         {lines.length > 0 ? (
-          <Button
-            label={
-              sent > 0
-                ? t('recipes.sent', { count: sent })
-                : t('recipes.toShopping', { count: lines.length })
-            }
-            variant="secondary"
-            icon="cart"
-            onPress={toShopping}
-          />
+          <View style={{ gap: theme.spacing.sm }}>
+            <View style={[styles.stepper, { gap: theme.spacing.md }]}>
+              <Text variant="label" tone="muted" style={{ flex: 1 }}>
+                {t('familyplus.recipes.shopFor')}
+              </Text>
+              <IconButton
+                icon="minus"
+                label={t('familyplus.recipes.fewer')}
+                onPress={() => changeShopFor(shopFor - 1)}
+                tone={shopFor <= 1 ? 'faint' : 'default'}
+                size={22}
+              />
+              <Text variant="body" style={styles.persons}>
+                {t('recipes.persons', { count: shopFor })}
+              </Text>
+              <IconButton
+                icon="plus"
+                label={t('familyplus.recipes.more')}
+                onPress={() => changeShopFor(shopFor + 1)}
+                tone={shopFor >= MAX_PERSONS ? 'faint' : 'default'}
+                size={22}
+              />
+            </View>
+            {factor !== 1 ? (
+              <Text variant="caption" tone="muted">
+                {lines.map((line) => scaleIngredient(line, factor)).join(' · ')}
+              </Text>
+            ) : null}
+            <Button
+              label={
+                sent
+                  ? t('familyplus.recipes.sent', sent)
+                  : t('recipes.toShopping', { count: lines.length })
+              }
+              variant="secondary"
+              icon="cart"
+              disabled={sent !== null}
+              onPress={toShopping}
+            />
+          </View>
         ) : null}
 
         <Input
@@ -293,4 +349,6 @@ function RecipeEditor({
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap' },
   removeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center' },
+  persons: { minWidth: 88, textAlign: 'center' },
 });

@@ -287,6 +287,11 @@ export function WorkoutSheet({
         <FitState loading={detail.loading} error={detail.error} onRetry={detail.reload}>
           {workout ? (
             <>
+              {future ? (
+                <Text variant="body" tone="muted">
+                  {t('fixes.fit.futureSets')}
+                </Text>
+              ) : null}
               {future && !readOnly ? (
                 <View style={{ gap: theme.spacing.sm }}>
                   <Text variant="body" tone="muted">

@@ -36,4 +36,20 @@ export const deSettings = {
 
   'settings.app': 'App',
   'settings.app.version': 'Version',
+  'account.delete.row':
+    'Konto löschen',
+  'account.delete.title':
+    'Konto löschen',
+  'account.delete.body':
+    'Damit löschst du dein Konto in allen Better-Apps – samt Ernährung, Training, Gewicht, Terminen, Notizen und Bildern. Das geht nicht rückgängig. Ein laufendes Abo kündigst du im App Store oder bei Google Play.',
+  'account.delete.password':
+    'Dein Passwort',
+  'account.delete.confirm':
+    'Endgültig löschen',
+  'account.delete.wrongPassword':
+    'Das Passwort stimmt nicht.',
+  'account.delete.tooMany':
+    'Zu viele Versuche. Warte ein paar Minuten.',
+  'account.delete.offline':
+    'Das hat nicht geklappt. Prüf die Verbindung und versuch es nochmal.',
 } as const;

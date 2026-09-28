@@ -8,14 +8,33 @@
  *   ab 100 % keine bezahlte Analyse mehr — dann bleibt die Eingabe von Hand
  * - Kill-Switch (`FIT_AI_DISABLED=1`)
  *
+ * - Kontingent je Konto (`billing`): jede bezahlte Analyse zaehlt gegen das
+ *   Budget des Kontos in BetterGym — dasselbe, aus dem der Coach und die
+ *   Stimmen schoepfen. Ohne Abo ist es klein (Gratis), mit Abo gross. So kostet
+ *   ein Konto nie mehr, als es einbringt, und Gratis-Konten koennen das
+ *   Monatsbudget aller nicht leeren.
+ * - Live ohne Schluessel ist ein Fehler (`not_configured`), nie still der
+ *   Mock: sonst saehe eine echte Person erfundene Beispielwerte.
+ *
  * Reserviert wird VOR dem Aufruf, in derselben Transaktion, die zaehlt
  * (`reserve`): eine Zeile in `usageLedger` mit einem geschaetzten Betrag
  * (`pending`), die `settle` nach dem Aufruf auf die echten Zahlen setzt. So
  * ueberziehen parallele Starts weder das Tageslimit noch das Budget.
  */
 
+const { zurichMonthOf } = require('../billing/month.js');
+
 const monthOf = (iso) => iso.slice(0, 7);
 const ZURICH = 'Europe/Zurich';
+/** Die App, gegen deren Abo Better Fit zaehlt. */
+const FIT_APP = 'bettergym';
+
+/** HTTP-Status zu einer Ablehnung von `reserve`. */
+function statusOfRefusal(error) {
+  if (error === 'daily_limit') return 429;
+  if (error === 'plan_budget_free' || error === 'plan_budget_paid') return 402;
+  return 503;
+}
 
 /** `YYYY-MM-DD` eines Zeitpunkts in einer Zeitzone. */
 function dayIn(iso, timezone = ZURICH) {
@@ -46,8 +65,35 @@ function stateOf(spent, limit) {
   };
 }
 
-function createUsage({ store, config, now = () => new Date() }) {
+function createUsage({ store, config, now = () => new Date(), billing = null }) {
   const inMonth = (month) => (row) => typeof row.at === 'string' && monthOf(row.at) === month;
+  const inZurichMonth = (month) => (row) => typeof row.at === 'string' && zurichMonthOf(row.at) === month;
+
+  /** Was ein Konto diesen Monat (Zuerich) in Better Fit fuer KI ausgegeben hat — synchron. */
+  function accountSpendChf(accountId, month = zurichMonthOf(now().getTime())) {
+    return store.ownerSum(accountId, 'usageLedger', 'costChf', inZurichMonth(month));
+  }
+
+  /**
+   * Das Kontingent des Kontos vor der Transaktion: `{ baseChf, refusal }` —
+   * `baseChf` ist, was dem Konto ohne Better Fit bliebe (Budget minus KI und
+   * Stimme); in der Transaktion kommt der eigene Verbrauch dazu. Ohne
+   * `billing` (Tests, Werkzeuge) `null`: dann gilt nur Tageslimit und Budget.
+   */
+  async function allowanceOf(accountId) {
+    if (!billing) return null;
+    await billing.ledger.ready();
+    const account = await billing.findAccount(accountId);
+    const standing = billing.standingOf(account, FIT_APP);
+    // `standingOf` zaehlt Better Fit schon mit (Quelle aus `service.js`) — hier wieder weg,
+    // weil die Transaktion den eigenen Stand samt offener Reservierungen genauer kennt.
+    return {
+      baseChf: standing.remainingChf + accountSpendChf(accountId),
+      plan: standing.plan,
+      resetsOn: standing.resetsOn,
+      priceChf: standing.priceChf,
+    };
+  }
 
   async function monthCostChf(month = monthOf(now().toISOString())) {
     return store.sumAll('usageLedger', 'costChf', inMonth(month));
@@ -59,13 +105,27 @@ function createUsage({ store, config, now = () => new Date() }) {
   }
 
   /** Die Pruefung ohne Reservierung — `own`: die Sicht des Kontos, `spent`: bisher im Monat. */
-  function decide(own, today, spent) {
+  function decide(own, today, spent, allowance = null) {
     if (callsOn(own, today) >= config.maxAnalysesPerDay) return { ok: false, error: 'daily_limit', limit: config.maxAnalysesPerDay };
-    if (config.mode === 'mock' || !config.geminiKey) return { ok: true, provider: 'mock' };
+    if (config.mode === 'mock') return { ok: true, provider: 'mock' };
+    if (!config.geminiKey) return { ok: false, error: 'not_configured' };
     if (config.aiDisabled) return { ok: false, error: 'ai_disabled' };
     const state = stateOf(spent, config.monthlyBudgetChf);
     // Keine automatische Hochstufung, keine stille Ueberschreitung: dann eben von Hand.
     if (state.state === 'exhausted') return { ok: false, error: 'budget_exhausted' };
+    if (allowance) {
+      const month = zurichMonthOf(now().getTime());
+      const mine = own.list('usageLedger', inZurichMonth(month)).reduce((total, row) => total + (Number(row.costChf) || 0), 0);
+      if (allowance.baseChf - mine < config.reserveChf) {
+        return {
+          ok: false,
+          error: allowance.plan === 'paid' ? 'plan_budget_paid' : 'plan_budget_free',
+          plan: allowance.plan,
+          resetsOn: allowance.resetsOn,
+          priceChf: allowance.priceChf,
+        };
+      }
+    }
     return { ok: true, provider: 'gemini', budget: state };
   }
 
@@ -84,11 +144,11 @@ function createUsage({ store, config, now = () => new Date() }) {
    * `{ ok, provider, budget, ledgerId, at }` zurueck. Den Aufruf zaehlt der
    * Aufrufer an seiner Analyse (`calls: [..., at]`), in derselben Transaktion.
    */
-  function reserve(tx, accountId, { today, kind }) {
+  function reserve(tx, accountId, { today, kind, allowance = null }) {
     const own = tx.forOwner(accountId);
     const at = now().toISOString();
     const spent = tx.sumAll('usageLedger', 'costChf', inMonth(monthOf(at)));
-    const admission = decide(own, today, spent);
+    const admission = decide(own, today, spent, allowance);
     if (!admission.ok) return admission;
     const estimate = admission.provider === 'gemini' ? config.reserveChf : 0;
     const ledger = own.insert('usageLedger', { at, kind, model: null, inputTokens: 0, outputTokens: 0, costChf: estimate, durationMs: 0, ok: true, pending: true });
@@ -121,7 +181,7 @@ function createUsage({ store, config, now = () => new Date() }) {
     });
   }
 
-  return { admit, budget, monthCostChf, record, reserve, settle };
+  return { accountSpendChf, admit, allowanceOf, budget, monthCostChf, record, reserve, settle };
 }
 
-module.exports = { createUsage, dayIn, callsOn, callsOf };
+module.exports = { FIT_APP, createUsage, dayIn, callsOn, callsOf, statusOfRefusal };

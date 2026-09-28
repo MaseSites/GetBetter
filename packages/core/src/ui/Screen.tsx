@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { currentApp, type AppId } from '@/app/identity';
+import { FLOATING_BUTTON_SIZE } from './layout';
 import { useApp } from '@/state/AppContext';
 import { useTheme } from '@/theme';
 import {
@@ -36,6 +37,11 @@ export type ScreenProps = {
   contentStyle?: StyleProp<ViewStyle>;
   /** Rollt ans Ende, sobald Inhalt dazukommt — fuer Gespraeche wie den Coach. */
   followEnd?: boolean;
+  /**
+   * Unten rechts schwebt ein Knopf: so viel Platz unter dem Inhalt lassen,
+   * dass die letzte Zeile nicht darunter liegt.
+   */
+  floating?: boolean;
 };
 
 export function Screen({
@@ -47,6 +53,7 @@ export function Screen({
   gap,
   contentStyle,
   followEnd = false,
+  floating = false,
 }: ScreenProps) {
   const theme = useTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -67,6 +74,7 @@ export function Screen({
       gap: gap ?? theme.spacing.lg,
     },
     contentStyle,
+    floating ? { paddingBottom: FLOATING_BUTTON_SIZE + theme.spacing.lg * 2 } : null,
   ];
 
   return (

@@ -31,7 +31,7 @@ const { cleanImage } = require('../images.js');
 const { LANGUAGES } = require('../lang.js');
 const { createUsda } = require('../sources/usda.js');
 const { MAX_AGE_MS } = require('../tempImages.js');
-const { createUsage } = require('../usage.js');
+const { createUsage, statusOfRefusal } = require('../usage.js');
 const { mockAnalyze, pickFixture } = require('../vision/fixtures.js');
 const { geminiAnalyze } = require('../vision/gemini.js');
 const { validateVision } = require('../vision/schema.js');
@@ -42,7 +42,7 @@ const languageFor = (wanted, fallback) =>
 
 function analysisRoutes(ctx) {
   const { ok, store, catalog, config, reference } = ctx;
-  const usage = createUsage({ store, config, now: ctx.now });
+  const usage = ctx.usage ?? createUsage({ store, config, now: ctx.now });
   const { images } = ctx;
   const usda = createUsda({
     apiKey: config.usdaKey,
@@ -181,13 +181,16 @@ function analysisRoutes(ctx) {
    * Vor dem Aufruf: Tageslimit und Budget pruefen UND reservieren, in einer
    * Transaktion. `write(own, reserved)` zaehlt den Aufruf an der Analyse.
    */
-  const reserveFor = (auth, kind, write) =>
-    store.transact((tx) => {
+  const reserveFor = async (auth, kind, write) => {
+    // Das Kontingent des Kontos (Abo BetterGym) — vorher gelesen, in der Transaktion geprueft.
+    const allowance = await usage.allowanceOf(auth.accountId);
+    return store.transact((tx) => {
       const today = ctx.todayIn('Europe/Zurich', ctx.now());
-      const reserved = usage.reserve(tx, auth.accountId, { today, kind });
+      const reserved = usage.reserve(tx, auth.accountId, { today, kind, allowance });
       if (!reserved.ok) return reserved;
       return { ...reserved, ...write(tx.forOwner(auth.accountId), reserved) };
     });
+  };
 
   /** Das erste Foto ist weg (nach einer Stunde): eine Fortsetzung saehe nur noch das zweite. */
   const isExpired = (row, loaded) =>
@@ -214,7 +217,7 @@ function analysisRoutes(ctx) {
         createdAt: reserved.at,
       }).id,
     }));
-    if (!admission.ok) return ok(admission.error === 'daily_limit' ? 429 : 503, admission);
+    if (!admission.ok) return ok(statusOfRefusal(admission.error), admission);
     void images.sweep();
 
     const fixture =
@@ -304,7 +307,7 @@ function analysisRoutes(ctx) {
       own.update('mealAnalyses', id, { calls: [...calls, reserved.at] });
       return {};
     });
-    if (!admission.ok) return ok(admission.error === 'daily_limit' ? 429 : 503, admission);
+    if (!admission.ok) return ok(statusOfRefusal(admission.error), admission);
 
     const context = `Zweites Bild derselben Mahlzeit von der Seite. Erste Einschätzung: ${JSON.stringify(row.vision.foods.map((food) => ({ name: food.displayName, grams: food.estimatedGrams })))}. Zähle nichts doppelt.`;
     const fixture =

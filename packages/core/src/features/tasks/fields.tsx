@@ -53,10 +53,13 @@ export function ListHeader({
 /** Ein Satz, wo nichts ist — und hoechstens ein Tipp darunter. */
 export function QuietEmpty({
   title,
+  body,
   actionLabel,
   onAction,
 }: {
   title: string;
+  /** Der eine Satz unter dem Titel: was hier hinkommt. */
+  body?: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
@@ -75,6 +78,11 @@ export function QuietEmpty({
       <Text variant="title" align="center">
         {title}
       </Text>
+      {body ? (
+        <Text variant="body" tone="muted" align="center">
+          {body}
+        </Text>
+      ) : null}
       {actionLabel && onAction ? (
         <Pressable
           accessibilityRole="button"

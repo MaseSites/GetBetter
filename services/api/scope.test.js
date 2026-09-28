@@ -202,6 +202,42 @@ test('mergeCollection: keine Freigabe an sich selbst, kein Termin im Kalender ei
   ]);
 });
 
+test('mergeCollection: Termine behalten ihre Erinnerung (reminderMinutes)', () => {
+  const tables = world();
+  const merged = mergeCollection(tables, 'events', 'anna', [
+    ...visibleTables(tables, 'anna').events.map((row) =>
+      row.id === 'e-anna' ? { ...row, reminderMinutes: 10 } : row,
+    ),
+    {
+      id: 'e-neu',
+      accountId: 'anna',
+      householdId: null,
+      calendarId: null,
+      isPrivate: false,
+      reminderMinutes: null,
+    },
+  ]);
+  assert.equal(merged.find((row) => row.id === 'e-anna').reminderMinutes, 10);
+  assert.equal(merged.find((row) => row.id === 'e-neu').reminderMinutes, null);
+});
+
+test('mergeCollection: Ämtli behalten „reihum“, Einkauf die weggeräumte Geschichte', () => {
+  const tables = world();
+  const chores = mergeCollection(tables, 'chores', 'anna', [
+    { id: 'ch-neu', householdId: 'h1', title: 'Bad', assignedTo: 'ben', rotation: ['ben', 'anna'] },
+  ]);
+  assert.deepEqual(chores.find((row) => row.id === 'ch-neu').rotation, ['ben', 'anna']);
+  const items = mergeCollection(tables, 'shoppingItems', 'anna', [
+    { id: 'sh-house', accountId: 'ben', householdId: 'h1', name: 'Milch', done: true, clearedAt: '2026-09-25T10:00:00Z' },
+  ]);
+  assert.equal(items.find((row) => row.id === 'sh-house').clearedAt, '2026-09-25T10:00:00Z');
+  // Wer nicht im Haushalt ist, sieht die Geschichte nicht.
+  assert.deepEqual(
+    visibleTables({ ...tables, shoppingItems: items }, 'dan').shoppingItems.map((row) => row.id),
+    ['sh-dan'],
+  );
+});
+
 test('mergeCollection: Konten — nur die eigene Zeile, und die geht nie verloren', () => {
   const tables = world();
   const merged = mergeCollection(tables, 'accounts', 'anna', [

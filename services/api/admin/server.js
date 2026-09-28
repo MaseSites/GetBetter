@@ -16,6 +16,7 @@ const fs = require('node:fs/promises');
 const http = require('node:http');
 const path = require('node:path');
 
+const { removeAccount } = require('../accountRemoval.js');
 const { recordActivity } = require('../activity.js');
 const { createPlanRequests, settleRequests } = require('../billing/requests.js');
 const {
@@ -25,11 +26,9 @@ const {
   normaliseEmail,
   normaliseUsername,
 } = require('../auth.js');
-const { load, rememberDeleted, rowsOf, save } = require('../store.js');
-const { deleteUpload } = require('../uploads.js');
+const { load, rowsOf, save } = require('../store.js');
 const { viewTickets } = require('../viewTickets.js');
 const { APPS, appOrigin, isAppId } = require('./catalog.js');
-const { applyPlan, backupOf, countsOf, planAccountDeletion } = require('./deletion.js');
 const {
   accountDetail,
   accountView,
@@ -335,52 +334,13 @@ async function startView({ dataDir, tickets }, id, body) {
 
 // ------------------------------------------------------------------ Loeschen
 
-const BACKUP_DIR = 'deleted-accounts';
-const MAX_BACKUP_ID = 100;
-/** Diese Sammlungen raeumt der Mail-Dienst selbst — mit Tresor, Cache und Postausgang. */
-const MAIL_COLLECTIONS = ['mailAccounts', 'mailMessages'];
-
-/** `<datenordner>/deleted-accounts/<konto>-<zeit>.json`; die Id wird fuer den Namen entschaerft. */
-async function writeBackup(dataDir, backup) {
-  const directory = path.resolve(dataDir, BACKUP_DIR);
-  const safeId = String(backup.accountId)
-    .replace(/[^A-Za-z0-9_-]/g, '_')
-    .slice(0, MAX_BACKUP_ID);
-  const file = path.join(directory, `${safeId}-${backup.deletedAt.replace(/[:.]/g, '-')}.json`);
-  if (path.dirname(file) !== directory) throw new Error('backup_outside_data_dir');
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(backup, null, 2)}\n`, {
-    encoding: 'utf8',
-    flag: 'wx',
-  });
-}
-
-function withoutCollections(plan, names) {
-  const remove = Object.fromEntries(
-    Object.entries(plan.remove).filter(([name]) => !names.includes(name)),
-  );
-  return { ...plan, remove };
-}
-
-/** Ein fehlendes Bild ist kein Fehler (`deleteUpload` sagt dann 404); alles andere nur ins Protokoll. */
-async function removeUploads(ids) {
-  for (const id of ids) {
-    try {
-      await deleteUpload(id);
-    } catch (error) {
-      process.stderr.write(`[admin] Bild loeschen: ${error?.name ?? 'Error'}\n`);
-    }
-  }
-}
-
 /**
- * Loescht ein Konto nach den Regeln in `deletion.js`. `confirm` muss die E-Mail
- * des Kontos sein, Gross und klein egal. Erst die Sicherung, dann der Plan mit
- * einem `save()`, dann die Postfaecher ueber den Mail-Dienst und die Bilder.
+ * Loescht ein Konto nach den Regeln in `deletion.js` (`accountRemoval.js`).
+ * `confirm` muss die E-Mail des Kontos sein, Gross und klein egal. Der Admin
+ * legt vorher eine Sicherung ab; die Sitzungen enden mit.
  */
-async function deleteAccount({ dataDir, mail, fit }, id, body) {
-  const db = await load();
-  const row = rowsOf(db, 'accounts').find((entry) => entry.id === id);
+async function deleteAccount({ dataDir, mail, fit, sessions }, id, body) {
+  const row = rowsOf(await load(), 'accounts').find((entry) => entry.id === id);
   if (!row) return reply(404, { error: 'not_found' });
   const confirmed =
     typeof body.confirm === 'string' &&
@@ -389,28 +349,14 @@ async function deleteAccount({ dataDir, mail, fit }, id, body) {
     normaliseEmail(body.confirm) === normaliseEmail(row.email);
   if (!confirmed) return reply(400, { error: 'confirm_mismatch' });
 
-  const plan = planAccountDeletion(db.tables, id);
-  // Scheitert die Sicherung, bleibt alles, wie es war.
-  await writeBackup(dataDir, backupOf(db.tables, plan, new Date().toISOString()));
-
-  const mailService = typeof mail?.removeAccount === 'function' ? mail : null;
-  const local = mailService ? withoutCollections(plan, MAIL_COLLECTIONS) : plan;
-  for (const [name, rows] of Object.entries(applyPlan(db.tables, local))) db.tables[name] = rows;
-  // Eine App mit altem Stand schriebe die Zeilen sonst beim naechsten PUT zurueck.
-  rememberDeleted(db, id, plan.remove);
-  await save();
-  for (const mailboxId of mailService ? (plan.remove.mailAccounts ?? []) : []) {
-    await mailService.removeAccount(mailboxId);
-  }
-  await removeUploads(plan.uploadIds);
-  // Better Fit liegt getrennt (fit.json, Fotos) — auch das geht mit.
-  if (typeof fit?.removeAccount === 'function') await fit.removeAccount(id);
+  const result = await removeAccount({ dataDir, mail, fit, sessions }, id, { backup: true });
+  if (!result.ok) return reply(404, { error: result.error });
   await track(dataDir, {
     accountId: id,
     kind: 'admin.deleted',
     detail: { username: row.username ?? null },
   });
-  return reply(200, { ok: true, removed: countsOf(plan) });
+  return reply(200, { ok: true, removed: result.removed });
 }
 
 // ------------------------------------------------------------------ Lesen
@@ -487,9 +433,7 @@ function routesFor({ dataDir, aiStatus, speechStatus, mail, tickets, plans, sess
       path: /^\/api\/accounts\/([^/]+)$/,
       body: true,
       handler: async ({ params: [id], body }) => {
-        const result = await deleteAccount({ dataDir, mail, fit }, id, body);
-        if (result.status === 200 && sessions) await sessions.revokeAccount(id);
-        return result;
+        return deleteAccount({ dataDir, mail, fit, sessions }, id, body);
       },
     },
     {

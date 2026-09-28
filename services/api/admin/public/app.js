@@ -1360,6 +1360,8 @@ function describeEntry(entry) {
   switch (entry.kind) {
     case 'account.created':
       return { icon: '+', tone: 'good', text: 'Konto angelegt' };
+    case 'account.deleted':
+      return { icon: '✕', tone: 'neutral', text: 'Konto selbst gelöscht' };
     case 'session.created':
       return { icon: '→', tone: 'neutral', text: `Angemeldet${inApp}` };
     case 'session.failed':

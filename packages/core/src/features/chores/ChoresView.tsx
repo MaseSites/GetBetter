@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { households as householdRepo, useLiveQuery, type ChoreRepeat, type ChoreRow } from '@/db';
+import type { HouseholdMember } from '@/db/households';
 import { chores as choreRepo } from '@/db/repositories';
 import { formatShortDate, useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
@@ -26,6 +27,9 @@ import {
   SwipeRow,
   Text,
 } from '@/ui';
+
+import { isRotating } from './rotation';
+import { RotationPicker } from './RotationPicker';
 
 const REPEATS: readonly ChoreRepeat[] = ['once', 'daily', 'weekly', 'monthly'];
 
@@ -52,6 +56,8 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
   );
 
   const members = memberList.data ?? [];
+  // Reihum geht nur unter denen, die schon zugesagt haben.
+  const joined = members.filter((member) => member.membership.status !== 'pending');
   const all = list.data ?? [];
   const items = onlyMine ? all.filter((chore) => chore.assignedTo === account.id) : all;
 
@@ -136,6 +142,9 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
                     label={t(`chores.repeat.${chore.repeat}` as TranslationKey)}
                     icon="repeat"
                   />
+                  {isRotating(chore) ? (
+                    <Badge label={t('familyplus.chores.rotation')} icon="people" />
+                  ) : null}
                   {chore.dueAt ? (
                     <Text variant="caption" tone="muted">
                       {t('chores.due', { date: formatShortDate(language, chore.dueAt) })}
@@ -182,6 +191,7 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
       <ChoreComposer
         visible={composing}
         householdId={householdId}
+        members={joined}
         onClose={() => setComposing(false)}
       />
 
@@ -216,6 +226,16 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
               setAssigning(null);
             }}
           />
+          {assigning && joined.length >= 2 ? (
+            <RotationPicker
+              members={joined}
+              value={assigning.rotation ?? []}
+              onChange={(rotation) => {
+                setAssigning({ ...assigning, rotation });
+                void choreRepo.update(assigning.id, { rotation });
+              }}
+            />
+          ) : null}
         </View>
       </Sheet>
     </Screen>
@@ -225,10 +245,12 @@ export function ChoresView({ module }: { module: ModuleDefinition }) {
 function ChoreComposer({
   visible,
   householdId,
+  members,
   onClose,
 }: {
   visible: boolean;
   householdId: string;
+  members: readonly HouseholdMember[];
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -237,6 +259,7 @@ function ChoreComposer({
   const celebrate = useCelebrate();
   const [title, setTitle] = useState('');
   const [repeat, setRepeat] = useState<ChoreRepeat>('weekly');
+  const [rotation, setRotation] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
@@ -245,9 +268,16 @@ function ChoreComposer({
       return;
     }
     celebrate('chore');
-    await choreRepo.create({ householdId, title, repeat });
+    await choreRepo.create({
+      householdId,
+      title,
+      repeat,
+      // Reihum heisst mindestens zwei — mit einer Person waere es eine Zuteilung.
+      ...(isRotating({ rotation }) ? { rotation } : {}),
+    });
     setTitle('');
     setRepeat('weekly');
+    setRotation([]);
     setError(null);
     onClose();
   }
@@ -281,6 +311,9 @@ function ChoreComposer({
             ))}
           </View>
         </View>
+        {members.length >= 2 && repeat !== 'once' ? (
+          <RotationPicker members={members} value={rotation} onChange={setRotation} />
+        ) : null}
         <Button label={t('common.done')} icon="check" onPress={save} />
       </View>
     </Sheet>

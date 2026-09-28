@@ -18,6 +18,8 @@ export type ConversationBarProps = {
   onFlag: () => void;
   onUnread: () => void;
   onDelete: () => void;
+  /** „Als Aufgabe“ im Menü von Markieren; ohne sie fehlt der Eintrag. */
+  onTask?: () => void;
 };
 
 type Open = { which: 'reply' | 'mark'; anchor: MenuAnchor; open: boolean };
@@ -25,7 +27,7 @@ type Open = { which: 'reply' | 'mark'; anchor: MenuAnchor; open: boolean };
 /**
  * Die Leiste unter der Unterhaltung: Archivieren · Verschieben · Antworten ·
  * Markieren · Löschen. Langer Druck auf Antworten zeigt Allen antworten und
- * Weiterleiten; Markieren fragt Fahne oder ungelesen.
+ * Weiterleiten; Markieren fragt Fahne, ungelesen oder „Als Aufgabe“.
  */
 export function ConversationBar(props: ConversationBarProps) {
   const { t } = useI18n();
@@ -67,6 +69,16 @@ export function ConversationBar(props: ConversationBarProps) {
             icon: 'mail',
             onPress: props.onUnread,
           },
+          ...(props.onTask
+            ? [
+                {
+                  key: 'task',
+                  label: t('orgplus.mail.toTask'),
+                  icon: 'checkCircle' as const,
+                  onPress: props.onTask,
+                },
+              ]
+            : []),
         ];
 
   return (

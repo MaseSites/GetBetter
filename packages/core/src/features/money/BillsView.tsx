@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { bills as billRepo, dayKey, useLiveQuery } from '@/db';
-import { formatMoney, formatShortDate, useI18n } from '@/i18n';
+import { parseDay, shiftDay } from '@/features/shared/days';
+import { formatMoney, formatShortDate, useI18n, type TranslationKey } from '@/i18n';
 import { moduleName } from '@/mocks/moduleText';
 import type { ModuleDefinition } from '@/mocks/types';
 import { useAccount } from '@/state/AppContext';
@@ -26,10 +27,10 @@ import {
 
 import { parseAmount } from './amount';
 import { AmountCell } from './parts';
+import { parseQrBill } from './qrBill';
 
 /** In wie vielen Tagen eine Rechnung faellig ist — die ueblichen Fristen. */
 const DUE_IN = [0, 7, 14, 30] as const;
-const DAY_MS = 86_400_000;
 
 /** Offene Rechnungen nach Faelligkeit; antippen heisst bezahlt. */
 export function BillsView({ module }: { module: ModuleDefinition }) {
@@ -42,8 +43,13 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [dueIn, setDueIn] = useState<number>(DUE_IN[1]);
+  // Der Faelligkeitstag selbst: die Chips setzen ihn, die QR-Rechnung auch auf jeden anderen Tag.
+  const [dueDay, setDueDay] = useState<string>(() => shiftDay(DUE_IN[1]));
   const [error, setError] = useState<'title' | 'amount' | null>(null);
+  // QR-Rechnung einfuegen: der Text aus dem QR-Code, und was daraus wurde.
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrText, setQrText] = useState('');
+  const [qrMessage, setQrMessage] = useState<TranslationKey | null>(null);
 
   const open = useLiveQuery(() => billRepo.listOpen(account.id), [account.id]);
   const paid = useLiveQuery(() => billRepo.listPaid(account.id), [account.id]);
@@ -67,16 +73,44 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
       accountId: account.id,
       title,
       amountChf: value,
-      dueDay: dayKey(new Date(Date.now() + dueIn * DAY_MS)),
+      dueDay,
     });
+    reset();
+  }
+
+  function reset() {
     setTitle('');
     setAmount('');
+    setDueDay(shiftDay(DUE_IN[1]));
     setError(null);
+    setQrOpen(false);
+    setQrText('');
+    setQrMessage(null);
     setAdding(false);
+  }
+
+  /** Den Text aus dem QR-Code lesen und Empfaenger, Betrag und Faelligkeit vorfuellen. */
+  function applyQr() {
+    const result = parseQrBill(qrText);
+    if (!result.ok) {
+      setQrMessage(`moneyplus.qr.error.${result.reason}` as TranslationKey);
+      return;
+    }
+    const { bill } = result;
+    setTitle(bill.creditor.name);
+    // Rechnungen fuehren wir in Franken — einen Euro-Betrag rechnen wir nicht still um.
+    if (bill.amount !== null && bill.currency === 'CHF') setAmount(bill.amount.toFixed(2));
+    const due = bill.billInfo?.dueDay;
+    if (due) setDueDay(due);
+    setError(null);
+    setQrText('');
+    setQrOpen(false);
+    setQrMessage(bill.currency === 'EUR' ? 'moneyplus.qr.eur' : null);
   }
 
   return (
     <Screen
+      floating
       header={
         <Header
           title={moduleName(t, module.id)}
@@ -151,15 +185,43 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
 
       <FloatingButton label={t('bills.add')} onPress={() => setAdding(true)} />
 
-      <Sheet
-        visible={adding}
-        onClose={() => {
-          setError(null);
-          setAdding(false);
-        }}
-        title={t('bills.add')}
-      >
+      <Sheet visible={adding} onClose={reset} title={t('bills.add')}>
         <View style={{ gap: theme.spacing.lg, paddingBottom: theme.spacing.lg }}>
+          {qrOpen ? (
+            <View style={{ gap: theme.spacing.sm }}>
+              <Input
+                label={t('moneyplus.qr.label')}
+                placeholder={t('moneyplus.qr.placeholder')}
+                value={qrText}
+                onChangeText={(text) => {
+                  setQrText(text);
+                  setQrMessage(null);
+                }}
+                multiline
+                autoCapitalize="none"
+                {...(qrMessage && qrMessage !== 'moneyplus.qr.eur' ? { error: t(qrMessage) } : {})}
+              />
+              <Button
+                label={t('moneyplus.qr.apply')}
+                variant="ghost"
+                icon="check"
+                onPress={applyQr}
+              />
+            </View>
+          ) : (
+            <Button
+              label={t('moneyplus.qr.open')}
+              variant="ghost"
+              icon="copy"
+              fullWidth={false}
+              onPress={() => setQrOpen(true)}
+            />
+          )}
+          {qrMessage === 'moneyplus.qr.eur' ? (
+            <Text variant="caption" tone="muted">
+              {t(qrMessage)}
+            </Text>
+          ) : null}
           <Input
             label={t('bills.title')}
             placeholder={t('bills.titlePlaceholder')}
@@ -185,10 +247,20 @@ export function BillsView({ module }: { module: ModuleDefinition }) {
                 <Chip
                   key={days}
                   label={days === 0 ? t('bills.due.today') : t('bills.due.days', { days })}
-                  selected={dueIn === days}
-                  onPress={() => setDueIn(days)}
+                  selected={dueDay === shiftDay(days)}
+                  onPress={() => setDueDay(shiftDay(days))}
                 />
               ))}
+              {/* Ein Tag aus der QR-Rechnung, der keiner der Fristen entspricht. */}
+              {DUE_IN.some((days) => shiftDay(days) === dueDay) ? null : (
+                <Chip
+                  label={t('moneyplus.bill.dueOn', {
+                    date: formatShortDate(language, parseDay(dueDay).toISOString()),
+                  })}
+                  selected
+                  onPress={() => undefined}
+                />
+              )}
             </View>
           </View>
 

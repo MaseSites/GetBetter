@@ -14,6 +14,8 @@ import { useTheme } from '@/theme';
 import { Button, Card, Header, Screen, Text } from '@/ui';
 import { useCelebrate } from '@/features/celebrate/CelebrationLayer';
 
+import { waterAddLabel } from './waterLabel';
+
 /** Ein Glas sind 2.5 dl, eine Flasche 5 dl. */
 export const PORTIONS = [2.5, 5] as const;
 export const TARGET_DL = 20;
@@ -55,7 +57,7 @@ export function WaterView({ module }: { module: ModuleDefinition }) {
           {PORTIONS.map((portion) => (
             <View key={portion} style={{ flex: 1 }}>
               <Button
-                label={t('water.add', { amount: formats.oneDecimal.format(portion) })}
+                label={waterAddLabel(t, language, portion)}
                 icon="plus"
                 onPress={() => {
                   celebrate('water');
